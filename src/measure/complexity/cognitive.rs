@@ -99,16 +99,12 @@ pub fn walk(cx: &Ctx, n: Node, fa: &mut Acc, nest: u32, in_else_if: bool, parent
         _ => {
             match t {
                 "try_expression" => fa.cyc += 1,
-                "break_expression" | "continue_expression" => {
-                    if kids(n).iter().any(|c| c.kind() == "label") {
-                        fa.cog += 1;
-                    }
+                "break_expression" | "continue_expression"
+                    if kids(n).iter().any(|c| c.kind() == "label") =>
+                {
+                    fa.cog += 1;
                 }
-                "call_expression" => {
-                    if is_recursive_call(cx, n, &fa.name) {
-                        fa.cog += 1;
-                    }
-                }
+                "call_expression" if is_recursive_call(cx, n, &fa.name) => fa.cog += 1,
                 _ => {}
             }
             for c in kids(n) {
