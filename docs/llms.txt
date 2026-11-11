@@ -1,0 +1,192 @@
+# brickie
+
+> brickie measures a Rust workspace (dependency edges between modules, complexity of every
+> function) and checks the result against rules that the project's own maintainers wrote in
+> `brickie.toml`. It has no built-in opinion about architecture: the rules are the project's
+> architecture. This guide is for coding agents working in a repository that uses brickie. It is
+> static; it does not read your project.
+
+## Workflow
+
+1. `brickie measure` reads the code (cargo metadata, rust-analyzer, tree-sitter) and writes
+   `.brickie/cache.json` next to `brickie.toml`. It is slow, so run it once per round of edits.
+2. `brickie check` reads the cache and the rules, prints diagnostics and exits non-zero when an
+   error is not accepted. It is fast and never reads rust-analyzer.
+3. Fix the code that each diagnostic points at.
+4. Run `brickie measure` again (the cache describes the code as it was measured), then
+   `brickie check` again. Repeat until the exit code is 0.
+
+Rules of thumb:
+
+- After any code change, re-measure before trusting `check`. A `stale/*` warning means the code
+  or the brick mapping changed since the last measure: run `brickie measure`.
+- `brickie check --format json` prints `{summary, diagnostics}` for tooling. Use the text form
+  to read, JSON to loop over findings (`id`, `code`, `level`, `message`, `span`, `spans`, `rule`,
+  `help`, `notes`).
+- `brickie view` opens a local web viewer for humans (bricks, edges, findings, source). You do not
+  need it.
+- Commands accept `--config path/to/brickie.toml` (default `./brickie.toml`).
+
+Exit codes of `brickie check`: 0 clean (or only warnings, or only accepted findings), 1 at least
+one unaccepted `error` finding, 2 configuration, review file or cache problem (for example the
+cache is missing: run `brickie measure`).
+
+## Hard constraints
+
+- Never edit the `[deps]`, `[[deps.rule]]` or `[[complexity]]` sections of `brickie.toml`, and
+  never edit `brickie.review.toml`, to make `check` pass. These files are the project's decisions.
+- Accepting a finding (an `[[accept]]` entry in `brickie.review.toml`, or Accept in the viewer) is
+  a decision for a human reviewer. If a finding looks wrong or the rule seems too strict, stop and
+  report it with the finding id instead of working around it.
+- Do not split a function mechanically just to get under a complexity limit (tiny helpers that
+  only forward arguments, one statement per function). Reduce the real complexity: early returns,
+  a table instead of a chain of branches, a struct instead of many parameters, a clearer
+  decomposition.
+- Do not move code or add re-exports only to hide a dependency from the checker. The edge is
+  measured where the code references the other module.
+
+## Reading a diagnostic
+
+```
+error[deps/deny]: `engine` depends on `backends`
+  --> src/engine/mixer.rs:42:17
+   |
+42 |         let io = backends::Alsa::open();
+   |                  ^^^^^^^^^^^^^^^^^^^^^^ `backends::Alsa`
+   = rule: deps.rule[0] "core must not use adapter" (brickie.toml:21)
+   = help: depend on the port trait and receive the implementation from the assembly
+   = note: modules: engine::mixer -> backends::alsa (uses, prod)
+```
+
+- Header: level (`error` fails CI, `warning` does not), the code in brackets, a message.
+- `-->` is the primary location `file:line:col`; extra locations follow ("and N more").
+- `rule` names the configured rule that fired and where it is in the config. Read it: it holds the
+  reason the maintainers gave.
+- `help` is the suggested fix; `note` adds context (for example the full cycle path).
+- Every finding has a stable 8-hex `id` (in JSON, and in `brickie.review.toml` for accepted ones).
+- The last line summarises: `error: 1 error, 3 warnings; 0 accepted`.
+
+Vocabulary: a brick is a named group of crates or modules from `[[brick]]`. An edge is a
+reference from a module in one brick to an item in a module of another brick. Edge kinds: `uses`
+(call, type, constant), `implements` (`impl Trait for X` where the trait lives elsewhere),
+`reexports` (a `use` with any `pub` visibility; private `use` leaves count as `uses`). Each
+reference site yields exactly one kind. The edge target is always the module that DEFINES the item,
+even when the code reached it through a re-export; a finding's note shows
+`written <path as written at the site> -> defined in <module>`. Scope is `prod`, or `test` for `#[cfg(test)]`,
+`tests/` and `benches/`. Edges inside one brick and edges touching a module that is in no brick
+are ignored.
+
+## Diagnostic codes and how to fix them
+
+### deps/deny (error by default)
+
+An edge matches a `[[deps.rule]]` with `action = "deny"`. Remove the dependency: depend on a
+trait, type or function that lives in a brick you are allowed to use, and have the assembling
+brick pass the concrete implementation in. If the code is test-only, use `#[cfg(test)]` or move it
+under `tests/`, because many rules only apply to `prod`. If the dependency is truly intended,
+that is a rule change for a human reviewer: report it, do not edit the rule.
+
+### deps/default
+
+An edge matches no rule and `deps.default = "deny"`. Same fix as `deps/deny`. The edge is
+undeclared, so either it is a layering mistake (remove it) or the maintainers need to add an
+`allow` rule (report it, do not add the rule yourself).
+
+### deps/cycle
+
+Two or more bricks depend on each other (directly or through others); the note shows the cycle.
+Break it: move the shared type into a trait or type owned by the lower brick, or invert one
+dependency so that the lower brick receives what it needs from the higher one (parameter, trait
+object, callback). Do not "fix" it by merging bricks in `brickie.toml`.
+
+### complexity/cognitive, complexity/cyclomatic, complexity/nesting, complexity/paths, complexity/params, complexity/lines
+
+One finding per function and metric that is above the limit set by a `[[complexity]]` rule (the
+limit is inclusive; "limit 15" fails at 16). The message gives the value and the limit; the label
+says by how much it is over. Metrics:
+
+- `cognitive`: how hard the function is to read. `+1 + nesting` per `if`, `match` (once, not per
+  arm), `for`, `while`, `loop`, `let ... else`; `+1` per `else`; `+1` per sequence of like `&&` /
+  `||`; `+1` per labeled `break`/`continue` and per direct recursive call. `?` is free. Fix: guard
+  clauses and early `return`/`continue`, `?` instead of nested matches, extract a cohesive step.
+- `cyclomatic`: `1 + if + loops + (match arms - 1) + let-else + && + || + ?`. Fix: replace long
+  chains with a lookup table, data-driven code, or split by responsibility.
+- `nesting`: deepest nesting of branches, loops and closures. Fix: invert conditions and return
+  early, flatten with `let ... else`, extract the inner body when it is a meaningful unit.
+- `paths` (NPath variant): the number of execution paths. Sequential decisions add, nested ones
+  multiply. Fix: reduce independent branches in one function, separate unrelated decisions into
+  functions with a clear contract, use tables for constant `match` arms.
+- `params`: parameters other than `self`. Fix: group related parameters into a struct or options
+  type that has a meaning in the domain (not a bag of unrelated values).
+- `lines`: lines of the function. Fix: split along real responsibilities.
+
+Findings in `test` scope are only checked when the rule's `scope` includes tests. Never raise a
+limit; never add `#[cfg(test)]` or move code only to change its scope.
+
+### stale/file (warning)
+
+A `.rs` file was changed, added or deleted after `brickie measure` (the message says which).
+Complexity and dependency data for it are old. Run `brickie measure`, then `brickie check`.
+
+### stale/bricks (warning)
+
+The `[[brick]]` mapping in `brickie.toml` changed since the cache was measured. Run
+`brickie measure`.
+
+### bricks/unmapped (warning)
+
+A module belongs to no brick, so none of its edges or functions are checked. This usually happens
+after adding a file or module. Add the crate or module to the `members` of the `[[brick]]` it
+belongs to, only when the right brick is obvious from the code around it; otherwise ask the
+reviewer. Then run `brickie measure` (the mapping is applied at measure time).
+
+## brickie.toml reference
+
+```toml
+include = ["presets/layered.toml"]  # optional; paths relative to this file; merged first
+
+[[brick]]                      # group modules into a brick
+name = "engine"                # unique
+members = ["my-engine", "my-app::api"]  # package name (all its targets) or module id; the most
+                                        # specific member wins; equal specificity across bricks
+                                        # is an error
+tags = ["core"]                # optional labels used by rule selectors
+
+[deps]
+default = "allow"              # allow | deny: for edges that match no rule
+cycles = "deny"                # allow | deny: cycles between bricks (prod edges)
+
+[[deps.rule]]
+from = "tag:app"               # selector: brick name | tag:<tag> | *
+to = "tag:core"
+kinds = ["uses", "implements"] # uses | implements | reexports; default all
+scope = "prod"                 # prod (default) | test | all
+action = "allow"              # allow | deny
+reason = "app calls into core" # shown in findings
+help = "optional fix hint"     # replaces the built-in hint
+
+[[complexity]]
+bricks = "tag:core"            # selector; default *
+cognitive = 15                 # any of cognitive, cyclomatic, nesting, paths, params, lines
+nesting = 3
+paths = 200
+params = 5
+scope = "prod"                 # prod (default) | test | all
+level = "error"                # error (fails check) | warn; default error
+help = "optional fix hint"
+```
+
+Matching: for edges, the rule with the highest specificity wins (brick name 3, tag 2, `*` 1 on
+each side, summed); on a tie deny wins. For complexity, per function and metric the most specific
+rule that sets that metric applies (the lower limit on a tie). Unknown fields, unknown tags or
+bricks and unknown kinds are configuration errors (exit 2).
+
+`brickie.review.toml` (next to `brickie.toml`) lists findings a human accepted:
+
+```toml
+[[accept]]
+id = "3fa9c1d2"                # finding id
+reason = "why this is fine"
+```
+
+Accepted findings do not fail `check`. Do not create or edit this file yourself.

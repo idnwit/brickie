@@ -1,0 +1,43 @@
+[workspace]
+members = ["ui"]
+default-members = [".", "ui"]
+exclude = ["fixtures"]
+resolver = "3"
+
+[package]
+name = "brickie"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Measure Rust workspaces (module dependency edges and function complexity) and check them against your own brick rules"
+license = "MIT"
+repository = "https://github.com/idnwit/brickie"
+homepage = "https://github.com/idnwit/brickie"
+readme = "README.md"
+keywords = ["architecture", "dependencies", "complexity", "lint", "rust-analyzer"]
+categories = ["development-tools", "command-line-utilities"]
+# Not published to crates.io: the interactive viewer is a generated wasm bundle (assets/ui/,
+# git-ignored, built by scripts/build-ui.sh) and the path dependency `brickie-ui` is not
+# published either. Releases are git tags + prebuilt binaries.
+publish = false
+
+[dependencies]
+brickie-ui = { path = "ui" }
+anyhow = "1"
+axum = "0.8"
+cargo_metadata = "0.23"
+protobuf = "=3.7.2"
+scip = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "macros"] }
+toml = "0.8"
+toml_edit = "0.25.19"
+tree-sitter = "0.26.13"
+tree-sitter-rust = "0.24.2"
+
+[dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }

@@ -1,0 +1,45 @@
+# Example brickie.toml: a port, an engine core, adapter backends and an assembling client.
+# A preset is just another file with the same schema:  include = ["presets/layered.toml"]
+# (paths are relative to the including file; includes are merged, the including file wins for
+# `deps.default` and `deps.cycles`).
+
+[[brick]]
+name = "audio"
+members = ["acme-audio"]          # package name: all its targets
+tags = ["port"]
+
+[[brick]]
+name = "engine"
+members = ["acme-engine"]
+tags = ["core"]
+
+[[brick]]
+name = "backends"
+members = ["acme-backends", "acme-engine::testing"]   # crate::module also works
+tags = ["adapter"]
+
+[[brick]]
+name = "client"
+members = ["acme-client"]
+tags = ["assembly"]
+
+[deps]
+default = "allow"                  # for edges matching no rule: allow | deny
+cycles = "deny"                    # cycles between bricks (prod edges)
+
+[[deps.rule]]
+from = "tag:core"                  # brick name | tag:<tag> | *
+to = "tag:adapter"
+kinds = ["uses", "implements"]     # default: all kinds
+scope = "prod"                     # prod (default) | test | all
+action = "deny"
+reason = "core must not use adapter"
+help = "depend on the port trait in `audio` and receive the implementation from the assembly"
+
+[[complexity]]
+bricks = "tag:core"                # default: *
+cognitive = 15                     # a function fails when its value is above the limit
+nesting = 3
+paths = 200
+params = 5
+level = "error"                    # error (fails CI) | warn

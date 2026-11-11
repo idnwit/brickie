@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Must match wasm-bindgen in ui/Cargo.toml.
+  WASM_BINDGEN_VERSION: 0.2.123
+
+jobs:
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy, rust-analyzer
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install wasm-bindgen-cli
+        run: cargo install wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION" --locked
+      - name: rust-analyzer on PATH
+        # The rustup proxy exists only after the component is installed; the measure test needs it.
+        run: rust-analyzer --version
+      - run: cargo fmt --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: clippy (ui, wasm hydrate)
+        run: cargo clippy -p brickie-ui --target wasm32-unknown-unknown --features hydrate -- -D warnings
+      - name: Build UI bundle
+        run: scripts/build-ui.sh
+      - name: Test (with embedded bundle)
+        run: cargo test --workspace

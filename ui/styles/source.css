@@ -1,0 +1,3 @@
+body.srcpage{margin:0;background:var(--panel)}
+h1.file{font:600 13px ui-monospace,monospace;margin:0;padding:8px 12px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:5}
+.tsum{padding:4px 12px;font:12px ui-monospace,monospace;border-bottom:1px solid var(--line);background:var(--band)}

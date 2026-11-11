@@ -1,0 +1,19 @@
+# Git-only releases: a `v{version}` tag, a GitHub release and a CHANGELOG.md (git-cliff defaults).
+# Nothing is published to crates.io (the root crate has `publish = false`).
+[workspace]
+changelog_update = true
+git_release_enable = true
+git_tag_enable = true
+publish = false
+semver_check = false
+
+# One version for the tool; the viewer crate is internal.
+[[package]]
+name = "brickie-ui"
+release = false
+
+[[package]]
+name = "brickie"
+git_tag_name = "v{{ version }}"
+git_release_name = "v{{ version }}"
+changelog_path = "CHANGELOG.md"

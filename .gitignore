@@ -1,0 +1,14 @@
+/target/
+/fixtures/*/target/
+/reports/
+node_modules/
+*.db
+*.scip
+__pycache__/
+/examples/
+/assets/ui/*
+!/assets/ui/.gitkeep
+
+# local design prototype (python viewer), not published
+/tools/
+/docs/brickwork/

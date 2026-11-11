@@ -1,0 +1,9 @@
+/* diagnostic card */
+.diag{border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:6px;padding:8px 10px;margin:8px 0}
+.diag.error{border-left-color:var(--err)}.diag.accepted{opacity:.6;border-left-color:var(--ok)}
+.diag .head{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.badge{font:600 12.5px ui-monospace,monospace;color:var(--warn)}.diag.error .badge{color:var(--err)}.diag.accepted .badge{color:var(--ok)}
+pre.snip{margin:6px 0;padding:6px 8px;background:var(--bg);border-radius:4px;overflow-x:auto}pre.snip mark,.cl mark{background:var(--mark);color:inherit}
+.kv{margin:2px 0}.kv b{color:var(--muted);font-weight:600;margin-right:6px}
+.review{margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}.review input{flex:1 1 200px}
+button.go{border-color:var(--ok);color:var(--ok)}.err-text{color:var(--err)}
