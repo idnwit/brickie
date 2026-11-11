@@ -38,6 +38,7 @@ agreed requirements, decisions and status; keep it in step with the code.
 
 ## Git and shared working tree
 
-- Never commit or push unless the user explicitly asks.
+- Never commit or push unless the user explicitly asks. Commit messages and PR titles follow
+  Conventional Commits (see CONTRIBUTING.md).
 - Parallel agents share one working tree: never run `git stash`, `git checkout`, `git restore` or
   `git reset`. Delete with `git rm` or `rm`. Kill processes by PID only.

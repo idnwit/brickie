@@ -3,8 +3,11 @@
 ## Workflow
 
 `main` is protected: open a pull request, keep it small, and wait for the `ci` check to pass.
-Use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:` ...);
-the changelog and version bump are generated from them.
+Commits and PR titles must follow [Conventional Commits](https://www.conventionalcommits.org/):
+`<type>(<optional scope>): <summary>` with type one of `feat`, `fix`, `docs`, `refactor`,
+`perf`, `test`, `build`, `ci`, `chore`, `revert`; add `!` or a `BREAKING CHANGE:` footer for
+breaking changes. PRs are squash-merged, so the PR title becomes the commit on `main`; the
+`pr-title` check enforces it. The changelog and version bump are generated from these commits.
 
 ## Checks
 
