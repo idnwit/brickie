@@ -2,28 +2,27 @@
 //!
 //! Exit code: 0 clean, 1 unaccepted error findings, 2 config or cache problem.
 
-use super::Args;
+use super::args::{ColorArg, Format};
 use crate::check::{self, Loaded};
 use crate::config::Level;
 use crate::diag::{self, Color};
-use anyhow::{Result, bail};
-use std::path::{Path, PathBuf};
+use anyhow::Result;
+use std::path::Path;
 
-pub fn run(args: &Args) -> Result<i32> {
-    let json = match args.flag("format").unwrap_or("text") {
-        "text" => false,
-        "json" => true,
-        f => bail!("--format must be text or json, got {f}"),
+pub fn run(config: &Path, format: Format, color: ColorArg) -> i32 {
+    let json = matches!(format, Format::Json);
+    let color = match color {
+        ColorArg::Auto => Color::Auto,
+        ColorArg::Always => Color::Always,
+        ColorArg::Never => Color::Never,
     };
-    let color = Color::parse(args.flag("color").unwrap_or("auto"))?;
-    let config = PathBuf::from(args.flag("config").unwrap_or("brickie.toml"));
-    Ok(match check(&config, json, color) {
+    match check(config, json, color) {
         Ok(code) => code,
         Err(e) => {
             eprintln!("brickie: error: {e:#}");
             2
         }
-    })
+    }
 }
 
 fn check(config: &Path, json: bool, color: Color) -> Result<i32> {

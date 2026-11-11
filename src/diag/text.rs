@@ -13,15 +13,6 @@ pub enum Color {
 }
 
 impl Color {
-    pub fn parse(s: &str) -> anyhow::Result<Color> {
-        match s {
-            "auto" => Ok(Color::Auto),
-            "always" => Ok(Color::Always),
-            "never" => Ok(Color::Never),
-            _ => anyhow::bail!("--color must be auto, always or never"),
-        }
-    }
-
     pub fn enabled(self) -> bool {
         match self {
             Color::Always => true,

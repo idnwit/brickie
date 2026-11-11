@@ -1,43 +1,60 @@
-//! Minimal argument parsing: positionals and `--name value` flags.
+//! Command line definition (clap derive).
 
-use anyhow::{Result, bail};
+use clap::{Parser, Subcommand, ValueEnum};
+use std::path::PathBuf;
 
-pub const USAGE: &str = "usage:
-  brickie measure [--config brickie.toml] [--scip FILE] [--workspace DIR]
-  brickie check [--config brickie.toml] [--format text|json] [--color auto|always|never]
-  brickie view [--config brickie.toml] [--port 7881] [--bind 127.0.0.1]
-  brickie llms.txt";
-
-pub struct Args {
-    pub positional: Vec<String>,
-    flags: Vec<(String, String)>,
+#[derive(Parser)]
+#[command(name = "brickie", version, about)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Command,
 }
 
-pub fn parse(args: impl Iterator<Item = String>) -> Result<Args> {
-    let mut a = Args {
-        positional: vec![],
-        flags: vec![],
-    };
-    let mut it = args;
-    while let Some(x) = it.next() {
-        if let Some(name) = x.strip_prefix("--") {
-            let Some(v) = it.next() else {
-                bail!("--{name} needs a value\n{USAGE}");
-            };
-            a.flags.push((name.to_string(), v));
-        } else {
-            a.positional.push(x);
-        }
-    }
-    Ok(a)
+#[derive(Subcommand)]
+pub enum Command {
+    /// Measure the workspace and write the cache.
+    Measure {
+        #[arg(long, default_value = "brickie.toml")]
+        config: PathBuf,
+        /// Use an existing SCIP index instead of running rust-analyzer.
+        #[arg(long)]
+        scip: Option<PathBuf>,
+        /// Workspace directory (defaults to the config's directory).
+        #[arg(long)]
+        workspace: Option<PathBuf>,
+    },
+    /// Check the cached measurements against the rules.
+    Check {
+        #[arg(long, default_value = "brickie.toml")]
+        config: PathBuf,
+        #[arg(long, value_enum, default_value_t = Format::Text)]
+        format: Format,
+        #[arg(long, value_enum, default_value_t = ColorArg::Auto)]
+        color: ColorArg,
+    },
+    /// Serve the reviewer webview.
+    View {
+        #[arg(long, default_value = "brickie.toml")]
+        config: PathBuf,
+        #[arg(long, default_value_t = 7881)]
+        port: u16,
+        #[arg(long, default_value = "127.0.0.1")]
+        bind: String,
+    },
+    /// Print the guide for coding agents.
+    #[command(name = "llms.txt")]
+    LlmsTxt,
 }
 
-impl Args {
-    pub fn flag(&self, name: &str) -> Option<&str> {
-        self.flags
-            .iter()
-            .rev()
-            .find(|(k, _)| k == name)
-            .map(|(_, v)| v.as_str())
-    }
+#[derive(Clone, Copy, ValueEnum)]
+pub enum Format {
+    Text,
+    Json,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+pub enum ColorArg {
+    Auto,
+    Always,
+    Never,
 }

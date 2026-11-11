@@ -174,7 +174,11 @@ fn measure_fixture() {
     // Test scope: inline cfg(test) module, `mod tests;` file, and the tests/ directory.
     assert!(edge(c, "mx-app::engine::tests", "mx-base::shape", "uses", "test").is_some());
     assert!(edge(c, "mx-app::tests", "mx-base::util", "uses", "test").is_some());
-    assert!(edge(c, "mx-app/test/it", "mx-app::engine", "uses", "test").is_some());
+    assert!(
+        edge(c, "mx-app/test/it", "mx-app::engine", "uses", "test").is_some(),
+        "tests/it.rs entry: {}",
+        c["files"]["crates/app/tests/it.rs"]
+    );
     assert!(edge(c, "mx-app::engine::tests", "mx-base::shape", "uses", "prod").is_none());
 
     // Per-file edges carry the same evidence.
