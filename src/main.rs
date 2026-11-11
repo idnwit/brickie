@@ -12,6 +12,6 @@ mod rules;
 mod web;
 
 fn main() -> anyhow::Result<()> {
-    let code = cli::run(std::env::args().skip(1))?;
+    let code = cli::run()?;
     std::process::exit(code);
 }

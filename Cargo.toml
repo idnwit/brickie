@@ -26,6 +26,7 @@ brickie-ui = { path = "ui" }
 anyhow = "1"
 axum = "0.8"
 cargo_metadata = "0.23"
+clap = { version = "4", features = ["derive"] }
 protobuf = "=3.7.2"
 scip = "0.10"
 serde = { version = "1", features = ["derive"] }

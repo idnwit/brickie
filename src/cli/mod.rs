@@ -7,19 +7,23 @@ mod measure;
 mod view;
 
 use anyhow::Result;
-use args::{Args, USAGE, parse};
+use args::{Cli, Command};
+use clap::Parser;
 
-/// Runs the command and returns the process exit code.
-pub fn run(argv: impl Iterator<Item = String>) -> Result<i32> {
-    let args = parse(argv)?;
-    match args.positional.first().map(String::as_str) {
-        Some("measure") => measure::run(&args),
-        Some("check") => check::run(&args),
-        Some("view") => view::run(&args),
-        Some("llms.txt") => llms::run(),
-        _ => {
-            eprintln!("{USAGE}");
-            Ok(2)
-        }
+/// Parses the process arguments, runs the command and returns the process exit code.
+pub fn run() -> Result<i32> {
+    match Cli::parse().command {
+        Command::Measure {
+            config,
+            scip,
+            workspace,
+        } => measure::run(config, scip, workspace),
+        Command::Check {
+            config,
+            format,
+            color,
+        } => Ok(check::run(&config, format, color)),
+        Command::View { config, port, bind } => view::run(config, bind, port),
+        Command::LlmsTxt => llms::run(),
     }
 }

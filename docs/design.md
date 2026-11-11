@@ -152,7 +152,7 @@ code, the SQL graph server for agents (`serve`/`query`), capabilities, and exper
 ## Code layout (implemented)
 
 ```
-src/main.rs        entry; src/cli/ args + one file per command (measure, check, view, llms)
+src/main.rs        entry; src/cli/ clap args + one file per command (measure, check, view, llms)
 src/config/        schema, selector, load (+include, validate), resolve (brick mapping, hash)
 src/cache/         model (cache.json schema), files (tree walk), hash
 src/measure/       mod (run), metadata, rust_analyzer, lock, git, crates, modules, files,
