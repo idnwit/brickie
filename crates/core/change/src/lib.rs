@@ -23,5 +23,5 @@ mod tests;
 
 pub use brickie_model::change::*;
 pub use preview::{Preview, planned};
-pub use report::planned_text;
+pub use report::{pending_text, planned_text};
 pub use session::{Change, Link, Log, Since, redo_stack};

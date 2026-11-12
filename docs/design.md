@@ -310,7 +310,8 @@ complexity, unmapped, stale, `codes.rs`), `diag/` (diagnostic value and text pri
   `config/overlap`. Below a composite the children must partition its modules: a module in no
   child is `config/unassigned`, a child member matching a module outside the composite is
   `config/member-outside-parent`. At the root an unmatched module is only unmapped. All
-  `config/*` errors exit 2 with the code at the start of the message.
+  `config/*` errors exit 2 with the code at the start of the message. The change preview
+  resolves as a draft that tolerates the three partition errors (see "Draft preview").
 - **Levels**: an edge between distinct leaves is lifted to their lowest common ancestor `L`
   (`rules/lift.rs`); the siblings `X -> Y` under `L` are checked against `L`'s rules and
   default. Each finding has `brick_level` (`root`, `root/web`), its `bricks` names are children of
@@ -621,7 +622,7 @@ the files and the warnings).
   table of the level's file and its includes, each row with its physical file, tinted when
   included; an add row with the level's selectors; the complexity table, one auto-applying cell
   per limit), Level (exports with scope pills), Files (includes, "New preset" = `create_file` +
-  `add_include`, shared-file warnings) and Ops (grouped by element, plain words, author / state
+  `add_include`, shared-file warnings) and Ops (one timeline in global seq order, plain words, author / state
   chips, filters agent / human / proposed / conflict, "Accept all from agent"). A floating
   toolbar sits at the top of the canvas (`editor/toolbar.rs`, collapsible, outside the pan/zoom
   transform): Select / Hand (`V`/`H`), the brick tiles Crate / Module / Group (drag with a ghost
@@ -696,10 +697,18 @@ the files and the warnings).
 - **Retarget** (`editor/retarget.rs`): the selected planned rule shows a handle on each
   arrowhead (drawn above the port strips); dragging it draws the rubber band from the rule's
   source and the drop records `set_rule` with only `to` changed (the rule stays selected).
-- **Writes that break the design**: a write whose preview loads but fails its checks (e.g.
-  `config/member-outside-parent` after a move) is recorded; its reply carries no levels and
-  `change.error` says why (paths relative to the root config's directory), shown at the
-  gesture ("Recorded, but the design no longer checks ... · Ctrl+Z undoes").
+- **Draft preview**: the change preview resolves in `Mode::Draft`: the "not finished yet"
+  partition errors (`config/unassigned`, `config/overlap`, `config/member-outside-parent`) are
+  collected in `Resolved::pending` instead of aborting, so the canvas keeps updating while a
+  design is in progress. Unassigned modules show as a dashed `(unassigned)` placeholder brick in
+  their composite; dropping it on a child records `set_brick` adding its members (the fewest
+  module prefixes covering them). Each pending item is a `[config]` todo task, a `pending:` line
+  of `check --change`, and a `change/invalid` publish blocker. `check` without `--change` stays
+  strict.
+- **Writes that break the design**: a write whose preview fails hard (unparseable or invalid
+  config, no cache) is recorded; its reply carries no levels and `change.error` says why (paths
+  relative to the root config's directory), shown at the gesture ("Recorded, but the design no
+  longer checks ... · Ctrl+Z undoes").
 - **Discoverability**: `?` (or the toolbar's `?`) opens a sheet of every key and gesture; the
   Open-change dialog focuses the intent field (Enter opens, Esc cancels); the "already
   allowed" refusal names the link and the deciding rule by its relative location

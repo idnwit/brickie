@@ -140,6 +140,19 @@ fn drop_brick(cx: &Cx, b: usize, back: (f64, f64)) {
         return;
     }
     let name = brick.name.clone();
+    if brick.unassigned {
+        if let Some(MoveTarget::Into(t)) = target {
+            let file = cx.level_file().unwrap_or_default();
+            return op(cx, assign_op(&file, &cx.m.g.bricks[t], brick));
+        }
+        if let Some(MoveTarget::No(why)) = target {
+            ed.msg.set(format!("Cannot assign there: {why}"));
+        }
+        cx.drag.update(|d| {
+            d.insert(b, back);
+        });
+        return;
+    }
     match target {
         Some(MoveTarget::Into(t)) => {
             let into = &cx.m.g.bricks[t].name;

@@ -13,7 +13,7 @@ mod validate;
 pub(crate) mod tests;
 
 pub use load::{load, load_from};
-pub use resolve::{Resolved, resolve};
+pub use resolve::{Mode, Pending, Resolved, resolve};
 pub use schema::{
     Action, Brick, ComplexityRule, Config, DepRule, Export, KINDS, Level, Scope, level_name,
 };

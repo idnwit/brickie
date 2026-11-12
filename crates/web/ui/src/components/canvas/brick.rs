@@ -214,7 +214,8 @@ fn kind_class(b: &BrickView) -> String {
     };
     let planned = if b.planned { " planned" } else { "" };
     let proposed = if b.proposed { " proposed" } else { "" };
-    format!("{kind}{planned}{proposed}")
+    let unassigned = if b.unassigned { " unassigned" } else { "" };
+    format!("{kind}{planned}{proposed}{unassigned}")
 }
 
 /// A press that grabs the brick: left button, not the Hand tool (which pans from anywhere).

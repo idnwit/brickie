@@ -159,3 +159,34 @@ fn a_lifted_brick_goes_into_a_brick_up_or_onto_this_level() {
     assert_eq!(drop_target(&bricks, l, &u), None);
     assert_eq!(drop_label(&bricks, l, None), "move here");
 }
+
+#[test]
+fn unassigned_placeholder_only_goes_into_a_brick() {
+    let mut hole = brick("(unassigned)", &[]);
+    hole.unassigned = true;
+    hole.members = vec!["m".into()];
+    let mut host = brick("host", &[]);
+    host.members = vec!["x".into()];
+    let bricks = vec![host, hole];
+    let (p, h) = (Carried::Brick(1), Carried::Brick(0));
+    let mut u = Under {
+        brick: Some(0),
+        new_lane: true,
+        up: Some("root".into()),
+        lane: Some(None),
+    };
+    assert_eq!(drop_target(&bricks, p, &u), Some(MoveTarget::Into(0)));
+    let into = drop_target(&bricks, p, &u);
+    assert_eq!(drop_label(&bricks, p, into.as_ref()), "assign to host");
+    u.brick = Some(1);
+    assert!(matches!(
+        drop_target(&bricks, h, &u),
+        Some(MoveTarget::No(_))
+    ));
+    u.brick = None;
+    assert_eq!(drop_target(&bricks, p, &u), None);
+    let Op::SetBrick { members, .. } = assign_op("a/brickie.toml", &bricks[0], &bricks[1]) else {
+        panic!("set_brick expected");
+    };
+    assert_eq!(members, Some(vec!["x".to_string(), "m".to_string()]));
+}

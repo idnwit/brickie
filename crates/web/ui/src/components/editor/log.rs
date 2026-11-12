@@ -1,4 +1,4 @@
-//! The Ops tab: the change log grouped by element in plain words, with author and state chips
+//! The Ops tab: the change log as one timeline in seq order, in plain words, with author and state chips
 //! and the file; filters (agent / human / proposed / conflict); a row selects its element on
 //! the canvas; "Accept all from agent" (confirmed); conflicts offer Re-apply as mine.
 
@@ -8,7 +8,6 @@ use super::write;
 use crate::state::*;
 use brickie_web_api::change::{By, OpRecord, State, Verdict};
 use brickie_web_api::{ChangeReview, ChangeReviewRequest};
-use std::collections::BTreeMap;
 use sycamore::prelude::*;
 
 fn state_name(s: State) -> &'static str {
@@ -53,6 +52,7 @@ fn entry(cx: &Cx, r: &OpRecord) -> View {
         }
     );
     let head = format!("#{} {}", r.seq, describe(&r.op));
+    let place = format!("{} \u{00B7} {}", r.key, r.file);
     let note = r.note.clone().map(|n| view! { div(class="muted") { (n) } });
     let (c, rec) = (cx.clone(), r.clone());
     let act = (r.by == By::Agent && r.state == State::Proposed).then(|| review_bar(cx, &[r.seq]));
@@ -61,7 +61,7 @@ fn entry(cx: &Cx, r: &OpRecord) -> View {
             div(class="ophead", on:click=move |_: Click| show(&c, &rec)) {
                 span(class=format!("chip {by}")) { (by) } b { (head) } span(class=format!("chip {st}")) { (st) }
             }
-            (note) (act)
+            div(class="muted mono") { (place) } (note) (act)
         }
     }
 }
@@ -119,21 +119,12 @@ pub fn log(cx: &Cx) -> View {
         filter,
         move |f| ed.ops_filter.set(f),
     );
-    let mut groups: BTreeMap<(String, String), Vec<&OpRecord>> = BTreeMap::new();
-    for r in ch.log.iter().rev().filter(|r| keep_op(filter, r)) {
-        groups
-            .entry((r.file.clone(), r.key.clone()))
-            .or_default()
-            .push(r);
-    }
-    let items: Vec<View> = groups
-        .into_iter()
-        .map(|((file, key), recs)| {
-            let title = format!("{key} \u{00B7} {file}");
-            let rows: Vec<View> = recs.into_iter().map(|r| entry(cx, r)).collect();
-            let rows = View::from(rows);
-            view! { div(class="opgrp") { div(class="muted mono") { (title) } (rows) } }
-        })
+    // One timeline in global seq order (oldest first), so the story reads top to bottom.
+    let items: Vec<View> = ch
+        .log
+        .iter()
+        .filter(|r| keep_op(filter, r))
+        .map(|r| entry(cx, r))
         .collect();
     let empty = items
         .is_empty()

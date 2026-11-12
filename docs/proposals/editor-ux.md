@@ -90,7 +90,7 @@ The design panel tabs (right column, all scoped to the **current level**):
 | Rules | `[deps]` default/cycles toggles; dep rules table (from, to, kinds, scope, action, reason, help) with drag to reorder disabled (order irrelevant), each row showing its physical file; complexity rules table |
 | Level | this level's file, `exports` editor (child + scope), parent link, "make this a preset" |
 | Files | include list of this level's file (add/remove; create preset), shared-file warning |
-| Ops | change log grouped by element, filters (agent/human, proposed/conflict) |
+| Ops | change log as one timeline in global seq order, filters (agent/human, proposed/conflict) |
 
 ## Interactions
 
@@ -257,7 +257,7 @@ small lock icon.
   `Agent proposed: add_rule telemetry -> lib (uses, prod) "note"   [Accept] [Reject...]`.
   Reject asks a note (required). `A`/`R` keys accept/reject the selected proposal; `N` jumps to
   the next proposal (pans and zooms across levels).
-- **Ops tab**: grouped by element in plain words ("Added brick telemetry", "Allowed telemetry
+- **Ops tab**: one timeline in global seq order (oldest first), each row naming its element and file, in plain words ("Added brick telemetry", "Allowed telemetry
   -> lib (uses, prod)"), author chip, state chip, file. Click = select on canvas. Header has
   "Accept all from agent" (with confirm).
 - **Conflict**: red striped outline + `!` badge on canvas; the op row explains ("rule #3 changed
@@ -310,9 +310,15 @@ small lock icon.
 - **Preview fails to load**: canvas shows the current design greyed, a red banner with the
   loader error and the op that caused it (link) and "Retract" on it.
 - **409 on an op**: inline error at the gesture site, nothing changes.
-- **Op recorded but the design no longer checks** (e.g. a moved brick's members fall outside
-  its new composite): the reply has no levels and `change.error` says why; the error line
-  shows it with "Ctrl+Z undoes" (the canvas keeps the last good preview).
+- **Unfinished design** (draft): the preview is a draft layer. Partition errors that only mean
+  "not finished yet" (`config/unassigned`, `config/overlap`, `config/member-outside-parent`)
+  do not block it: the canvas updates, modules no child claims show as a dashed
+  `(unassigned)` placeholder in the composite (drag it onto a child: `set_brick` adds its
+  members there), and each one is a `[config]` task in the todo. Publish refuses while any is
+  left (`change/invalid: config/unassigned: ...`).
+- **Op recorded but the design no longer loads** (hard failures only: unparseable toml, an
+  invalid config, a missing cache): the reply has no levels and `change.error` says why; the
+  error line shows it with "Ctrl+Z undoes" (the canvas keeps the last good preview).
 - **No change open**: the intent field is focused; Enter opens, Esc cancels.
 - **Stale measure / no measure**: measure prompt (above).
 

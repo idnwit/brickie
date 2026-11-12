@@ -52,9 +52,11 @@ impl Preview {
         config::load_from(self, &self.config)
     }
 
-    /// `check` over the previewed config tree and the measured cache.
+    /// `check` over the previewed config tree and the measured cache, as a draft: partition
+    /// errors of a design in progress (`config/unassigned`, ...) are in `resolved.pending`
+    /// instead of failing. Publish refuses while any is left.
     pub fn check(&self) -> Result<Loaded> {
-        check::load_from(self, &self.config)
+        check::load_draft_from(self, &self.config)
     }
 
     /// A message when the measured cache does not belong to this workspace.

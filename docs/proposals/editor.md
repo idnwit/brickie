@@ -84,8 +84,13 @@ User decisions (fixed):
 - **planned**: a brick whose members/selectors match no measured module (a composite whose
   `path:` crate does not exist yet); an allowed edge the design adds but no measured module edge
   uses.
-- **drift**: measured modules no brick covers or no child takes (`config/unassigned`-style), and
-  `deps/deny`, `deps/private`, `deps/cycle` findings on preview edges.
+- **drift**: `deps/deny`, `deps/private`, `deps/cycle` findings on preview edges.
+- **unfinished**: the preview resolves as a draft (`check::load_draft_from`, `Mode::Draft`):
+  `config/unassigned`, `config/overlap` (first brick wins) and `config/member-outside-parent`
+  (ignored) do not abort; they are `Resolved::pending`, listed as `[config]` todo tasks and
+  `pending:` lines of `check --change`, drawn as the `(unassigned)` placeholder brick
+  (`BrickView::unassigned`) of the composite, and each blocks publish as `change/invalid`.
+  Parse and validation errors still fail the preview. Plain `check` stays strict.
 - The change is **built** when nothing is planned, there is no drift and `check --change` has no
   errors. All of this depends on a fresh `measure`: outputs show the cache age and `stale/*`.
 - New codes (`change/planned`, `change/conflict`, ...) go into `codes.rs` and `docs/llms.txt`.
@@ -216,8 +221,8 @@ propose; read `brickie change` at the start and before each step; after code cha
   `/api/diagnostics` and `/api/functions` load the change's preview (`Preview::check`) and run
   the same level aggregation over it; bricks carry `planned` (no measured module,
   `brickie_change::planned`) and `proposed` (added or renamed by an agent op still proposed).
-  Planned bricks have no edges; the layout takes them as edge-less boxes. A preview that does
-  not load falls back to the current design and the change bar shows the error.
+  Planned bricks have no edges; the layout takes them as edge-less boxes. The preview is a
+  draft (see "unfinished" above). A preview that does not load falls back to the current design and the change bar shows the error.
   `PageData.change` embeds the change view, so the editor needs no extra request on load.
 - **Write guard** (`routes/guard.rs`, an axum extractor on `/review` and every writing change
   endpoint): the server must be bound to loopback, the `Host` must name a loopback address

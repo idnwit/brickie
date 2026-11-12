@@ -283,6 +283,13 @@ Configuration errors (exit 2, printed on stderr with the code first; no findings
 These are decisions about the brick structure: report them to the maintainers rather than editing
 the config to silence them.
 
+In an open design change the preview is a draft: `config/unassigned`, `config/overlap` and
+`config/member-outside-parent` do not stop it. They appear as `[config]` items of
+`brickie change --todo` and `pending:` lines of `brickie check --change`, and publish refuses
+(`change/invalid: config/...`) until the design is finished: give each unassigned module to
+one of the composite's bricks (`set_brick` members), make overlapping members distinct, and
+keep child members inside their composite.
+
 ### change/planned, change/planned-edge, change/no-reason, change/conflict, change/proposed, change/outside-edit, change/invalid, change/open, change/none
 
 Change sessions (see "Change sessions"):

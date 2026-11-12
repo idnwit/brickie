@@ -29,6 +29,7 @@ td.pa{font-weight:600}td.pa.skip{color:var(--warn)}td.pa.create,td.pa.mkdir{colo
 .edhint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:var(--sel);color:#fff;border-radius:14px;padding:4px 12px;font-size:12px;pointer-events:none}
 .edmsg{position:absolute;right:12px;bottom:12px;max-width:50%;font-size:12px}.edmsg:empty{display:none}
 .node.planned .box{stroke-dasharray:6 4;stroke:var(--planned)}
+.node.unassigned .box{stroke-dasharray:3 3;stroke:var(--b-warn)}
 .node.proposed .box{stroke-dasharray:6 4;stroke:var(--agent);stroke-width:2}
 #cbar button.chip{cursor:pointer}#design.on{background:var(--agent);border-color:var(--agent);color:#fff}
 #detail.editor .tabs{flex-wrap:wrap}

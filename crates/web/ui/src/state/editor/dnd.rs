@@ -76,15 +76,22 @@ pub fn new_lane_rect(rows: &[RowOut], frame: &Rect) -> Rect {
 
 /// What releasing `what` over `under` would do; `None`: place / reposition where dropped.
 pub fn drop_target(bricks: &[BrickView], what: Carried, under: &Under) -> Option<MoveTarget> {
+    let placeholder = matches!(what, Carried::Brick(b) if bricks[b].unassigned);
     if let Some(t) = under.brick {
         let b = &bricks[t];
         return Some(if b.ghost {
             MoveTarget::No("a faded neighbour is outside this level".into())
+        } else if b.unassigned {
+            MoveTarget::No("unassigned modules are not a brick".into())
         } else if Carried::Brick(t) == what {
             MoveTarget::No("cannot go into itself".into())
         } else {
             MoveTarget::Into(t)
         });
+    }
+    if placeholder {
+        // The unassigned placeholder only goes into a brick (its members move there).
+        return None;
     }
     if under.new_lane && what != Carried::Lifted {
         return Some(MoveTarget::NewLane);
@@ -103,6 +110,9 @@ pub fn drop_target(bricks: &[BrickView], what: Carried, under: &Under) -> Option
 /// The result label on the drag ghost.
 pub fn drop_label(bricks: &[BrickView], what: Carried, t: Option<&MoveTarget>) -> String {
     match t {
+        Some(MoveTarget::Into(i)) if matches!(what, Carried::Brick(b) if bricks[b].unassigned) => {
+            format!("assign to {}", bricks[*i].name)
+        }
         Some(MoveTarget::Into(i)) => {
             let b = &bricks[*i];
             if b.file.is_some() {
@@ -119,6 +129,27 @@ pub fn drop_label(bricks: &[BrickView], what: Carried, t: Option<&MoveTarget>) -
         Some(MoveTarget::No(why)) => format!("\u{2715} {why}"),
         None if what == Carried::Tile => "place here".into(),
         None => "move here".into(),
+    }
+}
+
+/// The `set_brick {members}` that adds the unassigned placeholder's members to brick `into`
+/// (of level file `file`).
+pub fn assign_op(file: &str, into: &BrickView, placeholder: &BrickView) -> Op {
+    let mut members = into.members.clone();
+    members.extend(
+        placeholder
+            .members
+            .iter()
+            .filter(|m| !into.members.contains(m))
+            .cloned(),
+    );
+    Op::SetBrick {
+        file: file.to_string(),
+        name: into.name.clone(),
+        desc: None,
+        tags: None,
+        members: Some(members),
+        path: None,
     }
 }
 

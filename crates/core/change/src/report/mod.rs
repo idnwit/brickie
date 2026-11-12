@@ -5,7 +5,7 @@ mod edges;
 mod todo;
 
 use diff::diff;
-pub use todo::planned_text;
+pub use todo::{pending_text, planned_text};
 
 use crate::session::Change;
 use anyhow::Result;

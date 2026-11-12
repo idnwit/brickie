@@ -13,6 +13,17 @@ use std::collections::{BTreeMap, BTreeSet};
 /// Row captions of the outside neighbours: sources first, targets last.
 pub const OUT_SOURCES: &str = "inbound";
 pub const OUT_TARGETS: &str = "outbound";
+/// Name and row of the draft placeholder for unassigned modules.
+pub const UNASSIGNED: &str = "(unassigned)";
+
+/// The fewest module prefixes that cover `mods` (a module under another listed one is dropped).
+fn covering(mods: &[&str]) -> Vec<String> {
+    let under = |m: &str, p: &str| m.strip_prefix(p).is_some_and(|r| r.starts_with("::"));
+    (mods.iter())
+        .filter(|m| !mods.iter().any(|p| under(m, p)))
+        .map(|m| m.to_string())
+        .collect()
+}
 
 /// What every level needs, computed once per page.
 pub struct Ctx<'a> {
@@ -123,6 +134,9 @@ impl<'a> Ctx<'a> {
                 (key, i)
             })
             .collect();
+        if let Some(b) = self.unassigned(cfg, &mut rows) {
+            bricks.push(b);
+        }
         let hops = cycle_hops(&self.l.diagnostics, &name, &index);
         let edges = agg
             .into_iter()
@@ -170,6 +184,30 @@ impl<'a> Ctx<'a> {
             },
             planned_edges: Vec::new(),
         }
+    }
+
+    /// The placeholder of the modules no brick of composite `cfg` claims yet (draft only).
+    fn unassigned(&self, cfg: &Config, rows: &mut Vec<String>) -> Option<BrickView> {
+        let mods = self.l.resolved.unassigned(&cfg.path);
+        if mods.is_empty() {
+            return None;
+        }
+        let row = row_of(rows, UNASSIGNED);
+        let mut path = cfg.path.clone();
+        path.push(UNASSIGNED.into());
+        Some(BrickView {
+            name: UNASSIGNED.into(),
+            path: level_name(&path),
+            desc: Some(format!(
+                "{} module(s) in none of this composite's bricks; drop onto a brick to add them",
+                mods.len()
+            )),
+            tag: UNASSIGNED.into(),
+            row,
+            members: covering(&mods),
+            unassigned: true,
+            ..Default::default()
+        })
     }
 
     /// The tree node at `path` as a brick named `name` (row and tags filled by the caller).

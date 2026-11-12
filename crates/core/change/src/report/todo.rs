@@ -1,10 +1,10 @@
 //! Tasks for the coding agent (and the human): what the design asks that the code lacks.
 
 use crate::preview::{Preview, planned};
-use brickie_check::config::{Config, level_name};
+use brickie_check::config::{Config, Pending, level_name};
 use brickie_model::Level;
 use brickie_model::change::{OpRecord, PlannedEdge, State, Task, TaskKind};
-use brickie_model::codes::CHANGE_PLANNED;
+use brickie_model::codes::{CHANGE_PLANNED, CONFIG_UNASSIGNED};
 use std::collections::BTreeSet;
 
 fn task(kind: TaskKind, text: String) -> Task {
@@ -65,13 +65,13 @@ pub fn from_preview(preview: &Preview, base: &Preview) -> Vec<Task> {
         .check()
         .map(|b| b.diagnostics.into_iter().map(|d| d.id).collect())
         .unwrap_or_default();
-    let mut out: Vec<Task> = planned(&loaded.cfg, &loaded.resolved)
-        .iter()
-        .map(|p| {
-            let text = format!("{CHANGE_PLANNED}: {}", planned_text(&loaded.cfg, p));
-            task(TaskKind::Planned, text)
-        })
+    let mut out: Vec<Task> = (loaded.resolved.pending.iter())
+        .map(|p| task(TaskKind::Config, pending_text(p)))
         .collect();
+    out.extend(planned(&loaded.cfg, &loaded.resolved).iter().map(|p| {
+        let text = format!("{CHANGE_PLANNED}: {}", planned_text(&loaded.cfg, p));
+        task(TaskKind::Planned, text)
+    }));
     for d in loaded
         .diagnostics
         .iter()
@@ -97,6 +97,17 @@ pub fn from_preview(preview: &Preview, base: &Preview) -> Vec<Task> {
         });
     }
     out
+}
+
+/// A tolerated partition error of the draft, with how to finish it.
+pub fn pending_text(p: &Pending) -> String {
+    let hint = match p.module {
+        Some(_) if p.code == CONFIG_UNASSIGNED => {
+            "; add it to the members of one of the composite's bricks"
+        }
+        _ => "",
+    };
+    format!("{}{hint}", p.message)
 }
 
 /// `brick root/x has no measured module yet; create the code for members [..]`.

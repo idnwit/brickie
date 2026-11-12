@@ -1,6 +1,7 @@
 //! Engine tests on a temporary workspace (no cache: config-level behaviour only).
 
 mod design;
+mod draft;
 mod drift;
 mod edges;
 mod publish;

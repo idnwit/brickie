@@ -78,6 +78,11 @@ impl Change {
             }
             Err(e) => plan.blockers.push(format!("{CHANGE_INVALID}: {e:#}")),
         }
+        // The design must be finished: every partition error the draft tolerated blocks.
+        if let Ok(l) = preview.check() {
+            let pending = l.resolved.pending.iter();
+            (plan.blockers).extend(pending.map(|p| format!("{CHANGE_INVALID}: {}", p.message)));
+        }
         Ok(plan)
     }
 

@@ -38,7 +38,9 @@ pub fn delete_selection(cx: &Cx) {
         return;
     }
     match cx.eval.with(|ev| ev.sel.clone()) {
-        Sel::Brick(b) if !cx.m.g.bricks[b].ghost => ed.confirm.set(true),
+        Sel::Brick(b) if !cx.m.g.bricks[b].ghost && !cx.m.g.bricks[b].unassigned => {
+            ed.confirm.set(true)
+        }
         Sel::Edge(_) => ed
             .msg
             .set("A measured edge is code: change the code to remove it.".into()),
@@ -213,6 +215,9 @@ fn tools(cx: &Cx, key: &str) -> bool {
 
 fn rename_selected(cx: &Cx) {
     if let Sel::Brick(b) = cx.eval.with(|ev| ev.sel.clone()) {
+        if cx.m.g.bricks[b].unassigned {
+            return;
+        }
         cx.ed.rename.set(Some(cx.m.g.bricks[b].name.clone()));
         platform::next_frame(|| platform::focus("inline-name"));
     }
