@@ -7,6 +7,7 @@ mod editor;
 mod index;
 mod interface;
 mod levels;
+mod measure;
 mod review;
 
 use super::*;

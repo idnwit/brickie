@@ -211,6 +211,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "sha2",
+ "tempfile",
 ]
 
 [[package]]
@@ -301,6 +302,7 @@ version = "0.1.0"
 dependencies = [
  "brickie-model",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

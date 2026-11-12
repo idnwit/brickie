@@ -1,4 +1,4 @@
-//! `brickie view`: the reviewer webview.
+//! `brickie serve`: the reviewer webview and the measure job.
 //!
 //! axum serves a page rendered by sycamore (`brickie-ui`) with hydration keys, JSON endpoints
 //! and the code viewer (`/code/`). Every GET depends only on its query params, the cache and the config,
@@ -6,6 +6,7 @@
 //! read-only SSR page whose filters are plain links. See docs/design.md, step 3.
 mod code;
 mod data;
+mod measure;
 mod render;
 mod routes;
 #[cfg(test)]
@@ -33,6 +34,8 @@ pub struct AppState {
     review_lock: Arc<Mutex<()>>,
     /// The address the server listens on, for the write guard (`routes::guard`).
     bind: Arc<Bind>,
+    /// The measure job (`/api/measure`).
+    measure: Arc<measure::Jobs>,
 }
 
 /// Host and port the server is bound to (`port` `None`: unknown, any port matches).
@@ -50,7 +53,15 @@ impl AppState {
                 host: "127.0.0.1".into(),
                 port: None,
             }),
+            measure: Arc::new(measure::Jobs::new(measure::measure_runner())),
         }
+    }
+
+    /// The same state with another measure runner (tests).
+    #[cfg(test)]
+    fn with_runner(mut self, runner: measure::Runner) -> Self {
+        self.measure = Arc::new(measure::Jobs::new(runner));
+        self
     }
 
     /// The same state for a server bound to `host:port`.
@@ -102,7 +113,7 @@ pub fn run(opts: &Options) -> Result<()> {
             .await
             .with_context(|| format!("bind {addr}"))?;
         eprintln!(
-            "brickie: view on http://{addr}/ ({})",
+            "brickie: serving http://{addr}/ ({})",
             if routes::wasm_embedded() {
                 "interactive"
             } else {

@@ -40,7 +40,10 @@ impl Change {
     pub fn todo(&self) -> Result<Vec<Task>> {
         let log = self.log()?;
         let mut tasks = todo::from_ops(&log.ops);
-        tasks.extend(todo::from_preview(&self.preview(true)?));
+        tasks.extend(todo::from_preview(
+            &self.preview(true)?,
+            &self.base_preview()?,
+        ));
         Ok(tasks)
     }
 }

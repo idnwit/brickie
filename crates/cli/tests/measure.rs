@@ -261,3 +261,24 @@ fn measure_complexity() {
         "mx-app::model"
     );
 }
+
+/// A measure while another holds the cache lock fails at once, naming the holder; the cache is
+/// not touched. The lock holder here is this test process (alive).
+#[test]
+fn measure_refuses_while_the_cache_is_locked() {
+    let tmp = tempfile::tempdir().unwrap();
+    std::fs::write(tmp.path().join("brickie.toml"), CONFIG).unwrap();
+    let dir = tmp.path().join(".brickie");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("cache.lock"), std::process::id().to_string()).unwrap();
+    let out = Command::new(BIN)
+        .args(["measure", "--config"])
+        .arg(tmp.path().join("brickie.toml"))
+        .output()
+        .unwrap();
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success());
+    assert!(err.contains("another measure"), "{err}");
+    assert!(!dir.join("cache.json").exists());
+    assert!(dir.join("cache.lock").exists(), "the holder's lock stays");
+}

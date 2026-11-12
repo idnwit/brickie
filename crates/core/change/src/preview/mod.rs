@@ -3,7 +3,7 @@
 
 mod planned;
 
-pub use planned::planned;
+pub use planned::{cache_mismatch, planned};
 
 use crate::edit::Docs;
 use crate::paths::{normalize, to_rel};
@@ -54,6 +54,11 @@ impl Preview {
     /// `check` over the previewed config tree and the measured cache.
     pub fn check(&self) -> Result<Loaded> {
         check::load_from(self, &self.config)
+    }
+
+    /// A message when the measured cache does not belong to this workspace.
+    pub fn cache_mismatch(&self, loaded: &Loaded) -> Option<String> {
+        cache_mismatch(&self.root, loaded)
     }
 
     fn get(&self, path: &Path) -> Option<&String> {

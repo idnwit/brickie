@@ -43,9 +43,14 @@ fn age(secs: Option<u64>) -> String {
     }
 }
 
-fn fragment(out: &mut String, sign: char, text: &Option<String>) {
+/// Print the lines of `text` that `other` lacks: unchanged lines are omitted, so an edit of
+/// one key shows only that key.
+fn fragment(out: &mut String, sign: char, text: &Option<String>, other: &Option<String>) {
+    let other: Vec<&str> = other.as_deref().unwrap_or("").lines().collect();
     for line in text.as_deref().unwrap_or("").lines() {
-        let _ = writeln!(out, "    {sign} {line}");
+        if !other.contains(&line) {
+            let _ = writeln!(out, "    {sign} {line}");
+        }
     }
 }
 
@@ -78,8 +83,8 @@ pub fn show(st: &Status, diff: &[DiffEntry], new: &Since) -> String {
 fn diff_entry(s: &mut String, e: &DiffEntry) {
     let _ = writeln!(s, "  {} {}", e.file, e.key);
     if e.before != e.after {
-        fragment(s, '-', &e.before);
-        fragment(s, '+', &e.after);
+        fragment(s, '-', &e.before, &e.after);
+        fragment(s, '+', &e.after, &e.before);
     }
     for o in &e.ops {
         let mut line = format!("    #{} {:?} {} {:?}", o.seq, o.by, o.op, o.state).to_lowercase();
@@ -137,4 +142,20 @@ pub fn plan(p: &Plan) -> String {
         let _ = writeln!(s, "blocked: {b}");
     }
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn diff_prints_only_changed_keys() {
+        let before = Some("name = \"a\"\ndesc = \"old\"\nmembers = [\"p\"]".to_string());
+        let after = Some("name = \"a\"\ndesc = \"new\"\nmembers = [\"p\"]".to_string());
+        let (mut m, mut p) = (String::new(), String::new());
+        fragment(&mut m, '-', &before, &after);
+        fragment(&mut p, '+', &after, &before);
+        assert_eq!(m, "    - desc = \"old\"\n");
+        assert_eq!(p, "    + desc = \"new\"\n");
+    }
 }

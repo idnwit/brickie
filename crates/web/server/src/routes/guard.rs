@@ -1,4 +1,4 @@
-//! The write guard of every endpoint that writes files (`/review`, `/api/change/*`): the
+//! The write guard of every endpoint that writes files (`/review`, `/api/change/*`, `POST /api/measure`): the
 //! server must be bound to loopback, and the request must come from the page it served (the
 //! `Host` names that loopback address, an `Origin` matches it). This stops other web pages
 //! (CSRF, DNS rebinding) and other machines from editing the workspace.

@@ -53,8 +53,8 @@ pub enum Command {
     /// The open design change: without a subcommand, show it (status, semantic diff, what is
     /// new since this reader's last read).
     Change(ChangeArgs),
-    /// Serve the reviewer webview.
-    View {
+    /// Serve the reviewer webview; it can also run measure (the Measure button).
+    Serve {
         #[arg(long, default_value = "brickie.toml")]
         config: PathBuf,
         #[arg(long, default_value_t = 7881)]

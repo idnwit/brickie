@@ -34,10 +34,13 @@ fn check(config: &Path, json: bool, color: Color, change: bool) -> Result<i32> {
     let (loaded, planned) = if change {
         let preview = Change::load(config)?.preview(true)?;
         let l = preview.check()?;
-        let planned = brickie_change::planned(&l.cfg, &l.resolved)
-            .iter()
-            .map(|p| planned_text(&l.cfg, p))
-            .collect();
+        let planned = match preview.cache_mismatch(&l) {
+            Some(m) => vec![m],
+            None => brickie_change::planned(&l.cfg, &l.resolved)
+                .iter()
+                .map(|p| planned_text(&l.cfg, p))
+                .collect(),
+        };
         (l, planned)
     } else {
         (check::load(config)?, Vec::new())

@@ -5,6 +5,7 @@ use brickie_check::config::{Config, level_name};
 use brickie_model::Level;
 use brickie_model::change::{OpRecord, State, Task, TaskKind};
 use brickie_model::codes::CHANGE_PLANNED;
+use std::collections::BTreeSet;
 
 fn task(kind: TaskKind, text: String) -> Task {
     Task {
@@ -42,12 +43,20 @@ pub fn from_ops(ops: &[OpRecord]) -> Vec<Task> {
     out
 }
 
-/// Planned bricks and unaccepted findings of `check` over the preview.
-pub fn from_preview(preview: &Preview) -> Vec<Task> {
+/// Planned bricks and the unaccepted findings of `check` over the preview that the change
+/// introduces: findings of `base` (the design as opened, same cache) are not drift.
+pub fn from_preview(preview: &Preview, base: &Preview) -> Vec<Task> {
     let loaded = match preview.check() {
         Ok(l) => l,
         Err(e) => return vec![task(TaskKind::Config, format!("{e:#}"))],
     };
+    if let Some(m) = preview.cache_mismatch(&loaded) {
+        return vec![task(TaskKind::Config, m)];
+    }
+    let known: BTreeSet<String> = base
+        .check()
+        .map(|b| b.diagnostics.into_iter().map(|d| d.id).collect())
+        .unwrap_or_default();
     let mut out: Vec<Task> = planned(&loaded.cfg, &loaded.resolved)
         .iter()
         .map(|p| {
@@ -55,7 +64,11 @@ pub fn from_preview(preview: &Preview) -> Vec<Task> {
             task(TaskKind::Planned, text)
         })
         .collect();
-    for d in loaded.diagnostics.iter().filter(|d| !d.accepted) {
+    for d in loaded
+        .diagnostics
+        .iter()
+        .filter(|d| !d.accepted && !known.contains(&d.id))
+    {
         let at = d
             .span
             .as_ref()

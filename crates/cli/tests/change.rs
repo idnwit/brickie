@@ -148,3 +148,46 @@ fn check_change_reports_planned_bricks_of_the_preview() {
     let plain = run(dir, &["check"], None);
     assert!(!String::from_utf8_lossy(&plain.stdout).contains("change/planned"));
 }
+
+#[test]
+fn diff_prints_only_changed_keys_of_a_set_brick() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    std::fs::write(dir.join("brickie.toml"), ROOT).unwrap();
+    json(dir, &["change", "open", "--intent", "x"], None);
+    let op = r#"{"op":"set_brick","file":"brickie.toml","name":"a","desc":"the a"}"#;
+    json(dir, &["change", "propose", "--json"], Some(op));
+    let out = run(dir, &["change"], None);
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("+ desc = \"the a\""), "{text}");
+    assert!(!text.contains("name = \"a\""), "{text}");
+    assert!(!text.contains("- members"), "{text}");
+}
+
+#[test]
+fn a_foreign_cache_is_one_warning_not_mass_planned() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    std::fs::write(dir.join("brickie.toml"), ROOT).unwrap();
+    std::fs::create_dir_all(dir.join(".brickie")).unwrap();
+    let cache = serde_json::json!({
+        "schema_version": 6, "tool_version": "0", "rust_analyzer": "0",
+        "workspace_root": "/elsewhere/checkout", "git": null,
+        "crates": [], "modules": [], "files": {},
+    });
+    std::fs::write(dir.join(".brickie/cache.json"), cache.to_string()).unwrap();
+    json(dir, &["change", "open", "--intent", "x"], None);
+    let todo = json(dir, &["change", "--todo"], None);
+    let todo = todo.as_array().unwrap();
+    assert_eq!(todo.len(), 1, "{todo:?}");
+    assert!(
+        todo[0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("cache does not match")
+    );
+    let out = run(dir, &["check", "--change"], None);
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("cache does not match"), "{text}");
+    assert!(!text.contains("brick root/a"), "{text}");
+}

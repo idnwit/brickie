@@ -1,4 +1,4 @@
-//! `brickie view`.
+//! `brickie serve`: the reviewer webview and the measure job.
 
 use anyhow::Result;
 use brickie_web as web;

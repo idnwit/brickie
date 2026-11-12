@@ -6,7 +6,7 @@ mod check;
 mod interface;
 mod llms;
 mod measure;
-mod view;
+mod serve;
 
 use anyhow::Result;
 use args::{Cli, Command};
@@ -33,7 +33,7 @@ pub fn run() -> Result<i32> {
             json,
             from,
         } => interface::run(&config, &brick, from.as_deref(), json),
-        Command::View { config, port, bind } => view::run(config, bind, port),
+        Command::Serve { config, port, bind } => serve::run(config, bind, port),
         Command::LlmsTxt => llms::run(),
     }
 }

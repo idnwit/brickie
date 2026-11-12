@@ -122,6 +122,12 @@ impl Change {
         Ok(Preview::new(&self.root, &self.config, &docs))
     }
 
+    /// The design as it was when the change was opened.
+    pub fn base_preview(&self) -> Result<Preview> {
+        let docs = replay(&self.store.base()?, None, &mut [], false)?;
+        Ok(Preview::new(&self.root, &self.config, &docs))
+    }
+
     /// Entries after `since`, or after the reader's cursor (which then moves to the head).
     pub fn since(&self, reader: By, since: Option<u64>) -> Result<Since> {
         let entries = self.store.entries()?;

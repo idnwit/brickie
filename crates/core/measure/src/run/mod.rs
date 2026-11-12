@@ -13,7 +13,7 @@ use crate::scip::{self, Graph, layout};
 use crate::workspace::lock::LockGuard;
 use crate::workspace::{crates, git, metadata, rust_analyzer};
 use anyhow::{Context, Result};
-use brickie_facts::{Cache, SCHEMA_VERSION};
+use brickie_facts::{Cache, CacheLock, SCHEMA_VERSION};
 use protobuf::Message;
 use std::path::{Path, PathBuf};
 
@@ -23,17 +23,26 @@ pub struct Options {
     pub workspace: Option<PathBuf>,
 }
 
+/// Measure and write the cache; returns its path.
 pub fn run(opts: &Options) -> Result<PathBuf> {
+    run_with(opts, &|_| {})
+}
+
+/// [`run`], reporting each step's name to `progress` as it starts. Holds the cache lock
+/// ([`CacheLock`]) for the whole run: a concurrent measure of the same config fails at once.
+pub fn run_with(opts: &Options, progress: &dyn Fn(&str)) -> Result<PathBuf> {
     let cfg_dir = opts
         .config
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
-    // The config only locates the cache; bricks are resolved by `check` and `view`.
+    // The config only locates the cache; bricks are resolved by `check` and `serve`.
     if !opts.config.exists() && opts.config != Path::new("brickie.toml") {
         anyhow::bail!("config {} not found", opts.config.display());
     }
+    let dir = cfg_dir.join(".brickie");
+    let _cache_lock = CacheLock::acquire(&dir).map_err(anyhow::Error::msg)?;
     let workspace = opts.workspace.clone().unwrap_or_else(|| cfg_dir.clone());
     let workspace = workspace
         .canonicalize()
@@ -41,6 +50,7 @@ pub fn run(opts: &Options) -> Result<PathBuf> {
 
     // Never leave a changed Cargo.lock behind in the measured workspace.
     let _lock = LockGuard::new(&workspace);
+    progress("cargo metadata");
     let ws = metadata::load(&workspace)?;
     let root = ws.root.clone();
     let _root_lock = (root != workspace).then(|| LockGuard::new(&root));
@@ -50,10 +60,12 @@ pub fn run(opts: &Options) -> Result<PathBuf> {
         Some(p) => p.clone(),
         None => {
             let out = tmp.path().join("index.scip");
+            progress("rust-analyzer scip");
             rust_analyzer::run(&root, &out)?;
             out
         }
     };
+    progress("read index");
     let bytes =
         std::fs::read(&scip_path).with_context(|| format!("read SCIP {}", scip_path.display()))?;
     let idx = ::scip::types::Index::parse_from_bytes(&bytes).context("decode SCIP")?;
@@ -62,11 +74,14 @@ pub fn run(opts: &Options) -> Result<PathBuf> {
         std::fs::read_to_string(root.join(p)).ok()
     });
 
+    progress("analyse files");
     let cache = build(&g, &ws, idx.metadata.tool_info.version.clone(), &root);
-    let dir = cfg_dir.join(".brickie");
-    std::fs::create_dir_all(&dir)?;
+    progress("write cache");
+    // Write then rename, so readers never see a half-written cache.
     let out = dir.join("cache.json");
-    std::fs::write(&out, serde_json::to_vec_pretty(&cache)?)?;
+    let part = dir.join("cache.json.part");
+    std::fs::write(&part, serde_json::to_vec_pretty(&cache)?)?;
+    std::fs::rename(&part, &out).with_context(|| format!("write {}", out.display()))?;
     Ok(out)
 }
 

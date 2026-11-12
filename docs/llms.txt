@@ -31,7 +31,7 @@ Rules of thumb:
   change an item. `--from <brick-path>` lists instead every reference site from that brick into
   this one, by used item (the code behind the edge). JSON lists every site; text shows five per
   using brick.
-- `brickie view` opens a local web viewer for humans (bricks, edges, findings, source). You do not
+- `brickie serve` opens a local web viewer for humans (bricks, edges, findings, source). You do not
   need it.
 - Commands accept `--config path/to/brickie.toml` (default `./brickie.toml`).
 
@@ -70,8 +70,11 @@ when the human publishes.
   moves your cursor). `--since <seq>` shows entries after `seq` without moving the cursor;
   `--as human|agent` picks the reader (default `agent`).
 - `brickie change --todo` lists concrete tasks: `planned` bricks to create code for (with their
-  members), `drift` findings of `check` over the design (id, location, help), ops `proposed`,
-  `rejected` (with the reason) or in `conflict`, and `config` errors of the design.
+  members), `drift` findings the change introduces (`check` over the design minus the findings of the
+  design as opened; id, location, help), ops `proposed`,
+  `rejected` (with the reason) or in `conflict`, and `config` errors of the design. A cache
+  measured in another workspace gives one `config` task (`cache does not match this workspace;
+  run brickie measure`) instead of every brick planned.
 - To change the design, propose an op: `echo '<op JSON>' | brickie change propose --json
   [--note "why"]`. Your ops stay `proposed` until the human accepts or rejects them; each review
   is a new entry with its own `seq` and note. Never accept or reject ops yourself.

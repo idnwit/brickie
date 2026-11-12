@@ -1,5 +1,5 @@
 //! HTTP routes: the page, the code viewer, the JSON endpoints, review, the design editor's
-//! change endpoints (writes behind `guard`) and the wasm assets.
+//! change endpoints and the measure job (writes behind `guard`) and the wasm assets.
 
 mod api;
 mod assets;
@@ -7,6 +7,7 @@ mod editor;
 mod guard;
 mod index;
 mod interface;
+mod measure;
 mod review;
 mod view;
 
@@ -40,6 +41,8 @@ pub fn router(state: AppState) -> Router {
         .route(ChangePublishPlan::PATH, get(editor::plan))
         .route(ChangePublish::PATH, post(editor::publish))
         .route(ChangeDiscard::PATH, post(editor::discard))
+        .route(MeasureStatus::PATH, get(measure::status))
+        .route(MeasureStart::PATH, post(measure::start))
         .route("/static/ui/brickie_ui.js", get(assets::ui_js))
         .route("/static/ui/brickie_ui_bg.wasm", get(assets::ui_wasm))
         .with_state(state)

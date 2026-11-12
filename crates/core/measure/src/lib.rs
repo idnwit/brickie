@@ -8,4 +8,4 @@ mod run;
 mod scip;
 mod workspace;
 
-pub use run::{Options, fn_tree, run};
+pub use run::{Options, fn_tree, run, run_with};

@@ -20,14 +20,21 @@ use std::path::Path;
 pub fn page(l: &Loaded, cache_file: &Path) -> PageData {
     let cache = &l.cache;
     let mut lines = Lines::new(Path::new(&cache.workspace_root));
+    let modified = std::fs::metadata(cache_file)
+        .and_then(|m| m.modified())
+        .ok();
     PageData {
         cache: CacheInfo {
             workspace: cache.workspace_root.clone(),
             commit: cache.git.as_ref().map(|g| g.commit.clone()),
             dirty: cache.git.as_ref().is_some_and(|g| g.dirty),
-            measured: std::fs::metadata(cache_file)
-                .and_then(|m| m.modified())
-                .map_or_else(|_| "unknown".into(), utc),
+            measured: modified.map_or_else(|| "unknown".into(), utc),
+            age_secs: modified.and_then(|t| t.elapsed().ok()).map(|d| d.as_secs()),
+            stale_files: l
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == brickie_model::codes::STALE_FILE)
+                .count(),
         },
         diags: l
             .diagnostics

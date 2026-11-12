@@ -7,8 +7,10 @@
 //! preview. `()` means the endpoint takes no input.
 
 mod editor;
+mod measure;
 
 pub use editor::*;
+pub use measure::*;
 
 use crate::{
     DiagView, EdgeItemView, EdgeUsesRequest, FnRow, InterfaceRequest, InterfaceView, LevelView,

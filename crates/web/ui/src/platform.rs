@@ -85,6 +85,14 @@ mod imp {
         }
     }
 
+    /// Run `f` once after `ms` milliseconds (`setTimeout`).
+    pub fn after(ms: i32, f: impl FnOnce() + 'static) {
+        let cb = Closure::once_into_js(f);
+        if let Some(w) = web_sys::window() {
+            let _ = w.set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), ms);
+        }
+    }
+
     pub fn reload() {
         if let Some(w) = web_sys::window() {
             let _ = w.location().reload();
@@ -190,6 +198,7 @@ mod imp {
     pub fn next_frame(_: impl FnOnce() + 'static) {}
     pub fn focus(_: &str) {}
     pub fn reload() {}
+    pub fn after(_: i32, _: impl FnOnce() + 'static) {}
     pub fn on_message(_: impl Fn(String) + 'static) {}
     pub fn post_to_frame(_: &str, _: &str) {}
     pub fn post_json(_: &'static str, _: String, _: impl FnOnce(Result<String, String>) + 'static) {

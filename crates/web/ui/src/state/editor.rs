@@ -40,6 +40,8 @@ pub enum Dialog {
     Open,
     /// The publish plan (`None` while it loads).
     Publish(Option<Plan>),
+    /// Published: offer to measure now (the cache predates the new bricks).
+    Published,
     Discard,
 }
 

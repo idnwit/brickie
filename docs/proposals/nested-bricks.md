@@ -136,7 +136,7 @@ knows which file to edit. The cost is O(depth) per edge.
 ### Cache and measure
 
 The brick mapping moves out of the cache. `measure` stores only crates, modules, files, edges and
-functions. `check` and `view` resolve the tree from the configs, which is a cheap, pure step.
+functions. `check` and `serve` resolve the tree from the configs, which is a cheap, pure step.
 Editing any `brickie.toml` therefore never needs a re-measure, and the config-hash staleness
 check (`stale/bricks`) goes away.
 

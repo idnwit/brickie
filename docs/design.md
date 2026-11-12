@@ -1,6 +1,6 @@
 # brickie: design
 
-Status: steps 1-4 implemented (`measure`, `check`, `view`, `llms.txt`, cleaned and restructured
+Status: steps 1-4 implemented (`measure`, `check`, `serve`, `llms.txt`, cleaned and restructured
 code); the rest is agreed direction (2026-11-11). The previous prototype (Brickwork PoC, Python
 viewer, experimental metrics) is not part of the public history.
 
@@ -19,15 +19,15 @@ written by the user in `brickie.toml`; a preset is just a rules file other confi
 
 ```
 brickie measure ──► .brickie/cache.json ──► brickie check  ──► findings (text/json, exit code)
-     (no config needed)                 └──► brickie view   ──► webview   (both read brickie.toml)
+     (no config needed)                 └──► brickie serve  ──► webview   (both read brickie.toml)
 ```
 
 - `measure` is the only step that reads code. It writes a cache with facts (crates, modules,
   files, edges, functions) and a content hash per source file; no brick data.
-- `check` and `view` read the cache and the configs and resolve the brick tree on every run, so
+- `check` and `serve` read the cache and the configs and resolve the brick tree on every run, so
   they are fast and need no rust-analyzer. Changing any `brickie.toml` (bricks or rules) never
   requires re-measuring.
-- **Staleness**: `check`/`view` re-hash the files listed in the cache; changed, added or deleted
+- **Staleness**: `check`/`serve` re-hash the files listed in the cache; changed, added or deleted
   `.rs` files are reported as `warn` findings ("measured before this change; re-run measure").
 
 ### Change detection and incremental measure
@@ -115,9 +115,10 @@ level = "error"                      # error (fails CI) | warn
 - Each finding has a stable id (hash of rule + subject) so review decisions survive re-runs.
 - Exit code 1 when an `error` finding is not accepted in `brickie.review.toml`.
 
-### 3. View: `brickie view [--config brickie.toml] [--port 7881] [--bind 127.0.0.1]`
+### 3. Serve: `brickie serve [--config brickie.toml] [--port 7881] [--bind 127.0.0.1]`
 
-Implemented; details in "View (implemented)" below.
+Implemented; details in "Serve (implemented)" below. (Named `view` before; renamed when the
+server gained the measure job, no alias.)
 
 ## Removed from the prototype
 
@@ -139,7 +140,7 @@ code, the SQL graph server for agents (`serve`/`query`), capabilities, and exper
 1. `measure` → cache (deps + complexity + file hashes), tests on a fixture. **Implemented** (see
    "Cache layout" below).
 2. `check`: **Implemented** (see "Check" below).
-3. `view`: **Implemented** (see "View (implemented)"). Shows the same `Diagnostic` values as
+3. `serve`: **Implemented** (see "Serve (implemented)"). Shows the same `Diagnostic` values as
    `check`; every file:line span opens the code viewer (in a popup) at that line.
    The UX is a port of the Python prototype viewer (JS in one HTML file, not published): client-side Sugiyama layout, presets and data layers, selection
    scoping, complexity tree (now as gutter bands in the code viewer). Ported and dropped parts are listed in
@@ -197,11 +198,12 @@ crates/lib/algo/           general-purpose libraries, no brickie types (tag algo
 crates/core/model/     brickie-model: light, wasm-safe shared types: Level, codes (every
                        diagnostic code), Diagnostic values (Span, Note, RuleRef, DiagEdge),
                        FnTree/TreeNode, change (Op, OpRecord, Entry, Plan, DiffEntry, Task, ...)
-crates/core/facts/     brickie-facts: the cache: model (cache.json schema), files (tree walk), hash
+crates/core/facts/     brickie-facts: the cache: model (cache.json schema), files (tree walk), hash,
+                       lock (`.brickie/cache.lock`, one writer at a time)
 crates/core/measure/   brickie-measure, folder bricks:
   workspace/           metadata, rust_analyzer, lock, git, crates
   scip/                SCIP -> rows (normalise, targets, written, modules, layout)
-  run/                 mod (run), files, edges, items + reach (declared-interface candidates),
+  run/                 mod (run, run_with: progress steps, cache lock), files, edges, items + reach (declared-interface candidates),
                        complexity (brickie-metrics -> FnTree)
 crates/core/change/    brickie-change: change sessions (folders: store (base/, ops.json, lock,
                        readers, layout), edit (toml_edit documents, ops, moves), session (open,
@@ -218,7 +220,7 @@ crates/core/check/     brickie-check, folder bricks:
                        complexity, unmapped, stale (internal)
   interface/           declared items (exports chain), uses, `interface/unused`, edge sites
   review/              brickie.review.toml read and edit (internal)
-  check/               config + cache + review -> diagnostics (shared by check and view); the
+  check/               config + cache + review -> diagnostics (shared by check and serve); the
                        facade for rules and review (dep_subject, complexity_limits, set_review)
 crates/web/server/     brickie-web, folder bricks (own brickie.toml): routes (-> render, data, code;
                        also the crate root and tests), render, data, code (the code viewer's
@@ -251,7 +253,7 @@ fails when a code is missing from the guide, so add a code there and in the guid
 
 `.brickie/cache.json` is written next to the config file. Top level: `schema_version`,
 `tool_version`, `rust_analyzer`, `workspace_root`, `git` (`commit`, `dirty`; null outside git),
-`crates`, `modules`, `files`. There is no brick data: `check` and `view` resolve bricks from
+`crates`, `modules`, `files`. There is no brick data: `check` and `serve` resolve bricks from
 the configs.
 
 - Ids: a library crate is its package name, other targets are `pkg/kind/target`; a module is
@@ -365,19 +367,21 @@ complexity, unmapped, stale, `codes.rs`), `diag/` (diagnostic value and text pri
   `crates/cli/tests/check/nested.rs` covers a two-level tree (a folder brick of three crates with its own
   `brickie.toml`).
 
-## View (implemented)
+## Serve (implemented)
 
 Stack: axum 0.8 + sycamore 0.9, no htmx and no JS framework. Code layout (small focused files,
 folders by concern):
 
-- `crates/web/server/src/`: `lib.rs` (options, state incl. the bound address, `run`), `routes/`
-  (`index`, `api`, `interface`, `review`, `editor` (change endpoints), `guard` (write guard),
+- `crates/web/server/src/`: `lib.rs` (options, state incl. the bound address and the measure job, `run`),
+  `measure/` (the measure job: single flight, runner), `routes/`
+  (`index`, `api`, `interface`, `review`, `editor` (change endpoints), `measure`, `guard` (write guard),
   `view` (page data of a request: current design or change preview), `assets`), `render/`
   (page HTML shell), `data/` (page data from the cache: `diagnostics`, `graph/` (per-level
   aggregation: `edges`, `level`, `heat`), `functions`, `interface`, `editor` (change view,
   planned/proposed marks), `time`), `tests/`.
 - `crates/web/api/` (`brickie-web-api`): `endpoint/` (`mod`: the `Endpoint` trait and markers;
-  `editor`: the change endpoints), `model/` (page data and pure helpers: `params`, `diag`,
+  `editor`: the change endpoints; `measure`: the measure job), `model/` (page data and pure
+  helpers: `params`, `diag`, `measure` (job state, `age`),
   `graph`, `levels`, `function`, `score`, `boundary`, `interface`, `editor` (change view and
   requests; re-exports `brickie_model::change` as `change`)).
 - `crates/web/ui/` (`brickie-ui`): `state/` (`layers`, `selection`, `focus`, `eval`, `shared`,
@@ -422,9 +426,26 @@ folders by concern):
 - **Endpoints**: `GET /` (page), `GET /api/diagnostics`,
   `/api/functions` (`brick=` takes tree paths such as `root/web`, matching the subtree),
   `/api/graph` (the levels, JSON, same params), `POST /review` (JSON
-  `{id, reason}`; `reason: null` unaccepts), `/static/ui/brickie_ui{.js,_bg.wasm}`, the code
+  `{id, reason}`; `reason: null` unaccepts), `GET`/`POST /api/measure` (see "Measure job"),
+  `/static/ui/brickie_ui{.js,_bg.wasm}`, the code
   viewer under `/code/`. Cache and
   config are read per request (re-run `measure`, refresh).
+- **Measure job.** `POST /api/measure` (behind the write guard) starts `brickie-measure` in
+  the server process (`run_with` on tokio's blocking pool, reporting each step), or returns the
+  job already running: one job at a time (single flight). `GET /api/measure` answers
+  `{state: idle}`, `{state: running, step, started}`, `{state: done, at}` or
+  `{state: failed, error, log}` (times in Unix seconds; `log` is the tail of the steps and the
+  error chain, at most 20 lines). The header shows the cache age and the stale-file count
+  (`CacheInfo.age_secs`, `stale_files`: "measured 4m ago", "stale: N files") and a Measure
+  button; while the job runs it polls `GET` once a second and shows the step, and on `done`
+  reloads the page. A page loaded while a job runs picks up polling. After a successful publish
+  the editor offers "Measure now".
+- **Cache lock.** Every measure (CLI or server job) holds `.brickie/cache.lock`
+  (`brickie_facts::CacheLock`, the holder's PID inside) for its whole run, and writes
+  `cache.json` through a temp file and a rename. A second measure fails at once with "another
+  measure (process N) is writing the cache; wait for it to finish and retry" rather than
+  waiting: a measure takes minutes, and a waiting CLI looks hung. A lock whose process is gone
+  (crash) is taken over.
 - **Diagnostics** are `check`'s `Diagnostic` values field for field (`DiagView`), plus a snippet
   with the span marked and `bricks`. A selected finding (`item=`) shows the same card as before
   (code, message, spans as source links, rule, help, notes, Accept/Unaccept).
@@ -559,7 +580,7 @@ notes"). `change=1` shows the open change's preview (the same level aggregation 
 `Preview::check`; `BrickView.planned` / `proposed` mark bricks with no code yet and agent
 proposals) with the editor panel (palette, inspector, ops log) in place of the detail panel;
 the change bar replaces the banner. Every op goes through `/api/change/*` and the page reloads.
-All writing endpoints, `/review` included, pass one write guard (`routes/guard.rs`): loopback
+All writing endpoints, `/review` and `POST /api/measure` included, pass one write guard (`routes/guard.rs`): loopback
 bind, loopback `Host` with the server's port, same `Origin`. Canvas positions are layout hints
 in the change, never ops.
 

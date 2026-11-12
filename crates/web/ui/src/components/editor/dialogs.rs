@@ -1,8 +1,9 @@
 //! The change bar's dialogs: open a change (intent), the publish plan (every file publish
-//! writes, and why it would refuse) and discard.
+//! writes, and why it would refuse), after publish the offer to measure now, and discard.
 
 use super::{send, send_reload};
 use crate::components::call::get;
+use crate::components::controls::start_measure;
 use crate::platform;
 use crate::state::*;
 use brickie_web_api::change::{Plan, PlanAction};
@@ -50,7 +51,7 @@ fn plan_view(ed: Edit, plan: Plan) -> View {
     let blocked = !plan.blockers.is_empty();
     let (rows, blockers) = (View::from(rows), View::from(blockers));
     let publish = move |_: Click| {
-        send::<ChangePublish>(ed, (), |_| platform::goto("/"));
+        send::<ChangePublish>(ed, (), move |_| ed.dialog.set(Dialog::Published));
     };
     view! {
         h3 { "Publish" }
@@ -86,6 +87,28 @@ fn open_view(ed: Edit) -> View {
     }
 }
 
+/// After publish: measure now (the header of the new page follows the job) or later.
+fn published_view(ed: Edit) -> View {
+    let now = move |_: Click| {
+        ed.busy.set(true);
+        start_measure(move |r| match r {
+            Ok(_) => platform::goto("/"),
+            Err(e) => {
+                ed.busy.set(false);
+                ed.msg.set(e);
+            }
+        });
+    };
+    view! {
+        h3 { "Published" }
+        p(class="muted") { "The config files are written and the change is closed. Measure now so the new bricks map to code?" }
+        div(class="acts") {
+            button(on:click=move |_: Click| platform::goto("/")) { "Later" }
+            button(id="measure-now", class="go", disabled=move || ed.busy.get(), on:click=now) { "Measure now" }
+        }
+    }
+}
+
 fn discard_view(ed: Edit) -> View {
     view! {
         h3 { "Discard the change?" }
@@ -106,6 +129,7 @@ pub fn dialog(ed: Edit) -> View {
             Dialog::Discard => discard_view(ed),
             Dialog::Publish(None) => view! { p { "Loading the publish plan\u{2026}" } },
             Dialog::Publish(Some(plan)) => plan_view(ed, plan),
+            Dialog::Published => published_view(ed),
         };
         let err = move || ed.msg.get_clone();
         view! {

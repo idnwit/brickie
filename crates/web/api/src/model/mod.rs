@@ -8,6 +8,7 @@ mod function;
 mod graph;
 mod interface;
 mod levels;
+mod measure;
 mod params;
 mod score;
 
@@ -18,6 +19,7 @@ pub use function::*;
 pub use graph::*;
 pub use interface::*;
 pub use levels::*;
+pub use measure::*;
 pub use params::*;
 pub use score::*;
 
