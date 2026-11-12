@@ -42,6 +42,8 @@ pub struct Params {
     pub below: String,
     /// Edges from outside neighbours inside a composite: `children` (default) | `frame`.
     pub bnd: String,
+    /// `1`: show the open change's preview and the editor (empty: the current design).
+    pub change: String,
 }
 
 pub const DEFAULT_LIMIT: usize = 50;
@@ -92,6 +94,10 @@ impl Params {
     /// The current level path (`root` by default).
     pub fn level_path(&self) -> &str {
         if self.lv.is_empty() { "root" } else { &self.lv }
+    }
+    /// The change preview (and the editor) is on.
+    pub fn editing(&self) -> bool {
+        self.change == "1"
     }
     /// Outside edges end at the frame instead of the children.
     pub fn to_frame(&self) -> bool {
@@ -148,6 +154,7 @@ impl Params {
             ("lv", &self.lv, "root"),
             ("below", &self.below, ""),
             ("bnd", &self.bnd, "children"),
+            ("change", &self.change, ""),
         ];
         pairs
             .iter()
@@ -175,6 +182,7 @@ impl Params {
                 "lv" => p.lv = v,
                 "below" => p.below = v,
                 "bnd" => p.bnd = v,
+                "change" => p.change = v,
                 "level" => p.level = v,
                 "status" => p.status = v,
                 "code" => p.code = v,

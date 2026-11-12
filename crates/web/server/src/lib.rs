@@ -1,4 +1,4 @@
-//! `brickie view`: the reviewer webview.
+//! `brickie serve`: the reviewer webview and the measure job.
 //!
 //! axum serves a page rendered by sycamore (`brickie-ui`) with hydration keys, JSON endpoints
 //! and the code viewer (`/code/`). Every GET depends only on its query params, the cache and the config,
@@ -6,6 +6,8 @@
 //! read-only SSR page whose filters are plain links. See docs/design.md, step 3.
 mod code;
 mod data;
+mod events;
+mod measure;
 mod render;
 mod routes;
 #[cfg(test)]
@@ -31,6 +33,18 @@ pub struct AppState {
     config: Arc<PathBuf>,
     /// Serialises writes to `brickie.review.toml`.
     review_lock: Arc<Mutex<()>>,
+    /// The address the server listens on, for the write guard (`routes::guard`).
+    bind: Arc<Bind>,
+    /// The measure job (`/api/measure`).
+    measure: Arc<measure::Jobs>,
+    /// The file watcher's state and the event channel (`/api/events`).
+    events: Arc<events::Hub>,
+}
+
+/// Host and port the server is bound to (`port` `None`: unknown, any port matches).
+struct Bind {
+    host: String,
+    port: Option<u16>,
 }
 
 impl AppState {
@@ -38,7 +52,29 @@ impl AppState {
         AppState {
             config: Arc::new(config),
             review_lock: Arc::new(Mutex::new(())),
+            bind: Arc::new(Bind {
+                host: "127.0.0.1".into(),
+                port: None,
+            }),
+            measure: Arc::new(measure::Jobs::new(measure::measure_runner())),
+            events: Arc::new(events::Hub::new()),
         }
+    }
+
+    /// The same state with another measure runner (tests).
+    #[cfg(test)]
+    fn with_runner(mut self, runner: measure::Runner) -> Self {
+        self.measure = Arc::new(measure::Jobs::new(runner));
+        self
+    }
+
+    /// The same state for a server bound to `host:port`.
+    pub fn bound(mut self, host: &str, port: u16) -> Self {
+        self.bind = Arc::new(Bind {
+            host: host.to_string(),
+            port: Some(port),
+        });
+        self
     }
 
     fn load(&self) -> Result<Loaded, Failure> {
@@ -49,6 +85,11 @@ impl AppState {
     /// The config file.
     fn config(&self) -> PathBuf {
         self.config.as_ref().clone()
+    }
+
+    /// The directory of the root config (where `.brickie/` lives).
+    fn root(&self) -> PathBuf {
+        brickie_check::check::config_dir(&self.config)
     }
 
     fn cache_file(&self) -> PathBuf {
@@ -71,17 +112,18 @@ impl IntoResponse for Failure {
 }
 
 pub fn run(opts: &Options) -> Result<()> {
-    let state = AppState::new(opts.config.clone());
+    let state = AppState::new(opts.config.clone()).bound(&opts.bind, opts.port);
     // Fail early on a missing cache or config instead of on the first request.
     check::load(&opts.config)?;
     let addr = format!("{}:{}", opts.bind, opts.port);
     let rt = tokio::runtime::Runtime::new().context("start tokio")?;
     rt.block_on(async {
+        events::spawn(state.clone());
         let listener = tokio::net::TcpListener::bind(&addr)
             .await
             .with_context(|| format!("bind {addr}"))?;
         eprintln!(
-            "brickie: view on http://{addr}/ ({})",
+            "brickie: serving http://{addr}/ ({})",
             if routes::wasm_embedded() {
                 "interactive"
             } else {

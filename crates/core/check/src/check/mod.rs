@@ -1,6 +1,6 @@
 //! Config, cache and review combined into the diagnostics both `check` and `view` show.
 
-use crate::config::{self, Config, Resolved};
+use crate::config::{self, Config, Mode, Resolved};
 use crate::diag::{self, Diagnostic};
 use crate::{interface, review, rules};
 use anyhow::{Context, Result, bail};
@@ -22,12 +22,28 @@ pub struct Loaded {
 }
 
 pub fn load(config: &Path) -> Result<Loaded> {
-    let cfg = config::load(config)?;
+    load_from(&config::Disk, config)
+}
+
+/// `load` with the config tree read from `src` (a change's preview); the cache and the review
+/// file are read from disk.
+pub fn load_from(src: &dyn config::FileSource, config: &Path) -> Result<Loaded> {
+    load_mode(src, config, Mode::Strict)
+}
+
+/// `load_from` for a design in progress: partition errors (`config/unassigned`, ...) do not
+/// abort; they are in `resolved.pending`. Parse and validation errors still do.
+pub fn load_draft_from(src: &dyn config::FileSource, config: &Path) -> Result<Loaded> {
+    load_mode(src, config, Mode::Draft)
+}
+
+fn load_mode(src: &dyn config::FileSource, config: &Path, mode: Mode) -> Result<Loaded> {
+    let cfg = config::load_from(src, config)?;
     let cache = read_cache(config)?;
     let review = review::read(config)?;
     let root = Path::new(&cache.workspace_root);
     let ws = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
-    let resolved = config::resolve(&cfg, &cache.crates, &cache.modules, &ws)?;
+    let resolved = config::resolve(&cfg, &cache.crates, &cache.modules, &ws, mode)?;
     let mut found = rules::evaluate(&cache, &cfg, &resolved, root);
     found.extend(rules::evaluate_stale(&cache));
     found.extend(interface::unused(&cache, &cfg, &resolved));

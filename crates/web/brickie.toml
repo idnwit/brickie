@@ -13,7 +13,7 @@ desc = "The server/UI port: Endpoint contracts and every type that crosses them,
 name = "server"
 path = "server"                       # composite: routes, render, data
 tags = ["server"]
-desc = "axum server: SSR page, JSON API, source view, review edits, embedded wasm bundle"
+desc = "axum server: SSR page, JSON API, source view, review edits, design change endpoints, embedded wasm bundle"
 
 [[brick]]
 name = "ui"

@@ -138,3 +138,6 @@ a.codebtn{flex:none;display:inline-flex;align-items:center;gap:4px;padding:4px 1
 a.codebtn:hover{filter:brightness(1.1)}a.codebtn:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
 .modal .win.full{width:100vw;height:100vh;border-radius:0;border:0}
 .modal .bar .acts{display:flex;gap:6px}
+#freshness{font-size:12px;color:var(--muted)}#freshness .stale{color:var(--c-debt)}#freshness .err-text{max-width:360px;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:middle}
+.navh{display:flex;gap:2px;padding:2px 4px}.navbtn{border:0;background:none;color:var(--fg);font-size:14px;padding:0 5px;cursor:pointer;border-radius:4px}.navbtn:hover:not(:disabled){background:var(--line)}.navbtn:disabled{opacity:.35;cursor:default}
+.pill{display:inline-flex;gap:6px;align-items:center;font-size:12px;padding:2px 4px 2px 10px;border-radius:12px;background:color-mix(in srgb,var(--sel) 15%,var(--panel));border:1px solid var(--sel)}.pill button{font-size:12px;padding:0 6px}.pill .x{border:0;background:none}

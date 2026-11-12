@@ -1,0 +1,21 @@
+[package]
+name = "brickie-change"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "brickie change sessions: an op log over the brickie.toml tree, preview, review and publish"
+license = "MIT"
+publish = false
+
+[dependencies]
+brickie-check = { workspace = true }
+brickie-facts = { workspace = true }
+brickie-model = { workspace = true }
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+toml_edit = "0.25.19"
+
+[dev-dependencies]
+tempfile = "3"

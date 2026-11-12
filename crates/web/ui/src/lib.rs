@@ -17,6 +17,8 @@ pub const CSS: &str = concat!(
     include_str!("../styles/viewer.css"),
     include_str!("../styles/state.css"),
     include_str!("../styles/card.css"),
+    include_str!("../styles/editor.css"),
+    include_str!("../styles/editor-canvas.css"),
 );
 
 /// Id of the element the app renders into, and of the script holding its JSON data.

@@ -1,7 +1,8 @@
 //! JSON endpoints that take the same params as the page. Typed by the `brickie-web-api`
-//! contract: `Diagnostics`, `Functions` and `Graph`.
+//! contract: `Diagnostics`, `Functions` and `Graph` (of the change preview with `change=1`).
 
-use crate::{AppState, Failure, data};
+use super::view;
+use crate::{AppState, Failure};
 use axum::Json;
 use axum::extract::{Query, State};
 use brickie_web_api::{Diagnostics, Functions, Graph, ReqOf, ResOf};
@@ -10,8 +11,7 @@ pub async fn diagnostics(
     State(st): State<AppState>,
     Query(p): Query<ReqOf<Diagnostics>>,
 ) -> Result<Json<ResOf<Diagnostics>>, Failure> {
-    let l = st.load()?;
-    let data = data::page(&l, &st.cache_file());
+    let data = view::page(&st, &p)?;
     let out = data
         .diags
         .into_iter()
@@ -24,8 +24,7 @@ pub async fn functions(
     State(st): State<AppState>,
     Query(p): Query<ReqOf<Functions>>,
 ) -> Result<Json<ResOf<Functions>>, Failure> {
-    let l = st.load()?;
-    let data = data::page(&l, &st.cache_file());
+    let data = view::page(&st, &p)?;
     let idx = brickie_web_api::fn_rows(&data.functions, &p);
     let out = idx
         .iter()
@@ -35,8 +34,9 @@ pub async fn functions(
     Ok(Json(out))
 }
 
-/// `Graph` takes no input (`Req = ()`), so there is nothing to extract.
-pub async fn graph(State(st): State<AppState>) -> Result<Json<ResOf<Graph>>, Failure> {
-    let l = st.load()?;
-    Ok(Json(data::page(&l, &st.cache_file()).levels))
+pub async fn graph(
+    State(st): State<AppState>,
+    Query(p): Query<ReqOf<Graph>>,
+) -> Result<Json<ResOf<Graph>>, Failure> {
+    Ok(Json(view::page(&st, &p)?.levels))
 }

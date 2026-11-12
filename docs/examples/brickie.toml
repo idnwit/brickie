@@ -16,7 +16,7 @@ tags = ["core"]
 
 [[brick]]
 name = "backends"
-members = ["acme-backends", "acme-engine::testing"]   # crate::module also works
+members = ["acme-backends", "acme-engine::testing"]   # crate::module prefix; module:<id> is exact
 tags = ["adapter"]
 
 [[brick]]

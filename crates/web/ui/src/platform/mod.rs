@@ -25,21 +25,29 @@ mod imp {
         cb.forget();
     }
 
-    /// Key presses outside text inputs (`in_input` is true inside them); `f` returns whether to
+    /// Key presses (Ctrl/Cmd chords as `Ctrl+<key>` / `Ctrl+Shift+<key>`) outside text inputs (`in_input` is true inside them); `f` returns whether to
     /// `preventDefault`.
     pub fn on_key(f: impl Fn(String, bool) -> bool + 'static) {
         let cb =
             Closure::<dyn Fn(web_sys::KeyboardEvent)>::new(move |e: web_sys::KeyboardEvent| {
-                if e.ctrl_key() || e.meta_key() || e.alt_key() {
+                if e.alt_key() {
                     return;
                 }
+                // Ctrl/Cmd chords arrive as `Ctrl+<key>` (lower case).
+                let key = if (e.ctrl_key() || e.meta_key()) && e.shift_key() {
+                    format!("Ctrl+Shift+{}", e.key().to_lowercase())
+                } else if e.ctrl_key() || e.meta_key() {
+                    format!("Ctrl+{}", e.key().to_lowercase())
+                } else {
+                    e.key()
+                };
                 let tag = e
                     .target()
                     .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
                     .map(|el| el.tag_name())
                     .unwrap_or_default();
                 let in_input = matches!(tag.as_str(), "INPUT" | "TEXTAREA" | "SELECT");
-                if f(e.key(), in_input) {
+                if f(key, in_input) {
                     e.prevent_default();
                 }
             });
@@ -85,6 +93,40 @@ mod imp {
         }
     }
 
+    /// Run `f` once after `ms` milliseconds (`setTimeout`).
+    pub fn after(ms: i32, f: impl FnOnce() + 'static) {
+        let cb = Closure::once_into_js(f);
+        if let Some(w) = web_sys::window() {
+            let _ = w.set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), ms);
+        }
+    }
+
+    /// The `href` of the breadcrumb link under client point `(x, y)`.
+    pub fn crumb_at(x: f64, y: f64) -> Option<String> {
+        let doc = web_sys::window()?.document()?;
+        let el = doc.element_from_point(x as f32, y as f32)?;
+        el.closest("a.crumb").ok()??.get_attribute("href")
+    }
+
+    /// Whether a text field (input, textarea, select) has the focus.
+    pub fn typing() -> bool {
+        web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.active_element())
+            .is_some_and(|e| matches!(e.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT"))
+    }
+
+    /// Blur the focused element.
+    pub fn blur_active() {
+        if let Some(e) = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.active_element())
+            .and_then(|e| e.dyn_into::<web_sys::HtmlElement>().ok())
+        {
+            let _ = e.blur();
+        }
+    }
+
     pub fn reload() {
         if let Some(w) = web_sys::window() {
             let _ = w.location().reload();
@@ -101,11 +143,20 @@ mod imp {
         }
     }
 
-    async fn post(path: &str, body: String) -> Result<String, String> {
+    /// Go to `url` (a full page load).
+    pub fn goto(url: &str) {
+        if let Some(w) = web_sys::window() {
+            let _ = w.location().set_href(url);
+        }
+    }
+
+    async fn fetch(path: &str, body: Option<String>) -> Result<String, String> {
         let window = web_sys::window().ok_or("no window")?;
         let init = web_sys::RequestInit::new();
-        init.set_method("POST");
-        init.set_body(&JsValue::from_str(&body));
+        init.set_method(if body.is_some() { "POST" } else { "GET" });
+        if let Some(body) = body {
+            init.set_body(&JsValue::from_str(&body));
+        }
         let headers = web_sys::Headers::new().map_err(|_| "headers")?;
         let _ = headers.set("content-type", "application/json");
         init.set_headers(&headers);
@@ -156,7 +207,12 @@ mod imp {
         body: String,
         done: impl FnOnce(Result<String, String>) + 'static,
     ) {
-        wasm_bindgen_futures::spawn_local(async move { done(post(path, body).await) });
+        wasm_bindgen_futures::spawn_local(async move { done(fetch(path, Some(body)).await) });
+    }
+
+    /// GET `path`; `done` gets the response text or an error message.
+    pub fn get_json(path: &'static str, done: impl FnOnce(Result<String, String>) + 'static) {
+        wasm_bindgen_futures::spawn_local(async move { done(fetch(path, None).await) });
     }
 }
 
@@ -176,10 +232,23 @@ mod imp {
     pub fn next_frame(_: impl FnOnce() + 'static) {}
     pub fn focus(_: &str) {}
     pub fn reload() {}
+    pub fn blur_active() {}
+    pub fn typing() -> bool {
+        false
+    }
+    pub fn crumb_at(_: f64, _: f64) -> Option<String> {
+        None
+    }
+    pub fn after(_: i32, _: impl FnOnce() + 'static) {}
     pub fn on_message(_: impl Fn(String) + 'static) {}
     pub fn post_to_frame(_: &str, _: &str) {}
     pub fn post_json(_: &'static str, _: String, _: impl FnOnce(Result<String, String>) + 'static) {
     }
+    pub fn get_json(_: &'static str, _: impl FnOnce(Result<String, String>) + 'static) {}
+    pub fn goto(_: &str) {}
 }
 
+mod live;
+
 pub use imp::*;
+pub use live::*;

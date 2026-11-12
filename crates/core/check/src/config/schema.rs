@@ -6,10 +6,10 @@ use serde::Deserialize;
 use std::path::PathBuf;
 
 /// A named group of modules. `members` are package names (all targets of the package), module
-/// ids such as `my-engine::a::b` (the module and everything below it) or `path:<dir>/` (crates
-/// whose manifest is under the folder, relative to the declaring file). A brick with `path` is
-/// a composite: its children are in `<path>/brickie.toml` (`sub`), and its members default to
-/// `path:<path>/`.
+/// prefixes such as `my-engine::a::b` (the module and everything below it), exact module ids such
+/// as `module:my-engine::a::b` (that module only), or `path:<dir>/` (crates whose manifest is
+/// under the folder, relative to the declaring file). A brick with `path` is a composite: its
+/// children are in `<path>/brickie.toml` (`sub`), and its members default to `path:<path>/`.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Brick {

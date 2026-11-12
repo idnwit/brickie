@@ -11,6 +11,12 @@ pub struct CacheInfo {
     pub dirty: bool,
     /// UTC time the cache file was written.
     pub measured: String,
+    /// Seconds since the cache file was written, when the page was built (`None`: unknown).
+    #[serde(default)]
+    pub age_secs: Option<u64>,
+    /// Files changed since the measure (`stale/file` findings).
+    #[serde(default)]
+    pub stale_files: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

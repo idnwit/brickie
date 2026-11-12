@@ -13,7 +13,7 @@ fn main() {
         println!("cargo::rustc-cfg=ui_wasm");
     } else {
         println!(
-            "cargo::warning=assets/ui/ has no wasm bundle: `brickie view` will serve the read-only SSR page (run scripts/build-ui.sh to enable the interactive UI)"
+            "cargo::warning=assets/ui/ has no wasm bundle: `brickie serve` will serve the read-only SSR page (run scripts/build-ui.sh to enable the interactive UI)"
         );
     }
 }

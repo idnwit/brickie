@@ -35,6 +35,14 @@ pub struct BrickView {
     pub exported: bool,
     /// A faded neighbour outside the current level, with edges crossing its boundary.
     pub ghost: bool,
+    /// Change preview: in the design, but no measured module maps to it yet.
+    pub planned: bool,
+    /// Change preview: added by a coding agent's op that is still proposed.
+    pub proposed: bool,
+    /// Change preview: not a brick but the placeholder for modules of this composite that
+    /// none of its bricks claims yet (`config/unassigned`); `members` covers them. Dropping
+    /// it onto a brick adds those members there.
+    pub unassigned: bool,
 }
 
 impl BrickView {

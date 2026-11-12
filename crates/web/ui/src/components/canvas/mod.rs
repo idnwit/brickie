@@ -16,14 +16,24 @@ use brick::node_view;
 use defs::defs;
 pub use edge::dash;
 use edge::edge_view;
-use frame::{cut, frame_rect, frame_view};
+pub use frame::frame_rect;
+use frame::{cut, frame_view};
 pub use pointer::pointer;
 use rows::row_labels;
 
+use crate::components::editor;
 use crate::layout::Rect;
 use crate::platform;
 use crate::state::*;
 use sycamore::prelude::*;
+
+/// The measured stage: record its size and fit the view (unless an editor patch kept it).
+fn first_fit(c: &Cx, s: (f64, f64)) {
+    c.stage.set(Some(s));
+    if c.fit {
+        c.view.set(fit_view(&c.m.layout, s));
+    }
+}
 
 /// The stage: pan (drag), zoom (wheel), drag-box select (shift-drag), brick drag, click on the
 /// background clears the selection.
@@ -138,13 +148,7 @@ pub fn canvas(cx: &Cx) -> View {
     let c = cx.clone();
     // The entry transition (`zin`/`zout`) plays once when the level's stage mounts.
     let anim = cx.anim;
-    let pan_cls = move || {
-        if matches!(c.op.get(), Some(Op::Pan { .. })) {
-            format!("pan {anim}")
-        } else {
-            anim.to_string()
-        }
-    };
+    let pan_cls = move || stage_class(&c, anim);
     let c = cx.clone();
     let sel_box = move || match c.op.get() {
         Some(Op::Box { x0, y0, x1, y1 }) => format!(
@@ -158,6 +162,8 @@ pub fn canvas(cx: &Cx) -> View {
     };
     let crumbs = crate::components::controls::crumbs(cx);
     let bnd = crate::components::controls::boundary(cx);
+    let edit = editor::overlay(cx);
+    let layer = editor::layer(cx, pos);
     // The svg has no viewBox: one user unit is one CSS pixel of the stage, so pointer
     // positions map straight into the pan/zoom transform. On the next frame (the stage is in
     // the DOM) measure it and fit. Always set the view: after hydration the DOM still shows
@@ -165,8 +171,7 @@ pub fn canvas(cx: &Cx) -> View {
     let c = cx.clone();
     platform::next_frame(move || {
         if let Some((_, _, sw, sh)) = platform::stage_rect() {
-            c.stage.set(Some((sw, sh)));
-            c.view.set(fit_view(&c.m.layout, (sw, sh)));
+            first_fit(&c, (sw, sh));
         }
     });
     view! {
@@ -179,10 +184,23 @@ pub fn canvas(cx: &Cx) -> View {
                     g(class="lay") { (low) }
                     g(class="lay top") { (top) }
                     g { (nodes) }
+                    (layer)
                 }
             }
             div(class="selbox", style=sel_box)
             div(class="ovl") { (crumbs) (bnd) }
+            (edit)
         }
     }
+}
+
+/// Classes of `#stage`: its entry transition, `pan` while panning, `nodrop` over a refused drop.
+fn stage_class(c: &Cx, anim: &str) -> String {
+    let no = c.ed.target.with(|t| matches!(t, Some(MoveTarget::No(_))));
+    let pan = matches!(c.op.get(), Some(Op::Pan { .. }));
+    format!(
+        "{}{anim}{}",
+        if pan { "pan " } else { "" },
+        if no { " nodrop" } else { "" }
+    )
 }

@@ -3,9 +3,13 @@
 
 mod api;
 mod code;
+mod editor;
+mod editor_reply;
+mod events;
 mod index;
 mod interface;
 mod levels;
+mod measure;
 mod review;
 
 use super::*;
@@ -108,12 +112,27 @@ impl Site {
         self.post("/review", body).await
     }
 
+    /// POST from the page the server served (passes the write guard).
     pub(crate) async fn post(&self, path: &str, body: Value) -> (StatusCode, String) {
-        let req = Request::post(path)
+        self.post_with(path, body, &[("origin", "http://127.0.0.1:3000")])
+            .await
+    }
+
+    /// POST with Host `127.0.0.1:3000` and the extra `headers`.
+    pub(crate) async fn post_with(
+        &self,
+        path: &str,
+        body: Value,
+        headers: &[(&str, &str)],
+    ) -> (StatusCode, String) {
+        let mut req = Request::post(path)
             .header("content-type", "application/json")
-            .body(Body::from(body.to_string()))
-            .unwrap();
-        self.call(req).await
+            .header("host", "127.0.0.1:3000");
+        for (k, v) in headers {
+            req = req.header(*k, *v);
+        }
+        self.call(req.body(Body::from(body.to_string())).unwrap())
+            .await
     }
 
     /// The id of the single diagnostic, as `brickie check` computes it.

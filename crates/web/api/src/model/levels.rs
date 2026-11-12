@@ -16,6 +16,10 @@ pub struct LevelView {
     /// Children visible from outside the composite (empty at the root).
     pub exports: Vec<String>,
     pub graph: GraphView,
+    /// Change preview: rules of this level the change adds that no measured edge backs yet
+    /// (drawn dashed between the bricks their selectors name).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub planned_edges: Vec<crate::change::PlannedEdge>,
 }
 
 impl LevelView {

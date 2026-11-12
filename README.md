@@ -51,15 +51,15 @@ In the root of the workspace to analyse, create `brickie.toml` (see below), then
 ```sh
 brickie measure     # slow: runs rust-analyzer, writes .brickie/cache.json
 brickie check       # fast: applies the rules to the cache, exits 1 on errors
-brickie view        # opens the viewer on http://127.0.0.1:7881
+brickie serve       # opens the viewer on http://127.0.0.1:7881
 brickie interface root/web/api   # a brick's declared interface and its uses
 ```
 
-Re-run `brickie measure` after changing code; `check` and `view` warn (`stale/*`) when the cache
+Re-run `brickie measure` after changing code; `check` and `serve` warn (`stale/*`) when the cache
 is older than the code. Changing only the rules never needs a re-measure.
 
 Options: `--config path/to/brickie.toml` on every command, `brickie measure --scip index.scip
---workspace DIR`, `brickie check --format text|json --color auto|always|never`, `brickie view
+--workspace DIR`, `brickie check --format text|json --color auto|always|never`, `brickie serve
 --port 7881 --bind 127.0.0.1`.
 
 ## Configuration
@@ -69,7 +69,7 @@ include = ["presets/layered.toml"]   # optional: another file with the same sche
 
 [[brick]]
 name = "engine"
-members = ["acme-engine"]            # package name, crate::module, or path:<dir>/
+members = ["acme-engine"]            # package, crate::module prefix, module:<exact-id>, or path:<dir>/
 tags = ["core"]
 
 [[brick]]
@@ -148,10 +148,14 @@ GitHub Actions example:
 
 Pin a released version for reproducible CI; `dev` and `latest` move.
 
-## View
+## Serve
 
-`brickie view` serves the viewer from the cache and the config; it re-reads both on every
-request, so re-running `measure` and refreshing is enough. Without the browser bundle (below) the
+`brickie serve` serves the viewer from the cache and the config; it re-reads both on every
+request, so re-running `measure` and refreshing is enough. The header shows how old the cache is
+and how many files changed since; its Measure button runs measure inside the server (one run at a
+time) and reloads the page when it finishes. A measure holds `.brickie/cache.lock`: a second
+measure (CLI or server) started meanwhile fails at once with a clear message; retry when the first
+is done. Without the browser bundle (below) the
 page is complete but read-only; with it you get pan, zoom, dragging, filters and Accept.
 Nested bricks are shown one level at a time: double-click a composite (marked with a magnifier icon) or click its icon to zoom in,
 Backspace or the breadcrumb (top-left of the canvas) to zoom out; clicking a finding opens the level that reports it.

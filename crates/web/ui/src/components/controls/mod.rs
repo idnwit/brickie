@@ -1,10 +1,13 @@
-//! The header: level breadcrumb, presets, data layers, fit/reload and the finding counts.
+//! The header: level breadcrumb, presets, data layers, fit/reload, measure and the finding
+//! counts.
 
 mod boundary;
 mod crumbs;
+mod measure;
 
 pub use boundary::boundary;
 pub use crumbs::crumbs;
+pub use measure::start_measure;
 mod presets;
 mod toggles;
 
@@ -70,6 +73,9 @@ pub fn header(cx: &Cx) -> View {
     let c = cx.clone();
     let dragged = move || !c.drag.with(|d| d.is_empty());
     let counts = counts(cx);
+    let design = crate::components::editor::design_button(cx);
+    let measure = measure::measure(&cx.m.cache, cx.bus.job);
+    let pill = measure::pill(cx.bus.pill);
     view! {
         header {
             b { "brickie" }
@@ -79,6 +85,9 @@ pub fn header(cx: &Cx) -> View {
             button(id="fit", title="Fit the graph in the stage", on:click=fit) { "Fit" }
             button(id="relayout", title="Put dragged bricks back where the automatic layout placed them", disabled=move || !dragged(), on:click=relayout) { "Auto layout" }
             button(id="reload", on:click=move |_: Click| platform::reload()) { "Reload" }
+            (design)
+            (measure)
+            (pill)
             span(class="cnt") { (counts) }
         }
     }

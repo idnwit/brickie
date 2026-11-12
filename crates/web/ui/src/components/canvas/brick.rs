@@ -29,13 +29,7 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
             )
         }
     };
-    let kind = if brick.ghost {
-        " ghost"
-    } else if brick.composite() {
-        " comp"
-    } else {
-        ""
-    };
+    let kind = kind_class(&brick);
     let cls = {
         let cx = cx.clone();
         move || {
@@ -138,7 +132,7 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
     };
     let (c1, c2) = (cx.clone(), cx.clone());
     let down = move |e: Click| {
-        if e.button() != 0 {
+        if !grabs(&c1, &e) {
             return;
         }
         e.stop_propagation();
@@ -208,6 +202,25 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
             (zoom)
         }
     }
+}
+
+/// The box classes of a brick's kind, with the change preview marks: planned (no code yet)
+/// and agent-proposed bricks.
+fn kind_class(b: &BrickView) -> String {
+    let kind = match (b.ghost, b.composite()) {
+        (true, _) => " ghost",
+        (_, true) => " comp",
+        _ => "",
+    };
+    let planned = if b.planned { " planned" } else { "" };
+    let proposed = if b.proposed { " proposed" } else { "" };
+    let unassigned = if b.unassigned { " unassigned" } else { "" };
+    format!("{kind}{planned}{proposed}{unassigned}")
+}
+
+/// A press that grabs the brick: left button, not the Hand tool (which pans from anywhere).
+fn grabs(cx: &Cx, e: &Click) -> bool {
+    e.button() == 0 && cx.ed.tool.get() != Tool::Hand
 }
 
 /// Two clicks on one brick closer than this (ms) are a double-click.

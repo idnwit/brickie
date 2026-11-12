@@ -2,12 +2,16 @@
 //! diagnostics are the very values `brickie check` prints, converted field by field.
 
 mod diagnostics;
+mod editor;
 mod functions;
 mod graph;
 mod interface;
+mod reply;
 mod time;
 
+pub use editor::{change_view, mark};
 pub use interface::{edge_uses, interface};
+pub use reply::{levels, op_files, reply, seq_files};
 pub use time::utc;
 
 use brickie_check::check::Loaded;
@@ -18,14 +22,21 @@ use std::path::Path;
 pub fn page(l: &Loaded, cache_file: &Path) -> PageData {
     let cache = &l.cache;
     let mut lines = Lines::new(Path::new(&cache.workspace_root));
+    let modified = std::fs::metadata(cache_file)
+        .and_then(|m| m.modified())
+        .ok();
     PageData {
         cache: CacheInfo {
             workspace: cache.workspace_root.clone(),
             commit: cache.git.as_ref().map(|g| g.commit.clone()),
             dirty: cache.git.as_ref().is_some_and(|g| g.dirty),
-            measured: std::fs::metadata(cache_file)
-                .and_then(|m| m.modified())
-                .map_or_else(|_| "unknown".into(), utc),
+            measured: modified.map_or_else(|| "unknown".into(), utc),
+            age_secs: modified.and_then(|t| t.elapsed().ok()).map(|d| d.as_secs()),
+            stale_files: l
+                .diagnostics
+                .iter()
+                .filter(|d| d.code == brickie_model::codes::STALE_FILE)
+                .count(),
         },
         diags: l
             .diagnostics
@@ -34,5 +45,6 @@ pub fn page(l: &Loaded, cache_file: &Path) -> PageData {
             .collect(),
         levels: graph::levels(l),
         functions: functions::functions(l),
+        change: None,
     }
 }

@@ -31,7 +31,7 @@ Data stays HTTP (the `web/api` endpoints) in both cases.
 
 ## VS Code extension (`editors/vscode`, TypeScript, outside the Cargo workspace)
 
-- Starts `brickie view --port 0 --bind 127.0.0.1` for the workspace folder (needs a
+- Starts `brickie serve --port 0 --bind 127.0.0.1` for the workspace folder (needs a
   `--print-port` or a ready line to read the port) and stops it with the window.
 - Command **brickie: Open map**: a webview panel whose page is a thin shell with one iframe to
   `http://127.0.0.1:<port>/?host=vscode` (CSP allows only that origin). The shell relays messages
@@ -51,7 +51,7 @@ for the browser.
 - `web/api`: + host messages (contract).
 - `web/ui/platform`: `Host`, `WebHost`, `EmbeddedHost`; `components` use `Host` only.
 - `editors/vscode`: not a Rust crate; outside brickie's checked tree (documented in design.md).
-- `cli`: `brickie view --port 0` prints the bound address on a machine-readable line.
+- `cli`: `brickie serve --port 0` prints the bound address on a machine-readable line.
 
 ## Later (separate proposal)
 

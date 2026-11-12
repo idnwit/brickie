@@ -1,5 +1,6 @@
 //! `POST /review`: accept or unaccept a finding in `brickie.review.toml`.
 
+use super::guard::Guard;
 use crate::{AppState, Failure};
 use axum::Json;
 use axum::extract::State;
@@ -10,6 +11,7 @@ use brickie_web_api::{ReqOf, ResOf, Review};
 /// Accept (`reason`) or unaccept (`reason: null`) one finding in `brickie.review.toml`.
 pub async fn review(
     State(st): State<AppState>,
+    _: Guard,
     Json(req): Json<ReqOf<Review>>,
 ) -> Result<Json<ResOf<Review>>, Failure> {
     let bad = |m: &str| Failure(StatusCode::BAD_REQUEST, m.to_string());

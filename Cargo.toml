@@ -1,10 +1,11 @@
 [workspace]
-members = ["crates/lib/algo/layout", "crates/lib/algo/graph", "crates/lib/algo/rustscan", "crates/lib/algo/metrics", "crates/core/model", "crates/core/facts", "crates/core/measure", "crates/core/check", "crates/web/api", "crates/web/server", "crates/web/ui", "crates/lib/codeview/port", "crates/lib/codeview/app", "crates/lib/codeview/host", "crates/cli"]
+members = ["crates/lib/algo/layout", "crates/lib/algo/graph", "crates/lib/algo/rustscan", "crates/lib/algo/metrics", "crates/core/model", "crates/core/facts", "crates/core/measure", "crates/core/check", "crates/core/change", "crates/web/api", "crates/web/server", "crates/web/ui", "crates/lib/codeview/port", "crates/lib/codeview/app", "crates/lib/codeview/host", "crates/cli"]
 exclude = ["fixtures"]
 resolver = "3"
 
 [workspace.dependencies]
 # Internal crates: members depend on them with `name = { workspace = true }`.
+brickie-change = { path = "crates/core/change" }
 brickie-check = { path = "crates/core/check" }
 brickie-facts = { path = "crates/core/facts" }
 brickie-graph = { path = "crates/lib/algo/graph" }

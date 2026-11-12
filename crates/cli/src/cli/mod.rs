@@ -1,11 +1,12 @@
 //! Command line: argument parsing and one file per command.
 
 mod args;
+mod change;
 mod check;
 mod interface;
 mod llms;
 mod measure;
-mod view;
+mod serve;
 
 use anyhow::Result;
 use args::{Cli, Command};
@@ -23,14 +24,16 @@ pub fn run() -> Result<i32> {
             config,
             format,
             color,
-        } => Ok(check::run(&config, format, color)),
+            change,
+        } => Ok(check::run(&config, format, color, change)),
+        Command::Change(args) => Ok(change::run(args)),
         Command::Interface {
             brick,
             config,
             json,
             from,
         } => interface::run(&config, &brick, from.as_deref(), json),
-        Command::View { config, port, bind } => view::run(config, bind, port),
+        Command::Serve { config, port, bind } => serve::run(config, bind, port),
         Command::LlmsTxt => llms::run(),
     }
 }

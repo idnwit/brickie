@@ -38,8 +38,10 @@ User requirements (fixed):
   leaves always have two distinct siblings under their lowest common ancestor.
 - Names and tags are local to a file; rules only select that file's own children. No selectors
   across levels.
-- Members: `crate`, `crate::module`, or `path:<dir>/` (crates whose manifest is under the folder).
-  The most specific match wins: `path:` < package < module; a longer `path:` beats a shorter one.
+- Members: `crate`, `crate::module` (a module prefix), `module:<id>` (one exact module), or
+  `path:<dir>/` (crates whose manifest is under the folder). The most specific match wins:
+  `path:` < package < module prefix < exact module; a longer `path:` or module id beats a
+  shorter one.
 
 ### Contract
 
@@ -134,7 +136,7 @@ knows which file to edit. The cost is O(depth) per edge.
 ### Cache and measure
 
 The brick mapping moves out of the cache. `measure` stores only crates, modules, files, edges and
-functions. `check` and `view` resolve the tree from the configs, which is a cheap, pure step.
+functions. `check` and `serve` resolve the tree from the configs, which is a cheap, pure step.
 Editing any `brickie.toml` therefore never needs a re-measure, and the config-hash staleness
 check (`stale/bricks`) goes away.
 

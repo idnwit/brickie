@@ -1,6 +1,7 @@
 # The core crates: model (light, wasm-safe shared types) is the base; facts is the cache;
-# measure and check are independent flows that share only facts and model.
-exports = ["model", "facts", "measure", "check"]
+# measure and check are independent flows that share only facts and model; change (design
+# change sessions) builds on check's loader.
+exports = ["model", "facts", "measure", "check", "change"]
 
 [[brick]]
 name = "model"
@@ -26,6 +27,12 @@ path = "check"                        # composite: diag, config, rules, review, 
 tags = ["flow"]
 desc = "`brickie check`: config, rules, review and diagnostics over the cache"
 
+[[brick]]
+name = "change"
+members = ["brickie-change"]
+tags = ["flow"]
+desc = "Design change sessions: op log, review, preview over the loader, publish and scaffold"
+
 [deps]
 default = "deny"
 cycles = "deny"
@@ -50,3 +57,10 @@ to = "model"
 scope = "all"
 action = "allow"
 reason = "measure builds function trees, check produces diagnostics"
+
+[[deps.rule]]
+from = "change"
+to = "check"
+scope = "all"
+action = "allow"
+reason = "the preview is loaded and checked by check's loader over a virtual file set"

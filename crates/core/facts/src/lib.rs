@@ -2,8 +2,10 @@
 
 mod files;
 mod hash;
+mod lock;
 mod model;
 
 pub use files::{crate_dirs, walk_rs};
 pub use hash::sha256_hex;
+pub use lock::CacheLock;
 pub use model::*;

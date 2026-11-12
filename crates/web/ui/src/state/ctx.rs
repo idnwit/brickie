@@ -27,6 +27,8 @@ pub struct Model {
     pub diags: Vec<DiagView>,
     pub cards: Rc<Vec<Card>>,
     pub fns: Vec<FnRow>,
+    /// The open design change.
+    pub change: Option<Rc<ChangeView>>,
 }
 
 /// `S.view`: pan and zoom of the canvas, in stage pixels.
@@ -84,6 +86,12 @@ pub struct Cx {
     pub scores: ReadSignal<Vec<BrickScore>>,
     /// Entry transition of the canvas: `zin`, `zout` or none.
     pub anim: &'static str,
+    /// Fit the view once the stage is measured (false when a patch kept the view).
+    pub fit: bool,
+    pub live: Live,
+    pub ed: Edit,
+    pub nav: Signal<Nav>,
+    pub bus: Bus,
 }
 
 /// The layout input of a page: bricks with their row, and one edge per (from, to, kind).
@@ -113,23 +121,48 @@ impl Cx {
     /// `stage` is the stage size in pixels when known (the caller measures it).
     pub fn new(sh: &Shared, lv: usize, stage: Option<(f64, f64)>) -> Cx {
         let params = sh.params;
-        let level = &sh.levels[lv];
+        let levels = sh.live.levels.get_clone_untracked();
+        let change = sh.live.change.get_clone_untracked();
+        let level = &levels[lv];
         // Laid out without the frame edges, which are appended after the original ones.
-        let layout = layout::layout(&layout_input(&level.graph));
+        let mut layout = layout::layout(&layout_input(&level.graph));
+        // The editor's stored positions win over the automatic layout.
+        if let Some(ch) = change
+            .as_deref()
+            .filter(|_| params.with_untracked(|p| p.editing()))
+        {
+            apply_hints(
+                &mut layout.pos,
+                &level.graph.bricks,
+                &ch.layout,
+                &level.path,
+            );
+        }
+        // After a patch, boxes that were on screen stay where they were.
+        let keep = sh
+            .live
+            .keep
+            .get_clone_untracked()
+            .filter(|k| k.level == level.path);
+        if let Some(k) = &keep {
+            restore_positions(&mut layout.pos, &level.graph.bricks, &k.pos);
+        }
         let m = Rc::new(Model {
             cache: sh.cache.clone(),
-            levels: sh.levels.clone(),
-            lv,
             g: with_frame_edges(&level.graph),
+            levels,
+            lv,
             layout,
             diags: sh.diags.clone(),
             cards: sh.cards.clone(),
             fns: sh.fns.clone(),
+            change,
         });
         let stage = create_signal(stage);
-        let view = create_signal(match stage.get() {
-            Some(s) => fit_view(&m.layout, s),
-            None => Vw {
+        let view = create_signal(match (&keep, stage.get()) {
+            (Some(k), _) => k.view,
+            (None, Some(s)) => fit_view(&m.layout, s),
+            (None, None) => Vw {
                 x: 0.0,
                 y: 0.0,
                 k: 1.0,
@@ -164,12 +197,28 @@ impl Cx {
             eval,
             scores,
             anim: "",
+            fit: keep.is_none(),
+            live: sh.live,
+            ed: sh.ed,
+            nav: sh.nav,
+            bus: sh.bus,
         }
     }
 
     /// Change the params. The page mirrors them into the URL (see `components::app`).
     pub fn go(&self, p: Params) {
         self.params.set(p);
+    }
+
+    /// The editor is on (a change is open and its preview shown).
+    pub fn editing(&self) -> bool {
+        self.params.with(|p| editing(self.m.change.as_deref(), p))
+    }
+
+    /// The config file of the current level, relative to the root config's directory.
+    pub fn level_file(&self) -> Option<String> {
+        let ch = self.m.change.as_deref()?;
+        ch.files.get(&self.level().path).cloned()
     }
 
     /// The current level.

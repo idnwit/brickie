@@ -25,7 +25,7 @@ desc = "The reviewer webview: axum server and the hydrated viewer"
 name = "cli"
 members = ["brickie"]                 # the binary, its tests
 tags = ["domain"]
-desc = "The `brickie` command line: measure, check, view, llms"
+desc = "The `brickie` command line: measure, check, serve, llms"
 
 [deps]
 default = "deny"
@@ -43,7 +43,7 @@ from = "cli"
 to = "web"
 scope = "all"
 action = "allow"
-reason = "`brickie view` starts the server"
+reason = "`brickie serve` starts the server"
 
 [[deps.rule]]
 from = "web"

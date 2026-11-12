@@ -6,14 +6,16 @@ mod member;
 mod resolve;
 mod schema;
 mod selector;
+mod source;
 mod validate;
 
 #[cfg(test)]
 pub(crate) mod tests;
 
-pub use load::load;
-pub use resolve::{Resolved, resolve};
+pub use load::{load, load_from};
+pub use resolve::{Mode, Pending, Resolved, resolve};
 pub use schema::{
-    Action, Brick, ComplexityRule, Config, DepRule, Export, KINDS, Level, level_name,
+    Action, Brick, ComplexityRule, Config, DepRule, Export, KINDS, Level, Scope, level_name,
 };
 pub use selector::Sel;
+pub use source::{Disk, FileSource};

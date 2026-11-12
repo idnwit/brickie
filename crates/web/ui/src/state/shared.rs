@@ -1,7 +1,7 @@
 //! State that outlives a level: the URL params, the review state of every finding, the popup
 //! and menus, and the page data. [`Cx`] is rebuilt from it each time the level changes.
 
-use super::Cx;
+use super::{Bus, Cx, Edit, Live, Nav};
 use brickie_web_api::*;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -31,10 +31,16 @@ pub struct Shared {
     /// Text filter of the findings list.
     pub q: Signal<String>,
     pub cache: CacheInfo,
-    pub levels: Rc<Vec<LevelView>>,
     pub diags: Vec<DiagView>,
     pub cards: Rc<Vec<Card>>,
     pub fns: Vec<FnRow>,
+    /// The levels and the open design change (patched in place by the editor).
+    pub live: Live,
+    pub ed: Edit,
+    /// Back / Forward history of the view.
+    pub nav: Signal<Nav>,
+    /// What the server's event stream drives (pill, measure job).
+    pub bus: Bus,
 }
 
 /// The [`Cx`] of the level on screen, for window-level handlers registered once.
@@ -56,22 +62,25 @@ impl Shared {
             })
             .collect();
         Shared {
+            nav: create_signal(Nav::new(initial.url())),
+            bus: Bus::new(),
             params: create_signal(initial),
             hover: create_signal(None),
             modal: create_signal(None),
             menu: create_signal(String::new()),
             q: create_signal(String::new()),
             cache: data.cache,
-            levels: Rc::new(data.levels),
             diags: data.diags,
             cards: Rc::new(cards),
             fns: data.functions,
+            live: Live::new(data.levels, data.change),
+            ed: Edit::new(),
         }
     }
 
     /// Index of the level the params name (the root when unknown).
     pub fn level_of(&self, p: &Params) -> usize {
-        level_index(&self.levels, p.level_path())
+        self.live.levels.with(|l| level_index(l, p.level_path()))
     }
 }
 

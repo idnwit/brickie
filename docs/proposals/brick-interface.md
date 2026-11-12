@@ -25,7 +25,7 @@ who uses each item. For reviewers (viewer) and coding agents (CLI).
 
 `brickie measure` records, per declared item, from SCIP `SymbolInformation` and the defining
 occurrence: `symbol`, `kind`, display `name`, one-line `signature`, `doc` (first paragraph),
-defining file and line. Cache schema bump. Use lists are computed at `check` / `view` time from
+defining file and line. Cache schema bump. Use lists are computed at `check` / `serve` time from
 the existing reference edges (no extra cache).
 
 ## Diagnostic

@@ -5,6 +5,7 @@
 
 use super::canvas::{canvas, pointer};
 use super::controls::header;
+use super::editor;
 use super::keys::keys;
 use super::panels::{detail, left};
 use super::popup::{listen, modal_view};
@@ -46,10 +47,18 @@ fn banner(cache: &CacheInfo) -> View {
 /// The shell of one level.
 fn page(cx: &Cx) -> View {
     let hdr = header(cx);
-    let ban = banner(&cx.m.cache);
+    // While a change is open its bar takes the banner's place.
+    let ban = match cx.m.change {
+        Some(_) => editor::change_bar(cx),
+        None => banner(&cx.m.cache),
+    };
     let nav = left(cx);
     let stage = canvas(cx);
-    let det = detail(cx);
+    let det = if cx.editing() {
+        editor::panel(cx)
+    } else {
+        detail(cx)
+    };
     view! { (hdr) (ban) (nav) (stage) (det) }
 }
 
@@ -61,16 +70,18 @@ pub fn app(data: PageData, initial: Params) -> View {
         // The URL last seen or written. Params changes that differ from it are user navigation
         // and push a history entry; back/forward (popstate) records its URL first, so it does not.
         let url = Rc::new(RefCell::new(params.with(|p| p.url())));
-        let u = url.clone();
+        let (u, nav) = (url.clone(), sh.nav);
         platform::on_popstate(move || {
             let p = Params::from_query(&platform::search());
             *u.borrow_mut() = p.url();
+            nav.update(|n| n.popped(&p.url()));
             params.set(p);
         });
         create_effect(move || {
             let now = params.with(|p| p.url());
             if *url.borrow() != now {
                 platform::push_url(&now);
+                nav.update(|n| n.push(now.clone()));
                 *url.borrow_mut() = now;
             }
         });
@@ -82,7 +93,9 @@ pub fn app(data: PageData, initial: Params) -> View {
             }
         });
         keys(&cur);
+        platform::on_history_nav(platform::history_go);
         pointer(&cur);
+        editor::start_live(sh.bus);
     }
     let lvl = {
         let sh = sh.clone();
@@ -94,8 +107,10 @@ pub fn app(data: PageData, initial: Params) -> View {
         let (sh, cur) = (sh.clone(), cur.clone());
         move || {
             let lv = lvl.get();
+            // An editor patch re-renders the level in place (pan/zoom kept).
+            sh.live.rev.track();
             untrack(|| {
-                let depth = sh.levels[lv].path.matches('/').count();
+                let depth = sh.live.levels.with(|l| l[lv].path.matches('/').count());
                 let anim = match prev.replace(Some(depth)) {
                     Some(d) if depth > d => "zin",
                     Some(d) if depth < d => "zout",
@@ -104,6 +119,7 @@ pub fn app(data: PageData, initial: Params) -> View {
                 let mut cx = Cx::new(&sh, lv, platform::stage_rect().map(|r| (r.2, r.3)));
                 cx.anim = anim;
                 *cur.borrow_mut() = Some(cx.clone());
+                set_current_cx(&cx);
                 page(&cx)
             })
         }
