@@ -12,12 +12,9 @@ use std::collections::{BTreeMap, HashSet};
 /// `(vis, keyword)` of a signature: `pub fn f()` -> `("pub", "fn")`. `None` for private
 /// items, `pub(super)` / `pub(in ..)`, and signatures without an item keyword (fields).
 pub fn parse_sig(sig: &str) -> Option<(&'static str, &'static str)> {
-    let (vis, rest) = if let Some(r) = sig.strip_prefix("pub(crate) ") {
-        ("pub(crate)", r)
-    } else if let Some(r) = sig.strip_prefix("pub ") {
-        ("pub", r)
-    } else {
-        return None;
+    let (vis, rest) = match sig.strip_prefix("pub(crate) ") {
+        Some(r) => ("pub(crate)", r),
+        None => ("pub", sig.strip_prefix("pub ")?),
     };
     let toks: Vec<&str> = rest.split_whitespace().collect();
     for (i, t) in toks.iter().enumerate() {
