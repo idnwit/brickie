@@ -1,16 +1,16 @@
 # The webview crates: server (axum, brickie-web) renders and serves the viewer (ui, wasm).
-# The viewer depends on core's model and the layout library only, never on measure or check.
+# Each is a composite with its own folder bricks (see server/brickie.toml, ui/brickie.toml).
 exports = ["server"]
 
 [[brick]]
 name = "server"
-members = ["brickie-web"]
+path = "server"                       # composite: routes, render, data
 tags = ["server"]
 desc = "axum server: SSR page, JSON API, source view, review edits, embedded wasm bundle"
 
 [[brick]]
 name = "ui"
-members = ["brickie-ui"]
+path = "ui"                           # composite: model, state, platform, components
 tags = ["view"]
 desc = "The viewer components (Sycamore): rendered on the server, hydrated in the browser"
 

@@ -1,0 +1,46 @@
+# brickie-web by folder: routes -> render -> data. The crate root (the `run` entry, app state)
+# and the tests belong to `routes`, the layer that wires everything together.
+exports = ["routes"]
+
+[[brick]]
+name = "routes"
+members = ["brickie-web"]             # the crate root, `routes` and tests; the folders below win
+tags = ["http"]
+desc = "HTTP layer: router, handlers, app state, wasm assets, and the crate's tests"
+
+[[brick]]
+name = "render"
+members = ["brickie-web::render"]
+tags = ["view"]
+desc = "HTML pages: the SSR shell around the viewer and the source page"
+
+[[brick]]
+name = "data"
+members = ["brickie-web::data"]
+tags = ["data"]
+desc = "Page data: diagnostics, functions and graph levels built from the check result"
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "routes"
+to = "render"
+scope = "all"
+action = "allow"
+reason = "handlers answer with rendered pages"
+
+[[deps.rule]]
+from = "routes"
+to = "data"
+scope = "all"
+action = "allow"
+reason = "handlers build page data from the check result"
+
+[[deps.rule]]
+from = "render"
+to = "data"
+scope = "all"
+action = "allow"
+reason = "pages embed the page data"

@@ -1,0 +1,59 @@
+# brickie-ui by folder, bottom up: model <- platform (DOM and wasm wrappers) <- state <- components.
+# The crate root (lib.rs, wasm.rs) belongs to `components`, which it wires up and re-exports.
+exports = ["components", "model", "state"]
+
+[[brick]]
+name = "model"
+members = ["brickie-ui::model"]
+tags = ["base"]
+desc = "Pure page data and URL params shared by server and browser; no signals, no DOM"
+
+[[brick]]
+name = "state"
+members = ["brickie-ui::state"]
+tags = ["state"]
+desc = "Reactive viewer state: selection, focus, layers, evaluation and layout context"
+
+[[brick]]
+name = "platform"
+members = ["brickie-ui::platform"]
+tags = ["platform"]
+desc = "Browser wrappers (location, history, DOM) that are no-ops during server rendering"
+
+[[brick]]
+name = "components"
+members = ["brickie-ui"]              # the crate root, wasm entry and `components`; folders win
+tags = ["view"]
+desc = "Sycamore components (canvas, controls, panels, source) and the crate entry points"
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "platform"
+to = "model"
+scope = "all"
+action = "allow"
+reason = "the review POST wrapper is typed with the model's request and reply"
+
+[[deps.rule]]
+from = "state"
+to = "platform"
+scope = "all"
+action = "allow"
+reason = "state reads the stage size and pushes the URL when params change"
+
+[[deps.rule]]
+from = "state"
+to = "model"
+scope = "all"
+action = "allow"
+reason = "state is reactive derivations over the page data"
+
+[[deps.rule]]
+from = "components"
+to = "*"
+scope = "all"
+action = "allow"
+reason = "components render state and model and call the browser wrappers"

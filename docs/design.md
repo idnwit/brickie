@@ -164,7 +164,8 @@ code, the SQL graph server for agents (`serve`/`query`), capabilities, and exper
 
 A virtual workspace of eleven crates, grouped by layer (brickie checks this with the root
 `brickie.toml` and the nested `brickie.toml` of `crates/algo`, `crates/core`,
-`crates/core/measure`, `crates/core/check` and `crates/web`: cli -> web -> core -> algo; algo
+`crates/core/measure`, `crates/core/check`, `crates/web`, `crates/web/server` and
+`crates/web/ui`: cli -> web -> core -> algo; algo
 depends on no brickie crate; see `docs/proposals/core-split.md`):
 
 ```
@@ -191,10 +192,10 @@ crates/core/check/     brickie-check, folder bricks:
   review/              brickie.review.toml read and edit (internal)
   check/               config + cache + review -> diagnostics (shared by check and view); the
                        facade for rules and review (dep_subject, complexity_limits, set_review)
-crates/web/server/     brickie-web: axum server (routes, render, data, tests); build.rs embeds
-                       assets/ui/ when present
-crates/web/ui/         brickie-ui: viewer (components, state, model), compiled to wasm; depends
-                       on brickie-model and brickie-layout only
+crates/web/server/     brickie-web, folder bricks (own brickie.toml): routes (-> render, data; also
+                       the crate root and tests), render, data; build.rs embeds assets/ui/
+crates/web/ui/         brickie-ui, folder bricks (own brickie.toml), compiled to wasm: model <-
+                       platform <- state <- components (also the crate root and wasm entry)
 crates/cli/            brickie: the `brickie` binary (main.rs, cli/: clap args + one file per
                        command) and the integration tests (tests/check, tests/llms, tests/measure)
 ```
@@ -313,9 +314,8 @@ folders by concern):
   `assets`), `render/` (page and source-popup HTML shells), `data/` (page data from the cache:
   `diagnostics`, `graph/` (per-level aggregation: `edges`, `level`, `heat`), `functions`,
   `time`), `tests/`.
-- `crates/web/ui/` (`brickie-ui`): `model/` (`params`, `diag`, `graph`, `levels`, `function`), `layout/`
-  (`rank`, `order`, `anneal`, `place`, `ports`, `compute`, `geometry`, `path`, `smart`,
-  `measure`), `state/` (`layers`, `selection`, `focus`, `eval`, `shared`, `ctx`), `components/`
+- `crates/web/ui/` (`brickie-ui`): `model/` (`params`, `diag`, `graph`, `levels`, `function`),
+  `state/` (`layers`, `selection`, `focus`, `eval`, `shared`, `ctx`), `components/`
   (`app`, `keys`, `canvas/` incl. `frame`, `panels/` incl. `node`, `controls/` incl. `crumbs`,
   `source/`), `platform.rs`, `wasm.rs`, `styles/*.css`.
 
