@@ -64,19 +64,45 @@ pub fn legend_line(
     }
 }
 
+/// The edge kinds and what an edge of each kind means.
+const MEANS: [(&str, &str); 3] = [
+    (
+        "uses",
+        "A calls or names an item of B (the module that defines it, even via a re-export); if B changes, A may break",
+    ),
+    ("implements", "A implements a trait that lives in B"),
+    (
+        "reexports",
+        "A re-exports an item of B (`pub use`, any pub visibility)",
+    ),
+];
+
 /// `renderLegend`: edge kinds (click to hide/show), edge states, brick colours.
 pub fn legend(cx: &Cx) -> View {
-    const MEANS: [(&str, &str); 3] = [
-        (
-            "uses",
-            "A calls or names an item of B (the module that defines it, even via a re-export); if B changes, A may break",
-        ),
-        ("implements", "A implements a trait that lives in B"),
-        (
-            "reexports",
-            "A re-exports an item of B (`pub use`, any pub visibility)",
-        ),
-    ];
+    let kinds = edge_kinds(cx);
+    let states = edge_states();
+    let bands = brick_bands();
+    let scores = score_help();
+    view! {
+        div(id="legend") {
+            b { "Legend" } " " span(class="muted") { "(click a kind to hide/show)" }
+            div(id="legbody") {
+                h5 { "Edge kinds" }
+                (kinds)
+                h5 { "Edge states" }
+                (states)
+                h5 { "Bricks" }
+                (bands)
+                h5 { "Brick score" }
+                (scores)
+                div(class="muted tiny") { "Drag a brick to move it; drag the background to pan; wheel to zoom; Shift+drag to box-select; Shift+click adds to the selection." }
+            }
+        }
+    }
+}
+
+/// One toggle per edge kind: dimmed while the kind is hidden.
+fn edge_kinds(cx: &Cx) -> View {
     let kinds: Vec<View> = MEANS
         .iter()
         .map(|(k, m)| {
@@ -95,8 +121,11 @@ pub fn legend(cx: &Cx) -> View {
             }
         })
         .collect();
-    let kinds = View::from(kinds);
-    let _ = MEANS;
+    View::from(kinds)
+}
+
+/// The sample line and meaning of each edge state.
+fn edge_states() -> View {
     let states: Vec<View> = [
         (
             "allowed: light grey, thin (kind colours only in Architecture)",
@@ -122,7 +151,11 @@ pub fn legend(cx: &Cx) -> View {
     .into_iter()
     .map(|(t, l)| view! { div(class="k stat") { (l) span { (t) } } })
     .collect();
-    let states = View::from(states);
+    View::from(states)
+}
+
+/// The border and fill of a brick in each state.
+fn brick_bands() -> View {
     let bands: Vec<View> = [
         ("fill:var(--node);stroke:var(--b-ok);stroke-width:1.2", "correct: grey border, plain fill"),
         ("fill:var(--b-err-fill);stroke:var(--b-err);stroke-width:3", "open error: thick red border, light red fill"),
@@ -134,26 +167,14 @@ pub fn legend(cx: &Cx) -> View {
         view! { div(class="k stat") { svg("viewBox"="0 0 56 16") { rect(x="3", y="1", width="50", height="14", rx="3", style=st) } span { (t) } } }
     })
     .collect();
-    let bands = View::from(bands);
-    let scores = view! {
+    View::from(bands)
+}
+
+/// What the corner badge and the heat bar show, and how the score adds up.
+fn score_help() -> View {
+    view! {
         div(class="k stat") { svg("viewBox"="0 0 56 16") { rect(x="2", y="1", width="26", height="14", rx="7", style="fill:var(--b-err)") rect(x="31", y="1", width="22", height="14", rx="7", style="fill:var(--ok)") } span { "corner badge: open errors/warnings (3E 1W), or a check when clean" } }
         div(class="k stat") { svg("viewBox"="0 0 56 16") { rect(x="2", y="5", width="52", height="6", rx="3", style="fill:var(--band)") rect(x="2", y="5", width="34", height="6", rx="3", style="fill:var(--h2)") } span { "heat bar: worst function value/limit (full bar = 2x the limit)" } }
         div(class="muted tiny") { "Score = errors + 0.25 x warnings + sum of (worst ratio - 1) over functions over a limit." }
-    };
-    view! {
-        div(id="legend") {
-            b { "Legend" } " " span(class="muted") { "(click a kind to hide/show)" }
-            div(id="legbody") {
-                h5 { "Edge kinds" }
-                (kinds)
-                h5 { "Edge states" }
-                (states)
-                h5 { "Bricks" }
-                (bands)
-                h5 { "Brick score" }
-                (scores)
-                div(class="muted tiny") { "Drag a brick to move it; drag the background to pan; wheel to zoom; Shift+drag to box-select; Shift+click adds to the selection." }
-            }
-        }
     }
 }

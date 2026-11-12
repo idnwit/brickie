@@ -2,9 +2,10 @@
 //! composite has a double border, its exported children as ports on the bottom border and
 //! zooms in on double-click; a faded outside neighbour goes to its own level.
 
+use super::style::{Badge, Heat, NodeFlags, fit_name};
 use crate::layout::Rect;
 use crate::state::*;
-use brickie_web_api::{BrickView, fmt_score, heat_len, heat_level};
+use brickie_web_api::{BrickScore, BrickView, fmt_score};
 use sycamore::prelude::*;
 
 /// One brick: box, name, heat bar, tag line and the score badge (`renderGraph` node part).
@@ -12,169 +13,53 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
     let brick = cx.m.g.bricks[b].clone();
     let r0 = cx.m.layout.pos[b];
     let tip = {
-        let (cx, name, tag) = (cx.clone(), brick.name.clone(), brick.tag.clone());
-        let desc = brick
-            .desc
-            .as_ref()
-            .map_or(String::new(), |d| format!("\n{d}"));
-        let peek = peek(&brick);
-        move || {
-            let s = cx.scores.with(|s| s[b].clone());
-            format!(
-                "{name} [{tag}]{desc}\nscore {} ({}E {}W, complexity excess {}){peek}",
-                fmt_score(s.score),
-                s.errors,
-                s.warns,
-                fmt_score(s.excess)
-            )
-        }
+        let cx = cx.clone();
+        let brick = brick.clone();
+        move || brick_tip(&brick, &cx.scores.with(|s| s[b].clone()))
     };
     let kind = kind_class(&brick);
     let cls = {
         let cx = cx.clone();
-        move || {
-            let mut c = format!("node{kind}");
-            cx.eval.with(|ev| {
-                let vio = cx.params.with(|p| p.preset() == "viol");
-                let (n, err) = ev.node[b];
-                let off_focus = ev.focus.as_ref().is_some_and(|f| !f.lit.contains(&b));
-                if off_focus || (vio && n == 0) {
-                    c += " dh";
-                }
-                let item = cx.params.with(|p| !p.item.is_empty());
-                let selected = if item {
-                    ev.focus
-                        .as_ref()
-                        .is_some_and(|f| f.finding && f.bricks.contains(&b))
-                } else {
-                    ev.sel == Sel::Brick(b)
-                };
-                if selected {
-                    c += " sel";
-                }
-                if n > 0 {
-                    c += if err { " bd-red" } else { " bd-amber" };
-                } else if ev.node_acc[b] {
-                    c += " acc";
-                }
-            });
-            if let Some(h) = cx.hover.get()
-                && finding_focus(&cx.m.g, &cx.m.diags[h]).bricks.contains(&b)
-            {
-                c += " hov";
-            }
-            c
-        }
+        move || node_flags(&cx, b).class(&kind)
     };
     let transform = move || pos.with(|p| format!("translate({},{})", p[b].x, p[b].y));
-    // Corner badge: `3E 1W` of the open errors and warnings, a green check when clean.
     let badge = {
         let cx = cx.clone();
         move || {
             let (e, w) = cx.scores.with(|s| (s[b].errors, s[b].warns));
-            let (label, cls) = match (e, w) {
-                (0, 0) => ("\u{2713}".to_string(), "sbadge clean"),
-                (_, 0) => (format!("{e}E"), "sbadge err"),
-                (0, _) => (format!("{w}W"), "sbadge warn"),
-                _ => (format!("{e}E {w}W"), "sbadge err"),
-            };
-            let bw = (10 + 7 * label.chars().count()).max(22) as f64;
-            let (x, tx) = (r0.w - bw - 6.0, r0.w - 6.0 - bw / 2.0);
+            let bd = Badge::new(e, w, r0.w);
             let tip = format!("{e} open error(s), {w} open warning(s)");
             view! {
-                g(class=cls) {
+                g(class=bd.cls) {
                     svg_title { (tip) }
-                    rect(x=x.to_string(), y="7", width=bw.to_string(), height="18", rx="9")
-                    text(x=tx.to_string(), y="20", "text-anchor"="middle") { (label) }
+                    rect(x=bd.x.to_string(), y="7", width=bd.bw.to_string(), height="18", rx="9")
+                    text(x=bd.tx.to_string(), y="20", "text-anchor"="middle") { (bd.label) }
                 }
             }
         }
     };
-    // Heat bar: length and intensity follow the worst value/limit ratio of the brick's functions.
     let heat = {
-        let worst = brick.worst_ratio;
-        let track = r0.w - 16.0;
-        let fill = (track * heat_len(worst)).max(if worst > 0.0 { 2.0 } else { 0.0 });
-        let cls = format!("heat h{}", heat_level(worst));
-        let tip = if worst > 0.0 {
-            format!("worst function is at {}x its limit", fmt_score(worst))
-        } else {
-            "no complexity limit applies".to_string()
-        };
+        let h = Heat::new(brick.worst_ratio, r0.w);
         view! {
-            g(class=cls) {
-                svg_title { (tip) }
-                rect(class="track", x="8", y="29", width=track.to_string(), height="5", rx="2.5")
-                rect(class="hbar", x="8", y="29", width=fill.to_string(), height="5", rx="2.5")
+            g(class=h.cls) {
+                svg_title { (h.tip) }
+                rect(class="track", x="8", y="29", width=h.track.to_string(), height="5", rx="2.5")
+                rect(class="hbar", x="8", y="29", width=h.fill.to_string(), height="5", rx="2.5")
             }
         }
     };
     let (w, h) = (r0.w.to_string(), r0.h.to_string());
     // The box width follows the name up to a cap; a longer name is cut (the tooltip has it all).
-    let fit = (((r0.w - 54.0) / 8.2) as usize).max(8);
-    let shown = brick
-        .name
-        .strip_prefix("root/")
-        .unwrap_or(&brick.name)
-        .to_string();
-    let name = if shown.chars().count() > fit {
-        format!(
-            "{}\u{2026}",
-            shown.chars().take(fit - 1).collect::<String>()
-        )
-    } else {
-        shown
-    };
+    let name = fit_name(&brick.name, r0.w);
     let tag = if brick.composite() {
         format!("{} \u{00B7} {} bricks", brick.tag, brick.children.len())
     } else {
         brick.tag.clone()
     };
     let (c1, c2) = (cx.clone(), cx.clone());
-    let down = move |e: Click| {
-        if !grabs(&c1, &e) {
-            return;
-        }
-        e.stop_propagation();
-        c1.moved.set(false);
-        let d0 = c1.drag.with(|d| d.get(&b).copied().unwrap_or((0.0, 0.0)));
-        c1.op.set(Some(Op::Drag {
-            b,
-            sx: e.client_x() as f64,
-            sy: e.client_y() as f64,
-            dx0: d0.0,
-            dy0: d0.1,
-        }));
-    };
-    // A second click on the same brick within `DOUBLE_MS` zooms in. The browser's own
-    // `dblclick` never fires here: the first click re-renders the brick under the pointer.
+    let down = move |e: Click| press(&c1, b, &e);
     let target = zoom_target(&brick);
-    let click = move |e: Click| {
-        e.stop_propagation();
-        if c2.moved.get() {
-            c2.moved.set(false);
-            return;
-        }
-        let now = e.time_stamp();
-        let double = LAST_CLICK.with(|l| {
-            let hit = matches!(l.get(), Some((lb, t)) if lb == b && now - t < DOUBLE_MS);
-            l.set(if hit { None } else { Some((b, now)) });
-            hit
-        });
-        if double {
-            if let Some(t) = &target {
-                c2.go(c2.params.with(|p| p.at_level(t)));
-            }
-            return;
-        }
-        let sel = c2.eval.with(|ev| ev.sel.clone());
-        let next = if e.shift_key() && matches!(sel, Sel::Brick(_) | Sel::Group { .. }) {
-            sel.add_brick(b)
-        } else {
-            sel.click(b)
-        };
-        c2.select(next);
-    };
+    let click = move |e: Click| click_brick(&c2, b, target.as_deref(), &e);
     let inner = if brick.composite() {
         let (iw, ih) = ((r0.w - 8.0).to_string(), (r0.h - 8.0).to_string());
         view! { rect(class="box2", x="4", y="4", width=iw, height=ih, rx="4") }
@@ -204,6 +89,49 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
     }
 }
 
+/// The hover text: name, tag, description, score and the peek.
+fn brick_tip(b: &BrickView, s: &BrickScore) -> String {
+    let desc = b.desc.as_ref().map_or(String::new(), |d| format!("\n{d}"));
+    format!(
+        "{} [{}]{desc}\nscore {} ({}E {}W, complexity excess {}){}",
+        b.name,
+        b.tag,
+        fmt_score(s.score),
+        s.errors,
+        s.warns,
+        fmt_score(s.excess),
+        peek(b)
+    )
+}
+
+/// What the evaluation says about brick `b`, for its state classes.
+fn node_flags(cx: &Cx, b: usize) -> NodeFlags {
+    let (viol, item) = cx
+        .params
+        .with(|p| (p.preset() == "viol", !p.item.is_empty()));
+    let hov = cx
+        .hover
+        .get()
+        .is_some_and(|h| finding_focus(&cx.m.g, &cx.m.diags[h]).bricks.contains(&b));
+    cx.eval.with(|ev| {
+        let (open, err) = ev.node[b];
+        let f = ev.focus.as_ref();
+        NodeFlags {
+            off_focus: f.is_some_and(|f| !f.lit.contains(&b)),
+            viol,
+            open,
+            err,
+            selected: if item {
+                f.is_some_and(|f| f.finding && f.bricks.contains(&b))
+            } else {
+                ev.sel == Sel::Brick(b)
+            },
+            acc: ev.node_acc[b],
+            hov,
+        }
+    })
+}
+
 /// The box classes of a brick's kind, with the change preview marks: planned (no code yet)
 /// and agent-proposed bricks.
 fn kind_class(b: &BrickView) -> String {
@@ -216,6 +144,52 @@ fn kind_class(b: &BrickView) -> String {
     let proposed = if b.proposed { " proposed" } else { "" };
     let unassigned = if b.unassigned { " unassigned" } else { "" };
     format!("{kind}{planned}{proposed}{unassigned}")
+}
+
+/// A press on brick `b` starts a drag when it grabs the brick.
+fn press(cx: &Cx, b: usize, e: &Click) {
+    if !grabs(cx, e) {
+        return;
+    }
+    e.stop_propagation();
+    cx.moved.set(false);
+    let d0 = cx.drag.with(|d| d.get(&b).copied().unwrap_or((0.0, 0.0)));
+    cx.op.set(Some(Op::Drag {
+        b,
+        sx: e.client_x() as f64,
+        sy: e.client_y() as f64,
+        dx0: d0.0,
+        dy0: d0.1,
+    }));
+}
+
+/// A second click on the same brick within `DOUBLE_MS` zooms in to `target`. The browser's own
+/// `dblclick` never fires here: the first click re-renders the brick under the pointer.
+fn click_brick(cx: &Cx, b: usize, target: Option<&str>, e: &Click) {
+    e.stop_propagation();
+    if cx.moved.get() {
+        cx.moved.set(false);
+        return;
+    }
+    let now = e.time_stamp();
+    let double = LAST_CLICK.with(|l| {
+        let hit = matches!(l.get(), Some((lb, t)) if lb == b && now - t < DOUBLE_MS);
+        l.set(if hit { None } else { Some((b, now)) });
+        hit
+    });
+    if double {
+        if let Some(t) = target {
+            cx.go(cx.params.with(|p| p.at_level(t)));
+        }
+        return;
+    }
+    let sel = cx.eval.with(|ev| ev.sel.clone());
+    let next = if e.shift_key() && matches!(sel, Sel::Brick(_) | Sel::Group { .. }) {
+        sel.add_brick(b)
+    } else {
+        sel.click(b)
+    };
+    cx.select(next);
 }
 
 /// A press that grabs the brick: left button, not the Hand tool (which pans from anywhere).

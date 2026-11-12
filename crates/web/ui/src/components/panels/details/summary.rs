@@ -6,49 +6,60 @@ use std::collections::BTreeMap;
 use sycamore::prelude::*;
 
 use super::super::GROUPS;
+use super::super::diagnostics::gi_icon;
+use std::collections::BTreeSet;
+
 /// `sumTable`: findings by group and level, counting the enabled layers.
-pub(super) fn sum_table(cx: &Cx, scope: Option<&std::collections::BTreeSet<usize>>) -> View {
-    let g = &cx.m.g;
+pub(super) fn sum_table(cx: &Cx, scope: Option<&BTreeSet<usize>>) -> View {
     let rows: Vec<View> = GROUPS
         .iter()
-        .map(|(grp, name)| {
-            let mut n = [0usize; 3]; // error, warn, open
-            for (i, d) in cx.m.diags.iter().enumerate() {
-                let inside = scope.is_none_or(|s| {
-                    d.bricks
-                        .iter()
-                        .filter_map(|b| g.bricks.iter().position(|x| x.name == *b))
-                        .any(|b| s.contains(&b))
-                });
-                if group_sub(&d.code).0 != *grp || !inside || !cx.eval.with(|ev| ev.von[i]) {
-                    continue;
-                }
-                n[usize::from(d.level != "error")] += 1;
-                if !cx.m.cards[i].accepted.get() {
-                    n[2] += 1;
-                }
-            }
-            let cells: Vec<View> = n
-                .iter()
-                .map(|v| {
-                    let v = v.to_string();
-                    view! { td { (v) } }
-                })
-                .collect();
-            let cells = View::from(cells);
-            let cls = format!("gi {grp}");
-            let name = name.to_string();
-            let icon = match *grp {
-                "deps" => "\u{21C4}",
-                "cx" => "\u{25A6}",
-                "iface" => "\u{25C7}",
-                _ => "\u{23F1}",
-            };
-            view! { tr { td { span(class=cls) { (icon) } " " (name) } (cells) } }
-        })
+        .map(|(grp, name)| sum_row(cx, grp, name, scope))
         .collect();
     let rows = View::from(rows);
     view! { table(class="sum") { tr { th { "group" } th { "error" } th { "warn" } th { "open" } } (rows) } }
+}
+
+/// One group row: icon, name and the error / warn / open counts.
+fn sum_row(cx: &Cx, grp: &str, name: &str, scope: Option<&BTreeSet<usize>>) -> View {
+    let cells: Vec<View> = group_counts(cx, grp, scope)
+        .iter()
+        .map(|v| {
+            let v = v.to_string();
+            view! { td { (v) } }
+        })
+        .collect();
+    let cells = View::from(cells);
+    let cls = format!("gi {grp}");
+    let (name, icon) = (name.to_string(), gi_icon(grp));
+    view! { tr { td { span(class=cls) { (icon) } " " (name) } (cells) } }
+}
+
+/// Counts of the shown findings of `grp` in `scope`: errors, warnings and open ones.
+fn group_counts(cx: &Cx, grp: &str, scope: Option<&BTreeSet<usize>>) -> [usize; 3] {
+    let mut n = [0usize; 3]; // error, warn, open
+    for (i, d) in cx.m.diags.iter().enumerate() {
+        if group_sub(&d.code).0 != grp
+            || !in_scope(&cx.m.g, d, scope)
+            || !cx.eval.with(|ev| ev.von[i])
+        {
+            continue;
+        }
+        n[usize::from(d.level != "error")] += 1;
+        if !cx.m.cards[i].accepted.get() {
+            n[2] += 1;
+        }
+    }
+    n
+}
+
+/// Whether finding `d` touches a brick of `scope` (no scope: every finding does).
+fn in_scope(g: &GraphView, d: &DiagView, scope: Option<&BTreeSet<usize>>) -> bool {
+    scope.is_none_or(|s| {
+        d.bricks
+            .iter()
+            .filter_map(|b| g.bricks.iter().position(|x| x.name == *b))
+            .any(|b| s.contains(&b))
+    })
 }
 
 pub(super) fn summary(cx: &Cx) -> View {

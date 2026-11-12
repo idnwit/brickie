@@ -28,93 +28,141 @@ pub struct Eval {
     pub focus: Option<Focus>,
 }
 
+/// The facts that decide how one edge is drawn (`edgeOn` after the layer and boundary gates).
+struct EdgeFacts {
+    viol_preset: bool,
+    /// A shown deps finding points at it (`violIds`).
+    in_viol: bool,
+    test: bool,
+    tests_on: bool,
+    edges_on: bool,
+    /// It carries findings, and at least one finding's layer is on.
+    dbt: bool,
+    dbt_on: bool,
+    all_accepted: bool,
+}
+
+impl EdgeFacts {
+    /// The drawn status, `None` when the edge is hidden.
+    fn stat(&self) -> Option<EStat> {
+        let marked = if self.all_accepted {
+            EStat::Accepted
+        } else {
+            EStat::Debt
+        };
+        if self.viol_preset {
+            return self.in_viol.then_some(marked);
+        }
+        let debt = self.dbt && self.dbt_on;
+        if (self.test && !self.tests_on && !debt) || !(self.edges_on || debt) {
+            return None;
+        }
+        Some(if debt { marked } else { EStat::Ok })
+    }
+}
+
+/// The inputs of one evaluation and the per-diagnostic `vOn`, shared by its parts.
+struct EvalIn<'a> {
+    g: &'a GraphView,
+    diags: &'a [DiagView],
+    accepted: &'a [bool],
+    p: &'a Params,
+    lay: Lay,
+    von: Vec<bool>,
+}
+
+impl<'a> EvalIn<'a> {
+    fn new(g: &'a GraphView, diags: &'a [DiagView], accepted: &'a [bool], p: &'a Params) -> Self {
+        let lay = Lay::from_params(p);
+        let von = diags
+            .iter()
+            .map(|d| v_on(&lay, p, &d.code, &d.level))
+            .collect();
+        EvalIn {
+            g,
+            diags,
+            accepted,
+            p,
+            lay,
+            von,
+        }
+    }
+
+    fn by_id(&self, id: &str) -> Option<usize> {
+        self.diags.iter().position(|d| d.id == id)
+    }
+
+    /// `violIds`: edges a deps finding points at (violating edges, cycle members).
+    fn viol_edges(&self) -> BTreeSet<usize> {
+        if self.p.preset() != "viol" || !matches!(self.p.vscope(), "all" | "deps") {
+            return BTreeSet::new();
+        }
+        let shown = |e: &EdgeView| {
+            e.diags
+                .iter()
+                .filter_map(|id| self.by_id(id))
+                .any(|c| self.von[c])
+        };
+        (0..self.g.edges.len())
+            .filter(|&i| shown(&self.g.edges[i]))
+            .collect()
+    }
+
+    /// The drawn status of edge `i`, `None` when no enabled layer shows it.
+    fn edge_stat(&self, i: usize, viol: &BTreeSet<usize>) -> Option<EStat> {
+        let e = &self.g.edges[i];
+        // One of the two boundary drawings: to the children or aggregated at the frame.
+        let hidden = if self.p.to_frame() {
+            is_boundary(self.g, e)
+        } else {
+            e.frame()
+        };
+        if hidden || !self.lay.on(&format!("k-{}", e.kind)) {
+            return None;
+        }
+        let cards: Vec<usize> = e.diags.iter().filter_map(|id| self.by_id(id)).collect();
+        EdgeFacts {
+            viol_preset: self.p.preset() == "viol",
+            in_viol: viol.contains(&i),
+            test: e.test,
+            tests_on: self.lay.on("tests"),
+            edges_on: self.lay.on("edges"),
+            dbt: !cards.is_empty(),
+            dbt_on: cards.iter().any(|&c| f_on(&self.lay, &self.diags[c].code)),
+            all_accepted: !cards.is_empty() && cards.iter().all(|&c| self.accepted[c]),
+        }
+        .stat()
+    }
+
+    /// Per brick: open shown findings and whether one is an error, and whether it has shown
+    /// findings that are all accepted.
+    fn node_counts(&self) -> (Vec<(usize, bool)>, Vec<bool>) {
+        let mut node = vec![(0usize, false); self.g.bricks.len()];
+        let mut node_acc = vec![false; self.g.bricks.len()];
+        for (c, d) in self.diags.iter().enumerate().filter(|&(c, _)| self.von[c]) {
+            for b in diag_bricks(self.g, d) {
+                if self.accepted[c] {
+                    node_acc[b] = true;
+                } else {
+                    node[b].0 += 1;
+                    node[b].1 |= d.level == "error";
+                }
+            }
+        }
+        (node, node_acc)
+    }
+}
+
 pub fn evaluate(g: &GraphView, diags: &[DiagView], accepted: &[bool], p: &Params) -> Eval {
-    let lay = Lay::from_params(p);
+    let ev = EvalIn::new(g, diags, accepted, p);
     let sel = Sel::from_params(p, g);
-    let von: Vec<bool> = diags
-        .iter()
-        .map(|d| v_on(&lay, p, &d.code, &d.level))
-        .collect();
-    let by_id = |id: &str| diags.iter().position(|d| d.id == id);
-    let viol_preset = p.preset() == "viol";
-
-    // `violIds`: edges a deps finding points at (violating edges, cycle members).
-    let mut viol: BTreeSet<usize> = BTreeSet::new();
-    if viol_preset && matches!(p.vscope(), "all" | "deps") {
-        for (i, e) in g.edges.iter().enumerate() {
-            if e.diags.iter().filter_map(|id| by_id(id)).any(|c| von[c]) {
-                viol.insert(i);
-            }
-        }
-    }
-
-    let edge: Vec<Option<EStat>> = g
-        .edges
-        .iter()
-        .enumerate()
-        .map(|(i, e)| {
-            // One of the two boundary drawings: to the children or aggregated at the frame.
-            let hidden = if p.to_frame() {
-                is_boundary(g, e)
-            } else {
-                e.frame()
-            };
-            if hidden || !lay.on(&format!("k-{}", e.kind)) {
-                return None;
-            }
-            let cards: Vec<usize> = e.diags.iter().filter_map(|id| by_id(id)).collect();
-            let dbt = !cards.is_empty();
-            let dbt_on = cards.iter().any(|&c| f_on(&lay, &diags[c].code));
-            let all_accepted = !cards.is_empty() && cards.iter().all(|&c| accepted[c]);
-            if viol_preset {
-                if !viol.contains(&i) {
-                    return None;
-                }
-                return Some(if all_accepted {
-                    EStat::Accepted
-                } else {
-                    EStat::Debt
-                });
-            }
-            if e.test && !lay.on("tests") && !(dbt && dbt_on) {
-                return None;
-            }
-            if !(lay.on("edges") || (dbt && dbt_on)) {
-                return None;
-            }
-            Some(if dbt && dbt_on {
-                if all_accepted {
-                    EStat::Accepted
-                } else {
-                    EStat::Debt
-                }
-            } else {
-                EStat::Ok
-            })
-        })
-        .collect();
-
-    let mut node = vec![(0usize, false); g.bricks.len()];
-    let mut node_acc = vec![false; g.bricks.len()];
-    for (c, d) in diags.iter().enumerate() {
-        if !von[c] {
-            continue;
-        }
-        if accepted[c] {
-            for b in diag_bricks(g, d) {
-                node_acc[b] = true;
-            }
-            continue;
-        }
-        for b in diag_bricks(g, d) {
-            node[b].0 += 1;
-            node[b].1 |= d.level == "error";
-        }
-    }
+    let viol = ev.viol_edges();
+    let edge = (0..g.edges.len()).map(|i| ev.edge_stat(i, &viol)).collect();
+    let (node, node_acc) = ev.node_counts();
     let focus = focus_of(g, &sel, p, diags);
     Eval {
         sel,
-        von,
+        von: ev.von,
         edge,
         node,
         node_acc,
@@ -199,6 +247,87 @@ mod tests {
             bricks: vec![b("a", 0), b("b", 0), b("c", 0)],
             edges: vec![e(0, 1, &["d1"]), e(1, 2, &[]), e(2, 0, &[])],
         }
+    }
+
+    /// One edge a -> b (kind `uses`) with the given findings (level, accepted) on it.
+    fn edge_stat_of(q: &str, test: bool, found: &[(&str, bool)]) -> Option<EStat> {
+        let mut g = graph();
+        g.edges = vec![EdgeView {
+            test,
+            diags: (0..found.len()).map(|i| format!("d{i}")).collect(),
+            ..graph().edges[1].clone()
+        }];
+        let diags: Vec<DiagView> = found
+            .iter()
+            .enumerate()
+            .map(|(i, (lv, _))| diag(&format!("d{i}"), "deps/deny", lv, &["a", "b"]))
+            .collect();
+        let acc: Vec<bool> = found.iter().map(|f| f.1).collect();
+        evaluate(&g, &diags, &acc, &Params::from_query(q)).edge[0]
+    }
+
+    #[test]
+    fn edge_status_table() {
+        use EStat::{Accepted as A, Debt as D, Ok as O};
+        let err = ("error", false);
+        let acc = ("error", true);
+        let warn = ("warn", false);
+        // (query, test-only edge, findings on the edge, drawn status)
+        let table = [
+            ("", false, vec![], Some(O)),
+            ("", true, vec![], None),
+            ("lay=%2Btests", true, vec![], Some(O)),
+            ("", true, vec![err], Some(D)),
+            ("", true, vec![acc], Some(A)),
+            ("", false, vec![warn], Some(D)),
+            ("", false, vec![acc, err], Some(D)),
+            ("", false, vec![acc, acc], Some(A)),
+            ("lay=-edges", false, vec![], None),
+            ("lay=-edges", false, vec![err], Some(D)),
+            ("lay=-deps", false, vec![err], Some(O)),
+            ("lay=-deps", true, vec![err], None),
+            ("lay=-deps,-edges", false, vec![err], None),
+            ("lay=-k-uses", false, vec![err], None),
+            ("p=all", true, vec![], None),
+            ("p=all", false, vec![warn], Some(D)),
+            ("p=viol", false, vec![], None),
+            ("p=viol", false, vec![err], Some(D)),
+            ("p=viol", true, vec![err], Some(D)),
+            ("p=viol", false, vec![acc], Some(A)),
+            ("p=viol", false, vec![acc, err], Some(D)),
+            ("p=viol", false, vec![warn], None),
+            ("p=viol&level=warn", false, vec![warn], Some(D)),
+            ("p=viol&vs=cx", false, vec![err], None),
+            ("p=viol&vs=deps", false, vec![err], Some(D)),
+            ("p=viol&lay=-deps", false, vec![err], None),
+            ("p=viol&lay=-k-uses", false, vec![err], None),
+        ];
+        for (q, test, found, want) in table {
+            assert_eq!(
+                edge_stat_of(q, test, &found),
+                want,
+                "{q} test={test} {found:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn edge_drawing_follows_the_boundary_mode() {
+        let mut g = graph();
+        g.bricks[2].ghost = true;
+        let e = |from, to, under: Vec<usize>| EdgeView {
+            from,
+            to,
+            kind: "uses".into(),
+            under,
+            ..Default::default()
+        };
+        // 0: inner edge, 1: boundary edge to the children, 2: aggregated edge to the frame.
+        g.edges = vec![e(0, 1, vec![]), e(1, 2, vec![]), e(2, 1, vec![1])];
+        let drawn = |q: &str| evaluate(&g, &[], &[], &Params::from_query(q)).edge;
+        let ok = Some(EStat::Ok);
+        assert_eq!(drawn(""), vec![ok, ok, None]);
+        assert_eq!(drawn("bnd=frame"), vec![ok, None, ok]);
     }
 
     #[test]

@@ -78,18 +78,31 @@ Green = `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warni
     `edge_view` 44, `canvas`, `pointer`, `Ctx::level`, `brick_index`, `functions_view`, `frame_edges`,
     `left`, `keys`, `render`), plus `complexity` (rules), `add_items` (items), `heat`, `assign_targets`,
     and 13 `lines` warnings. Next proposal: refactor these, then switch the rule to `error`.
-12. [ ] (next) UI and remaining domain functions, then `tag:domain` to `error`; clear or accept the 44
-    `interface/unused` warnings.
+12. [x] Remaining domain functions, then `tag:domain` to `error` (plan from an opus planner, 2026-11-13;
+    each step is one sonnet agent, native tests first, goldens byte-identical, no behaviour change):
+    - 12.1 [x] core/check: `complexity` (`SourceCache`, `finding_for`), `render` (`Snippet::render`, `trailer_lines`)
+    - 12.2 [x] core/measure: `add_items` (`item_of`), `assign_targets` (`mod_refs`, `order_by_depth`, `target_of`)
+    - 12.3 [x] web api and server: `frame_edges` (`EdgeView::absorb`), `heat`, `Ctx::level` (aggregate, outside_ends, bricks, index, edge_view); pin `level` with a snapshot first
+    - 12.4 [x] ui/state: `evaluate` (an `EvalIn` struct with methods), `Cx::new` (signals vs effects)
+    - 12.5 [x] ui view-model (independently reviewed old vs new; one perf regression found and fixed with a memo): pure decisions out of `node_view` and `edge_view` (class strings, markers, badge, name fit), unit-tested natively
+    - 12.6 [x] ui interaction (independently reviewed old vs new: identical; adds `canvas/route.rs` and `canvas/stage.rs`): `pointer`, `keys`, `canvas` (pure `box_hits`, `step`, `edge_route`)
+    - 12.7 [x] ui panels (independently reviewed old vs new: identical): `brick_index`, `functions_view`, `left`, `sum_table`, `card_view`, `legend` (sub-components, pure `score_label`/`members_sorted`)
+    - 12.8 [x] `tag:domain` (and `tag:component`, `tag:algo`) to `error`; no config loosening for view code (nested files can only tighten; the lines metric
+      does not see inside `view!`; a per-function accept only if a split clearly hurts)
+    UI verification per step (no browser in this environment): `cargo test -p brickie-ui`, wasm clippy
+    (`--features hydrate --target wasm32-unknown-unknown`), `scripts/build-ui.sh`, `cargo test --workspace`;
+    the manual smoke test in a browser (presets, click/drag/box-select, Escape/Backspace, j/k, hover,
+    edge colours) stays with the user. Not claimed as verified by the agents.
 
 ## Report: findings and benefits (updated after each step)
 
-Status as of step 8 (splits done, the one real defect fixed, acceptable behaviours documented and pinned). Honest summary: the refactors so far are pure (no behaviour change, proven by
+Status as of step 12: every domain function is within its limits and the complexity rules are errors; `brickie check` reports 0 errors and 44 warnings, all `interface/unused`. Honest summary: the refactors so far are pure (no behaviour change, proven by
 golden tests), so the benefit is controllability and coverage, plus the risks the golden tests
 exposed. Items marked *found* are NOT fixed yet; only *fixed* items changed behaviour or config.
 
 | Measure | Before | Now |
 |---|---|---|
-| `brickie check` errors / warnings | 0 / 82 (config was blind to `lines`, `params`, hard ceiling) | 0 / 83 (the ceiling is live; 4 hard errors reduced to 0 by refactor) |
+| `brickie check` errors / warnings | 0 / 82 (config was blind to `lines`, `params`, hard ceiling; 30 complexity warnings) | 0 / 44 (0 complexity findings; the domain, component and algo rules are now errors; the 44 left are `interface/unused`) |
 | `measure_items` cognitive | 69 | 0 (helpers <= 12) |
 | `smart_route` cognitive / lines | 131 / 255 | 7 / 33 (helpers <= 14) |
 | `walk` cognitive | 69 | 3 (helpers <= 6) |
@@ -141,6 +154,7 @@ exposed. Items marked *found* are NOT fixed yet; only *fixed* items changed beha
 | `scip/link.rs` | `registry.entry(..).or_insert` keeps the first module per (target, path); files with target `None` share one key; `ws.targets[t]` panics when `file.target` is out of range | wrong parent for duplicate module paths; a panic on an inconsistent graph | detect duplicates; check the range |
 | `scip/defs.rs` `resolve` | `None == None` counts as "same target" for files without a target | a def from an unrelated untargeted file can win | require `Some` for the same-target preference |
 | `scip/files.rs` `package_of` | a package dir with a trailing slash never matches | a file falls out of its package | normalise the dir |
+| `diag/text.rs` `Snippet::carets`, `rules/complexity.rs` `SourceCache::col_of` | `col - 1` and `line - 1` underflow (a debug panic) if a span has column 0 or a function line 0; spans and lines are 1-based and no producer emits 0 | unreachable today (class C) | `saturating_sub` if a producer ever changes |
 | `smart_route` ports | top/bottom ports are sorted without an id tie-break (left/right break ties by id) | route order can depend on input order | add the tie-break and re-pin the goldens |
 | `smart_route` capacity | old routes count against a side's capacity but are never refused | a side can end over capacity | document or enforce |
 | `brickie measure` | rust-analyzer logs `should have been in an SCIP document` for many definitions and `Duplicate symbol` for several crates (before this work) | some definitions may be missing from the cache | investigate separately |
@@ -213,3 +227,20 @@ schema or golden change); `analyze_all` reads bytes with lossy UTF-8 like `add_u
 Two independent reviews (config audit; complexity ranking) and one split plan, all on 2026-11-12.
 `normalise` ranked first by blast radius (every later stage reads its graph) and has no direct
 test; `smart_route` is the largest but only affects drawing.
+
+## Step 12 results (UI and remaining domain functions, 2026-11-13)
+
+All 29 remaining complexity warnings cleared, then the complexity rules switched to `error`.
+UI steps were verified by native unit tests, wasm clippy and `scripts/build-ui.sh`, plus an
+independent opus review comparing the committed old code with the new for each UI step (DOM,
+class strings, reactive dependencies per closure, handler order). **No browser test was done**:
+the manual smoke test (presets, click/drag/box-select, Escape/Backspace, j/k, hover, edge colours)
+stays with the reviewer of the PR.
+
+- 12.5 review found one real regression introduced by the refactor (each edge ran its flags
+  four times per hover; fixed with a memo). 12.6 and 12.7 reviews found no difference.
+- Judged not-a-bug: a `v_on` suspicion about `vs=complexity` (verified: both sides use the `cx` key).
+- Latent and unreachable (class C): `col - 1`/`line - 1` underflow in `diag/text.rs` and
+  `rules/complexity.rs`; `step` with an empty list (guarded by the caller).
+- Still open: 44 `interface/unused` warnings; the optional id tie-break for `smart_route`
+  top/bottom ports (changes goldens).
