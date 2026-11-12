@@ -67,6 +67,94 @@ fn word(l: Level) -> &'static str {
     }
 }
 
+/// The source line of a span with its gutter and, when the column is known, a caret line.
+struct Snippet<'a> {
+    text: String,
+    span: &'a Span,
+    level: Level,
+}
+
+impl<'a> Snippet<'a> {
+    /// `None` for a whole-file span or a line that cannot be read from `root`.
+    fn load(span: &'a Span, level: Level, root: &Path) -> Option<Self> {
+        if span.line == 0 {
+            return None;
+        }
+        let text = std::fs::read_to_string(root.join(&span.file)).ok()?;
+        let text = text.lines().nth(span.line as usize - 1)?.to_string();
+        Some(Snippet { text, span, level })
+    }
+
+    /// (chars before the caret, caret count) for the 1-based byte `col` and `len`, clamped to
+    /// the line; a position inside a multibyte char falls back to the byte measure.
+    fn carets(&self) -> Option<(usize, usize)> {
+        let (text, s) = (&self.text, self.span);
+        let byte = (s.col? as usize - 1).min(text.len());
+        let start = text.get(..byte).map_or(byte, |t| t.chars().count());
+        let len = s.len.map_or(1, |l| {
+            let end = (byte + l as usize).min(text.len());
+            text.get(byte..end)
+                .map_or(l as usize, |t| t.chars().count())
+        });
+        Some((start, len.max(1)))
+    }
+
+    fn render(&self, p: &Paint, pad: &str) -> String {
+        let bar = p.blue("|");
+        let line = p.blue(&format!("{:>w$}", self.span.line, w = pad.len()));
+        let mut out = format!("{pad} {bar}\n{line} {bar} {}\n", self.text);
+        if let Some((start, len)) = self.carets() {
+            let carets = p.level(self.level, &"^".repeat(len));
+            let label = self
+                .span
+                .label
+                .as_deref()
+                .map_or(String::new(), |l| format!(" {}", p.level(self.level, l)));
+            out += &format!("{pad} {bar} {}{carets}{label}\n", " ".repeat(start));
+        }
+        out + &format!("{pad} {bar}\n")
+    }
+}
+
+/// The `= key: value` lines after the snippet: rule, help, notes, then the extra locations.
+fn trailer_lines(d: &Diagnostic) -> Vec<(&'static str, String)> {
+    let mut lines = Vec::new();
+    if let Some(r) = &d.rule {
+        lines.push((
+            "rule",
+            match &r.loc {
+                Some(l) => format!("{} ({l})", r.name),
+                None => r.name.clone(),
+            },
+        ));
+    }
+    if let Some(h) = &d.help {
+        lines.push(("help", h.clone()));
+    }
+    for n in &d.notes {
+        lines.push((
+            "note",
+            match &n.span {
+                Some(s) => format!("{} ({})", n.text, loc(s)),
+                None => n.text.clone(),
+            },
+        ));
+    }
+    if !d.spans.is_empty() {
+        let shown: Vec<String> = d.spans.iter().take(SHOWN).map(loc).collect();
+        let tail = match d.spans.len().saturating_sub(SHOWN) {
+            0 => String::new(),
+            more => format!(" and {more} more"),
+        };
+        let n = d.spans.len();
+        lines.push((
+            "note",
+            format!("{n} more location(s): {}{tail}", shown.join(", ")),
+        ));
+    }
+    lines
+}
+
 /// Render one diagnostic; `root` is where span files are read from for the snippet.
 pub fn render(d: &Diagnostic, root: &Path, color: bool) -> String {
     let p = Paint(color);
@@ -75,79 +163,17 @@ pub fn render(d: &Diagnostic, root: &Path, color: bool) -> String {
         p.level(d.level, &format!("{}[{}]", word(d.level), d.code)),
         d.message
     );
-    let src_line = |s: &Span| -> Option<String> {
-        if s.line == 0 {
-            return None;
-        }
-        let text = std::fs::read_to_string(root.join(&s.file)).ok()?;
-        text.lines().nth(s.line as usize - 1).map(str::to_string)
-    };
-    let width = d
-        .span
-        .as_ref()
-        .map_or(1, |s| s.line.to_string().len())
-        .max(1);
+    let width = d.span.as_ref().map_or(1, |s| s.line.to_string().len());
     let pad = " ".repeat(width);
     if let Some(s) = &d.span {
         out += &format!("{pad}{} {}\n", p.blue("-->"), loc(s));
-        if let Some(text) = src_line(s) {
-            let bar = p.blue("|");
-            out += &format!("{pad} {bar}\n");
-            out += &format!("{} {bar} {text}\n", p.blue(&format!("{:>width$}", s.line)));
-            if let Some(col) = s.col {
-                let byte = (col as usize - 1).min(text.len());
-                let start = text.get(..byte).map_or(byte, |t| t.chars().count());
-                let len = s.len.map_or(1, |l| {
-                    let end = (byte + l as usize).min(text.len());
-                    text.get(byte..end)
-                        .map_or(l as usize, |t| t.chars().count())
-                });
-                let carets = p.level(d.level, &"^".repeat(len.max(1)));
-                let label = s
-                    .label
-                    .as_deref()
-                    .map_or(String::new(), |l| format!(" {}", p.level(d.level, l)));
-                out += &format!("{pad} {bar} {}{carets}{label}\n", " ".repeat(start));
-            }
-            out += &format!("{pad} {bar}\n");
+        if let Some(snippet) = Snippet::load(s, d.level, root) {
+            out += &snippet.render(&p, &pad);
         }
     }
     let eq = p.blue("=");
-    let mut line = |k: &str, v: String| out += &format!("{pad} {eq} {k}: {v}\n");
-    if let Some(r) = &d.rule {
-        line(
-            "rule",
-            match &r.loc {
-                Some(l) => format!("{} ({l})", r.name),
-                None => r.name.clone(),
-            },
-        );
-    }
-    if let Some(h) = &d.help {
-        line("help", h.clone());
-    }
-    for n in &d.notes {
-        line(
-            "note",
-            match &n.span {
-                Some(s) => format!("{} ({})", n.text, loc(s)),
-                None => n.text.clone(),
-            },
-        );
-    }
-    if !d.spans.is_empty() {
-        let shown: Vec<String> = d.spans.iter().take(SHOWN).map(loc).collect();
-        let more = d.spans.len().saturating_sub(SHOWN);
-        let tail = if more > 0 {
-            format!(" and {more} more")
-        } else {
-            String::new()
-        };
-        let n = d.spans.len();
-        line(
-            "note",
-            format!("{n} more location(s): {}{tail}", shown.join(", ")),
-        );
+    for (k, v) in trailer_lines(d) {
+        out += &format!("{pad} {eq} {k}: {v}\n");
     }
     out
 }
@@ -184,4 +210,97 @@ pub fn render_all(ds: &[Diagnostic], root: &Path, color: bool) -> String {
         s.accepted
     );
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn diag(span: Span) -> Diagnostic {
+        Diagnostic {
+            id: String::new(),
+            level: Level::Warn,
+            code: "c".into(),
+            message: "m".into(),
+            span: Some(span),
+            spans: Vec::new(),
+            rule: None,
+            help: None,
+            notes: Vec::new(),
+            bricks: Vec::new(),
+            brick_level: None,
+            edges: Vec::new(),
+            accepted: false,
+            accepted_reason: None,
+        }
+    }
+
+    fn span(col: Option<u32>, len: Option<u32>) -> Span {
+        Span {
+            file: "a.rs".into(),
+            line: 1,
+            col,
+            len,
+            label: Some("lbl".into()),
+        }
+    }
+
+    /// (start, len) of the carets for `span` on a one-line text.
+    fn carets(text: &str, span: Span) -> Option<(usize, usize)> {
+        Snippet {
+            text: text.into(),
+            span: &span,
+            level: Level::Warn,
+        }
+        .carets()
+    }
+
+    #[test]
+    fn carets_sit_under_the_byte_column_and_count_chars() {
+        // `fn` starts at 1-based byte col 4: 3 chars before, 2 carets.
+        assert_eq!(carets("   fn name", span(Some(4), Some(2))), Some((3, 2)));
+        assert_eq!(carets("abc", span(None, Some(2))), None);
+    }
+
+    #[test]
+    fn multibyte_text_before_and_under_the_caret_counts_chars() {
+        // "é" is 2 bytes. Col 5 is byte 4 (after "éé"): 2 chars before, " xy" is 3 chars.
+        assert_eq!(carets("éé xy", span(Some(5), Some(3))), Some((2, 3)));
+        // Col 6 is byte 5: 3 chars before; the 3 bytes are clamped to the line end, "xy".
+        assert_eq!(carets("éé xy", span(Some(6), Some(3))), Some((3, 2)));
+        // Col 2 is inside the first "é": falls back to the byte offset and byte length.
+        assert_eq!(carets("éé xy", span(Some(2), Some(3))), Some((1, 3)));
+    }
+
+    #[test]
+    fn col_beyond_the_line_clamps_to_its_end_with_one_caret() {
+        assert_eq!(carets("ab", span(Some(50), Some(5))), Some((2, 1)));
+        assert_eq!(carets("ab", span(Some(50), None)), Some((2, 1)));
+    }
+
+    #[test]
+    fn missing_len_is_one_caret_and_zero_len_at_least_one() {
+        assert_eq!(carets("abc", span(Some(2), None)), Some((1, 1)));
+        assert_eq!(carets("abc", span(Some(2), Some(0))), Some((1, 1)));
+    }
+
+    #[test]
+    fn more_locations_show_three_then_count_the_rest() {
+        let mut d = diag(span(None, None));
+        d.span = None;
+        d.spans = (1..=5)
+            .map(|l| Span {
+                line: l,
+                ..span(None, None)
+            })
+            .collect();
+        let out = render(&d, Path::new("."), false);
+        assert!(
+            out.ends_with("= note: 5 more location(s): a.rs:1, a.rs:2, a.rs:3 and 2 more\n"),
+            "{out}"
+        );
+        d.spans.truncate(3);
+        let out = render(&d, Path::new("."), false);
+        assert!(out.ends_with("a.rs:1, a.rs:2, a.rs:3\n"), "{out}");
+    }
 }

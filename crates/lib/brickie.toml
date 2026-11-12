@@ -26,11 +26,11 @@ cycles = "deny"
 bricks = "tag:algo"
 cognitive = 60
 nesting = 6
-level = "warn"
+level = "error"
 
 # A component with its own business (codeview): strict like domain code.
 [[complexity]]
 bricks = "tag:component"
 cognitive = 15
 nesting = 4
-level = "warn"
+level = "error"

@@ -14,6 +14,25 @@ pub fn is_boundary(g: &GraphView, e: &EdgeView) -> bool {
     !e.frame() && g.bricks[e.from].ghost != g.bricks[e.to].ghost
 }
 
+impl EdgeView {
+    /// Merge boundary edge `e` (index `i` in the level graph) into this aggregate: `count` sums,
+    /// `diags` union, `test` ands, `wall` ors, `worst` takes an error or fills an empty slot.
+    fn absorb(&mut self, e: &EdgeView, i: usize) {
+        self.under.push(i);
+        self.count += e.count;
+        self.test &= e.test;
+        self.wall |= e.wall;
+        for d in &e.diags {
+            if !self.diags.contains(d) {
+                self.diags.push(d.clone());
+            }
+        }
+        if e.worst.as_deref() == Some("error") || self.worst.is_none() {
+            self.worst.clone_from(&e.worst);
+        }
+    }
+}
+
 /// One aggregated edge per (outside neighbour, direction, kind) over the boundary edges of `g`,
 /// in first-seen order. Its inside end is the first underlying child (an index only; it is drawn
 /// at the frame). `count` sums, `diags` are the union, `worst` the worst level, `test` holds when
@@ -32,20 +51,7 @@ pub fn frame_edges(g: &GraphView) -> Vec<EdgeView> {
                 && (if into { x.from } else { x.to }) == ghost
         };
         match out.iter_mut().find(|x| same(x)) {
-            Some(x) => {
-                x.under.push(i);
-                x.count += e.count;
-                x.test &= e.test;
-                x.wall |= e.wall;
-                for d in &e.diags {
-                    if !x.diags.contains(d) {
-                        x.diags.push(d.clone());
-                    }
-                }
-                if e.worst.as_deref() == Some("error") || x.worst.is_none() {
-                    x.worst.clone_from(&e.worst);
-                }
-            }
+            Some(x) => x.absorb(e, i),
             None => out.push(EdgeView {
                 under: vec![i],
                 ..e.clone()
@@ -145,5 +151,56 @@ mod tests {
         assert_eq!(end_name(&g, 8, 0), FRAME_KEY);
         assert!(is_boundary(&g, &g.edges[0]) && !is_boundary(&g, &g.edges[5]));
         assert!(!is_boundary(&g, &g.edges[6]));
+    }
+
+    /// Two boundary edges from the same outside neighbour merge into one; the worst level
+    /// follows `worst` in order: a later error wins, a later warn only fills an empty slot.
+    #[test]
+    fn merging_keeps_the_worst_and_ands_test_ors_wall() {
+        let g = |worsts: &[Option<&str>], tests: [bool; 2], walls: [bool; 2]| {
+            let edges = worsts
+                .iter()
+                .enumerate()
+                .map(|(i, w)| EdgeView {
+                    from: 2,
+                    to: i,
+                    kind: "uses".into(),
+                    count: 1,
+                    worst: w.map(str::to_string),
+                    test: tests[i.min(1)],
+                    wall: walls[i.min(1)],
+                    ..Default::default()
+                })
+                .collect();
+            let b = |ghost| BrickView {
+                ghost,
+                ..Default::default()
+            };
+            GraphView {
+                rows: vec![],
+                bricks: vec![b(false), b(false), b(true)],
+                edges,
+            }
+        };
+        let worst = |w: &[Option<&str>]| {
+            let f = frame_edges(&g(w, [true; 2], [false; 2]));
+            assert_eq!(f.len(), 1);
+            f[0].worst.clone()
+        };
+        assert_eq!(
+            worst(&[Some("warn"), Some("error")]).as_deref(),
+            Some("error")
+        );
+        assert_eq!(
+            worst(&[Some("error"), Some("warn")]).as_deref(),
+            Some("error")
+        );
+        assert_eq!(worst(&[None, Some("warn")]).as_deref(), Some("warn"));
+        assert_eq!(worst(&[Some("warn"), None]).as_deref(), Some("warn"));
+        assert_eq!(worst(&[None, None]), None);
+        let f = frame_edges(&g(&[None, None], [true, false], [false, true]));
+        assert!(!f[0].test && f[0].wall && f[0].count == 2);
+        let f = frame_edges(&g(&[None, None], [true, true], [false, false]));
+        assert!(f[0].test && !f[0].wall);
     }
 }

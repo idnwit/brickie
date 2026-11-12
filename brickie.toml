@@ -68,18 +68,18 @@ reason = "the viewer lays out the brick graph; the server mounts the code viewer
 
 # lib depends on nothing of brickie: no rule allows lib -> *.
 
-# Business logic: strict. Starts at "warn" until the remaining functions are refactored
-# (docs/proposals/core-split.md, "Complexity policy"); then "error".
+# Business logic: strict, an error (docs/proposals/core-split.md, "Complexity policy"; the
+# functions that exceeded it were refactored in docs/proposals/complexity-refactor.md).
 [[complexity]]
 bricks = "tag:domain"
 cognitive = 15
 nesting = 4
 params = 6
 lines = 80
-level = "warn"
+level = "error"
 
 # Hard ceiling for every brick, including a new one without a tag: past this a function is
-# unreviewable. An error, so CI fails; lower tag rules stay warnings until their step lands.
+# unreviewable. An error, so CI fails.
 [[complexity]]
 bricks = "*"
 cognitive = 60
