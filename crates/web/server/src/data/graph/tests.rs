@@ -3,13 +3,13 @@
 
 use super::edges::End;
 use super::level::cycle_hops;
-use brickie_core::config::{Brick, ComplexityRule, Config};
-use brickie_core::rules;
+use brickie_check::check as rules;
+use brickie_check::config::{Brick, ComplexityRule, Config};
 use std::collections::BTreeMap;
 
 #[test]
 fn cycle_hops_map_path_edges_to_the_finding() {
-    use brickie_core::diag::{DiagEdge, Diagnostic};
+    use brickie_check::diag::{DiagEdge, Diagnostic};
     let hop = |f: &str, t: &str| DiagEdge {
         from: f.into(),
         to: t.into(),
@@ -17,7 +17,7 @@ fn cycle_hops_map_path_edges_to_the_finding() {
     };
     let d = Diagnostic {
         id: "cyc1".into(),
-        level: brickie_core::config::Level::Error,
+        level: brickie_check::config::Level::Error,
         code: rules::DEPS_CYCLE.into(),
         message: String::new(),
         span: None,
@@ -51,6 +51,7 @@ fn complexity_limits_use_the_most_specific_rule() {
         tags: vec!["engine".into()],
         members: vec![],
         path: None,
+        desc: None,
         base: Default::default(),
         sub: None,
     };
@@ -59,7 +60,7 @@ fn complexity_limits_use_the_most_specific_rule() {
         complexity: vec![rule("*", 15), rule("core", 30)],
         ..Default::default()
     };
-    let func: brickie_core::cache::Function = serde_json::from_value(serde_json::json!({
+    let func: brickie_facts::Function = serde_json::from_value(serde_json::json!({
         "qname": "f", "name": "f", "module": null, "line": 1, "end_line": 5, "scope": "prod", "cognitive": 27,
         "cyclomatic": 1, "nesting": 1, "paths": 1, "params": 1, "lines": 5
     }))

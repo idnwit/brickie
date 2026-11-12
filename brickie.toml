@@ -1,21 +1,31 @@
 # brickie's own architecture, checked by brickie. Crates by layer:
-#   cli (the `brickie` binary) -> web (server, viewer) -> core (engine, model)
-# crates/core/brickie.toml and crates/web/brickie.toml split each composite into its crates.
+#   cli (the `brickie` binary) -> web (server, viewer) -> core (model, facts, measure, check)
+#   core and web build on algo (general-purpose algorithm libraries, no brickie types).
+# Each composite splits further in its own brickie.toml (crates/algo, crates/core, crates/web).
+
+[[brick]]
+name = "algo"
+path = "crates/algo"                  # composite: layout, graph, rustscan, metrics
+tags = ["algo"]
+desc = "General-purpose algorithm libraries: graph layout, SCC, Rust scanning, complexity metrics"
 
 [[brick]]
 name = "core"
-path = "crates/core"                  # composite: model (shared types), engine (brickie-core)
-tags = ["lib"]
+path = "crates/core"                  # composite: model, facts, measure, check
+tags = ["domain"]
+desc = "brickie's business logic: shared model, cache, measure and check"
 
 [[brick]]
 name = "web"
 path = "crates/web"                   # composite: server (brickie-web), ui (brickie-ui)
-tags = ["lib"]
+tags = ["domain"]
+desc = "The reviewer webview: axum server and the hydrated viewer"
 
 [[brick]]
 name = "cli"
 members = ["brickie"]                 # the binary, its tests
-tags = ["app"]
+tags = ["domain"]
+desc = "The `brickie` command line: measure, check, view, llms"
 
 [deps]
 default = "deny"
@@ -26,7 +36,7 @@ from = "cli"
 to = "core"
 scope = "all"
 action = "allow"
-reason = "the commands drive the engine"
+reason = "the commands drive measure and check"
 
 [[deps.rule]]
 from = "cli"
@@ -42,8 +52,33 @@ scope = "all"
 action = "allow"
 reason = "the server reads the cache and checks; the viewer shares the model"
 
+[[deps.rule]]
+from = "core"
+to = "algo"
+scope = "all"
+action = "allow"
+reason = "measure and check use the metrics, scanner and graph libraries"
+
+[[deps.rule]]
+from = "web"
+to = "algo"
+scope = "all"
+action = "allow"
+reason = "the viewer lays out the brick graph"
+
+# algo depends on nothing of brickie: no rule allows algo -> *.
+
+# Business logic: strict. Starts at "warn" until the remaining functions are refactored
+# (docs/proposals/core-split.md, "Complexity policy"); then "error".
 [[complexity]]
+bricks = "tag:domain"
 cognitive = 15
 nesting = 4
-params = 6
+level = "warn"
+
+# Algorithms: looser, accepted as isolated, tested warnings.
+[[complexity]]
+bricks = "tag:algo"
+cognitive = 60
+nesting = 6
 level = "warn"

@@ -5,7 +5,7 @@
 //! wasm32 only) attaches signals to that HTML. See `docs/design.md`, step 3.
 
 mod components;
-pub mod layout;
+pub use brickie_layout as layout;
 pub mod model;
 mod platform;
 pub mod state;

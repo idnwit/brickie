@@ -10,6 +10,8 @@ pub struct BrickView {
     pub name: String,
     /// Level path of the brick itself: `root/web/api` (a neighbour: the lifted outside brick).
     pub path: String,
+    /// One-line description from the config (`desc`), if any.
+    pub desc: Option<String>,
     /// First tag (the row), or `(untagged)`.
     pub tag: String,
     /// Row index into [`GraphView::rows`].
@@ -59,6 +61,17 @@ pub struct EdgeView {
     pub worst: Option<String>,
     /// A `deps/private` finding of this level from outside: drawn up to the frame wall.
     pub wall: bool,
+    /// Client side only: when not empty, this edge aggregates these boundary edges for the
+    /// "outside -> frame" mode; its inside end stands for the frame (see `model::boundary`).
+    #[serde(skip)]
+    pub under: Vec<usize>,
+}
+
+impl EdgeView {
+    /// An aggregated edge between an outside neighbour and the frame.
+    pub fn frame(&self) -> bool {
+        !self.under.is_empty()
+    }
 }
 
 /// Bricks, rows (tags in config order) and aggregated brick edges. No geometry: the layout runs

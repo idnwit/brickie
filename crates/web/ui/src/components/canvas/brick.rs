@@ -13,11 +13,15 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
     let r0 = cx.m.layout.pos[b];
     let tip = {
         let (cx, name, tag) = (cx.clone(), brick.name.clone(), brick.tag.clone());
+        let desc = brick
+            .desc
+            .as_ref()
+            .map_or(String::new(), |d| format!("\n{d}"));
         let peek = peek(&brick);
         move || {
             let s = cx.scores.with(|s| s[b].clone());
             format!(
-                "{name} [{tag}]\nscore {} ({}E {}W, complexity excess {}){peek}",
+                "{name} [{tag}]{desc}\nscore {} ({}E {}W, complexity excess {}){peek}",
                 fmt_score(s.score),
                 s.errors,
                 s.warns,

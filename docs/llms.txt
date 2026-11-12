@@ -186,6 +186,8 @@ members = ["my-engine", "my-app::api", "path:crates/engine/"]
                                # file); the most specific member wins (path: < package < module,
                                # a longer path or module wins); a tie across bricks is an error
 tags = ["core"]                # optional labels used by rule selectors
+desc = "Rule evaluation"       # optional one-line description, shown in the viewer
+                               # (brick tooltip and details panel); no effect on checks
 
 [[brick]]
 name = "web"

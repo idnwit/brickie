@@ -1,7 +1,7 @@
 //! `brickie measure`.
 
 use anyhow::Result;
-use brickie_core::measure;
+use brickie_measure as measure;
 use std::path::PathBuf;
 
 pub fn run(config: PathBuf, scip: Option<PathBuf>, workspace: Option<PathBuf>) -> Result<i32> {

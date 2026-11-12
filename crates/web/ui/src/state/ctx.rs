@@ -114,12 +114,13 @@ impl Cx {
     pub fn new(sh: &Shared, lv: usize) -> Cx {
         let params = sh.params;
         let level = &sh.levels[lv];
+        // Laid out without the frame edges, which are appended after the original ones.
         let layout = layout::layout(&layout_input(&level.graph));
         let m = Rc::new(Model {
             cache: sh.cache.clone(),
             levels: sh.levels.clone(),
             lv,
-            g: level.graph.clone(),
+            g: with_frame_edges(&level.graph),
             layout,
             diags: sh.diags.clone(),
             cards: sh.cards.clone(),

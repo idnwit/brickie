@@ -1,0 +1,20 @@
+[package]
+name = "brickie-measure"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "brickie measure: cargo metadata, rust-analyzer SCIP and complexity into the cache"
+license = "MIT"
+publish = false
+
+[dependencies]
+brickie-facts = { path = "../facts" }
+brickie-model = { path = "../model" }
+brickie-metrics = { path = "../../algo/metrics" }
+brickie-rustscan = { path = "../../algo/rustscan" }
+anyhow = "1"
+cargo_metadata = "0.23"
+protobuf = "=3.7.2"
+scip = "0.10"
+serde_json = "1"
+tempfile = "3"

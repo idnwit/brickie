@@ -8,7 +8,9 @@ license = "MIT"
 publish = false
 
 [dependencies]
-brickie-core = { path = "../../core/engine" }
+brickie-check = { path = "../../core/check" }
+brickie-facts = { path = "../../core/facts" }
+brickie-measure = { path = "../../core/measure" }
 brickie-model = { path = "../../core/model" }
 brickie-ui = { path = "../ui" }
 anyhow = "1"

@@ -100,7 +100,8 @@ pub fn brick_scores(g: &GraphView, diags: &[DiagView], accepted: &[bool]) -> Vec
             s.by_cat[category(&d.code)] += 1;
         }
     }
-    for e in &g.edges {
+    // Frame edges repeat boundary edges (another drawing of the same edges): not counted.
+    for e in g.edges.iter().filter(|e| !e.frame()) {
         let viol = e.diags.iter().any(|id| {
             diags
                 .iter()

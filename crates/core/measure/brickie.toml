@@ -1,0 +1,32 @@
+# brickie-measure by folder: workspace (cargo and tool facts) and scip (index rows) are
+# independent; run combines them into the cache.
+exports = ["run"]
+
+[[brick]]
+name = "run"
+members = ["brickie-measure"]         # the crate root and `run`; the folders below win
+tags = ["flow"]
+desc = "The measure flow: index, analyse, assign and write `.brickie/cache.json`"
+
+[[brick]]
+name = "workspace"
+members = ["brickie-measure::workspace"]
+tags = ["source"]
+desc = "Cargo metadata, crates, git, rust-analyzer and the Cargo.lock guard"
+
+[[brick]]
+name = "scip"
+members = ["brickie-measure::scip"]
+tags = ["source"]
+desc = "rust-analyzer SCIP index into file, symbol, module and occurrence rows"
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "run"
+to = "tag:source"
+scope = "all"
+action = "allow"
+reason = "the flow combines workspace facts and index rows"

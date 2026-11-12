@@ -8,8 +8,8 @@ mod level;
 #[cfg(test)]
 mod tests;
 
-use brickie_core::check::Loaded;
-use brickie_core::config::Config;
+use brickie_check::check::Loaded;
+use brickie_check::config::Config;
 use brickie_ui::LevelView;
 
 /// Every level, the root first, then depth first in config order.

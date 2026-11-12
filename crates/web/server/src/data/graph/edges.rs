@@ -2,9 +2,9 @@
 //! both ends inside the level map to children, an end outside lifts to the sibling of the
 //! nearest enclosing level (the faded neighbour).
 
-use brickie_core::check::Loaded;
-use brickie_core::diag;
-use brickie_core::rules;
+use brickie_check::check as rules;
+use brickie_check::check::Loaded;
+use brickie_check::diag;
 use std::collections::BTreeSet;
 
 /// A module edge with the leaf paths of its ends and the ids of its `deps/*` findings.

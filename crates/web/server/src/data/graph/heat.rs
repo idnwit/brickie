@@ -1,9 +1,9 @@
 //! Per node of the tree: the worst value/limit ratio of the functions below it and the
 //! functions over a limit (worst metric each), worst first. Limits are the rules `check` applies.
 
-use brickie_core::check::Loaded;
-use brickie_core::config::level_name;
-use brickie_core::rules;
+use brickie_check::check as rules;
+use brickie_check::check::Loaded;
+use brickie_check::config::level_name;
 use brickie_ui::{HotFn, ratio};
 use std::collections::BTreeMap;
 

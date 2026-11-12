@@ -1,6 +1,6 @@
 //! The functions table rows from the cache.
 
-use brickie_core::check::Loaded;
+use brickie_check::check::Loaded;
 use brickie_ui::*;
 
 pub fn functions(l: &Loaded) -> Vec<FnRow> {
@@ -11,7 +11,7 @@ pub fn functions(l: &Loaded) -> Vec<FnRow> {
                 .module
                 .as_ref()
                 .and_then(|m| l.resolved.path(m))
-                .map(brickie_core::config::level_name)
+                .map(brickie_check::config::level_name)
                 .unwrap_or_default();
             out.push(FnRow {
                 qname: func.qname.clone(),

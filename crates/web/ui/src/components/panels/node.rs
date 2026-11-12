@@ -6,6 +6,14 @@ use crate::model::BrickView;
 use crate::state::*;
 use sycamore::prelude::*;
 
+/// The brick's one-line description (`desc`), shown under its name; empty when it has none.
+pub fn desc(br: &BrickView) -> View {
+    match br.desc.clone() {
+        Some(d) => view! { p(class="desc") { (d) } },
+        None => View::default(),
+    }
+}
+
 pub fn tree_info(cx: &Cx, br: &BrickView) -> View {
     if br.ghost {
         let up = br

@@ -1,8 +1,8 @@
 //! Diagnostics: the check's `Diagnostic` converted field by field, with the source line of the
 //! primary span cut around it.
 
-use brickie_core::config::Level;
-use brickie_core::diag::{Diagnostic, Span};
+use brickie_check::config::Level;
+use brickie_check::diag::{Diagnostic, Span};
 use brickie_ui::*;
 use std::collections::HashMap;
 use std::path::Path;

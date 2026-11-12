@@ -163,7 +163,8 @@ name = "brickie"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "brickie-core",
+ "brickie-check",
+ "brickie-measure",
  "brickie-model",
  "brickie-web",
  "clap",
@@ -173,20 +174,56 @@ dependencies = [
 ]
 
 [[package]]
-name = "brickie-core"
+name = "brickie-check"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "brickie-facts",
+ "brickie-graph",
  "brickie-model",
- "cargo_metadata",
- "protobuf",
- "scip",
  "serde",
  "serde_json",
- "sha2",
  "tempfile",
  "toml",
  "toml_edit 0.25.19+spec-1.1.0",
+]
+
+[[package]]
+name = "brickie-facts"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "sha2",
+]
+
+[[package]]
+name = "brickie-graph"
+version = "0.1.0"
+
+[[package]]
+name = "brickie-layout"
+version = "0.1.0"
+
+[[package]]
+name = "brickie-measure"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "brickie-facts",
+ "brickie-metrics",
+ "brickie-model",
+ "brickie-rustscan",
+ "cargo_metadata",
+ "protobuf",
+ "scip",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "brickie-metrics"
+version = "0.1.0"
+dependencies = [
  "tree-sitter",
  "tree-sitter-rust",
 ]
@@ -199,9 +236,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "brickie-rustscan"
+version = "0.1.0"
+
+[[package]]
 name = "brickie-ui"
 version = "0.1.0"
 dependencies = [
+ "brickie-layout",
  "brickie-model",
  "serde",
  "serde_json",
@@ -217,7 +259,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
- "brickie-core",
+ "brickie-check",
+ "brickie-facts",
+ "brickie-measure",
  "brickie-model",
  "brickie-ui",
  "http-body-util",

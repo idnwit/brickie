@@ -99,11 +99,11 @@ pub fn brick_detail(cx: &Cx, b: usize) -> View {
     let br = cx.m.g.bricks[b].clone();
     let g = &cx.m.g;
     let out: Vec<View> = (0..g.edges.len())
-        .filter(|&e| g.edges[e].from == b)
+        .filter(|&e| g.edges[e].from == b && !g.edges[e].frame())
         .map(|e| edge_link(cx, e, g.edges[e].to))
         .collect();
     let inn: Vec<View> = (0..g.edges.len())
-        .filter(|&e| g.edges[e].to == b)
+        .filter(|&e| g.edges[e].to == b && !g.edges[e].frame())
         .map(|e| edge_link(cx, e, g.edges[e].from))
         .collect();
     let name = br
@@ -120,10 +120,12 @@ pub fn brick_detail(cx: &Cx, b: usize) -> View {
         .map(|t| view! { span(class="tag") { (t) } })
         .collect();
     let tags = View::from(tags);
+    let desc = super::node::desc(&br);
     let members = super::node::tree_info(cx, &br);
     let card = scorecard(cx, b);
     view! {
         h2 { (name) }
+        (desc)
         div { (tags) }
         (card)
         (members)
@@ -201,7 +203,7 @@ pub fn group_detail(cx: &Cx) -> View {
     let (set, name) = cx.eval.with(|ev| (ev.sel.set(g), ev.sel.name(g)));
     let mut cnt: [BTreeMap<String, usize>; 3] = Default::default();
     for (e, x) in g.edges.iter().enumerate() {
-        if cx.eval.with(|ev| ev.edge[e].is_none()) {
+        if x.frame() || cx.eval.with(|ev| ev.edge[e].is_none()) {
             continue;
         }
         let k = match (set.contains(&x.from), set.contains(&x.to)) {
@@ -267,7 +269,15 @@ pub fn edge_detail(cx: &Cx, e: usize) -> View {
         .collect();
     let finds = View::from(finds);
     let scope = if x.test { "test scope only" } else { "prod" };
-    let (from, to, kind) = (brick_link(cx, x.from), brick_link(cx, x.to), x.kind.clone());
+    let end = |b: usize| {
+        if x.frame() && !g.bricks[b].ghost {
+            let n = format!("{} (frame)", cx.level().name());
+            view! { span { (n) } }
+        } else {
+            brick_link(cx, b)
+        }
+    };
+    let (from, to, kind) = (end(x.from), end(x.to), x.kind.clone());
     let title = format!("Deps findings ({})", x.diags.len());
     view! {
         h2 { (from) " " span(class="muted") { (kind) } " \u{2192} " (to) }

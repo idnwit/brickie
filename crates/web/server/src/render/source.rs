@@ -57,7 +57,7 @@ pub fn source_html(
         })
         .collect();
     let tree = (line > 0)
-        .then(|| brickie_core::measure::fn_tree(text, line))
+        .then(|| brickie_measure::fn_tree(text, line))
         .flatten();
     let body = brickie_ui::render_source(&SourcePage {
         file: file.to_string(),

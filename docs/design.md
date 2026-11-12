@@ -162,30 +162,41 @@ code, the SQL graph server for agents (`serve`/`query`), capabilities, and exper
 
 ## Code layout (implemented)
 
-A virtual workspace of five crates, grouped by layer (brickie checks this with the root
-`brickie.toml` and `crates/{core,web}/brickie.toml`: cli -> web -> core, model is the base):
+A virtual workspace of eleven crates, grouped by layer (brickie checks this with the root
+`brickie.toml` and the nested `brickie.toml` of `crates/algo`, `crates/core`,
+`crates/core/measure`, `crates/core/check` and `crates/web`: cli -> web -> core -> algo; algo
+depends on no brickie crate; see `docs/proposals/core-split.md`):
 
 ```
-crates/core/model/   brickie-model: light, wasm-safe shared types: Level, codes (every
-                     diagnostic code), Diagnostic values (Span, Note, RuleRef, DiagEdge),
-                     FnTree/TreeNode
-crates/core/engine/  brickie-core (library), src/ by concern:
-  config/            schema (one level of the tree), selector, load (tree + include), validate,
-                     member (member matching, specificity), resolve (module -> leaf path, partition)
-  cache/             model (cache.json schema), files (tree walk), hash
-  measure/           mod (run), metadata, rust_analyzer, lock, git, crates, modules, files,
-                     edges, scip/ (SCIP -> rows, use scanner), complexity/ (tree-sitter metrics)
-  rules/             lift (common ancestor, exports), deps, private, cycles, complexity, unmapped,
-                     stale
-  diag/              model (Finding -> Diagnostic), summary, text
-  check/             config + cache + review -> diagnostics (shared by check and view)
-  review/            brickie.review.toml read and edit
-crates/web/server/   brickie-web: axum server (routes, render, data, tests); build.rs embeds
-                     assets/ui/ when present
-crates/web/ui/       brickie-ui: viewer (components, layout, state, model), compiled to wasm;
-                     depends on brickie-model only, never on brickie-core
-crates/cli/          brickie: the `brickie` binary (main.rs, cli/: clap args + one file per
-                     command) and the integration tests (tests/check, tests/llms, tests/measure)
+crates/algo/           general-purpose libraries, no brickie types (tag algo, looser limits)
+  layout/              brickie-layout: Sugiyama layout and edge routing (wasm-safe)
+  graph/               brickie-graph: SCC (Tarjan), cycle path
+  rustscan/            brickie-rustscan: Rust tokenizer, `use` item scanner
+  metrics/             brickie-metrics: cognitive, cyclomatic, NPath, nesting, decision tree
+                       (tree-sitter)
+crates/core/model/     brickie-model: light, wasm-safe shared types: Level, codes (every
+                       diagnostic code), Diagnostic values (Span, Note, RuleRef, DiagEdge),
+                       FnTree/TreeNode
+crates/core/facts/     brickie-facts: the cache: model (cache.json schema), files (tree walk), hash
+crates/core/measure/   brickie-measure, folder bricks:
+  workspace/           metadata, rust_analyzer, lock, git, crates
+  scip/                SCIP -> rows (normalise, targets, written, modules, layout)
+  run/                 mod (run), files, edges, complexity (brickie-metrics -> FnTree)
+crates/core/check/     brickie-check, folder bricks:
+  diag/                model (Finding -> Diagnostic), summary, text
+  config/              schema (one level of the tree), selector, load (tree + include), validate,
+                       member (member matching, specificity), resolve (module -> leaf path)
+  rules/               lift (common ancestor, exports), deps, private, cycles (brickie-graph),
+                       complexity, unmapped, stale (internal)
+  review/              brickie.review.toml read and edit (internal)
+  check/               config + cache + review -> diagnostics (shared by check and view); the
+                       facade for rules and review (dep_subject, complexity_limits, set_review)
+crates/web/server/     brickie-web: axum server (routes, render, data, tests); build.rs embeds
+                       assets/ui/ when present
+crates/web/ui/         brickie-ui: viewer (components, state, model), compiled to wasm; depends
+                       on brickie-model and brickie-layout only
+crates/cli/            brickie: the `brickie` binary (main.rs, cli/: clap args + one file per
+                       command) and the integration tests (tests/check, tests/llms, tests/measure)
 ```
 
 Source files stay small and focused (about 300 lines or fewer, tests aside).
@@ -214,7 +225,7 @@ the configs.
   recorded; one the compiler never saw (cfg-gated away, no `mod`) has `compiled: false`, a hash
   and no functions, edges or module, so staleness can tell it from an added file. Complexity (`complexity::analyze`) is tree-sitter only.
 - `implements` edges come from the syntax (`impl Trait for X`), because rust-analyzer emits no
-  SCIP relationships. Paths (NPath variant) add sequential decisions; see `crates/core/engine/src/measure/complexity/paths.rs`.
+  SCIP relationships. Paths (NPath variant) add sequential decisions; see `crates/algo/metrics/src/paths.rs`.
 - `params` does not count `self` (clippy convention).
 
 ## Check (implemented)
@@ -314,7 +325,7 @@ folders by concern):
   JSON, rebuilds the same tree and hydrates `#app`. The page JSON holds all diagnostics, every level of the
   brick tree (bricks, tag rows, aggregated edges per level, see "Levels") and the functions;
   nothing is filtered on the server.
-- **Layout runs on the client, once per level.** `crates/web/ui/src/layout/` is a pure deterministic
+- **Layout runs on the client, once per level.** `crates/algo/layout/src/` is a pure deterministic
   function `layout(Input) -> Layout` (positions of boxes, ports, routed cubic paths); the server
   calls the same function for the SSR page so the no-JS page also shows the graph. It runs once
   from the
@@ -325,7 +336,8 @@ folders by concern):
   (`-cx,+tests`), `vs` violations scope, `brick` (comma list), `group` (tag rows), `edge`
   (`from>to>kind`), `item` (selected finding), `level`, `status`, `code`, `grp`, `fn_sort`,
   `fn_dir`, `fn_scope`, `fn_limit`, `lv` (current level of the tree, `root` by default), `below`
-  (`1`: findings of this level and below only). Every link has the real `href`; hydrated, a plain click
+  (`1`: findings of this level and below only), `bnd` (`frame`: outside edges end at the
+  frame, see "Levels"). Every link has the real `href`; hydrated, a plain click
   updates the signal and `history.pushState`s, `popstate` re-reads the URL. A full load with
   params renders the same view.
 - **Without wasm** (bundle not built) the SSR page is complete but read-only: the canvas, filters
@@ -366,7 +378,9 @@ folders by concern):
   errors + 0.25 x open warnings + sum over functions of max(0, worst ratio - 1)`. A finding is
   open when its level is `error`/`warn` and it is not accepted, whatever layers are shown. A
   function's ratio is its worst `value / limit` over the metrics that have a limit under the rules
-  that apply to its brick and scope (`rules::complexity_limits`, the same lookup as `check`).
+  that apply to its brick and scope (`check::complexity_limits`, the same lookup as `check`).
+  A brick's `desc` (config, one line) travels on `BrickView.desc`: the brick tooltip shows it under
+  the name and the details panel at the top (leaf, composite, faded neighbour).
   The server embeds the static part in each `BrickView` (`worst_ratio`, `hot`: functions over a
   limit, worst first); the page adds the open counts (`brick_scores`), so scores follow
   accept/unaccept. The score appears as a corner badge (`3E 1W`, or a green check when clean), a
@@ -413,10 +427,10 @@ folders by concern):
   and 33 edges in release; the SSR page recomputes it per request).
 - Tests: `crates/web/server/src/tests/` (tower `oneshot`: index, layers and presets as params, JSON
   endpoints, source tree/highlight/escaping/traversal/symlink, review round trip, missing
-  cache); `crates/web/ui/src/layout/tests.rs` (no edge crosses a box, boxes do not overlap, determinism,
+  cache); `crates/algo/layout/src/tests.rs` (no edge crosses a box, boxes do not overlap, determinism,
   crossings at most the config order, rows follow tags, empty graphs, re-routing after a drag);
   `crates/web/ui/src/state/` (layers round trip through the URL, presets, selection,
-  scoping); `crates/core/engine/src/measure/complexity/tests.rs`; `components/source/mod.rs` (gutter rendering).
+  scoping); `crates/algo/metrics/src/tests.rs`; `components/source/mod.rs` (gutter rendering).
 
 ### Levels (implemented)
 
@@ -445,6 +459,20 @@ Map-style zoom over the brick tree (spec: `docs/proposals/nested-bricks.md`, "Vi
   with `count` (CSS `--k`), edges with findings are red as before; a `wall` edge is cut where it
   meets the frame and ends with a cross. Hover (SVG title) peeks into a composite: its children,
   exported ones marked.
+- **Outside edges** (`bnd`, toggle "Outside → frame | children" next to the breadcrumb, hidden at
+  the root; `components/controls/boundary.rs`): `children` (default) draws each boundary edge to
+  the child it reaches; `frame` draws one edge per (neighbour, direction, kind) to the nearest
+  frame wall. The frame edges are aggregated on the client (`model/boundary.rs`, `frame_edges`:
+  counts summed, findings united, worst level, `test` only when all are, `wall` when any is)
+  and appended after the level's edges in `Cx` (flagged by `EdgeView.under`, the boundary edges
+  they stand for; not serialised); the layout is computed without them, and the evaluation
+  shows one of the two sets, so switching changes only params (no rebuild, pan/zoom and drag
+  kept). A frame edge's route is one cubic from the neighbour to the frame wall
+  (`canvas/boundary.rs`), spread per neighbour, and a `wall` one is cut at the wall as usual. Its
+  inside end is named `[frame]` in the `edge=` key; selecting it scopes the lists to the
+  neighbour and the children it stands for, and its panel lists all underlying findings. Brick
+  scores and brick edge lists ignore frame edges (they repeat boundary edges). Test:
+  `model::boundary::tests`.
 - **Composites** have a tinted fill (`--comp-fill`; error and warning fills still win), so
   they read as "has a level inside" before the zoom icon is noticed.
 - **Free layout**: dragged bricks stay where they are dropped until the level changes; the
@@ -476,7 +504,7 @@ Reference: the prototype's `index.html` (JS, layout and UI), not published.
 The port keeps the prototype's CSS variables, colours, edge styles, legend, header controls,
 three-pane shell and interaction behaviour; only data that no longer exists was remapped.
 
-### Layout: original JS function -> Rust (`crates/web/ui/src/layout/`)
+### Layout: original JS function -> Rust (`crates/algo/layout/src/`)
 
 | JS function / constant | Rust | Deviation |
 | --- | --- | --- |

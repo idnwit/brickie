@@ -16,7 +16,8 @@ categories = ["development-tools", "command-line-utilities"]
 publish = false
 
 [dependencies]
-brickie-core = { path = "../core/engine" }
+brickie-check = { path = "../core/check" }
+brickie-measure = { path = "../core/measure" }
 brickie-model = { path = "../core/model" }
 brickie-web = { path = "../web/server" }
 anyhow = "1"

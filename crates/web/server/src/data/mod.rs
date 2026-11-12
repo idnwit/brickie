@@ -9,7 +9,7 @@ mod time;
 pub use diagnostics::split_bytes;
 pub use time::utc;
 
-use brickie_core::check::Loaded;
+use brickie_check::check::Loaded;
 use brickie_ui::*;
 use diagnostics::{Lines, diag_view};
 use std::path::Path;

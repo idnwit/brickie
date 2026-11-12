@@ -1,4 +1,4 @@
 [workspace]
-members = ["crates/core/model", "crates/core/engine", "crates/web/server", "crates/web/ui", "crates/cli"]
+members = ["crates/algo/layout", "crates/algo/graph", "crates/algo/rustscan", "crates/algo/metrics", "crates/core/model", "crates/core/facts", "crates/core/measure", "crates/core/check", "crates/web/server", "crates/web/ui", "crates/cli"]
 exclude = ["fixtures"]
 resolver = "3"

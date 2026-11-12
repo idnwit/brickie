@@ -3,10 +3,10 @@
 
 use super::edges::{End, ModEdge, end, mod_edges};
 use super::heat::heat;
-use brickie_core::check::Loaded;
-use brickie_core::config::{Config, Level, level_name};
-use brickie_core::diag::Diagnostic;
-use brickie_core::rules;
+use brickie_check::check as rules;
+use brickie_check::check::Loaded;
+use brickie_check::config::{Config, Level, level_name};
+use brickie_check::diag::Diagnostic;
 use brickie_ui::*;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -155,6 +155,7 @@ impl<'a> Ctx<'a> {
                     count: acc.refs,
                     worst,
                     wall,
+                    under: Vec::new(),
                 }
             })
             .collect();
@@ -178,6 +179,7 @@ impl<'a> Ctx<'a> {
         BrickView {
             name,
             path: key,
+            desc: self.l.cfg.brick_at(path).and_then(|b| b.desc.clone()),
             worst_ratio,
             hot,
             children: sub

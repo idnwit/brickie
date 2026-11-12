@@ -53,7 +53,13 @@ pub fn evaluate(g: &GraphView, diags: &[DiagView], accepted: &[bool], p: &Params
         .iter()
         .enumerate()
         .map(|(i, e)| {
-            if !lay.on(&format!("k-{}", e.kind)) {
+            // One of the two boundary drawings: to the children or aggregated at the frame.
+            let hidden = if p.to_frame() {
+                is_boundary(g, e)
+            } else {
+                e.frame()
+            };
+            if hidden || !lay.on(&format!("k-{}", e.kind)) {
                 return None;
             }
             let cards: Vec<usize> = e.diags.iter().filter_map(|id| by_id(id)).collect();

@@ -4,8 +4,8 @@
 
 use super::args::{ColorArg, Format};
 use anyhow::Result;
-use brickie_core::check::{self, Loaded};
-use brickie_core::diag::{self, Color};
+use brickie_check::check::{self, Loaded};
+use brickie_check::diag::{self, Color};
 use brickie_model::Level;
 use std::path::Path;
 

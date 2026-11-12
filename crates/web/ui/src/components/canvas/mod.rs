@@ -2,6 +2,7 @@
 //! the one layout computed up front. Toggling layers, presets or selection only changes classes
 //! and styles of existing elements; nothing is re-laid out.
 
+mod boundary;
 mod brick;
 mod defs;
 mod edge;
@@ -10,6 +11,7 @@ mod pointer;
 mod rows;
 mod zoom_icon;
 
+use boundary::frame_route;
 use brick::node_view;
 use defs::defs;
 pub use edge::dash;
@@ -39,7 +41,11 @@ pub fn canvas(cx: &Cx) -> View {
             let frame = frame_rect(&cx.m.g, &p);
             (0..cx.m.g.edges.len())
                 .map(|e| {
-                    let r = cx.m.layout.path(e, &p)?;
+                    let r = if cx.m.g.edges[e].frame() {
+                        frame_route(&cx.m.g, e, &p, frame.as_ref()?)?
+                    } else {
+                        cx.m.layout.path(e, &p)?
+                    };
                     // A private edge from outside stops at the frame wall (mark at the wall).
                     let wall = frame
                         .as_ref()
@@ -151,6 +157,7 @@ pub fn canvas(cx: &Cx) -> View {
         _ => "display:none".to_string(),
     };
     let crumbs = crate::components::controls::crumbs(cx);
+    let bnd = crate::components::controls::boundary(cx);
     // The svg has no viewBox: one user unit is one CSS pixel of the stage, so pointer
     // positions map straight into the pan/zoom transform. On the next frame (the stage is in
     // the DOM) measure it and fit. Always set the view: after hydration the DOM still shows
@@ -175,7 +182,7 @@ pub fn canvas(cx: &Cx) -> View {
                 }
             }
             div(class="selbox", style=sel_box)
-            (crumbs)
+            div(class="ovl") { (crumbs) (bnd) }
         }
     }
 }

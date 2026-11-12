@@ -21,7 +21,9 @@ pub fn edge_key(g: &GraphView, e: usize) -> String {
     let x = &g.edges[e];
     format!(
         "{}>{}>{}",
-        g.bricks[x.from].name, g.bricks[x.to].name, x.kind
+        end_name(g, e, x.from),
+        end_name(g, e, x.to),
+        x.kind
     )
 }
 
@@ -94,7 +96,7 @@ impl Sel {
     pub fn scope(&self, g: &GraphView) -> Option<BTreeSet<usize>> {
         match self {
             Sel::None => None,
-            Sel::Edge(e) => Some([g.edges[*e].from, g.edges[*e].to].into()),
+            Sel::Edge(e) => Some(edge_bricks(g, *e)),
             _ => Some(self.set(g)),
         }
     }
@@ -106,7 +108,11 @@ impl Sel {
             Sel::Brick(b) => format!("brick {}", g.bricks[*b].name),
             Sel::Edge(e) => {
                 let x = &g.edges[*e];
-                format!("edge {} -> {}", g.bricks[x.from].name, g.bricks[x.to].name)
+                format!(
+                    "edge {} -> {}",
+                    end_name(g, *e, x.from),
+                    end_name(g, *e, x.to)
+                )
             }
             Sel::Group { tags, bricks } => {
                 let mut parts: Vec<String> = tags.iter().map(|t| format!("tag {t}")).collect();

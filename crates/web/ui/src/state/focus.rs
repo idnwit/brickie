@@ -32,7 +32,7 @@ fn is_dep(code: &str) -> bool {
 /// `fSpec`: the focus of a selected finding.
 pub fn finding_focus(g: &GraphView, d: &DiagView) -> Focus {
     let set: BTreeSet<usize> = diag_bricks(g, d).into_iter().collect();
-    let touching = |e: &EdgeView| set.contains(&e.from) || set.contains(&e.to);
+    let touching = |e: usize| edge_bricks(g, e).iter().any(|b| set.contains(b));
     let (keep, hot): (BTreeSet<usize>, BTreeSet<usize>) = if is_dep(&d.code) {
         let k: BTreeSet<usize> = (0..g.edges.len())
             .filter(|&i| g.edges[i].diags.contains(&d.id))
@@ -45,9 +45,7 @@ pub fn finding_focus(g: &GraphView, d: &DiagView) -> Focus {
         (k.clone(), k)
     } else {
         (
-            (0..g.edges.len())
-                .filter(|&i| touching(&g.edges[i]))
-                .collect(),
+            (0..g.edges.len()).filter(|&i| touching(i)).collect(),
             BTreeSet::new(),
         )
     };
@@ -64,8 +62,7 @@ pub fn finding_focus(g: &GraphView, d: &DiagView) -> Focus {
 fn with_lit(g: &GraphView, mut f: Focus) -> Focus {
     f.lit = f.bricks.clone();
     for &e in &f.keep {
-        f.lit.insert(g.edges[e].from);
-        f.lit.insert(g.edges[e].to);
+        f.lit.extend(edge_bricks(g, e));
     }
     f
 }
@@ -77,7 +74,7 @@ pub fn focus_of(g: &GraphView, sel: &Sel, p: &Params, diags: &[DiagView]) -> Opt
     }
     let touching = |set: &BTreeSet<usize>| -> BTreeSet<usize> {
         (0..g.edges.len())
-            .filter(|&i| set.contains(&g.edges[i].from) || set.contains(&g.edges[i].to))
+            .filter(|&i| edge_bricks(g, i).iter().any(|b| set.contains(b)))
             .collect()
     };
     match sel {
@@ -112,7 +109,7 @@ pub fn focus_of(g: &GraphView, sel: &Sel, p: &Params, diags: &[DiagView]) -> Opt
             g,
             Focus {
                 lit: BTreeSet::new(),
-                bricks: [g.edges[*e].from, g.edges[*e].to].into(),
+                bricks: edge_bricks(g, *e),
                 keep: [*e].into(),
                 hot: BTreeSet::new(),
                 group: false,

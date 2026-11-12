@@ -4,7 +4,7 @@ use crate::{AppState, Failure};
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use brickie_core::review;
+use brickie_check::check as review;
 use brickie_ui::{ReviewReply, ReviewRequest};
 
 /// Accept (`reason`) or unaccept (`reason: null`) one finding in `brickie.review.toml`.

@@ -1,5 +1,6 @@
 //! One edge: halo, line, hit area, label and mark (`renderGraph` edge part, `edgeOn`).
 
+use crate::model::end_name;
 use crate::state::*;
 use sycamore::prelude::*;
 
@@ -36,7 +37,10 @@ pub fn edge_view(cx: &Cx, ei: usize, routes: ReadSignal<Vec<Option<(String, f64,
         };
         let tip = format!(
             "{} -> {} ({}, {} reference(s){wall})",
-            g.bricks[e.from].name, g.bricks[e.to].name, e.kind, e.count
+            end_name(g, ei, e.from),
+            end_name(g, ei, e.to),
+            e.kind,
+            e.count
         );
         // Width grows with the number of references (log scale, at most 2.6x).
         let k = (1.0 + 0.35 * (e.count.max(1) as f64).log2()).min(2.6);

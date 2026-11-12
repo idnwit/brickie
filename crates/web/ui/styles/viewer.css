@@ -122,10 +122,11 @@ table.fns th a.on{color:var(--ink);font-weight:700}
 @media (prefers-reduced-motion:reduce){#stage.zin svg,#stage.zout svg{animation:none}}
 .fi .at{color:var(--muted);font:11px ui-monospace,monospace;margin-left:4px}
 /* breadcrumb overlay: top-left of the stage, outside the pan/zoom transform */
-.crumbs.overlay{position:absolute;top:8px;left:8px;z-index:5;padding:4px 8px;border-radius:6px;background:var(--panel);color:var(--fg);border:1px solid var(--line);box-shadow:0 1px 4px rgba(0,0,0,.15);cursor:default}
+.ovl{position:absolute;top:8px;left:8px;z-index:5;display:flex;gap:6px;align-items:center}.bnd{display:flex;align-items:center;gap:4px;font-size:12px}.overlay{padding:4px 8px;border-radius:6px;background:var(--panel);color:var(--fg);border:1px solid var(--line);box-shadow:0 1px 4px rgba(0,0,0,.15);cursor:default}
 
 /* Zoom-in affordance on composites: a small magnifier at the start of the tag line. */
 .node .zicon{cursor:zoom-in}
 .node .zicon .zhit{fill:transparent}
 .node .zicon circle,.node .zicon line{fill:none;stroke:var(--muted);stroke-width:1.5;stroke-linecap:round}
 .node .zicon:hover circle,.node .zicon:hover line{stroke:var(--sel);stroke-width:2}
+#detail p.desc{color:var(--muted);margin:2px 0 8px;font-style:italic}

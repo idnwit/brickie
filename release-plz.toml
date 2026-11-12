@@ -13,7 +13,31 @@ name = "brickie-model"
 release = false
 
 [[package]]
-name = "brickie-core"
+name = "brickie-facts"
+release = false
+
+[[package]]
+name = "brickie-measure"
+release = false
+
+[[package]]
+name = "brickie-check"
+release = false
+
+[[package]]
+name = "brickie-layout"
+release = false
+
+[[package]]
+name = "brickie-graph"
+release = false
+
+[[package]]
+name = "brickie-rustscan"
+release = false
+
+[[package]]
+name = "brickie-metrics"
 release = false
 
 [[package]]

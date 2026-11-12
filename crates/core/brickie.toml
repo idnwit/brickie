@@ -1,23 +1,52 @@
-# The core crates: model (light, wasm-safe shared types) is the base; engine uses it.
-exports = ["model", "engine"]
-
-[[brick]]
-name = "engine"
-members = ["brickie-core"]
-tags = ["engine"]
+# The core crates: model (light, wasm-safe shared types) is the base; facts is the cache;
+# measure and check are independent flows that share only facts and model.
+exports = ["model", "facts", "measure", "check"]
 
 [[brick]]
 name = "model"
 members = ["brickie-model"]
 tags = ["base"]
+desc = "Shared wasm-safe types: diagnostic levels, codes and values, function trees"
+
+[[brick]]
+name = "facts"
+members = ["brickie-facts"]
+tags = ["facts"]
+desc = "The measure cache: facts model, hashing and source files"
+
+[[brick]]
+name = "measure"
+path = "measure"                      # composite: workspace, scip, run
+tags = ["flow"]
+desc = "`brickie measure`: cargo metadata, rust-analyzer SCIP and complexity into the cache"
+
+[[brick]]
+name = "check"
+path = "check"                        # composite: diag, config, rules, review, check
+tags = ["flow"]
+desc = "`brickie check`: config, rules, review and diagnostics over the cache"
 
 [deps]
 default = "deny"
 cycles = "deny"
 
 [[deps.rule]]
-from = "engine"
+from = "facts"
 to = "model"
 scope = "all"
 action = "allow"
-reason = "the engine produces the shared model values"
+reason = "the cache holds model values"
+
+[[deps.rule]]
+from = "tag:flow"
+to = "facts"
+scope = "all"
+action = "allow"
+reason = "measure writes the cache, check reads it"
+
+[[deps.rule]]
+from = "tag:flow"
+to = "model"
+scope = "all"
+action = "allow"
+reason = "measure builds function trees, check produces diagnostics"

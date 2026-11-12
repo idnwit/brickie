@@ -160,6 +160,11 @@ worst_level}`); the UI is a function of the current level.
   red when any underlying edge has a finding. A `deps/private` edge reported at this level from
   outside stops at the frame wall with a cross. Clicking an edge lists the module edges, their
   evidence (opens the source popup) and their findings.
+- **Outside edges** (added 2026-11-12): below the root, a toggle next to the breadcrumb
+  ("Outside → frame | children", URL `bnd=frame`) chooses whether edges from neighbours go to
+  the children they reach (default) or attach to the frame, one aggregated edge per (neighbour,
+  direction, kind) with summed counts, the worst severity and all findings; a private edge
+  still ends with the cross at the wall. Switching keeps pan, zoom and dragged bricks.
 - **Peek**: hovering a composite shows its children, marking the exported ones.
 - **Findings panel**: all findings, with a filter "this level and below"; clicking one jumps to
   the finding's `level` and highlights its edge.

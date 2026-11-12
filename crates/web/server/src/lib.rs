@@ -13,7 +13,7 @@ mod tests;
 use anyhow::{Context, Result};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use brickie_core::check::{self, Loaded};
+use brickie_check::check::{self, Loaded};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -46,7 +46,7 @@ impl AppState {
     }
 
     fn cache_file(&self) -> PathBuf {
-        brickie_core::review::config_dir(&self.config).join(".brickie/cache.json")
+        brickie_check::check::config_dir(&self.config).join(".brickie/cache.json")
     }
 }
 

@@ -49,7 +49,7 @@ impl Site {
         .unwrap();
         std::fs::write(dir.path().join("brickie.toml"), CONFIG).unwrap();
         let file = |text: &str, functions: Value| {
-            let sha = brickie_core::cache::sha256_hex(text.as_bytes());
+            let sha = brickie_facts::sha256_hex(text.as_bytes());
             json!({"sha256": sha, "compiled": true, "size": text.len(), "lines": 3,
                    "scope": "prod", "module": "eng::x", "functions": functions, "edges": []})
         };
@@ -59,7 +59,7 @@ impl Site {
                    "params": 0, "scope": "prod"})
         };
         let cache = json!({
-            "schema_version": brickie_core::cache::SCHEMA_VERSION, "tool_version": "0", "rust_analyzer": "0",
+            "schema_version": brickie_facts::SCHEMA_VERSION, "tool_version": "0", "rust_analyzer": "0",
             "workspace_root": ws.display().to_string(), "git": null,
             "crates": [{"id": "eng", "package": "eng", "version": "0.1.0", "target": "eng",
                         "kind": "lib", "root": "crates/eng/src/lib.rs", "dir": "crates/eng"}],

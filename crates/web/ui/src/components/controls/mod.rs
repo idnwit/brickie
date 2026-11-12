@@ -1,7 +1,9 @@
 //! The header: level breadcrumb, presets, data layers, fit/reload and the finding counts.
 
+mod boundary;
 mod crumbs;
 
+pub use boundary::boundary;
 pub use crumbs::crumbs;
 mod presets;
 mod toggles;

@@ -1,0 +1,11 @@
+[package]
+name = "brickie-layout"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Layered graph layout and edge routing (Sugiyama style), pure and wasm-safe"
+license = "MIT"
+publish = false
+
+[dependencies]
+

@@ -40,6 +40,8 @@ pub struct Params {
     pub lv: String,
     /// `1`: the findings list shows only findings of this level and below.
     pub below: String,
+    /// Edges from outside neighbours inside a composite: `children` (default) | `frame`.
+    pub bnd: String,
 }
 
 pub const DEFAULT_LIMIT: usize = 50;
@@ -91,6 +93,10 @@ impl Params {
     pub fn level_path(&self) -> &str {
         if self.lv.is_empty() { "root" } else { &self.lv }
     }
+    /// Outside edges end at the frame instead of the children.
+    pub fn to_frame(&self) -> bool {
+        self.bnd == "frame"
+    }
     pub fn preset(&self) -> &str {
         if self.p.is_empty() { "arch" } else { &self.p }
     }
@@ -141,6 +147,7 @@ impl Params {
             ("item", &self.item, ""),
             ("lv", &self.lv, "root"),
             ("below", &self.below, ""),
+            ("bnd", &self.bnd, "children"),
         ];
         pairs
             .iter()
@@ -167,6 +174,7 @@ impl Params {
                 "brick" => p.brick = v,
                 "lv" => p.lv = v,
                 "below" => p.below = v,
+                "bnd" => p.bnd = v,
                 "level" => p.level = v,
                 "status" => p.status = v,
                 "code" => p.code = v,

@@ -82,7 +82,7 @@ fn site() -> Site {
         let text = "// m\n";
         std::fs::create_dir_all(ws.join(d).join("src")).unwrap();
         std::fs::write(ws.join(&path), text).unwrap();
-        let sha = brickie_core::cache::sha256_hex(text.as_bytes());
+        let sha = brickie_facts::sha256_hex(text.as_bytes());
         files.insert(
             path.clone(),
             json!({"sha256": sha, "compiled": true, "size": text.len(), "lines": 1,
@@ -95,7 +95,7 @@ fn site() -> Site {
         );
     }
     let cache = json!({
-        "schema_version": brickie_core::cache::SCHEMA_VERSION, "tool_version": "0", "rust_analyzer": "0",
+        "schema_version": brickie_facts::SCHEMA_VERSION, "tool_version": "0", "rust_analyzer": "0",
         "workspace_root": ws.display().to_string(), "git": null,
         "crates": list, "modules": modules, "files": files,
     });
