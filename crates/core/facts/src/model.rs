@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const SCHEMA_VERSION: u32 = 5;
+pub const SCHEMA_VERSION: u32 = 6;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Cache {
@@ -101,6 +101,38 @@ pub struct FileData {
     pub functions: Vec<Function>,
     /// Dependency edges whose evidence is in this file.
     pub edges: Vec<FileEdge>,
+    /// Non-test items with a crate-wide or public visibility defined in this file: the
+    /// candidates for a brick's declared interface.
+    pub items: Vec<Item>,
+}
+
+/// A `pub` / `pub(crate)` item (fn, struct, enum, union, trait, type, const, static, or a
+/// method / associated item of an inherent impl) from SCIP `SymbolInformation`. Trait items,
+/// trait-impl items, fields, variants and modules are not recorded.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Item {
+    /// Readable symbol, the same form as [`FileEdge::symbol`] (`model::Params::url`).
+    pub symbol: String,
+    /// Defining module (also the `to` of edges that use the item).
+    pub module: String,
+    /// `fn`, `method`, `struct`, `enum`, `union`, `trait`, `type`, `const`, `static`.
+    pub kind: String,
+    /// Display name; `Type::name` for associated items.
+    pub name: String,
+    /// One-line signature as rust-analyzer renders it (`pub fn url(&self) -> String`).
+    pub signature: String,
+    /// First paragraph of the doc comment, `""` when undocumented.
+    pub doc: String,
+    /// 1-based line of the name.
+    pub line: u32,
+    /// `pub` or `pub(crate)`.
+    pub vis: String,
+    /// The module whose subtree can name the item, from its visibility, the visibility of the
+    /// modules around it and `pub use` re-exports (the crate root for crate-wide items).
+    pub visible_in: String,
+    /// Reachable from the crate root of a library target as public API (`pub` through public
+    /// modules or a `pub use` re-export).
+    pub exported: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

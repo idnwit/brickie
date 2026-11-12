@@ -4,6 +4,8 @@
 mod complexity;
 mod edges;
 mod files;
+mod items;
+mod reach;
 
 pub use complexity::fn_tree;
 
@@ -77,6 +79,7 @@ fn build(g: &Graph, ws: &metadata::Workspace, ra_version: String, root: &Path) -
     let mut files = files::compiled_files(g, &module_ids, &sources, &analyses, &test_set);
     files::add_uncompiled(&mut files, &crates, root);
     edges::add_edges(&mut files, g, &module_ids, &analyses, &test_set);
+    items::add_items(&mut files, g, &module_ids, &crate_ids, &analyses, &test_set);
 
     Cache {
         schema_version: SCHEMA_VERSION,

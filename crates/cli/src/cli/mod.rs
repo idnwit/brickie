@@ -2,6 +2,7 @@
 
 mod args;
 mod check;
+mod interface;
 mod llms;
 mod measure;
 mod view;
@@ -23,6 +24,12 @@ pub fn run() -> Result<i32> {
             format,
             color,
         } => Ok(check::run(&config, format, color)),
+        Command::Interface {
+            brick,
+            config,
+            json,
+            from,
+        } => interface::run(&config, &brick, from.as_deref(), json),
         Command::View { config, port, bind } => view::run(config, bind, port),
         Command::LlmsTxt => llms::run(),
     }

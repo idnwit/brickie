@@ -86,7 +86,8 @@ fn site() -> Site {
         files.insert(
             path.clone(),
             json!({"sha256": sha, "compiled": true, "size": text.len(), "lines": 1,
-                   "scope": "prod", "module": format!("{pkg}::m"), "functions": [], "edges": edges}),
+                   "scope": "prod", "module": format!("{pkg}::m"), "functions": [], "edges": edges,
+                   "items": []}),
         );
         modules.push(json!({"id": format!("{pkg}::m"), "crate": pkg, "file": path, "line": 1}));
         list.push(

@@ -27,7 +27,7 @@ pub fn ratio(value: u64, limit: u64) -> f64 {
 }
 
 /// The finding categories shown in the scorecard, in display order.
-pub const CATEGORIES: [&str; 4] = ["deps", "cycle", "complexity", "stale"];
+pub const CATEGORIES: [&str; 5] = ["deps", "cycle", "complexity", "stale", "interface"];
 
 /// Index into [`CATEGORIES`] of a diagnostic code.
 pub fn category(code: &str) -> usize {
@@ -35,6 +35,7 @@ pub fn category(code: &str) -> usize {
         "deps/cycle" => 1,
         c if c.starts_with("deps/") => 0,
         c if c.starts_with("complexity/") => 2,
+        c if c.starts_with("interface/") => 4,
         _ => 3,
     }
 }
@@ -44,7 +45,7 @@ pub struct BrickScore {
     pub errors: u32,
     pub warns: u32,
     /// Open errors and warnings per [`CATEGORIES`].
-    pub by_cat: [u32; 4],
+    pub by_cat: [u32; 5],
     /// Sum over functions of `max(0, worst ratio - 1)`.
     pub excess: f64,
     /// `errors + 0.25 * warns + excess`.
@@ -217,7 +218,7 @@ mod tests {
         ];
         let s = brick_scores(&g, &diags, &[false; 4]);
         assert_eq!((s[0].errors, s[0].warns), (2, 1));
-        assert_eq!(s[0].by_cat, [1, 1, 1, 0]);
+        assert_eq!(s[0].by_cat, [1, 1, 1, 0, 0]);
         // 2 errors + 0.25 warn + (0.8 + 0.2) excess
         assert!((s[0].score - 3.25).abs() < 1e-9);
         assert_eq!((s[1].errors, s[1].score), (1, 1.0));

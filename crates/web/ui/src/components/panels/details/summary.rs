@@ -41,6 +41,7 @@ pub(super) fn sum_table(cx: &Cx, scope: Option<&std::collections::BTreeSet<usize
             let icon = match *grp {
                 "deps" => "\u{21C4}",
                 "cx" => "\u{25A6}",
+                "iface" => "\u{25C7}",
                 _ => "\u{23F1}",
             };
             view! { tr { td { span(class=cls) { (icon) } " " (name) } (cells) } }

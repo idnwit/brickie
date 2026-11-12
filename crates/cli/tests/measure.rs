@@ -109,7 +109,7 @@ fn function<'a>(c: &'a Value, file: &str, qname: &str) -> &'a Value {
 fn measure_fixture() {
     let Some(m) = measure() else { return };
     let c = &m.cache;
-    assert_eq!(c["schema_version"], 5);
+    assert_eq!(c["schema_version"], 6);
     // A file no `mod` declares is recorded, hashed, not compiled, without functions or edges.
     let orphan = &c["files"]["crates/app/src/orphan.rs"];
     assert_eq!(orphan["compiled"], false);

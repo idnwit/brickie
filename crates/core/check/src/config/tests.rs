@@ -96,7 +96,7 @@ pub(crate) fn cache(ws: &Path, per: &[(&str, Vec<Value>, Vec<Value>)]) -> Cache 
         files.insert(
             format!("{dir}/src/m.rs"),
             json!({"sha256": "", "compiled": true, "size": 0, "lines": 2, "scope": "prod",
-                   "module": format!("{pkg}::m"), "functions": fns, "edges": edges}),
+                   "module": format!("{pkg}::m"), "functions": fns, "edges": edges, "items": []}),
         );
     }
     let crates: Vec<Value> = CRATES

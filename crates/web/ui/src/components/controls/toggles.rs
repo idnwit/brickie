@@ -93,6 +93,7 @@ pub fn layers_menu(cx: &Cx) -> View {
         group_menu(cx, "deps", "deps"),
         group_menu(cx, "cx", "complexity"),
         group_menu(cx, "stale", "stale"),
+        group_menu(cx, "iface", "interface"),
     ]);
     view! {
         span(class="dd") {

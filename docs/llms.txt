@@ -23,6 +23,14 @@ Rules of thumb:
 - `brickie check --format json` prints `{summary, diagnostics}` for tooling. Use the text form
   to read, JSON to loop over findings (`id`, `code`, `level`, `brick_level`, `message`, `span`, `spans`,
   `rule`, `help`, `notes`).
+- `brickie interface <brick-path> [--json]` (for example `brickie interface root/web/api`)
+  prints the brick's declared interface: every item code outside the brick can name, with its
+  signature, first doc paragraph, definition and uses (grouped by the using brick, file:line:col
+  of each site; `[test]` marks test code); unused items are marked `UNUSED`. Read it before
+  using or changing a brick from outside: use what it declares, and see who breaks when you
+  change an item. `--from <brick-path>` lists instead every reference site from that brick into
+  this one, by used item (the code behind the edge). JSON lists every site; text shows five per
+  using brick.
 - `brickie view` opens a local web viewer for humans (bricks, edges, findings, source). You do not
   need it.
 - Commands accept `--config path/to/brickie.toml` (default `./brickie.toml`).
@@ -154,6 +162,16 @@ A module belongs to no brick, so none of its edges or functions are checked. Thi
 after adding a file or module. Add the crate or module to the `members` of the `[[brick]]` it
 belongs to, only when the right brick is obvious from the code around it; otherwise ask the
 reviewer. No re-measure is needed: bricks are resolved from the configs on every `check`.
+
+### interface/unused (warning)
+
+A leaf brick declares an item (it is reachable from outside the brick: public API of its crate,
+or a `pub` / `pub(crate)` item whose module is visible to another brick) that no code outside
+the brick uses and no test uses (tests anywhere count, including the brick's own). The location
+is the item's definition. Fix: if only the brick itself needs it, narrow its visibility (private,
+`pub(super)`, or a private module); if it is dead, delete it; if it is real public API, add a
+test that exercises it. Methods, fields and variants count as uses of their type; `pub use`
+re-exports are not uses.
 
 ### config/missing, config/overlap, config/unassigned, config/member-outside-parent, config/unknown-export
 

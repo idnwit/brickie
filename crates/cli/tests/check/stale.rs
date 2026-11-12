@@ -43,7 +43,7 @@ fn uncompiled_file_is_not_added() {
         let text = "// cfg-gated away\n";
         c["files"]["crates/eng/src/gated.rs"] = json!({
             "sha256": sha(text), "compiled": false, "size": text.len(), "lines": 1,
-            "scope": "prod", "module": null, "functions": [], "edges": [],
+            "scope": "prod", "module": null, "functions": [], "edges": [], "items": [],
         });
     });
     w.write("ws/crates/eng/src/gated.rs", "// cfg-gated away\n");

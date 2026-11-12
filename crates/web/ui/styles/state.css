@@ -45,3 +45,6 @@
 .scorecard .hf b{flex:none;color:var(--b-err);font-variant-numeric:tabular-nums}
 .item .sc{color:var(--muted);font-variant-numeric:tabular-nums}.item .sc.err{color:var(--b-err)}.item .sc.warn{color:var(--b-warn)}.item .sc.ok{color:var(--ok)}
 .sw{display:inline-block;width:14px;height:10px;border-radius:2px;vertical-align:middle}
+.iface{margin:3px 0;border-left:2px solid var(--line);padding-left:6px}.iface summary{cursor:pointer}
+.iface .doc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.iface .sig{display:block;white-space:pre-wrap;word-break:break-word;font-size:12px}
+.iface .ug{margin:2px 0 4px}.iface .ug b{display:block;font-size:12px;color:var(--muted)}.iface .site{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

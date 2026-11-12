@@ -3,6 +3,7 @@
 
 mod api;
 mod index;
+mod interface;
 mod levels;
 mod review;
 mod source;
@@ -48,10 +49,16 @@ impl Site {
         )
         .unwrap();
         std::fs::write(dir.path().join("brickie.toml"), CONFIG).unwrap();
-        let file = |text: &str, functions: Value| {
+        let file = |text: &str, functions: Value, items: Value| {
             let sha = brickie_facts::sha256_hex(text.as_bytes());
             json!({"sha256": sha, "compiled": true, "size": text.len(), "lines": 3,
-                   "scope": "prod", "module": "eng::x", "functions": functions, "edges": []})
+                   "scope": "prod", "module": "eng::x", "functions": functions, "edges": [],
+                   "items": items})
+        };
+        let item = |name: &str, line: u32| {
+            json!({"symbol": format!("x::{name}"), "module": "eng::x", "kind": "fn",
+                   "name": name, "signature": format!("pub fn {name}()"), "doc": "",
+                   "line": line, "vis": "pub", "visible_in": "eng", "exported": true})
         };
         let func = |name: &str, line: u32, cog: u32| {
             json!({"name": name, "qname": name, "module": "eng::x", "line": line, "end_line": line,
@@ -65,8 +72,12 @@ impl Site {
                         "kind": "lib", "root": "crates/eng/src/lib.rs", "dir": "crates/eng"}],
             "modules": [{"id": "eng::x", "crate": "eng", "file": "crates/eng/src/x.rs", "line": 1}],
             "files": {
-                "crates/eng/src/x.rs": file(SOURCE, json!([func("busy", 2, 20), func("quiet", 3, 1)])),
-                "crates/eng/src/link.rs": file("top secret\n", json!([])),
+                "crates/eng/src/x.rs": file(
+                    SOURCE,
+                    json!([func("busy", 2, 20), func("quiet", 3, 1)]),
+                    json!([item("busy", 2), item("quiet", 3)]),
+                ),
+                "crates/eng/src/link.rs": file("top secret\n", json!([]), json!([])),
             },
         });
         std::fs::create_dir_all(dir.path().join(".brickie")).unwrap();
@@ -94,7 +105,11 @@ impl Site {
     }
 
     pub(crate) async fn review(&self, body: Value) -> (StatusCode, String) {
-        let req = Request::post("/review")
+        self.post("/review", body).await
+    }
+
+    pub(crate) async fn post(&self, path: &str, body: Value) -> (StatusCode, String) {
+        let req = Request::post(path)
             .header("content-type", "application/json")
             .body(Body::from(body.to_string()))
             .unwrap();

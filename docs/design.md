@@ -155,10 +155,14 @@ code, the SQL graph server for agents (`serve`/`query`), capabilities, and exper
 6. Incremental: re-measure complexity of changed files, deps-stale detection, PR mode.
 7. Nested bricks (onion levels, per-level checks, `exports` facades, map-style zoom in the
    viewer). Spec and phases in [proposals/nested-bricks.md](proposals/nested-bricks.md).
-   Phases 1-3 **implemented**: brick mapping out of the cache (schema 5), config tree with
+   Phases 1-3 **implemented**: brick mapping out of the cache (then schema 5), config tree with
    `path`/`path:`, partition checks, per-level deps and cycles via lifting, `exports` /
    `deps/private`, inherited complexity (see "Check"). Phase 4 **implemented**: the viewer shows one
    level at a time with map-style zoom (see "View", "Levels").
+8. Brick interfaces (**implemented**, [proposals/brick-interface.md](proposals/brick-interface.md)):
+   items in the cache (schema 6), `interface/unused`, `brickie interface <brick> [--json]
+   [--from <brick>]`, the viewer's Interface section and the code behind a selected edge
+   (`POST /api/interface`, `POST /api/edge-uses`).
 
 ## Code layout (implemented)
 
@@ -182,13 +186,15 @@ crates/core/facts/     brickie-facts: the cache: model (cache.json schema), file
 crates/core/measure/   brickie-measure, folder bricks:
   workspace/           metadata, rust_analyzer, lock, git, crates
   scip/                SCIP -> rows (normalise, targets, written, modules, layout)
-  run/                 mod (run), files, edges, complexity (brickie-metrics -> FnTree)
+  run/                 mod (run), files, edges, items + reach (declared-interface candidates),
+                       complexity (brickie-metrics -> FnTree)
 crates/core/check/     brickie-check, folder bricks:
   diag/                model (Finding -> Diagnostic), summary, text
   config/              schema (one level of the tree), selector, load (tree + include), validate,
                        member (member matching, specificity), resolve (module -> leaf path)
   rules/               lift (common ancestor, exports), deps, private, cycles (brickie-graph),
                        complexity, unmapped, stale (internal)
+  interface/           declared items (exports chain), uses, `interface/unused`, edge sites
   review/              brickie.review.toml read and edit (internal)
   check/               config + cache + review -> diagnostics (shared by check and view); the
                        facade for rules and review (dep_subject, complexity_limits, set_review)
@@ -211,7 +217,7 @@ the single place that tells coding agents how to read each diagnostic code and w
 do. `crates/core/model/src/codes.rs` is the list of codes; the test `guide_documents_every_diagnostic_code`
 fails when a code is missing from the guide, so add a code there and in the guide together.
 
-## Cache layout (implemented, schema_version 5)
+## Cache layout (implemented, schema_version 6)
 
 `.brickie/cache.json` is written next to the config file. Top level: `schema_version`,
 `tool_version`, `rust_analyzer`, `workspace_root`, `git` (`commit`, `dirty`; null outside git),
@@ -227,6 +233,16 @@ the configs.
   later per-file incremental refresh possible. Every `.rs` file under a crate root's directory is
   recorded; one the compiler never saw (cfg-gated away, no `mod`) has `compiled: false`, a hash
   and no functions, edges or module, so staleness can tell it from an added file. Complexity (`complexity::analyze`) is tree-sitter only.
+- `items` per file (schema 6, `run/items.rs`, `run/reach.rs`): every non-test item with `pub` or
+  `pub(crate)` visibility, from SCIP `SymbolInformation` (signature, documentation) and the
+  defining occurrence: `symbol` (the same readable form as edge symbols), `module`, `kind` (`fn`,
+  `method`, `struct`, `enum`, `union`, `trait`, `type`, `const`, `static`), `name` (`Type::name`
+  for associated items), one-line `signature`, `doc` (first paragraph), `line`, `vis`,
+  `visible_in` (the module whose subtree can name the item: its visibility, the visibility of the
+  modules around it, widened by `pub use` re-exports) and `exported` (public API of a library
+  crate: `pub` through `pub mod`s from the root, or the target of a plain `pub use`, globs
+  included). Trait members, trait-impl items, fields, variants and modules are not items.
+  Visibility and kind are parsed from rust-analyzer's signature text (`pub fn ..`).
 - `implements` edges come from the syntax (`impl Trait for X`), because rust-analyzer emits no
   SCIP relationships. Paths (NPath variant) add sequential decisions; see `crates/algo/metrics/src/paths.rs`.
 - `params` does not count `self` (clippy convention).
@@ -279,6 +295,18 @@ complexity, unmapped, stale, `codes.rs`), `diag/` (diagnostic value and text pri
   skipped. Inherited: on each level of a function's leaf path the level's own rules select the
   child on that path; across levels the tightest limit wins, so a nested file can only tighten.
 - **Unmapped modules**: one `bricks/unmapped` warning per module not in any brick.
+- **Interfaces** (`interface/`, spec `docs/proposals/brick-interface.md`): a leaf declares the
+  cached items of its modules that code outside the leaf can name (`exported`, or a
+  `visible_in` subtree that reaches a module of another brick); a composite declares the union
+  of its exported children's interfaces (recursively). A use of an item is a reference edge (not
+  `reexports`) into its module whose symbol is the item or a member of it (fields, methods,
+  variants, impl items; `impl` segments and generics are ignored when matching), from outside
+  the brick or from test code anywhere; uses are grouped by the using brick's path cut to the
+  brick's depth (`<brick> (tests)` for its own tests). `interface/unused` (warn): one finding per
+  leaf and declared item with no use; subject `leaf:module:symbol`, span the definition. Edges
+  inside one module are not recorded, so a test in the item's own module does not count.
+  `edge_uses(from, to)`: every reference site (any kind and scope) from modules under one brick
+  path into modules under another, grouped by the most specific covering item.
 - **Staleness** (`warn` `stale/file`; `rules/stale.rs`; config edits are never stale): candidates from
   `git diff --name-only --relative <commit>` and `git status --porcelain`, confirmed by sha256;
   without git or with a missing commit all cached files are hashed and crate source dirs walked
@@ -288,7 +316,7 @@ complexity, unmapped, stale, `codes.rs`), `diag/` (diagnostic value and text pri
   like any other and not reported as added.
 - **Findings** are `Diagnostic` values (`diag/model.rs`): `id` (first 8 hex of sha256 of
   `code\0subject`), `level`, `code` (`deps/deny`, `deps/default`, `deps/private`, `deps/cycle`,
-  `complexity/<metric>`, `stale/file`, `bricks/unmapped`), `brick_level`, `message`, `span`
+  `complexity/<metric>`, `stale/file`, `bricks/unmapped`, `interface/unused`), `brick_level`, `message`, `span`
   (primary), `spans` (more locations), `rule` (`name` + `loc` = file:line in the config), `help`,
   `notes` (each with an optional span), `accepted`. A span is `file`, `line` (0 = whole file),
   optional `col`/`len` (1-based UTF-8 bytes) and `label`. Each rule type implements the `Finding`
@@ -317,14 +345,15 @@ folders by concern):
   `diagnostics`, `graph/` (per-level aggregation: `edges`, `level`, `heat`), `functions`,
   `time`), `tests/`.
 - `crates/web/api/` (`brickie-web-api`): `endpoint.rs` (the `Endpoint` trait and markers), `source.rs`,
-  `model/` (page data and pure helpers: `params`, `diag`, `graph`, `levels`, `function`, `score`, `boundary`).
+  `model/` (page data and pure helpers: `params`, `diag`, `graph`, `levels`, `function`, `score`, `boundary`, `interface`).
 - `crates/web/ui/` (`brickie-ui`): `state/` (`layers`, `selection`, `focus`, `eval`, `shared`, `ctx`), `components/`
   (`app`, `keys`, `canvas/` incl. `frame`, `panels/` incl. `node`, `controls/` incl. `crumbs`,
   `source/`), `platform.rs`, `wasm.rs`, `styles/*.css`.
 
 - **Web api port.** `crates/web/api` holds the `Endpoint` trait (`PATH`, `Req`, `Res`) with one marker per
   JSON endpoint (`Review` POST `/review`; `Graph`, `Diagnostics`, `Functions` GET `/api/*`, where `Req` is the
-  query `Params` or `()`), the path consts of the HTML routes, and every type crossing the port (page data,
+  query `Params` or `()`; `Interface` POST `/api/interface` `{brick}` and `EdgeUses` POST `/api/edge-uses`
+  `{from, to}` with brick paths, 400 for an unknown path), the path consts of the HTML routes, and every type crossing the port (page data,
   params, review request/reply, source popup data). The server mounts routes at `E::PATH` with handlers typed
   `ReqOf<E>` / `ResOf<E>`; the UI calls `components::call::<E>`, which only moves JSON through
   `platform::post_json`. A contract change fails to compile on both sides. The server still depends on `ui`
@@ -394,13 +423,24 @@ folders by concern):
   that apply to its brick and scope (`check::complexity_limits`, the same lookup as `check`).
   A brick's `desc` (config, one line) travels on `BrickView.desc`: the brick tooltip shows it under
   the name and the details panel at the top (leaf, composite, faded neighbour).
+  **Interface** (`panels/details/iface.rs`): the brick details (leaf, composite or neighbour)
+  end with the brick's declared interface, fetched on selection (`Interface`): `path · N items ·
+  M unused`, then one collapsible row per item (kind, name, use count or a `⚠ unused` pill, first
+  doc line; most used first, unused last). Open, it shows the signature (a link to the
+  definition) and the uses grouped by using brick, each site a source-popup link with the
+  written text and a `test` / kind tag. A selected edge (allowed or violating, also a frame or
+  neighbour edge: the frame end is the current level's composite, so the sites are the union of
+  the underlying module edges) shows **Code behind the edge** (`EdgeUses`): `N items · M sites`,
+  one open group per used item of the target (signature link, or `in <module>` for an item that
+  is not part of any interface) with every reference site. `interface/unused` findings form the
+  `interface` group in the finding layers (off in the Architecture preset).
   The server embeds the static part in each `BrickView` (`worst_ratio`, `hot`: functions over a
   limit, worst first); the page adds the open counts (`brick_scores`), so scores follow
   accept/unaccept. The score appears as a corner badge (`3E 1W`, or a green check when clean), a
   heat bar under the brick name (length = ratio / 2, full at 2x the limit; colour by level: below
   0.8, 0.8-1, 1-1.5, over 1.5), the brick tooltip, the "bricks by tag" list (worst first inside
   each tag, ordered by the score at load) and the scorecard in the details panel (open findings
-  per deps / cycle / complexity / stale, the worst 3 functions with metric, value/limit and ratio
+  per deps / cycle / complexity / stale / interface, the worst 3 functions with metric, value/limit and ratio
   as source links, in/out edge counts with violating ones). Bricks are 36 px wider to fit the
   badge. Tests: `model::score::tests`, `web::data::graph::tests`.
 - **Cycle edges.** `Diagnostic.edges` (`DiagEdge {from, to, span}`) lists the brick edges a

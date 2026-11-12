@@ -4,7 +4,7 @@
 use brickie_web_api::*;
 use std::collections::BTreeMap;
 
-pub const LDEF: [(&str, bool); 21] = [
+pub const LDEF: [(&str, bool); 23] = [
     ("edges", true),
     ("tests", false),
     ("k-uses", true),
@@ -26,12 +26,14 @@ pub const LDEF: [(&str, bool); 21] = [
     ("s-file", true),
     ("s-unmapped", true),
     ("s-other", true),
+    ("iface", true),
+    ("i-unused", true),
 ];
 
 /// `PRESETS`: overrides of `LDEF`.
 pub fn preset_over(p: &str) -> &'static [(&'static str, bool)] {
     match p {
-        "arch" => &[("cx", false), ("stale", false)],
+        "arch" => &[("cx", false), ("stale", false), ("iface", false)],
         "viol" => &[
             ("edges", false),
             ("deps", true),
@@ -50,7 +52,7 @@ pub const PRESETS: [(&str, &str); 4] = [
 ];
 
 /// `SUBS`: the sub-layers of each finding group.
-pub const SUBS: [(&str, &[(&str, &str)]); 3] = [
+pub const SUBS: [(&str, &[(&str, &str)]); 4] = [
     (
         "deps",
         &[
@@ -75,12 +77,14 @@ pub const SUBS: [(&str, &[(&str, &str)]); 3] = [
         "stale",
         &[("s-file", "stale/file"), ("s-unmapped", "bricks/unmapped")],
     ),
+    ("iface", &[("i-unused", "interface/unused")]),
 ];
 
 pub fn group_name(g: &str) -> &'static str {
     match g {
         "deps" => "deps",
         "cx" => "complexity",
+        "iface" => "interface",
         _ => "stale",
     }
 }
@@ -190,7 +194,7 @@ mod tests {
         let t = with_toggle(&Params::default(), "tests");
         assert_eq!(
             (t.p.as_str(), t.lay.as_str()),
-            ("custom", "+tests,-cx,-stale")
+            ("custom", "+tests,-cx,-stale,-iface")
         );
     }
 

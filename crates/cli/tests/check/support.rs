@@ -139,7 +139,7 @@ pub fn world(mutate: impl FnOnce(&mut Value)) -> World {
             path.clone(),
             json!({
                 "sha256": sha(&text), "compiled": true, "size": text.len(), "lines": 10, "scope": "prod",
-                "module": id, "functions": fns, "edges": edges,
+                "module": id, "functions": fns, "edges": edges, "items": [],
             }),
         );
         modules.push(json!({"id": id, "crate": pkg, "file": path, "line": 1}));
@@ -150,7 +150,7 @@ pub fn world(mutate: impl FnOnce(&mut Value)) -> World {
         );
     }
     let mut cache = json!({
-        "schema_version": 5, "tool_version": "0", "rust_analyzer": "0",
+        "schema_version": 6, "tool_version": "0", "rust_analyzer": "0",
         "workspace_root": w.ws().display().to_string(), "git": null,
         "crates": crates, "modules": modules, "files": files,
     });

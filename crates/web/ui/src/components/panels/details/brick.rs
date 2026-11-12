@@ -33,6 +33,7 @@ pub(super) fn brick_detail(cx: &Cx, b: usize) -> View {
     let desc = super::super::node::desc(&br);
     let members = super::super::node::tree_info(cx, &br);
     let card = scorecard(cx, b);
+    let iface = super::iface::interface_section(cx, br.path.clone());
     view! {
         h2 { (name) }
         (desc)
@@ -43,6 +44,7 @@ pub(super) fn brick_detail(cx: &Cx, b: usize) -> View {
         (out)
         h4 { (format!("Used by ({ni})")) }
         (inn)
+        (iface)
     }
 }
 

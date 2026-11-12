@@ -15,6 +15,8 @@ brickie measures a Rust workspace and checks it against rules you write yourself
   built-in architecture; the rules are yours.
 - **View**: a local web page that shows bricks, edges, findings and the source next to each other,
   for reviewing what a coding agent changed.
+- **Interfaces**: `brickie interface <brick>` (and the viewer) shows what a brick declares public,
+  who uses each item, and which items nobody uses (`interface/unused`).
 - **llms.txt**: `brickie llms.txt` prints a guide that tells coding agents how to fix each finding.
 
 ## Install
@@ -50,6 +52,7 @@ In the root of the workspace to analyse, create `brickie.toml` (see below), then
 brickie measure     # slow: runs rust-analyzer, writes .brickie/cache.json
 brickie check       # fast: applies the rules to the cache, exits 1 on errors
 brickie view        # opens the viewer on http://127.0.0.1:7881
+brickie interface root/web/api   # a brick's declared interface and its uses
 ```
 
 Re-run `brickie measure` after changing code; `check` and `view` warn (`stale/*`) when the cache

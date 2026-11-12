@@ -106,7 +106,7 @@ fn tree() -> World {
         files.insert(
             path.clone(),
             json!({"sha256": sha(&text), "compiled": true, "size": text.len(), "lines": 10,
-                   "scope": "prod", "module": format!("{pkg}::m"), "functions": fns, "edges": edges}),
+                   "scope": "prod", "module": format!("{pkg}::m"), "functions": fns, "edges": edges, "items": []}),
         );
         modules.push(json!({"id": format!("{pkg}::m"), "crate": pkg, "file": path, "line": 1}));
         list.push(
@@ -115,7 +115,7 @@ fn tree() -> World {
         );
     }
     let cache = json!({
-        "schema_version": 5, "tool_version": "0", "rust_analyzer": "0",
+        "schema_version": 6, "tool_version": "0", "rust_analyzer": "0",
         "workspace_root": w.ws().display().to_string(), "git": null,
         "crates": list, "modules": modules, "files": files,
     });

@@ -86,6 +86,15 @@ pub(super) fn edge_detail(cx: &Cx, e: usize) -> View {
             brick_link(cx, b)
         }
     };
+    // Brick paths of the ends; the frame end is the current level's composite.
+    let path = |b: usize| {
+        if x.frame() && !g.bricks[b].ghost {
+            cx.level().path.clone()
+        } else {
+            g.bricks[b].path.clone()
+        }
+    };
+    let sites = super::iface::edge_section(cx, path(x.from), path(x.to));
     let (from, to, kind) = (end(x.from), end(x.to), x.kind.clone());
     let title = format!("Deps findings ({})", x.diags.len());
     view! {
@@ -93,6 +102,7 @@ pub(super) fn edge_detail(cx: &Cx, e: usize) -> View {
         div { span(class="tag") { (scope) } }
         h4 { (title) }
         (finds)
+        (sites)
     }
 }
 

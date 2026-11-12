@@ -132,6 +132,9 @@ pub fn group_sub(code: &str) -> (&'static str, String) {
     if let Some(m) = code.strip_prefix("complexity/") {
         return ("cx", format!("c-{m}"));
     }
+    if code.starts_with("interface/") {
+        return ("iface", "i-unused".into());
+    }
     let sub = match code {
         "stale/file" => "s-file",
         "bricks/unmapped" => "s-unmapped",

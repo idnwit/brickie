@@ -92,7 +92,7 @@ code,.mono{font:12px ui-monospace,monospace}
 .err{color:var(--c-debt)}.cnt b.err{color:var(--c-debt)}
 .edge.off{display:none}
 #stage{display:block}.selbox{position:absolute;border:1px dashed var(--sel);background:rgba(47,111,179,.12);pointer-events:none}
-.gi.stale{background:var(--c-acc)}.lv.error{color:var(--c-debt);border-color:var(--c-debt)}
+.gi.stale{background:var(--c-acc)}.gi.iface{background:var(--muted)}.lv.error{color:var(--c-debt);border-color:var(--c-debt)}
 .pad{padding:8px 12px}.small{font-size:11px}.tiny{font-size:11px;margin-top:4px}
 #left h3.tag-h a{color:inherit}#left h3.tag-h.on{color:var(--sel)}#left h3.idx{margin-top:14px}
 .sh{margin-bottom:4px}.tagrow{margin-top:6px}

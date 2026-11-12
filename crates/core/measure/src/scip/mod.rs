@@ -33,6 +33,10 @@ pub struct SymbolRow {
     pub body: Span,
     /// `Some(path)` when the symbol is a module (`''` = crate root).
     pub module_path: Option<String>,
+    /// rust-analyzer's signature (`pub fn f(x: u32) -> u32`), `""` when absent.
+    pub signature: String,
+    /// The doc comment (markdown), `""` when absent.
+    pub doc: String,
 }
 
 pub struct ModuleRow {
@@ -49,6 +53,9 @@ pub struct OccRow {
     pub use_item: Option<usize>,
     /// Path as written at the site (qualifiers or full `use` path), unresolved.
     pub written: String,
+    /// The reference ends its path (not followed by `::`, except `::*`): the leaf of a `use`
+    /// or the module of a glob import, rather than a qualifier segment.
+    pub path_end: bool,
 }
 
 #[derive(Default)]

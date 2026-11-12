@@ -11,6 +11,7 @@ pub fn gi_icon(g: &str) -> &'static str {
     match g {
         "deps" => "\u{21C4}",
         "cx" => "\u{25A6}",
+        "iface" => "\u{25C7}",
         _ => "\u{23F1}",
     }
 }

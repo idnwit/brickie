@@ -32,6 +32,20 @@ pub enum Command {
         #[arg(long, value_enum, default_value_t = ColorArg::Auto)]
         color: ColorArg,
     },
+    /// Print a brick's declared interface: each item's signature, doc and uses (by brick, with
+    /// locations); unused items are marked. With `--from A`, every reference site from brick A
+    /// into the brick instead (the code behind the edge A -> brick).
+    Interface {
+        /// Brick path, such as `root/web/api` or `web/api`.
+        brick: String,
+        #[arg(long, default_value = "brickie.toml")]
+        config: PathBuf,
+        #[arg(long)]
+        json: bool,
+        /// Using brick (path): list the sites of the edge from it.
+        #[arg(long)]
+        from: Option<String>,
+    },
     /// Serve the reviewer webview.
     View {
         #[arg(long, default_value = "brickie.toml")]

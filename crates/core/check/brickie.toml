@@ -1,6 +1,6 @@
-# brickie-check by folder: diag <- config <- rules <- check, plus review. `rules` and `review`
+# brickie-check by folder: diag <- config <- rules / interface <- check, plus review. `rules` and `review`
 # stay internal: the CLI and the webview use them through the `check` facade.
-exports = ["check", "diag", "config"]
+exports = ["check", "diag", "config", "interface"]
 
 [[brick]]
 name = "check"
@@ -13,6 +13,12 @@ name = "rules"
 members = ["brickie-check::rules"]
 tags = ["rules"]
 desc = "Rule evaluation: dependency rules, cycles, complexity, unmapped and stale"
+
+[[brick]]
+name = "interface"
+members = ["brickie-check::interface"]
+tags = ["rules"]
+desc = "Brick interfaces: declared items, their uses, `interface/unused`, and the sites behind an edge"
 
 [[brick]]
 name = "review"
@@ -63,3 +69,17 @@ to = "*"
 scope = "all"
 action = "allow"
 reason = "the facade combines config, rules, review and diagnostics"
+
+[[deps.rule]]
+from = "interface"
+to = "config"
+scope = "all"
+action = "allow"
+reason = "interfaces follow the configured exports"
+
+[[deps.rule]]
+from = "interface"
+to = "diag"
+scope = "all"
+action = "allow"
+reason = "unused items are findings"

@@ -2,7 +2,7 @@
 
 use crate::config::{self, Config, Resolved};
 use crate::diag::{self, Diagnostic};
-use crate::{review, rules};
+use crate::{interface, review, rules};
 use anyhow::{Context, Result, bail};
 use brickie_facts::{Cache, SCHEMA_VERSION};
 
@@ -30,6 +30,7 @@ pub fn load(config: &Path) -> Result<Loaded> {
     let resolved = config::resolve(&cfg, &cache.crates, &cache.modules, &ws)?;
     let mut found = rules::evaluate(&cache, &cfg, &resolved, root);
     found.extend(rules::evaluate_stale(&cache));
+    found.extend(interface::unused(&cache, &cfg, &resolved));
     let mut diagnostics: Vec<Diagnostic> =
         found.iter().map(|f| diag::diagnostic(f.as_ref())).collect();
     for d in &mut diagnostics {

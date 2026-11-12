@@ -68,6 +68,14 @@ pub fn normalise(idx: &Index, ws: &Layout, source: &dyn Fn(&str) -> Option<Strin
                     span(&o.enclosing_range)
                 },
                 module_path: module_path(&o.symbol),
+                signature: si
+                    .and_then(|s| s.signature_documentation.as_ref())
+                    .map(|d| d.text.clone())
+                    .unwrap_or_default(),
+                doc: si
+                    .and_then(|s| s.documentation.first())
+                    .cloned()
+                    .unwrap_or_default(),
             });
         }
     }
@@ -199,6 +207,7 @@ pub fn normalise(idx: &Index, ws: &Layout, source: &dyn Fn(&str) -> Option<Strin
                 import: use_idx.is_some(),
                 use_item: use_idx.map(|k| use_base[fi] + k),
                 written: written.at(range, use_idx.is_some()),
+                path_end: written.is_path_end(range),
             });
         }
     }

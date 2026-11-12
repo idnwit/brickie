@@ -2,6 +2,7 @@
 //! scoped functions table and the legend.
 
 mod brick;
+mod iface;
 mod item;
 mod links;
 mod summary;

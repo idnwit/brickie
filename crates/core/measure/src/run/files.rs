@@ -127,6 +127,7 @@ pub fn compiled_files(
                 module: f.module.and_then(|s| ids.get(&s).cloned()),
                 functions,
                 edges: Vec::new(),
+                items: Vec::new(),
             },
         );
     }
@@ -160,6 +161,7 @@ pub fn add_uncompiled(files: &mut BTreeMap<String, FileData>, crates: &[Crate], 
                 module: None,
                 functions: Vec::new(),
                 edges: Vec::new(),
+                items: Vec::new(),
             },
         );
     }

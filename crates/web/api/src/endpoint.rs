@@ -5,7 +5,10 @@
 //! `Req` is the input: the JSON body of a POST endpoint, or the query string of a GET endpoint
 //! (the viewer [`Params`]). `()` means the endpoint takes no input.
 
-use crate::{DiagView, FnRow, LevelView, Params, ReviewReply, ReviewRequest};
+use crate::{
+    DiagView, EdgeItemView, EdgeUsesRequest, FnRow, InterfaceRequest, InterfaceView, LevelView,
+    Params, ReviewReply, ReviewRequest,
+};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -50,6 +53,22 @@ impl Endpoint for Functions {
     const PATH: &'static str = "/api/functions";
     type Req = Params;
     type Res = Vec<FnRow>;
+}
+
+/// `POST /api/interface`: the declared interface of a brick, with uses.
+pub struct Interface;
+impl Endpoint for Interface {
+    const PATH: &'static str = "/api/interface";
+    type Req = InterfaceRequest;
+    type Res = InterfaceView;
+}
+
+/// `POST /api/edge-uses`: every reference site from one brick into another, by used item.
+pub struct EdgeUses;
+impl Endpoint for EdgeUses {
+    const PATH: &'static str = "/api/edge-uses";
+    type Req = EdgeUsesRequest;
+    type Res = Vec<EdgeItemView>;
 }
 
 /// `GET /`: the page (HTML, query = [`Params`]).

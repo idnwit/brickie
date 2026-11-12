@@ -50,7 +50,9 @@ async fn filters_change_the_output() {
     assert!(has_card(&s.get("/?p=all&brick=nope").await.1));
     assert!(!has_card(&s.get("/?p=all&status=accepted").await.1));
     // Layers: the complexity layer off hides the finding; Violations shows errors only.
-    assert!(!has_card(&s.get("/?p=all&lay=-cx,-stale,-deps").await.1));
+    assert!(!has_card(
+        &s.get("/?p=all&lay=-cx,-stale,-deps,-iface").await.1
+    ));
     assert!(has_card(&s.get("/?p=viol").await.1));
     assert!(!has_card(&s.get("/?p=viol&vs=deps").await.1));
     // Function sort: by name ascending puts `busy` before `quiet`; by cognitive too, reversed

@@ -8,7 +8,7 @@ use brickie_facts::{FileData, FileEdge};
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 /// Readable symbol: its descriptors joined with `::` (`shape::Shape`, `util::double`).
-fn symbol_name(scip: &str, fallback: &str) -> String {
+pub(super) fn symbol_name(scip: &str, fallback: &str) -> String {
     match ::scip::symbol::parse_symbol(scip) {
         Ok(s) => {
             let v: Vec<&str> = s

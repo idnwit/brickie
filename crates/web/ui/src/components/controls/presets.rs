@@ -42,6 +42,7 @@ pub fn vscope(cx: &Cx) -> View {
             ("deps", "deps"),
             ("cx", "complexity"),
             ("stale", "stale"),
+            ("iface", "interface"),
         ]
         .into_iter()
         .map(|(v, t)| {

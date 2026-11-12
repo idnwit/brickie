@@ -30,6 +30,21 @@ impl<'a> Written<'a> {
             .map(|s| s + col as usize)
     }
 
+    /// Whether the reference at `range` ends its path: not followed by `::`, or followed by
+    /// `::*` (the module of a glob import).
+    pub fn is_path_end(&self, range: Span) -> bool {
+        let Some(rest) = self
+            .offset(range.2, range.3)
+            .and_then(|o| self.src.get(o..))
+        else {
+            return true;
+        };
+        match rest.trim_start().strip_prefix("::") {
+            Some(after) => after.trim_start().starts_with('*'),
+            None => true,
+        }
+    }
+
     /// Written path of the reference at `range`; `import` enables use-group prefixes.
     pub fn at(&self, range: Span, import: bool) -> String {
         let leaf = self

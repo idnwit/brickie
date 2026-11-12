@@ -4,9 +4,11 @@
 mod diagnostics;
 mod functions;
 mod graph;
+mod interface;
 mod time;
 
 pub use diagnostics::split_bytes;
+pub use interface::{edge_uses, interface};
 pub use time::utc;
 
 use brickie_check::check::Loaded;
