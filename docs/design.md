@@ -445,8 +445,16 @@ Map-style zoom over the brick tree (spec: `docs/proposals/nested-bricks.md`, "Vi
   with `count` (CSS `--k`), edges with findings are red as before; a `wall` edge is cut where it
   meets the frame and ends with a cross. Hover (SVG title) peeks into a composite: its children,
   exported ones marked.
-- **Navigation**: double-click on a composite zooms in (the only way in: no key, button or
-  panel link), on a neighbour opens its enclosing level; Backspace zooms out, Esc closes the popup, then the finding, then the
+- **Composites** have a tinted fill (`--comp-fill`; error and warning fills still win), so
+  they read as "has a level inside" before the zoom icon is noticed.
+- **Free layout**: dragged bricks stay where they are dropped until the level changes; the
+  header button **Auto layout** (disabled while nothing is dragged) puts them back and refits.
+  The page shell is rebuilt only when the level changes (`create_selector` on the level
+  index), so selections and filters keep pan/zoom and drag state.
+- **Navigation**: double-click on a composite zooms in, as does a click on its zoom icon (a
+  small magnifier with a plus at the start of every composite's tag line, `canvas/zoom_icon.rs`; no key or
+  panel link). Double-click is detected from two clicks on the same brick within 450 ms, since
+  the first click re-renders the brick and the browser never fires `dblclick`. On a neighbour it opens its enclosing level; Backspace zooms out, Esc closes the popup, then the finding, then the
   selection, then zooms out; the breadcrumb (`root › web`) and the browser back button work
   through the URL. The breadcrumb is an overlay at the top-left corner of the canvas (not in
   the header): outside the pan/zoom transform, on a panel background, its clicks do not pan

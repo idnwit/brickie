@@ -184,6 +184,12 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
         View::default()
     };
     let ports = ports(&brick, r0.w, r0.h);
+    let zoom = super::zoom_icon::zoom_icon(cx, &brick);
+    let tag_x = if brick.composite() && !brick.ghost {
+        8.0 + super::zoom_icon::ZOOM_ICON_W
+    } else {
+        8.0
+    };
     view! {
         g(class=cls, transform=transform, "data-id"=brick.name.clone(), tabindex="0",
             on:mousedown=down, on:click=click) {
@@ -193,8 +199,9 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
             (ports)
             text(x="8", y="22", "font-size"="15", "font-weight"="600") { (name) }
             (heat)
-            text(x="8", y="48", class="sub") { (tag) }
+            text(x=tag_x.to_string(), y="48", class="sub") { (tag) }
             (badge)
+            (zoom)
         }
     }
 }

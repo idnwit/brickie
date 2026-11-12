@@ -71,7 +71,7 @@ pub fn app(data: PageData, initial: Params) -> View {
     }
     let lvl = {
         let sh = sh.clone();
-        create_memo(move || sh.params.with(|p| sh.level_of(p)))
+        create_selector(move || sh.params.with(|p| sh.level_of(p)))
     };
     // Depth of the previous level: zooming in or out picks the transition.
     let prev: Rc<Cell<Option<usize>>> = Rc::new(Cell::new(None));

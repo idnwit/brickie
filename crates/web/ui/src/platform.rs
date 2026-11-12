@@ -81,6 +81,14 @@ mod imp {
         cb.forget();
     }
 
+    /// Run `f` once before the next paint (`requestAnimationFrame`), when the DOM is in place.
+    pub fn next_frame(f: impl FnOnce() + 'static) {
+        let cb = Closure::once_into_js(f);
+        if let Some(w) = web_sys::window() {
+            let _ = w.request_animation_frame(cb.unchecked_ref());
+        }
+    }
+
     pub fn reload() {
         if let Some(w) = web_sys::window() {
             let _ = w.location().reload();
@@ -145,6 +153,7 @@ mod imp {
     }
     pub fn on_mouse(_: &'static str, _: impl Fn(f64, f64) + 'static) {}
     pub fn on_resize(_: impl Fn() + 'static) {}
+    pub fn next_frame(_: impl FnOnce() + 'static) {}
     pub fn focus(_: &str) {}
     pub fn reload() {}
     pub fn post_review(_: ReviewRequest, _: impl FnOnce(Result<ReviewReply, String>) + 'static) {}

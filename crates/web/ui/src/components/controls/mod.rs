@@ -57,6 +57,16 @@ pub fn header(cx: &Cx) -> View {
             c.view.set(fit_view(&c.m.layout, s));
         }
     };
+    // Bricks stay where they are dragged; this puts them back where the layout placed them.
+    let c = cx.clone();
+    let relayout = move |_: Click| {
+        c.drag.set(Default::default());
+        if let Some(s) = c.stage.get() {
+            c.view.set(fit_view(&c.m.layout, s));
+        }
+    };
+    let c = cx.clone();
+    let dragged = move || !c.drag.with(|d| d.is_empty());
     let counts = counts(cx);
     view! {
         header {
@@ -65,6 +75,7 @@ pub fn header(cx: &Cx) -> View {
             (vscope)
             (menu)
             button(id="fit", title="Fit the graph in the stage", on:click=fit) { "Fit" }
+            button(id="relayout", title="Put dragged bricks back where the automatic layout placed them", disabled=move || !dragged(), on:click=relayout) { "Auto layout" }
             button(id="reload", on:click=move |_: Click| platform::reload()) { "Reload" }
             span(class="cnt") { (counts) }
         }

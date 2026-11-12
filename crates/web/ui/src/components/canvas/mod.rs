@@ -8,6 +8,7 @@ mod edge;
 mod frame;
 mod pointer;
 mod rows;
+mod zoom_icon;
 
 use brick::node_view;
 use defs::defs;
@@ -25,7 +26,6 @@ use sycamore::prelude::*;
 /// The stage: pan (drag), zoom (wheel), drag-box select (shift-drag), brick drag, click on the
 /// background clears the selection.
 pub fn canvas(cx: &Cx) -> View {
-    let l = &cx.m.layout;
     let n_edges = cx.m.g.edges.len();
     let n_bricks = cx.m.g.bricks.len();
     let pos: ReadSignal<Vec<Rect>> = {
@@ -66,12 +66,6 @@ pub fn canvas(cx: &Cx) -> View {
     let rows = row_labels(cx);
     let frame = frame_view(cx, pos);
     let defs = defs();
-    let (w, h) = (l.w, l.h);
-    let stage = cx.stage;
-    let vb = move || match stage.get() {
-        Some((sw, sh)) => format!("0 0 {sw} {sh}"),
-        None => format!("0 0 {w} {h}"),
-    };
     let view = cx.view;
     let vp = move || {
         let v = view.get();
@@ -107,9 +101,12 @@ pub fn canvas(cx: &Cx) -> View {
     let c = cx.clone();
     let wheel = move |e: web_sys::WheelEvent| {
         e.prevent_default();
-        let Some((l, t, _, _)) = platform::stage_rect() else {
+        let Some((l, t, sw, sh)) = platform::stage_rect() else {
             return;
         };
+        if c.stage.get().is_none() {
+            c.stage.set(Some((sw, sh)));
+        }
         let (mx, my) = (e.client_x() as f64 - l, e.client_y() as f64 - t);
         let v = c.view.get();
         let k = (v.k * (-e.delta_y() * 0.0015).exp()).clamp(0.15, 3.0);
@@ -154,9 +151,20 @@ pub fn canvas(cx: &Cx) -> View {
         _ => "display:none".to_string(),
     };
     let crumbs = crate::components::controls::crumbs(cx);
+    // The svg has no viewBox: one user unit is one CSS pixel of the stage, so pointer
+    // positions map straight into the pan/zoom transform. On the next frame (the stage is in
+    // the DOM) measure it and fit. Always set the view: after hydration the DOM still shows
+    // the server's transform even when the signal already holds the fitted one.
+    let c = cx.clone();
+    platform::next_frame(move || {
+        if let Some((_, _, sw, sh)) = platform::stage_rect() {
+            c.stage.set(Some((sw, sh)));
+            c.view.set(fit_view(&c.m.layout, (sw, sh)));
+        }
+    });
     view! {
         div(id="stage", class=pan_cls, on:mousedown=down, on:wheel=wheel, on:click=bg_click) {
-            svg(id="svg", "viewBox"=vb) {
+            svg(id="svg") {
                 (defs)
                 g(id="vp", transform=vp) {
                     (frame)

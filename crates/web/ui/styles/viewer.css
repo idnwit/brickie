@@ -109,7 +109,9 @@ table.fns th a.on{color:var(--ink);font-weight:700}
 /* levels: breadcrumb, frame, composites, outside neighbours, ports, wall edges, zoom transition */
 .crumbs{display:flex;align-items:center;gap:4px;font:600 13px ui-monospace,monospace}.crumbs .crumb{color:var(--sel);text-decoration:none;padding:1px 4px;border-radius:4px}.crumbs .crumb:hover{background:var(--band)}.crumbs .csep{color:var(--muted)}.crumbs .ccur{padding:1px 4px}
 .frame .fbox{fill:none;stroke:var(--ink);stroke-width:1.6;opacity:.55}.frame .flab{fill:var(--muted);font-weight:600;font-family:ui-monospace,monospace}
-.node.comp .box{stroke:var(--ink)}.node .box2{fill:none;stroke:var(--ink);stroke-width:1;opacity:.45;pointer-events:none}
+.node.comp .box{stroke:var(--ink)}
+/* A composite (has a level inside) gets a tinted fill; error/warning fills still win. */
+.node.comp:not(.bd-red):not(.bd-amber) .box{fill:var(--comp-fill)}.node .box2{fill:none;stroke:var(--ink);stroke-width:1;opacity:.45;pointer-events:none}
 .node.ghost{opacity:.5}.node.ghost .box{fill:var(--bg);stroke-dasharray:4 3}
 .node:focus{outline:none}.node:focus-visible .box{stroke:var(--sel);stroke-width:2.5}
 .port circle,circle.port{fill:var(--sel);stroke:var(--node);stroke-width:1.5}.port text{fill:var(--sel);font:500 10px ui-monospace,monospace}
@@ -121,3 +123,9 @@ table.fns th a.on{color:var(--ink);font-weight:700}
 .fi .at{color:var(--muted);font:11px ui-monospace,monospace;margin-left:4px}
 /* breadcrumb overlay: top-left of the stage, outside the pan/zoom transform */
 .crumbs.overlay{position:absolute;top:8px;left:8px;z-index:5;padding:4px 8px;border-radius:6px;background:var(--panel);color:var(--fg);border:1px solid var(--line);box-shadow:0 1px 4px rgba(0,0,0,.15);cursor:default}
+
+/* Zoom-in affordance on composites: a small magnifier at the start of the tag line. */
+.node .zicon{cursor:zoom-in}
+.node .zicon .zhit{fill:transparent}
+.node .zicon circle,.node .zicon line{fill:none;stroke:var(--muted);stroke-width:1.5;stroke-linecap:round}
+.node .zicon:hover circle,.node .zicon:hover line{stroke:var(--sel);stroke-width:2}

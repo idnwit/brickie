@@ -150,7 +150,7 @@ Pin a released version for reproducible CI; `dev` and `latest` move.
 `brickie view` serves the viewer from the cache and the config; it re-reads both on every
 request, so re-running `measure` and refreshing is enough. Without the browser bundle (below) the
 page is complete but read-only; with it you get pan, zoom, dragging, filters and Accept.
-Nested bricks are shown one level at a time: double-click a composite to zoom in,
+Nested bricks are shown one level at a time: double-click a composite (marked with a magnifier icon) or click its icon to zoom in,
 Backspace or the breadcrumb (top-left of the canvas) to zoom out; clicking a finding opens the level that reports it.
 
 ## For coding agents

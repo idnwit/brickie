@@ -148,7 +148,8 @@ worst_level}`); the UI is a function of the current level.
   frame labelled with its name, `exports` and config file. Composites have a double border, a
   badge with the number of findings in their subtree and their exported children drawn as ports
   on the border; leaves look like today's nodes.
-- **Navigation**: double-click on a composite zooms in, and nothing else does (short scale
+- **Navigation**: double-click on a composite, or a click on its zoom icon (small magnifier with
+  a plus at the start of its tag line), zooms in (short scale
   transition, off under `prefers-reduced-motion`); Backspace, Esc, the back button or the
   breadcrumb (`root › web`) zoom out. The breadcrumb is an overlay at the top-left corner of
   the canvas, fixed while the graph pans and zooms. The level is kept in the URL hash, so a link opens the same level.
