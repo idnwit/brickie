@@ -1,0 +1,30 @@
+# The algorithm libraries: independent of each other and of every brickie crate.
+exports = ["layout", "graph", "rustscan", "metrics"]
+
+[[brick]]
+name = "layout"
+members = ["brickie-layout"]
+tags = ["lib"]
+desc = "Layered graph layout and edge routing (Sugiyama style), wasm-safe"
+
+[[brick]]
+name = "graph"
+members = ["brickie-graph"]
+tags = ["lib"]
+desc = "Strongly connected components and cycle paths"
+
+[[brick]]
+name = "rustscan"
+members = ["brickie-rustscan"]
+tags = ["lib"]
+desc = "Dependency-free Rust tokenizer and `use` item scanner"
+
+[[brick]]
+name = "metrics"
+members = ["brickie-metrics"]
+tags = ["lib"]
+desc = "Cognitive, cyclomatic, NPath and nesting of Rust functions (tree-sitter)"
+
+[deps]
+default = "deny"
+cycles = "deny"

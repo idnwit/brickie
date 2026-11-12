@@ -1,0 +1,85 @@
+# brickie-check by folder: diag <- config <- rules / interface <- check, plus review. `rules` and `review`
+# stay internal: the CLI and the webview use them through the `check` facade.
+exports = ["check", "diag", "config", "interface"]
+
+[[brick]]
+name = "check"
+members = ["brickie-check"]           # the crate root and `check`; the folders below win
+tags = ["facade"]
+desc = "Load config, cache and review into diagnostics; the facade for CLI and webview"
+
+[[brick]]
+name = "rules"
+members = ["brickie-check::rules"]
+tags = ["rules"]
+desc = "Rule evaluation: dependency rules, cycles, complexity, unmapped and stale"
+
+[[brick]]
+name = "interface"
+members = ["brickie-check::interface"]
+tags = ["rules"]
+desc = "Brick interfaces: declared items, their uses, `interface/unused`, and the sites behind an edge"
+
+[[brick]]
+name = "review"
+members = ["brickie-check::review"]
+tags = ["rules"]
+desc = "Reviewer decisions: read and edit `.brickie/review.toml`"
+
+[[brick]]
+name = "config"
+members = ["brickie-check::config"]
+tags = ["config"]
+desc = "brickie.toml schema, loading, validation and module resolution"
+
+[[brick]]
+name = "diag"
+members = ["brickie-check::diag"]
+tags = ["base"]
+desc = "Findings, diagnostics and their text rendering"
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "config"
+to = "diag"
+scope = "all"
+action = "allow"
+reason = "config errors are diagnostics"
+
+[[deps.rule]]
+from = "rules"
+to = "config"
+scope = "all"
+action = "allow"
+reason = "rules evaluate the configured bricks"
+
+[[deps.rule]]
+from = "rules"
+to = "diag"
+scope = "all"
+action = "allow"
+reason = "rules produce findings"
+
+[[deps.rule]]
+from = "check"
+to = "*"
+scope = "all"
+action = "allow"
+reason = "the facade combines config, rules, review and diagnostics"
+
+[[deps.rule]]
+from = "interface"
+to = "config"
+scope = "all"
+action = "allow"
+reason = "interfaces follow the configured exports"
+
+[[deps.rule]]
+from = "interface"
+to = "diag"
+scope = "all"
+action = "allow"
+reason = "unused items are findings"

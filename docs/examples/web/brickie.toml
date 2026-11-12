@@ -1,0 +1,35 @@
+# A composite's own file (the root declares `path = "web"`). Its children must cover every
+# module of the crates under web/. Rules here only see these children; edges leaving `web` are
+# checked by the root's rules.
+
+exports = ["api", { brick = "ui", scope = "test" }]   # visible from outside; default none
+
+[[brick]]
+name = "api"
+members = ["acme-web-api"]
+
+[[brick]]
+name = "ui"
+members = ["acme-web-ui"]
+
+[[brick]]
+name = "shared"
+members = ["path:shared/"]         # crates whose manifest is under web/shared/
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "*"
+to = "shared"
+action = "allow"
+
+[[deps.rule]]
+from = "ui"
+to = "api"
+action = "allow"
+
+[[complexity]]                     # the root's limits apply too; the tightest wins
+bricks = "ui"
+cognitive = 10

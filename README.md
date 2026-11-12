@@ -15,6 +15,8 @@ brickie measures a Rust workspace and checks it against rules you write yourself
   built-in architecture; the rules are yours.
 - **View**: a local web page that shows bricks, edges, findings and the source next to each other,
   for reviewing what a coding agent changed.
+- **Interfaces**: `brickie interface <brick>` (and the viewer) shows what a brick declares public,
+  who uses each item, and which items nobody uses (`interface/unused`).
 - **llms.txt**: `brickie llms.txt` prints a guide that tells coding agents how to fix each finding.
 
 ## Install
@@ -50,6 +52,7 @@ In the root of the workspace to analyse, create `brickie.toml` (see below), then
 brickie measure     # slow: runs rust-analyzer, writes .brickie/cache.json
 brickie check       # fast: applies the rules to the cache, exits 1 on errors
 brickie view        # opens the viewer on http://127.0.0.1:7881
+brickie interface root/web/api   # a brick's declared interface and its uses
 ```
 
 Re-run `brickie measure` after changing code; `check` and `view` warn (`stale/*`) when the cache
@@ -66,13 +69,18 @@ include = ["presets/layered.toml"]   # optional: another file with the same sche
 
 [[brick]]
 name = "engine"
-members = ["acme-engine"]            # package name, or crate::module
+members = ["acme-engine"]            # package name, crate::module, or path:<dir>/
 tags = ["core"]
 
 [[brick]]
 name = "adapters"
 members = ["acme-backends"]
 tags = ["adapter"]
+
+[[brick]]
+name = "web"
+path = "crates/web"                  # composite: its children, rules and `exports` are in
+tags = ["app"]                       # crates/web/brickie.toml (required)
 
 [deps]
 default = "allow"                    # for edges matching no rule: allow | deny
@@ -95,7 +103,10 @@ params = 5
 level = "error"                      # error (fails CI) | warn
 ```
 
-The most specific matching rule wins (brick over tag over `*`; deny wins a tie). A full example
+The most specific matching rule wins (brick over tag over `*`; deny wins a tie). A composite
+brick's file lists its children (which must cover all its modules), its own rules, and
+`exports = ["api"]`, the children visible from outside (default none); an edge is checked by the
+rules of the lowest level containing both ends. A full example
 is in [docs/examples/brickie.toml](docs/examples/brickie.toml); the complete reference is in
 [docs/llms.txt](docs/llms.txt).
 
@@ -142,6 +153,8 @@ Pin a released version for reproducible CI; `dev` and `latest` move.
 `brickie view` serves the viewer from the cache and the config; it re-reads both on every
 request, so re-running `measure` and refreshing is enough. Without the browser bundle (below) the
 page is complete but read-only; with it you get pan, zoom, dragging, filters and Accept.
+Nested bricks are shown one level at a time: double-click a composite (marked with a magnifier icon) or click its icon to zoom in,
+Backspace or the breadcrumb (top-left of the canvas) to zoom out; clicking a finding opens the level that reports it.
 
 ## For coding agents
 
@@ -151,13 +164,16 @@ respect (never edit the rules or the review file to make `check` pass).
 
 ## Building the viewer bundle
 
-The interactive viewer is a wasm bundle built from the `ui` crate and embedded at compile time:
+The interactive viewer is a wasm bundle built from the `ui` crate and embedded at compile time,
+together with the code viewer (`/code/`: explorer, tabs, Monaco, findings in the code, F12 /
+Shift+F12 navigation), whose script also fetches a pinned Monaco release from the npm registry
+(needs curl, tar and openssl once):
 
 ```sh
 rustup target add wasm32-unknown-unknown
-cargo install wasm-bindgen-cli --version 0.2.123 --locked   # must match ui/Cargo.toml
-scripts/build-ui.sh        # writes assets/ui/ (git-ignored)
-cargo build --release      # embeds the bundle when assets/ui/ has it
+cargo install wasm-bindgen-cli --version 0.2.123 --locked   # must match crates/web/ui/Cargo.toml
+scripts/build-ui.sh        # writes assets/ui/ and assets/codeview/ (git-ignored)
+cargo build --release      # embeds the bundles found there
 ```
 
 Without the bundle `cargo build` still works and prints a warning.

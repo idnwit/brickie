@@ -2,6 +2,7 @@
 # A preset is just another file with the same schema:  include = ["presets/layered.toml"]
 # (paths are relative to the including file; includes are merged, the including file wins for
 # `deps.default` and `deps.cycles`).
+# Names, tags and rules are local to a file; see web/brickie.toml for a composite's own file.
 
 [[brick]]
 name = "audio"
@@ -22,6 +23,11 @@ tags = ["adapter"]
 name = "client"
 members = ["acme-client"]
 tags = ["assembly"]
+
+[[brick]]
+name = "web"
+path = "web"                       # composite: children in web/brickie.toml (required);
+tags = ["assembly"]                # members default to ["path:web/"] (crates under the folder)
 
 [deps]
 default = "allow"                  # for edges matching no rule: allow | deny

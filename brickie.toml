@@ -1,0 +1,79 @@
+# brickie's own architecture, checked by brickie. Crates by layer:
+#   cli (the `brickie` binary) -> web (server, viewer) -> core (model, facts, measure, check)
+#   core and web build on lib (independent libraries: algo, codeview; no brickie types).
+# Each composite splits further in its own brickie.toml (crates/lib, crates/core, crates/web).
+
+[[brick]]
+name = "lib"
+path = "crates/lib"                   # composite: algo, codeview
+tags = ["lib"]
+desc = "Independent libraries: algorithms and the code viewer, no brickie business"
+
+[[brick]]
+name = "core"
+path = "crates/core"                  # composite: model, facts, measure, check
+tags = ["domain"]
+desc = "brickie's business logic: shared model, cache, measure and check"
+
+[[brick]]
+name = "web"
+path = "crates/web"                   # composite: api, server (brickie-web), ui (brickie-ui)
+tags = ["domain"]
+desc = "The reviewer webview: axum server and the hydrated viewer"
+
+[[brick]]
+name = "cli"
+members = ["brickie"]                 # the binary, its tests
+tags = ["domain"]
+desc = "The `brickie` command line: measure, check, view, llms"
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "cli"
+to = "core"
+scope = "all"
+action = "allow"
+reason = "the commands drive measure and check"
+
+[[deps.rule]]
+from = "cli"
+to = "web"
+scope = "all"
+action = "allow"
+reason = "`brickie view` starts the server"
+
+[[deps.rule]]
+from = "web"
+to = "core"
+scope = "all"
+action = "allow"
+reason = "the server reads the cache and checks; the viewer shares the model"
+
+[[deps.rule]]
+from = "core"
+to = "lib"
+scope = "all"
+action = "allow"
+reason = "measure and check use the metrics, scanner and graph libraries"
+
+[[deps.rule]]
+from = "web"
+to = "lib"
+scope = "all"
+action = "allow"
+reason = "the viewer lays out the brick graph; the server mounts the code viewer and implements its port"
+
+# lib depends on nothing of brickie: no rule allows lib -> *.
+
+# Business logic: strict. Starts at "warn" until the remaining functions are refactored
+# (docs/proposals/core-split.md, "Complexity policy"); then "error".
+[[complexity]]
+bricks = "tag:domain"
+cognitive = 15
+nesting = 4
+level = "warn"
+
+

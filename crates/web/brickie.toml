@@ -1,0 +1,47 @@
+# The webview crates: server (axum, brickie-web) renders and serves the viewer (ui, wasm); the
+# api crate is the port between them (endpoint contracts and shared page data).
+# server and ui are composites with their own folder bricks (see their brickie.toml).
+exports = ["server"]
+
+[[brick]]
+name = "api"
+members = ["brickie-web-api"]          # leaf: endpoint contracts and shared page data, wasm-safe
+tags = ["base"]
+desc = "The server/UI port: Endpoint contracts and every type that crosses them, pure and wasm-safe"
+
+[[brick]]
+name = "server"
+path = "server"                       # composite: routes, render, data
+tags = ["server"]
+desc = "axum server: SSR page, JSON API, source view, review edits, embedded wasm bundle"
+
+[[brick]]
+name = "ui"
+path = "ui"                           # composite: model, state, platform, components
+tags = ["view"]
+desc = "The viewer components (Sycamore): rendered on the server, hydrated in the browser"
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "server"
+to = "ui"
+scope = "all"
+action = "allow"
+reason = "the server only renders the viewer (SSR page and source popup) and embeds its CSS"
+
+[[deps.rule]]
+from = "server"
+to = "api"
+scope = "all"
+action = "allow"
+reason = "the server implements the endpoint contracts and builds the shared page data"
+
+[[deps.rule]]
+from = "ui"
+to = "api"
+scope = "all"
+action = "allow"
+reason = "the viewer consumes the shared page data and calls the endpoint contracts"

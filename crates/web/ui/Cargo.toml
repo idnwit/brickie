@@ -1,0 +1,29 @@
+[package]
+name = "brickie-ui"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "brickie webview components: server-side rendered, hydrated in the browser"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+brickie-web-api = { workspace = true }
+brickie-layout = { workspace = true }
+codeview-port = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sycamore = { version = "0.9", default-features = false, features = ["web"] }
+web-sys = { version = "0.3", features = ["Event", "MouseEvent", "HtmlInputElement", "Element", "Document", "Window", "KeyboardEvent", "History", "Location", "Request", "RequestInit", "Response", "Headers", "EventTarget", "WheelEvent", "DomRect", "HtmlElement", "HtmlIFrameElement", "MessageEvent"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# Must match the wasm-bindgen CLI used by scripts/build-ui.sh.
+wasm-bindgen = "=0.2.123"
+wasm-bindgen-futures = "0.4"
+
+[features]
+# Browser build: export `hydrate` (see src/wasm.rs). The server uses the crate without it.
+hydrate = ["sycamore/hydrate"]

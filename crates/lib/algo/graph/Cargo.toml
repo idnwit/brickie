@@ -1,0 +1,11 @@
+[package]
+name = "brickie-graph"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Strongly connected components and cycle paths over small directed graphs"
+license = "MIT"
+publish = false
+
+[dependencies]
+

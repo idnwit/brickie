@@ -1,0 +1,37 @@
+# The code viewer (docs/proposals/code-viewer.md). `port` is the contract; `app` (wasm UI) and
+# `host` (axum router + the embedded bundle) build on it only. A host application depends on
+# `port` and `host`; it never sees `app` (embedded as files, not a Rust dependency).
+exports = ["port", "host"]
+
+[[brick]]
+name = "port"
+members = ["codeview-port"]
+desc = "The contract: data types, the provider trait, HTTP endpoints and iframe messages"
+
+[[brick]]
+name = "app"
+members = ["codeview-app"]
+desc = "The viewer UI (wasm): explorer, tabs, Monaco glue, navigation"
+
+[[brick]]
+name = "host"
+members = ["codeview-host"]
+desc = "axum router over a provider: serves the bundle and the port endpoints"
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "app"
+to = "port"
+scope = "all"
+action = "allow"
+reason = "the UI speaks the port's endpoints and messages"
+
+[[deps.rule]]
+from = "host"
+to = "port"
+scope = "all"
+action = "allow"
+reason = "the router serves the port's endpoints from a provider"

@@ -1,0 +1,12 @@
+[package]
+name = "brickie-facts"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "brickie's measure cache: the facts model, hashing and source files"
+license = "MIT"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.10"

@@ -12,3 +12,7 @@ __pycache__/
 # local design prototype (python viewer), not published
 /tools/
 /docs/brickwork/
+
+# brickie cache
+/.brickie/
+/assets/codeview/

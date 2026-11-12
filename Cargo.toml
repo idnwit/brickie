@@ -1,44 +1,20 @@
 [workspace]
-members = ["ui"]
-default-members = [".", "ui"]
+members = ["crates/lib/algo/layout", "crates/lib/algo/graph", "crates/lib/algo/rustscan", "crates/lib/algo/metrics", "crates/core/model", "crates/core/facts", "crates/core/measure", "crates/core/check", "crates/web/api", "crates/web/server", "crates/web/ui", "crates/lib/codeview/port", "crates/lib/codeview/app", "crates/lib/codeview/host", "crates/cli"]
 exclude = ["fixtures"]
 resolver = "3"
 
-[package]
-name = "brickie"
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.88"
-description = "Measure Rust workspaces (module dependency edges and function complexity) and check them against your own brick rules"
-license = "MIT"
-repository = "https://github.com/idnwit/brickie"
-homepage = "https://github.com/idnwit/brickie"
-readme = "README.md"
-keywords = ["architecture", "dependencies", "complexity", "lint", "rust-analyzer"]
-categories = ["development-tools", "command-line-utilities"]
-# Not published to crates.io: the interactive viewer is a generated wasm bundle (assets/ui/,
-# git-ignored, built by scripts/build-ui.sh) and the path dependency `brickie-ui` is not
-# published either. Releases are git tags + prebuilt binaries.
-publish = false
-
-[dependencies]
-brickie-ui = { path = "ui" }
-anyhow = "1"
-axum = "0.8"
-cargo_metadata = "0.23"
-clap = { version = "4", features = ["derive"] }
-protobuf = "=3.7.2"
-scip = "0.10"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-sha2 = "0.10"
-tempfile = "3"
-tokio = { version = "1", features = ["rt-multi-thread", "net", "macros"] }
-toml = "0.8"
-toml_edit = "0.25.19"
-tree-sitter = "0.26.13"
-tree-sitter-rust = "0.24.2"
-
-[dev-dependencies]
-http-body-util = "0.1"
-tower = { version = "0.5", features = ["util"] }
+[workspace.dependencies]
+# Internal crates: members depend on them with `name = { workspace = true }`.
+brickie-check = { path = "crates/core/check" }
+brickie-facts = { path = "crates/core/facts" }
+brickie-graph = { path = "crates/lib/algo/graph" }
+brickie-layout = { path = "crates/lib/algo/layout" }
+brickie-measure = { path = "crates/core/measure" }
+brickie-metrics = { path = "crates/lib/algo/metrics" }
+brickie-model = { path = "crates/core/model" }
+brickie-rustscan = { path = "crates/lib/algo/rustscan" }
+brickie-ui = { path = "crates/web/ui" }
+brickie-web = { path = "crates/web/server" }
+brickie-web-api = { path = "crates/web/api" }
+codeview-host = { path = "crates/lib/codeview/host" }
+codeview-port = { path = "crates/lib/codeview/port" }

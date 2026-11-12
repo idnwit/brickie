@@ -27,10 +27,10 @@ agreed requirements, decisions and status; keep it in step with the code.
   UI changed), `cargo test --workspace`. Documentation-only changes need a consistency and link
   review.
 - Source layout is in `docs/design.md` ("Code layout"): folders by concern, small focused files
-  (about 300 lines or fewer, tests aside), no flat `src/`.
+  (about 300 lines or fewer, tests aside), no flat `src/`; crates by layer under `crates/`.
 - Development stage: no backward compatibility. Keep a single current API/model path; breaking
   CLI or schema changes are fine, but update callers, docs and tests in the same change.
-- Adding a diagnostic code: add it to `src/rules/codes.rs` and document how to fix it in
+- Adding a diagnostic code: add it to `crates/core/model/src/codes.rs` and document how to fix it in
   `docs/llms.txt` (a test enforces this).
 - The viewer bundle is built with `scripts/build-ui.sh`; `assets/ui/` is git-ignored.
 - Never commit private or machine-specific names, paths or addresses (test fixtures, docs,

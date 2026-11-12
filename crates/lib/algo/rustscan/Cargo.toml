@@ -1,0 +1,11 @@
+[package]
+name = "brickie-rustscan"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Dependency-free Rust tokenizer and `use` item scanner"
+license = "MIT"
+publish = false
+
+[dependencies]
+

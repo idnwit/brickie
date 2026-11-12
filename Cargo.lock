@@ -163,35 +163,125 @@ name = "brickie"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "axum",
- "brickie-ui",
- "cargo_metadata",
+ "brickie-check",
+ "brickie-measure",
+ "brickie-model",
+ "brickie-web",
  "clap",
- "http-body-util",
- "protobuf",
- "scip",
- "serde",
  "serde_json",
  "sha2",
  "tempfile",
- "tokio",
+]
+
+[[package]]
+name = "brickie-check"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "brickie-facts",
+ "brickie-graph",
+ "brickie-model",
+ "serde",
+ "serde_json",
+ "tempfile",
  "toml",
  "toml_edit 0.25.19+spec-1.1.0",
- "tower",
+]
+
+[[package]]
+name = "brickie-facts"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "sha2",
+]
+
+[[package]]
+name = "brickie-graph"
+version = "0.1.0"
+
+[[package]]
+name = "brickie-layout"
+version = "0.1.0"
+
+[[package]]
+name = "brickie-measure"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "brickie-facts",
+ "brickie-metrics",
+ "brickie-model",
+ "brickie-rustscan",
+ "cargo_metadata",
+ "protobuf",
+ "scip",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
+name = "brickie-metrics"
+version = "0.1.0"
+dependencies = [
  "tree-sitter",
  "tree-sitter-rust",
 ]
 
 [[package]]
+name = "brickie-model"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "brickie-rustscan"
+version = "0.1.0"
+
+[[package]]
 name = "brickie-ui"
 version = "0.1.0"
 dependencies = [
+ "brickie-layout",
+ "brickie-web-api",
+ "codeview-port",
  "serde",
  "serde_json",
  "sycamore",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "brickie-web"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "brickie-check",
+ "brickie-facts",
+ "brickie-measure",
+ "brickie-model",
+ "brickie-ui",
+ "brickie-web-api",
+ "codeview-host",
+ "codeview-port",
+ "http-body-util",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml",
+ "tower",
+]
+
+[[package]]
+name = "brickie-web-api"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -294,6 +384,41 @@ name = "clap_lex"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
+
+[[package]]
+name = "codeview-app"
+version = "0.1.0"
+dependencies = [
+ "codeview-port",
+ "js-sys",
+ "serde",
+ "serde_json",
+ "sycamore",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "codeview-host"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "codeview-port",
+ "http-body-util",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower",
+]
+
+[[package]]
+name = "codeview-port"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "colorchoice"

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code viewer</title>
+<link rel="stylesheet" href="static/codeview.css">
+<link rel="stylesheet" href="static/vs/editor/editor.main.css">
+<script>
+  // Relative URLs need the trailing slash (`/code` -> `/code/`).
+  if (!location.pathname.endsWith("/")) {
+    location.replace(location.pathname + "/" + location.search + location.hash);
+  }
+</script>
+</head>
+<body>
+<div id="cv"></div>
+<script src="static/vs/loader.js"></script>
+<script src="static/glue.js"></script>
+<script type="module">
+  import init, { start } from "./static/codeview_app.js";
+  await init({ module_or_path: "./static/codeview_app_bg.wasm" });
+  start();
+</script>
+</body>
+</html>

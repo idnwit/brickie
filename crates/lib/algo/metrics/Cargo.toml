@@ -1,0 +1,12 @@
+[package]
+name = "brickie-metrics"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Cognitive, cyclomatic, NPath and nesting complexity of Rust functions (tree-sitter)"
+license = "MIT"
+publish = false
+
+[dependencies]
+tree-sitter = "0.26.13"
+tree-sitter-rust = "0.24.2"
