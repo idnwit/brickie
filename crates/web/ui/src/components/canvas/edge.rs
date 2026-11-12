@@ -1,7 +1,7 @@
 //! One edge: halo, line, hit area, label and mark (`renderGraph` edge part, `edgeOn`).
 
-use crate::model::end_name;
 use crate::state::*;
+use brickie_web_api::end_name;
 use sycamore::prelude::*;
 
 const KIND_ABBR: [(&str, &str); 3] = [

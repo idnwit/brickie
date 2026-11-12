@@ -162,10 +162,10 @@ code, the SQL graph server for agents (`serve`/`query`), capabilities, and exper
 
 ## Code layout (implemented)
 
-A virtual workspace of eleven crates, grouped by layer (brickie checks this with the root
+A virtual workspace of twelve crates, grouped by layer (brickie checks this with the root
 `brickie.toml` and the nested `brickie.toml` of `crates/algo`, `crates/core`,
 `crates/core/measure`, `crates/core/check`, `crates/web`, `crates/web/server` and
-`crates/web/ui`: cli -> web -> core -> algo; algo
+`crates/web/ui` (and the leaf `crates/web/api`): cli -> web -> core -> algo; algo
 depends on no brickie crate; see `docs/proposals/core-split.md`):
 
 ```
@@ -194,8 +194,10 @@ crates/core/check/     brickie-check, folder bricks:
                        facade for rules and review (dep_subject, complexity_limits, set_review)
 crates/web/server/     brickie-web, folder bricks (own brickie.toml): routes (-> render, data; also
                        the crate root and tests), render, data; build.rs embeds assets/ui/
-crates/web/ui/         brickie-ui, folder bricks (own brickie.toml), compiled to wasm: model <-
-                       platform <- state <- components (also the crate root and wasm entry)
+crates/web/api/        brickie-web-api, wasm-safe (serde + brickie-model): the server/UI port, see
+                       "Web api port" below
+crates/web/ui/         brickie-ui, folder bricks (own brickie.toml), compiled to wasm: platform
+                       (depends on nothing), state (pure) <- components (also the crate root, wasm entry)
 crates/cli/            brickie: the `brickie` binary (main.rs, cli/: clap args + one file per
                        command) and the integration tests (tests/check, tests/llms, tests/measure)
 ```
@@ -314,10 +316,21 @@ folders by concern):
   `assets`), `render/` (page and source-popup HTML shells), `data/` (page data from the cache:
   `diagnostics`, `graph/` (per-level aggregation: `edges`, `level`, `heat`), `functions`,
   `time`), `tests/`.
-- `crates/web/ui/` (`brickie-ui`): `model/` (`params`, `diag`, `graph`, `levels`, `function`),
-  `state/` (`layers`, `selection`, `focus`, `eval`, `shared`, `ctx`), `components/`
+- `crates/web/api/` (`brickie-web-api`): `endpoint.rs` (the `Endpoint` trait and markers), `source.rs`,
+  `model/` (page data and pure helpers: `params`, `diag`, `graph`, `levels`, `function`, `score`, `boundary`).
+- `crates/web/ui/` (`brickie-ui`): `state/` (`layers`, `selection`, `focus`, `eval`, `shared`, `ctx`), `components/`
   (`app`, `keys`, `canvas/` incl. `frame`, `panels/` incl. `node`, `controls/` incl. `crumbs`,
   `source/`), `platform.rs`, `wasm.rs`, `styles/*.css`.
+
+- **Web api port.** `crates/web/api` holds the `Endpoint` trait (`PATH`, `Req`, `Res`) with one marker per
+  JSON endpoint (`Review` POST `/review`; `Graph`, `Diagnostics`, `Functions` GET `/api/*`, where `Req` is the
+  query `Params` or `()`), the path consts of the HTML routes, and every type crossing the port (page data,
+  params, review request/reply, source popup data). The server mounts routes at `E::PATH` with handlers typed
+  `ReqOf<E>` / `ResOf<E>`; the UI calls `components::call::<E>`, which only moves JSON through
+  `platform::post_json`. A contract change fails to compile on both sides. The server still depends on `ui`
+  only to render (`render_page`, `render_source`, `CSS`, `APP_ID`, `DATA_ID`). `state` is pure: `Cx::new` takes
+  the stage size, and `components::app` mirrors params into the URL (push only when the URL differs from the
+  last seen one; popstate records its URL first, so back/forward adds no history entries).
 
 - **One component tree, two runtimes.** The server renders `brickie_ui::app` with
   `sycamore::render_to_string` (output carries `data-hk` hydration keys) into `<div id="app">`
@@ -374,7 +387,7 @@ folders by concern):
   allowed edges (and their arrowheads) are neutral grey, and the kind stays readable by arrow and
   dash shape. Edges that can violate (they carry `deps` findings or lie in a cycle finding) are
   rendered in a second SVG group above the others; the split is static, never changes with state.
-- **Brick score** (`crates/web/ui/src/model/score.rs`, the one place scores are computed): `score = open
+- **Brick score** (`crates/web/api/src/model/score.rs`, the one place scores are computed): `score = open
   errors + 0.25 x open warnings + sum over functions of max(0, worst ratio - 1)`. A finding is
   open when its level is `error`/`warn` and it is not accepted, whatever layers are shown. A
   function's ratio is its worst `value / limit` over the metrics that have a limit under the rules
@@ -462,7 +475,7 @@ Map-style zoom over the brick tree (spec: `docs/proposals/nested-bricks.md`, "Vi
 - **Outside edges** (`bnd`, toggle "Outside → frame | children" next to the breadcrumb, hidden at
   the root; `components/controls/boundary.rs`): `children` (default) draws each boundary edge to
   the child it reaches; `frame` draws one edge per (neighbour, direction, kind) to the nearest
-  frame wall. The frame edges are aggregated on the client (`model/boundary.rs`, `frame_edges`:
+  frame wall. The frame edges are aggregated on the client (`api` `model/boundary.rs`, `frame_edges`:
   counts summed, findings united, worst level, `test` only when all are, `wall` when any is)
   and appended after the level's edges in `Cx` (flagged by `EdgeView.under`, the boundary edges
   they stand for; not serialised); the layout is computed without them, and the evaluation

@@ -4,7 +4,7 @@
 use brickie_check::check as rules;
 use brickie_check::check::Loaded;
 use brickie_check::config::level_name;
-use brickie_ui::{HotFn, ratio};
+use brickie_web_api::{HotFn, ratio};
 use std::collections::BTreeMap;
 
 /// Keyed by node level path (`root/web/api`); a composite collects its whole subtree.

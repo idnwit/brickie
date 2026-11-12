@@ -3,9 +3,8 @@
 
 use super::{Eval, evaluate};
 use crate::layout::{self, Layout, Rect};
-use crate::model::*;
-use crate::platform;
 use crate::state::*;
+use brickie_web_api::*;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 use sycamore::prelude::*;
@@ -111,7 +110,8 @@ pub fn layout_input(g: &GraphView) -> layout::Input {
 
 impl Cx {
     /// The state of level `lv`: shared signals from `sh`, fresh pan/zoom/drag and layout.
-    pub fn new(sh: &Shared, lv: usize) -> Cx {
+    /// `stage` is the stage size in pixels when known (the caller measures it).
+    pub fn new(sh: &Shared, lv: usize, stage: Option<(f64, f64)>) -> Cx {
         let params = sh.params;
         let level = &sh.levels[lv];
         // Laid out without the frame edges, which are appended after the original ones.
@@ -126,7 +126,7 @@ impl Cx {
             cards: sh.cards.clone(),
             fns: sh.fns.clone(),
         });
-        let stage = create_signal(platform::stage_rect().map(|r| (r.2, r.3)));
+        let stage = create_signal(stage);
         let view = create_signal(match stage.get() {
             Some(s) => fit_view(&m.layout, s),
             None => Vw {
@@ -167,9 +167,8 @@ impl Cx {
         }
     }
 
-    /// Change the params and the URL.
+    /// Change the params. The page mirrors them into the URL (see `components::app`).
     pub fn go(&self, p: Params) {
-        platform::push_url(&p.url());
         self.params.set(p);
     }
 

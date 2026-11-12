@@ -1,11 +1,7 @@
 //! Browser side effects behind a tiny interface. On native targets (server-side rendering)
 //! everything is a no-op, so components can be written once.
-
-use crate::model::{ReviewReply, ReviewRequest};
-
 #[cfg(target_arch = "wasm32")]
 mod imp {
-    use super::*;
     use wasm_bindgen::JsCast;
     use wasm_bindgen::prelude::*;
 
@@ -105,18 +101,16 @@ mod imp {
         }
     }
 
-    async fn post(req: ReviewRequest) -> Result<ReviewReply, String> {
+    async fn post(path: &str, body: String) -> Result<String, String> {
         let window = web_sys::window().ok_or("no window")?;
         let init = web_sys::RequestInit::new();
         init.set_method("POST");
-        init.set_body(&JsValue::from_str(
-            &serde_json::to_string(&req).map_err(|e| e.to_string())?,
-        ));
+        init.set_body(&JsValue::from_str(&body));
         let headers = web_sys::Headers::new().map_err(|_| "headers")?;
         let _ = headers.set("content-type", "application/json");
         init.set_headers(&headers);
         let resp =
-            wasm_bindgen_futures::JsFuture::from(window.fetch_with_str_and_init("/review", &init))
+            wasm_bindgen_futures::JsFuture::from(window.fetch_with_str_and_init(path, &init))
                 .await
                 .map_err(|_| "request failed".to_string())?;
         let resp: web_sys::Response = resp.dyn_into().map_err(|_| "bad response")?;
@@ -128,20 +122,21 @@ mod imp {
         if !resp.ok() {
             return Err(format!("{}: {text}", resp.status()));
         }
-        serde_json::from_str(&text).map_err(|e| e.to_string())
+        Ok(text)
     }
 
-    pub fn post_review(
-        req: ReviewRequest,
-        done: impl FnOnce(Result<ReviewReply, String>) + 'static,
+    /// POST the JSON text `body` to `path`; `done` gets the response text or an error message.
+    pub fn post_json(
+        path: &'static str,
+        body: String,
+        done: impl FnOnce(Result<String, String>) + 'static,
     ) {
-        wasm_bindgen_futures::spawn_local(async move { done(post(req).await) });
+        wasm_bindgen_futures::spawn_local(async move { done(post(path, body).await) });
     }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 mod imp {
-    use super::*;
     pub fn push_url(_: &str) {}
     pub fn search() -> String {
         String::new()
@@ -156,7 +151,8 @@ mod imp {
     pub fn next_frame(_: impl FnOnce() + 'static) {}
     pub fn focus(_: &str) {}
     pub fn reload() {}
-    pub fn post_review(_: ReviewRequest, _: impl FnOnce(Result<ReviewReply, String>) + 'static) {}
+    pub fn post_json(_: &'static str, _: String, _: impl FnOnce(Result<String, String>) + 'static) {
+    }
 }
 
 pub use imp::*;

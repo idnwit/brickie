@@ -1,24 +1,19 @@
-# brickie-ui by folder, bottom up: model <- platform (DOM and wasm wrappers) <- state <- components.
+# brickie-ui by folder: platform (DOM and wasm wrappers, depends on nothing) and state (pure
+# reactive state over the web api's page data) sit under components.
 # The crate root (lib.rs, wasm.rs) belongs to `components`, which it wires up and re-exports.
-exports = ["components", "model", "state"]
-
-[[brick]]
-name = "model"
-members = ["brickie-ui::model"]
-tags = ["base"]
-desc = "Pure page data and URL params shared by server and browser; no signals, no DOM"
+exports = ["components", "state"]
 
 [[brick]]
 name = "state"
 members = ["brickie-ui::state"]
 tags = ["state"]
-desc = "Reactive viewer state: selection, focus, layers, evaluation and layout context"
+desc = "Reactive viewer state: selection, focus, layers, evaluation and layout context; no DOM access"
 
 [[brick]]
 name = "platform"
 members = ["brickie-ui::platform"]
 tags = ["platform"]
-desc = "Browser wrappers (location, history, DOM) that are no-ops during server rendering"
+desc = "Browser wrappers (location, history, DOM, fetch) that are no-ops during server rendering"
 
 [[brick]]
 name = "components"
@@ -31,29 +26,8 @@ default = "deny"
 cycles = "deny"
 
 [[deps.rule]]
-from = "platform"
-to = "model"
-scope = "all"
-action = "allow"
-reason = "the review POST wrapper is typed with the model's request and reply"
-
-[[deps.rule]]
-from = "state"
-to = "platform"
-scope = "all"
-action = "allow"
-reason = "state reads the stage size and pushes the URL when params change"
-
-[[deps.rule]]
-from = "state"
-to = "model"
-scope = "all"
-action = "allow"
-reason = "state is reactive derivations over the page data"
-
-[[deps.rule]]
 from = "components"
 to = "*"
 scope = "all"
 action = "allow"
-reason = "components render state and model and call the browser wrappers"
+reason = "components render state and the api data and call the browser wrappers"

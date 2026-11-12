@@ -3,7 +3,7 @@
 
 use super::SHELL_HEAD;
 use crate::data::split_bytes;
-use brickie_ui::{SourceLine, SourcePage};
+use brickie_web_api::{SourceLine, SourcePage};
 
 /// A click on a tree bar marks the lines it spans (`pickBar` of the original).
 const BAR_JS: &str = "<script>document.addEventListener('click',function(e){var b=e.target.closest('.vb');if(!b)return;\

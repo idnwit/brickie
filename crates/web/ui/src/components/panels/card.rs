@@ -1,8 +1,8 @@
 //! A diagnostic as a card (the same fields `brickie check` prints) with Accept / Unaccept.
 
-use crate::model::*;
-use crate::platform;
+use crate::components::call;
 use crate::state::*;
+use brickie_web_api::*;
 use sycamore::prelude::*;
 
 const MAX_LISTED: usize = 60;
@@ -138,8 +138,8 @@ fn review_view(c: Card) -> View {
             return;
         }
         busy.set(true);
-        platform::post_review(
-            ReviewRequest {
+        call::<Review>(
+            &ReviewRequest {
                 id: id_accept.clone(),
                 reason: Some(r),
             },
@@ -158,8 +158,8 @@ fn review_view(c: Card) -> View {
     };
     let unaccept = move |_: Click| {
         busy.set(true);
-        platform::post_review(
-            ReviewRequest {
+        call::<Review>(
+            &ReviewRequest {
                 id: id_un.clone(),
                 reason: None,
             },

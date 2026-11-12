@@ -1,8 +1,8 @@
 //! Brick detail and its scorecard.
 
 use super::links::edge_link;
-use crate::model::*;
 use crate::state::*;
+use brickie_web_api::*;
 use sycamore::prelude::*;
 
 pub(super) fn brick_detail(cx: &Cx, b: usize) -> View {

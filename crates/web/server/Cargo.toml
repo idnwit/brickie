@@ -13,6 +13,7 @@ brickie-facts = { path = "../../core/facts" }
 brickie-measure = { path = "../../core/measure" }
 brickie-model = { path = "../../core/model" }
 brickie-ui = { path = "../ui" }
+brickie-web-api = { path = "../api" }
 anyhow = "1"
 axum = "0.8"
 serde = { version = "1", features = ["derive"] }

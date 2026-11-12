@@ -51,5 +51,5 @@ async fn source_highlights_and_confines() {
 }
 
 fn encode(s: &str) -> String {
-    brickie_ui::encode(s)
+    brickie_web_api::encode(s)
 }

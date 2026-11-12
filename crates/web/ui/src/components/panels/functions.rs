@@ -1,7 +1,7 @@
 //! The functions table scoped to the selection.
 
-use crate::model::*;
 use crate::state::*;
+use brickie_web_api::*;
 use sycamore::prelude::*;
 
 /// The functions table scoped to the selection (`Functions (n)`).

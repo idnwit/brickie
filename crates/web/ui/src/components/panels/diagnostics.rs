@@ -2,8 +2,8 @@
 
 use super::GROUPS;
 use super::bricks::brick_index;
-use crate::model::group_sub;
 use crate::state::*;
+use brickie_web_api::group_sub;
 use std::collections::BTreeSet;
 use sycamore::prelude::*;
 
@@ -71,7 +71,7 @@ pub fn finding_row(cx: &Cx, i: usize) -> View {
 }
 
 /// Select finding `d`, at its level: the view jumps to the level that reports it.
-fn jump(p: &crate::model::Params, d: &crate::model::DiagView) -> crate::model::Params {
+fn jump(p: &brickie_web_api::Params, d: &brickie_web_api::DiagView) -> brickie_web_api::Params {
     let mut next = match &d.brick_level {
         Some(l) if l != p.level_path() => p.at_level(l),
         _ => p.clone(),

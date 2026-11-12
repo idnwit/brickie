@@ -7,7 +7,7 @@ use brickie_check::check as rules;
 use brickie_check::check::Loaded;
 use brickie_check::config::{Config, Level, level_name};
 use brickie_check::diag::Diagnostic;
-use brickie_ui::*;
+use brickie_web_api::*;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Row captions of the outside neighbours: sources first, targets last.

@@ -1,7 +1,7 @@
 //! Summary and sum table of the overview.
 
-use crate::model::*;
 use crate::state::*;
+use brickie_web_api::*;
 use std::collections::BTreeMap;
 use sycamore::prelude::*;
 

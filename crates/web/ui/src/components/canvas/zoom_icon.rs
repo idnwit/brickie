@@ -1,7 +1,7 @@
 //! The zoom-in affordance drawn on composite bricks.
 
-use crate::model::BrickView;
 use crate::state::*;
+use brickie_web_api::BrickView;
 use sycamore::prelude::*;
 
 /// A small magnifier with a plus at the start of a composite's tag line (the tag text moves

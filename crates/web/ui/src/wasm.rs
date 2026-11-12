@@ -1,6 +1,7 @@
 //! Browser entry: hydrate the server-rendered app from the embedded JSON.
 
-use crate::{APP_ID, DATA_ID, PageData, Params, components, platform};
+use crate::{APP_ID, DATA_ID, components, platform};
+use brickie_web_api::{PageData, Params};
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 

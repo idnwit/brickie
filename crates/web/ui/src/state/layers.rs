@@ -1,7 +1,7 @@
 //! Data layers and presets (`LDEF`, `PRESETS`, `SUBS`, `applyLay`, `layStr`, `fOn`, `vOn` of the
 //! original). The URL stores only the differences from the preset (`p=viol&lay=-cx,+tests`).
 
-use crate::model::*;
+use brickie_web_api::*;
 use std::collections::BTreeMap;
 
 pub const LDEF: [(&str, bool); 21] = [

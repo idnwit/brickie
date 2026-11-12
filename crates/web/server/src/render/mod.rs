@@ -4,7 +4,7 @@ mod source;
 
 pub use source::source_html;
 
-use brickie_ui::{PageData, Params};
+use brickie_web_api::{PageData, Params};
 
 /// JSON embedded in a `<script>`: `<` is escaped so `</script>` cannot occur.
 fn embed_json<T: serde::Serialize>(v: &T) -> String {

@@ -3,7 +3,7 @@
 use crate::{AppState, Failure, data, render};
 use axum::extract::{Query, State};
 use axum::response::Html;
-use brickie_ui::Params;
+use brickie_web_api::Params;
 
 pub async fn index(
     State(st): State<AppState>,

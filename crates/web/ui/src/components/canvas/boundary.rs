@@ -2,7 +2,7 @@
 //! nearest frame wall. Edges of the same neighbour are spread a little along both ends.
 
 use crate::layout::{Pt, Rect, Route};
-use crate::model::GraphView;
+use brickie_web_api::GraphView;
 
 /// Space between two frame edges of the same neighbour.
 const SLOT: f64 = 16.0;

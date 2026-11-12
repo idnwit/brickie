@@ -6,14 +6,12 @@
 
 mod components;
 pub use brickie_layout as layout;
-pub mod model;
 mod platform;
 pub mod state;
 #[cfg(all(target_arch = "wasm32", feature = "hydrate"))]
 mod wasm;
 
-pub use components::{CW, LH, SourceLine, SourcePage, ice_col};
-pub use model::*;
+pub use components::{CW, LH, ice_col};
 
 /// Stylesheet shared by the page and the source popup.
 pub const CSS: &str = concat!(
@@ -31,14 +29,14 @@ pub const DATA_ID: &str = "brickie-data";
 
 /// Render the app for `params` to HTML (children of `#app`, with `data-hk` hydration keys).
 #[cfg(not(target_arch = "wasm32"))]
-pub fn render_page(data: &PageData, params: &Params) -> String {
+pub fn render_page(data: &brickie_web_api::PageData, params: &brickie_web_api::Params) -> String {
     let (data, params) = (data.clone(), params.clone());
     sycamore::render_to_string(move || components::app(data, params))
 }
 
 /// Render the source popup page body.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn render_source(page: &SourcePage) -> String {
+pub fn render_source(page: &brickie_web_api::SourcePage) -> String {
     let page = page.clone();
     sycamore::render_to_string(move || components::source_view(page))
 }

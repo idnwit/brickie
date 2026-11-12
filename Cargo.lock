@@ -245,6 +245,7 @@ version = "0.1.0"
 dependencies = [
  "brickie-layout",
  "brickie-model",
+ "brickie-web-api",
  "serde",
  "serde_json",
  "sycamore",
@@ -264,6 +265,7 @@ dependencies = [
  "brickie-measure",
  "brickie-model",
  "brickie-ui",
+ "brickie-web-api",
  "http-body-util",
  "serde",
  "serde_json",
@@ -271,6 +273,14 @@ dependencies = [
  "tokio",
  "toml",
  "tower",
+]
+
+[[package]]
+name = "brickie-web-api"
+version = "0.1.0"
+dependencies = [
+ "brickie-model",
+ "serde",
 ]
 
 [[package]]

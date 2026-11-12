@@ -5,13 +5,13 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use brickie_check::check as review;
-use brickie_ui::{ReviewReply, ReviewRequest};
+use brickie_web_api::{ReqOf, ResOf, Review};
 
 /// Accept (`reason`) or unaccept (`reason: null`) one finding in `brickie.review.toml`.
 pub async fn review(
     State(st): State<AppState>,
-    Json(req): Json<ReviewRequest>,
-) -> Result<Json<ReviewReply>, Failure> {
+    Json(req): Json<ReqOf<Review>>,
+) -> Result<Json<ResOf<Review>>, Failure> {
     let bad = |m: &str| Failure(StatusCode::BAD_REQUEST, m.to_string());
     if req.id.len() != 8 || !req.id.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err(bad("invalid finding id"));
@@ -36,7 +36,7 @@ pub async fn review(
         review::set_review(&st.config, &req.id, reason)
             .map_err(|e| Failure(StatusCode::INTERNAL_SERVER_ERROR, format!("{e:#}")))?;
     }
-    Ok(Json(ReviewReply {
+    Ok(Json(brickie_web_api::ReviewReply {
         id: req.id,
         accepted: reason.is_some(),
         reason: reason.map(str::to_string),

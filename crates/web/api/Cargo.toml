@@ -1,0 +1,12 @@
+[package]
+name = "brickie-web-api"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "The port between brickie's webview server and UI: endpoint contracts and shared page data"
+license = "MIT"
+publish = false
+
+[dependencies]
+brickie-model = { path = "../../core/model" }
+serde = { version = "1", features = ["derive"] }

@@ -3,7 +3,7 @@
 
 use brickie_check::config::Level;
 use brickie_check::diag::{Diagnostic, Span};
-use brickie_ui::*;
+use brickie_web_api::*;
 use std::collections::HashMap;
 use std::path::Path;
 

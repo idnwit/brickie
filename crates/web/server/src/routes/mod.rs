@@ -11,15 +11,16 @@ pub use assets::wasm_embedded;
 use super::AppState;
 use axum::Router;
 use axum::routing::{get, post};
+use brickie_web_api::{Diagnostics, Endpoint, Functions, Graph, PAGE_PATH, Review, SOURCE_PATH};
 
 pub fn router(state: AppState) -> Router {
     Router::new()
-        .route("/", get(index::index))
-        .route("/source", get(source::source))
-        .route("/api/diagnostics", get(api::diagnostics))
-        .route("/api/functions", get(api::functions))
-        .route("/api/graph", get(api::graph))
-        .route("/review", post(review::review))
+        .route(PAGE_PATH, get(index::index))
+        .route(SOURCE_PATH, get(source::source))
+        .route(Diagnostics::PATH, get(api::diagnostics))
+        .route(Functions::PATH, get(api::functions))
+        .route(Graph::PATH, get(api::graph))
+        .route(Review::PATH, post(review::review))
         .route("/static/ui/brickie_ui.js", get(assets::ui_js))
         .route("/static/ui/brickie_ui_bg.wasm", get(assets::ui_wasm))
         .with_state(state)

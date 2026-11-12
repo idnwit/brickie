@@ -17,7 +17,7 @@ desc = "brickie's business logic: shared model, cache, measure and check"
 
 [[brick]]
 name = "web"
-path = "crates/web"                   # composite: server (brickie-web), ui (brickie-ui)
+path = "crates/web"                   # composite: api, server (brickie-web), ui (brickie-ui)
 tags = ["domain"]
 desc = "The reviewer webview: axum server and the hydrated viewer"
 

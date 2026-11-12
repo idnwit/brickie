@@ -39,7 +39,7 @@ impl SpanView {
 }
 
 pub fn source_href(file: &str, line: u32, col: Option<u32>, len: Option<u32>) -> String {
-    let mut s = format!("/source?file={}&line={line}", encode(file));
+    let mut s = format!("{}?file={}&line={line}", crate::SOURCE_PATH, encode(file));
     if let Some(c) = col {
         s += &format!("&col={c}&end_col={}", c + len.unwrap_or(1));
     }

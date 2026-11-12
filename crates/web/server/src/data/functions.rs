@@ -1,7 +1,7 @@
 //! The functions table rows from the cache.
 
 use brickie_check::check::Loaded;
-use brickie_ui::*;
+use brickie_web_api::*;
 
 pub fn functions(l: &Loaded) -> Vec<FnRow> {
     let mut out = Vec::new();

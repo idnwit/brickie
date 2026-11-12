@@ -1,6 +1,6 @@
 //! Selection (`S.sel`): a brick, a group of tag rows and bricks, or an edge, kept in the URL.
 
-use crate::model::*;
+use brickie_web_api::*;
 use std::collections::BTreeSet;
 
 /// `S.sel`.

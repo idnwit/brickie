@@ -3,8 +3,8 @@
 //! edge reported at this level from outside is cut where it meets the frame wall.
 
 use crate::layout::{Pt, Rect, Route};
-use crate::model::GraphView;
 use crate::state::*;
+use brickie_web_api::GraphView;
 use sycamore::prelude::*;
 
 /// Space between the children and the frame (narrow at the sides: the row captions sit there).

@@ -3,8 +3,8 @@
 //! zooms in on double-click; a faded outside neighbour goes to its own level.
 
 use crate::layout::Rect;
-use crate::model::{BrickView, fmt_score, heat_len, heat_level};
 use crate::state::*;
+use brickie_web_api::{BrickView, fmt_score, heat_len, heat_level};
 use sycamore::prelude::*;
 
 /// One brick: box, name, heat bar, tag line and the score badge (`renderGraph` node part).

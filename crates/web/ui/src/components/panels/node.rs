@@ -2,8 +2,8 @@
 //! double-click on the brick zooms in), a faded neighbour's place outside the level, or a
 //! leaf's members.
 
-use crate::model::BrickView;
 use crate::state::*;
+use brickie_web_api::BrickView;
 use sycamore::prelude::*;
 
 /// The brick's one-line description (`desc`), shown under its name; empty when it has none.

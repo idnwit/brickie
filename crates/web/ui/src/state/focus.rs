@@ -1,7 +1,7 @@
 //! What a selected finding or selection shows on the canvas (`focusSpec`, `fSpec`).
 
-use crate::model::*;
 use crate::state::Sel;
+use brickie_web_api::*;
 use std::collections::BTreeSet;
 
 /// What a selected finding or selection shows on the canvas (`focusSpec`).

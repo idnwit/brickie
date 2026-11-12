@@ -10,7 +10,7 @@ mod tests;
 
 use brickie_check::check::Loaded;
 use brickie_check::config::Config;
-use brickie_ui::LevelView;
+use brickie_web_api::LevelView;
 
 /// Every level, the root first, then depth first in config order.
 pub fn levels(l: &Loaded) -> Vec<LevelView> {

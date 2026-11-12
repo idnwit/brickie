@@ -1,4 +1,4 @@
-//! Data shared by the server (which builds it from the cache and diagnostics) and the browser
+//! Page data shared by the server (which builds it from the cache and diagnostics) and the browser
 //! (which receives it as embedded JSON). Pure data and pure functions only.
 
 mod boundary;

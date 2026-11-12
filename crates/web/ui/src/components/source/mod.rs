@@ -6,28 +6,9 @@
 mod popup;
 mod tree;
 
-use brickie_model::FnTree;
+use brickie_web_api::SourcePage;
 use sycamore::prelude::*;
 use tree::{bar, heat, tree_summary};
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct SourceLine {
-    pub n: u32,
-    /// Line text split around the highlighted span; for a whole-line highlight `hit` is empty
-    /// and `line_hl` is set.
-    pub before: String,
-    pub hit: String,
-    pub after: String,
-    pub line_hl: bool,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct SourcePage {
-    pub file: String,
-    pub lines: Vec<SourceLine>,
-    /// Decision tree of the function around the target line.
-    pub tree: Option<FnTree>,
-}
 
 pub use popup::modal_view;
 pub use tree::{CW, LH, ice_col};
@@ -88,7 +69,8 @@ pub fn source_view(page: SourcePage) -> View {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
-    use brickie_model::TreeNode;
+    use brickie_model::{FnTree, TreeNode};
+    use brickie_web_api::SourceLine;
 
     #[test]
     fn tree_gutter_and_heat_render_beside_the_code() {

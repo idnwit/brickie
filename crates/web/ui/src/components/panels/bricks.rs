@@ -1,7 +1,7 @@
 //! The brick index by tag (the original's "bricks by family"): a tag header selects the row.
 
-use crate::model::{BrickView, fmt_score};
 use crate::state::*;
+use brickie_web_api::{BrickView, fmt_score};
 use sycamore::prelude::*;
 
 /// The brick index by tag (the original's "bricks by family"): a tag header selects the row.

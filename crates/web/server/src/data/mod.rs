@@ -1,4 +1,4 @@
-//! Builds the webview's data (`brickie_ui::PageData`) from the loaded config and cache. The
+//! Builds the webview's data (`brickie_web_api::PageData`) from the loaded config and cache. The
 //! diagnostics are the very values `brickie check` prints, converted field by field.
 
 mod diagnostics;
@@ -10,7 +10,7 @@ pub use diagnostics::split_bytes;
 pub use time::utc;
 
 use brickie_check::check::Loaded;
-use brickie_ui::*;
+use brickie_web_api::*;
 use diagnostics::{Lines, diag_view};
 use std::path::Path;
 

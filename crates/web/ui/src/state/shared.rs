@@ -2,7 +2,7 @@
 //! and menus, and the page data. [`Cx`] is rebuilt from it each time the level changes.
 
 use super::Cx;
-use crate::model::*;
+use brickie_web_api::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 use sycamore::prelude::*;

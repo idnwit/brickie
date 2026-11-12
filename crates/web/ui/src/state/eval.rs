@@ -3,7 +3,7 @@
 //! a memo. Ports `fOn`/`vOn`, `violIds`, `edgeOn`, `fSpec` and `focusSpec`.
 
 use super::*;
-use crate::model::*;
+use brickie_web_api::*;
 use std::collections::BTreeSet;
 
 /// Effective status of a drawn edge (`edgeOn`): `ok`, `debt` (violating) or `accepted`.
@@ -249,7 +249,7 @@ mod tests {
         }
         let viol = evaluate(&g, &diags, &[false], &Params::from_query("p=viol"));
         assert_eq!(viol.edge[1], None);
-        let s = crate::model::brick_scores(&g, &diags, &[false]);
+        let s = brickie_web_api::brick_scores(&g, &diags, &[false]);
         assert_eq!((s[0].viol_in, s[0].viol_out), (1, 1));
         assert_eq!((s[1].viol_in, s[1].viol_out), (1, 0));
         let f = evaluate(&g, &diags, &[false], &Params::from_query("item=cy"))
