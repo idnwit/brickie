@@ -18,6 +18,7 @@ pub fn key(docs: &Docs, op: &Op) -> String {
         Op::RemoveBrick { name, .. }
         | Op::SetBrick { name, .. }
         | Op::MakeComposite { name, .. }
+        | Op::Ungroup { name, .. }
         | Op::MoveBrick { name, .. } => format!("brick:{name}"),
         Op::RenameBrick { from, .. } => format!("brick:{from}"),
         Op::SetExports { .. } => "exports".into(),

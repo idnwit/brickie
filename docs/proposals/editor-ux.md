@@ -104,7 +104,7 @@ The design panel tabs (right column, all scoped to the **current level**):
 | Drag a tag swatch onto a brick / click `x` on a tag pill | tag added / removed | `set_brick {tags}` |
 | `Del` / toolbar ⌫ / context "Delete" | confirm popover listing rules and exports that reference it | `remove_brick` |
 | Inspector "Make group" on a leaf | asks dir (default name) | `make_composite` |
-| Inspector "Ungroup" | Gap: no op (see Gaps) | — |
+| Inspector "Ungroup" | children lifted to the parent level, brick stays a leaf | `ungroup` |
 | Drag brick to empty space | position stored | `set_layout` (not an op) |
 
 ### Moving between levels
@@ -305,20 +305,29 @@ small lock icon.
 
 ## Gaps (schema or engine work needed)
 
-1. **Undo/retract** a human op: no endpoint; propose `ChangeRetract {seq}` (marks rejected by
-   the human) so Ctrl+Z works without rewriting the log.
-2. **Ungroup** (composite -> leaf, lifting children up): no op; would be `move_brick` per child
-   + `set_brick {path: ""}` + delete file. Needs a `remove_file` op or publish-time cleanup.
+Status (2026-11-12): 1, 2, 5, 6, 7 and "rules without reason" are implemented in the engine and
+the server API (see `editor.md` "Editor UX gaps" and "Endpoints"); the UI does not use them yet.
+
+1. **Undo/retract** a human op: done: `ChangeRetract {seq?}` (`None`: the latest human op) adds
+   a review with verdict `retract`; the op counts as rejected, the log is not rewritten.
+2. **Ungroup** (composite -> leaf, lifting children up): done: `ungroup {file, name}` op.
+   Decision: no `remove_file` op; publish never deletes, it lists the dropped file as a manual
+   step (a file created in the change just disappears).
 3. **Reorder bricks / rules**: not needed by semantics; not offered.
 4. **Rule from/to selector validation** (typos in `tag:`) should be checked client-side from the
    level's tags; engine already rejects unknown on load.
-5. **Planned edges** are not returned by the preview (editor.md deviation); the dashed-green
-   rule edges above need them.
-6. **In-place patching** of a level after an op (today: page reload) — needed for "never lose
-   place".
-7. **Conflict re-apply** helper ("re-record as mine against current") is not in the engine.
+5. **Planned edges**: done: `LevelView.planned_edges` and `ChangeView.planned_edges`
+   (`PlannedEdge`: level, file, rule index, from/to selectors, kinds, scope, action, reason,
+   help, seq/by/state of the op), and `link` tasks of `--todo`.
+6. **In-place patching**: done on the server: op, move, review, retract and re-apply answer
+   `ChangeReply {done, change, levels}`; `ChangeLevels {paths}` fetches levels. The
+   "already allowed" refusal uses `ChangeLinkCheck`; selector validation uses
+   `ChangeView.levels[<level>].selectors` (gap 4).
+7. **Conflict re-apply**: done: `ChangeReapply {seq}` re-records the op as a human op against
+   the current design and rejects the original.
 8. Removing a measured code edge is not a design op (code change); the UI says so on Del.
-- **Rules without reason**: `Change::todo` / `--todo` and the publish plan list rules added in the change with an empty `reason` (warning, not a blocker).
+- **Rules without reason**: done: `reason` tasks (`change/no-reason`) in `Change::todo` /
+  `--todo` and `Plan.warnings` (not a blocker).
 
 ## Implementation order
 

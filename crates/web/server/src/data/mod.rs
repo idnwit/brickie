@@ -6,10 +6,12 @@ mod editor;
 mod functions;
 mod graph;
 mod interface;
+mod reply;
 mod time;
 
 pub use editor::{change_view, mark};
 pub use interface::{edge_uses, interface};
+pub use reply::{levels, op_files, reply, seq_files};
 pub use time::utc;
 
 use brickie_check::check::Loaded;

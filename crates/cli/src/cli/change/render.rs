@@ -138,6 +138,9 @@ pub fn plan(p: &Plan) -> String {
         let a = format!("{:?}", f.action).to_lowercase();
         let _ = writeln!(s, "{a:<6} {} ({})", f.path, f.note);
     }
+    for w in &p.warnings {
+        let _ = writeln!(s, "warning: {w}");
+    }
     for b in &p.blockers {
         let _ = writeln!(s, "blocked: {b}");
     }

@@ -24,6 +24,8 @@ pub enum State {
 pub enum Verdict {
     Accept,
     Reject,
+    /// The human takes back their own op (undo): the op counts as rejected, the log keeps it.
+    Retract,
 }
 
 /// The review that decided an op: its own `seq`, the reviewer and the note.

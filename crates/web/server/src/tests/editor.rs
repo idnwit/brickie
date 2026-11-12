@@ -20,7 +20,7 @@ async fn change_round_trip_through_the_endpoints() {
 
     let op = json!({"op": {"op": "add_brick", "file": "brickie.toml",
         "brick": {"name": "cache", "kind": "crate"}}, "note": "from the palette"});
-    let rec = json(&s, "/api/change/op", op).await;
+    let rec = json(&s, "/api/change/op", op).await["done"].clone();
     assert_eq!(
         (rec["seq"].clone(), rec["state"].clone()),
         (json!(1), json!("accepted"))

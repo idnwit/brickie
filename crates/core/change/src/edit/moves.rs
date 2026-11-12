@@ -94,7 +94,7 @@ pub fn move_brick(docs: &mut Docs, op: &Op) -> Result<()> {
 }
 
 /// Keep `path` and `path:` members pointing at the same folders from the new directory.
-fn rebase(t: &mut Table, from: &str, to: &str) {
+pub(super) fn rebase(t: &mut Table, from: &str, to: &str) {
     let move_dir = |p: &str| relative(to, &join_dir(from, p));
     if let Some(p) = t.get("path").and_then(Item::as_str).map(move_dir) {
         t["path"] = value(p);

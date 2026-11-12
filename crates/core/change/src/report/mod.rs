@@ -1,6 +1,7 @@
 //! What a change reports to its readers: status, the semantic diff and the todo list.
 
 mod diff;
+mod edges;
 mod todo;
 
 use diff::diff;
@@ -8,7 +9,7 @@ pub use todo::planned_text;
 
 use crate::session::Change;
 use anyhow::Result;
-use brickie_model::change::{DiffEntry, State, Status, Task};
+use brickie_model::change::{DiffEntry, State, Status, Task, TaskKind};
 
 impl Change {
     pub fn status(&self) -> Result<Status> {
@@ -44,6 +45,13 @@ impl Change {
             &self.preview(true)?,
             &self.base_preview()?,
         ));
+        let edges = self.planned_edges()?;
+        let allowed = edges.iter().filter(|e| e.action == "allow");
+        tasks.extend(allowed.map(|e| todo::edge_task(TaskKind::Link, edges::unbacked(e), e)));
+        let reasonless = self.reasonless_rules()?;
+        tasks.extend(
+            (reasonless.iter()).map(|e| todo::edge_task(TaskKind::Reason, edges::no_reason(e), e)),
+        );
         Ok(tasks)
     }
 }

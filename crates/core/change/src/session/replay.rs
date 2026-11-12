@@ -20,7 +20,7 @@ pub fn materialize(entries: &[Entry]) -> Vec<OpRecord> {
                 };
                 o.state = match r.verdict {
                     Verdict::Accept => State::Accepted,
-                    Verdict::Reject => State::Rejected,
+                    Verdict::Reject | Verdict::Retract => State::Rejected,
                 };
                 o.review = Some(Review {
                     seq: r.seq,

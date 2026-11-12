@@ -2,9 +2,12 @@
 //! `publish` lives in `crate::publish`, reports in `crate::report`.
 
 mod design;
+mod links;
 mod record;
 mod replay;
+mod undo;
 
+pub use links::Link;
 pub use replay::{materialize, replay};
 
 use crate::preview::Preview;

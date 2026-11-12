@@ -206,9 +206,10 @@ crates/core/measure/   brickie-measure, folder bricks:
   run/                 mod (run, run_with: progress steps, cache lock), files, edges, items + reach (declared-interface candidates),
                        complexity (brickie-metrics -> FnTree)
 crates/core/change/    brickie-change: change sessions (folders: store (base/, ops.json, lock,
-                       readers, layout), edit (toml_edit documents, ops, moves), session (open,
-                       record, review, replay, editor helpers), preview (FileSource over the
-                       docs, planned bricks), report (status, diff, todo), publish (plan,
+                       readers, layout), edit (toml_edit documents, ops, moves, ungroup), session
+                       (open, record, review, retract/reapply, replay, editor helpers, links and
+                       link check), preview (FileSource over the docs, planned bricks), report
+                       (status, diff, todo, added rules: planned edges, no reason), publish (plan,
                        scaffold)); the op/record/report types are plain data in
                        `brickie_model::change` so `crates/web/api` can share them
 crates/core/check/     brickie-check, folder bricks:
@@ -579,7 +580,11 @@ Edit mode of the viewer over a change session (proposal: `docs/proposals/editor.
 notes"). `change=1` shows the open change's preview (the same level aggregation over
 `Preview::check`; `BrickView.planned` / `proposed` mark bricks with no code yet and agent
 proposals) with the editor panel (palette, inspector, ops log) in place of the detail panel;
-the change bar replaces the banner. Every op goes through `/api/change/*` and the page reloads.
+the change bar replaces the banner. Every op goes through `/api/change/*` and the page reloads;
+the writes also answer the change and the touched preview levels (`ChangeReply`) for in-place
+patching, and the preview carries planned edges (rules the change adds with no measured edge).
+Retract (undo), re-apply of a conflicting op, `ungroup` and a link check are in the engine and
+the API (`docs/proposals/editor.md`, "Editor UX gaps").
 All writing endpoints, `/review` and `POST /api/measure` included, pass one write guard (`routes/guard.rs`): loopback
 bind, loopback `Host` with the server's port, same `Origin`. Canvas positions are layout hints
 in the change, never ops.

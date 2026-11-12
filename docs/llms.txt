@@ -71,7 +71,9 @@ when the human publishes.
   `--as human|agent` picks the reader (default `agent`).
 - `brickie change --todo` lists concrete tasks: `planned` bricks to create code for (with their
   members), `drift` findings the change introduces (`check` over the design minus the findings of the
-  design as opened; id, location, help), ops `proposed`,
+  design as opened; id, location, help), `link` tasks (`change/planned-edge`: an allow rule the
+  change adds that no measured code edge uses yet), `reason` tasks (`change/no-reason`: a rule
+  the change adds without a `reason`), ops `proposed`,
   `rejected` (with the reason) or in `conflict`, and `config` errors of the design. A cache
   measured in another workspace gives one `config` task (`cache does not match this workspace;
   run brickie measure`) instead of every brick planned.
@@ -81,19 +83,23 @@ when the human publishes.
 - After code changes run `brickie measure`, then `brickie check --change`: the check of the
   design (accepted and proposed ops) against the code. It also lists `change/planned` notes.
 - Stop and ask the human when an op of yours is rejected or in conflict; do not re-propose the
-  same op.
+  same op. The human may take back their own ops (`brickie change retract [seq]`, an entry with
+  verdict `retract`; the op then counts as rejected) or re-record a conflicting op against the
+  current design (`brickie change reapply <seq>`: a new human op, the original rejected with
+  note `re-applied as op N`).
 - `brickie change publish --dry-run` shows what publishing would write and why it would refuse;
   publishing and `brickie change discard` are the human's decision.
 - `--format json` on every `brickie change` command prints the same data as JSON: `brickie
   change` prints `{status, diff, new: {from, head, entries}}`, `--todo` a list of
   `{kind, text, seq?, id?, help?}`, `propose` the op record, `publish --dry-run`
-  `{files: [{path, action, note, content?}], blockers}`.
+  `{files: [{path, action, note, content?}], blockers, warnings}` (warnings do not block).
 
 An op record is `{seq, by: human|agent, at, op, file, key, before, after, note, state:
 proposed|accepted|rejected, review: {seq, by, note}, conflict}`; `file` is the physical config
 file it edits (relative to the root config's directory), `key` the element (`brick:<name>`,
 `rule:<i>`, `complexity:<i>`, `exports`, `deps`, `include`, `file`), `before` / `after` its
-canonical TOML. A review entry is `{entry: "review", seq, by, at, target, verdict, note}`.
+canonical TOML. A review entry is `{entry: "review", seq, by, at, target, verdict:
+accept|reject|retract, note}`.
 
 Ops (`file` is required on each; fields mirror the `brickie.toml` reference below):
 
@@ -105,6 +111,7 @@ Ops (`file` is required on each; fields mirror the `brickie.toml` reference belo
 {"op": "rename_brick", "file": "brickie.toml", "from": "store", "to": "db"}
 {"op": "move_brick", "file": "brickie.toml", "name": "db", "into_file": "brickie.toml", "into": "core"}
 {"op": "make_composite", "file": "brickie.toml", "name": "db", "path": "crates/db"}
+{"op": "ungroup", "file": "brickie.toml", "name": "db"}
 {"op": "set_exports", "file": "crates/db/brickie.toml", "exports": [{"brick": "api"}, {"brick": "x", "scope": "test"}]}
 {"op": "add_rule", "file": "brickie.toml", "rule": {"from": "app", "to": "db", "action": "allow", "reason": "..."}}
 {"op": "set_rule", "file": "brickie.toml", "index": 0, "rule": {"from": "app", "to": "db", "action": "deny"}}
@@ -127,7 +134,11 @@ defaults `path` to the name and creates its `brickie.toml`; a `module` needs its
 on the brick now name the sibling. Publishing moves no code: the plan lists a moved brick as a
 manual step. `set_brick` changes only the fields given (an empty `desc` or `path` removes it).
 `rename_brick` also renames the brick in the rules, complexity selectors and `exports` of the
-same file. `make_composite` sets `path` and creates `<path>/brickie.toml`. Rule and complexity
+same file. `make_composite` sets `path` and creates `<path>/brickie.toml`. `ungroup` undoes a
+composite: its children (`path:` members rebased), `[[deps.rule]]` and `[[complexity]]` move into
+`file`, its `exports` are dropped and the brick stays as a leaf without `path`; it refuses when the
+child file has `include` or `[deps] default`/`cycles`. Its file leaves the design; publish never
+deletes it and lists it as a manual step. Rule and complexity
 `index` count the `[[deps.rule]]` / `[[complexity]]` tables of that one file, from 0.
 
 Publishing writes the config files (comments and order kept) and scaffolds the code of bricks
@@ -270,13 +281,18 @@ Configuration errors (exit 2, printed on stderr with the code first; no findings
 These are decisions about the brick structure: report them to the maintainers rather than editing
 the config to silence them.
 
-### change/planned, change/conflict, change/proposed, change/outside-edit, change/invalid, change/open, change/none
+### change/planned, change/planned-edge, change/no-reason, change/conflict, change/proposed, change/outside-edit, change/invalid, change/open, change/none
 
 Change sessions (see "Change sessions"):
 
 - `change/planned` (a note of `check --change` and a `--todo` task): a brick of the design has no
   measured module. Create its code as its members say (or wait for publish to scaffold it), then
   `brickie measure`.
+- `change/planned-edge` (a `--todo` `link` task): an allow rule the change adds has no measured
+  code edge yet. Write the code that uses the target if that is the intent, then `brickie
+  measure`; otherwise leave it (allowing is not requiring).
+- `change/no-reason` (a `--todo` `reason` task and a publish warning, not a blocker): a rule the
+  change adds has no `reason`. Propose a `set_rule` with a one-line reason at that `index`.
 - `change/conflict`: an op no longer replays: the element it edits is not what it was when the op
   was recorded (usually an earlier op was rejected). Stop and ask the human; publish refuses.
 - `change/proposed`: publish refuses while an op waits for review. The human reviews it.

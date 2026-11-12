@@ -54,6 +54,10 @@ pub enum TaskKind {
     Proposed,
     Rejected,
     Conflict,
+    /// A rule the change adds that no measured edge backs yet: write the code that uses it.
+    Link,
+    /// A rule the change adds without a `reason` (a warning, not a blocker).
+    Reason,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -100,6 +104,9 @@ pub struct PlanFile {
 pub struct Plan {
     pub files: Vec<PlanFile>,
     pub blockers: Vec<String>,
+    /// Worth a look but not blocking (rules added without a reason).
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 /// A link the editor may draw from a brick to a sibling (same level): one edge kind and scope,

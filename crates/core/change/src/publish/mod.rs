@@ -56,6 +56,13 @@ impl Change {
                 content: Some(text),
             });
         }
+        plan.files.extend(docs.removed().iter().map(|rel| PlanFile {
+            path: rel.clone(),
+            action: PlanAction::Skip,
+            note: "no longer part of the design (ungrouped); delete it by hand".into(),
+            content: None,
+        }));
+        plan.warnings = self.reason_warnings()?;
         match preview.load_config() {
             Ok(cfg) => {
                 let (added, moved) = added_bricks(&ops);

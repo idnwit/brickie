@@ -59,6 +59,16 @@ fn dispatch(a: ChangeArgs) -> Result<i32> {
         }
         ChangeCmd::Accept { seq, note } => review(&c, seq, Verdict::Accept, note, json)?,
         ChangeCmd::Reject { seq, note } => review(&c, seq, Verdict::Reject, note, json)?,
+        ChangeCmd::Retract { seq } => {
+            let r = c.retract(seq)?;
+            print(json, &r, || {
+                format!("#{} retracted op {}\n", r.seq, r.target)
+            })?;
+        }
+        ChangeCmd::Reapply { seq } => {
+            let r = c.reapply(seq)?;
+            print(json, &r, || render::record(&r))?;
+        }
         ChangeCmd::Publish { dry_run: true } => {
             let plan = c.publish_plan()?;
             print(json, &plan, || render::plan(&plan))?;

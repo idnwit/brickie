@@ -168,6 +168,7 @@ impl<'a> Ctx<'a> {
                 bricks,
                 edges,
             },
+            planned_edges: Vec::new(),
         }
     }
 

@@ -191,3 +191,44 @@ fn a_foreign_cache_is_one_warning_not_mass_planned() {
     assert!(text.contains("cache does not match"), "{text}");
     assert!(!text.contains("brick root/a"), "{text}");
 }
+
+#[test]
+fn retract_reapply_and_ungroup() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    let root = format!("{ROOT}path = \"g\"\n");
+    std::fs::write(dir.join("brickie.toml"), root).unwrap();
+    std::fs::create_dir(dir.join("g")).unwrap();
+    std::fs::write(
+        dir.join("g/brickie.toml"),
+        "[[brick]]\nname = \"x\"\nmembers = [\"px\"]\n",
+    )
+    .unwrap();
+    std::fs::write(dir.join("Cargo.toml"), "[workspace]\nmembers = []\n").unwrap();
+    json(dir, &["change", "open", "--intent", "flatten"], None);
+    let desc =
+        |d: &str| format!(r#"{{"op":"set_brick","file":"brickie.toml","name":"a","desc":"{d}"}}"#);
+    let human = ["change", "--as", "human", "propose", "--json"];
+    json(dir, &human, Some(&desc("mine")));
+    json(dir, &["change", "propose", "--json"], Some(&desc("theirs")));
+    let r = json(dir, &["change", "retract"], None);
+    assert_eq!(
+        (r["target"].as_u64(), r["verdict"].as_str()),
+        (Some(1), Some("retract"))
+    );
+    let r = json(dir, &["change", "reapply", "2"], None);
+    assert_eq!(
+        (r["seq"].as_u64(), r["by"].as_str()),
+        (Some(4), Some("human"))
+    );
+    let ungroup = r#"{"op":"ungroup","file":"brickie.toml","name":"a"}"#;
+    json(dir, &human, Some(ungroup));
+    let plan = json(dir, &["change", "publish", "--dry-run"], None);
+    let files = plan["files"].as_array().unwrap();
+    let left = files
+        .iter()
+        .find(|f| f["path"] == "g/brickie.toml")
+        .unwrap();
+    assert_eq!(left["action"], "skip");
+    assert!(plan["blockers"].as_array().unwrap().is_empty(), "{plan}");
+}

@@ -3,7 +3,7 @@
 use crate::preview::{Preview, planned};
 use brickie_check::config::{Config, level_name};
 use brickie_model::Level;
-use brickie_model::change::{OpRecord, State, Task, TaskKind};
+use brickie_model::change::{OpRecord, PlannedEdge, State, Task, TaskKind};
 use brickie_model::codes::CHANGE_PLANNED;
 use std::collections::BTreeSet;
 
@@ -14,6 +14,14 @@ fn task(kind: TaskKind, text: String) -> Task {
         seq: None,
         id: None,
         help: None,
+    }
+}
+
+/// A task about a rule the change adds (`seq`: the op that wrote it).
+pub fn edge_task(kind: TaskKind, text: String, e: &PlannedEdge) -> Task {
+    Task {
+        seq: e.seq,
+        ..task(kind, text)
     }
 }
 
