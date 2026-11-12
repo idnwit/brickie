@@ -1,9 +1,10 @@
 //! `brickie view`: the reviewer webview.
 //!
 //! axum serves a page rendered by sycamore (`brickie-ui`) with hydration keys, JSON endpoints
-//! and the source popup. Every GET depends only on its query params, the cache and the config,
+//! and the code viewer (`/code/`). Every GET depends only on its query params, the cache and the config,
 //! all read per request. The browser bundle (wasm) is optional: without it the page is a
 //! read-only SSR page whose filters are plain links. See docs/design.md, step 3.
+mod code;
 mod data;
 mod render;
 mod routes;
@@ -43,6 +44,11 @@ impl AppState {
     fn load(&self) -> Result<Loaded, Failure> {
         check::load(&self.config)
             .map_err(|e| Failure(StatusCode::INTERNAL_SERVER_ERROR, format!("{e:#}")))
+    }
+
+    /// The config file.
+    fn config(&self) -> PathBuf {
+        self.config.as_ref().clone()
     }
 
     fn cache_file(&self) -> PathBuf {

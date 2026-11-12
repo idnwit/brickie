@@ -6,14 +6,9 @@ use crate::state::*;
 use brickie_web_api::*;
 use sycamore::prelude::*;
 
-/// A link opening the source popup at a site.
+/// A link opening the code viewer popup at a site.
 fn site_link(cx: &Cx, s: &SiteView) -> View {
-    let href = source_href(
-        &s.file,
-        s.line,
-        Some(s.col),
-        Some(s.end_col.saturating_sub(s.col).max(1)),
-    );
+    let href = code_href(&s.file, s.line, Some(s.col));
     let loc = format!("{}:{}", s.file, s.line);
     let link = src_link(cx.modal, href, loc, "mono");
     let written = format!("`{}`", s.written);
@@ -26,7 +21,7 @@ fn site_link(cx: &Cx, s: &SiteView) -> View {
 }
 
 fn def_link(cx: &Cx, file: &str, line: u32, sig: &str) -> View {
-    let href = source_href(file, line, None, None);
+    let href = code_href(file, line, None);
     let text = if sig.is_empty() {
         format!("{file}:{line}")
     } else {

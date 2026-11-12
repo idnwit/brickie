@@ -11,16 +11,12 @@ pub mod state;
 #[cfg(all(target_arch = "wasm32", feature = "hydrate"))]
 mod wasm;
 
-pub use components::{CW, LH, ice_col};
-
-/// Stylesheet shared by the page and the source popup.
+/// The page stylesheet.
 pub const CSS: &str = concat!(
     include_str!("../styles/theme.css"),
     include_str!("../styles/viewer.css"),
     include_str!("../styles/state.css"),
     include_str!("../styles/card.css"),
-    include_str!("../styles/source.css"),
-    include_str!("../styles/tree.css"),
 );
 
 /// Id of the element the app renders into, and of the script holding its JSON data.
@@ -32,11 +28,4 @@ pub const DATA_ID: &str = "brickie-data";
 pub fn render_page(data: &brickie_web_api::PageData, params: &brickie_web_api::Params) -> String {
     let (data, params) = (data.clone(), params.clone());
     sycamore::render_to_string(move || components::app(data, params))
-}
-
-/// Render the source popup page body.
-#[cfg(not(target_arch = "wasm32"))]
-pub fn render_source(page: &brickie_web_api::SourcePage) -> String {
-    let page = page.clone();
-    sycamore::render_to_string(move || components::source_view(page))
 }

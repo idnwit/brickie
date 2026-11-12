@@ -8,10 +8,10 @@ license = "MIT"
 publish = false
 
 [dependencies]
-brickie-facts = { path = "../facts" }
-brickie-model = { path = "../model" }
-brickie-metrics = { path = "../../algo/metrics" }
-brickie-rustscan = { path = "../../algo/rustscan" }
+brickie-facts = { workspace = true }
+brickie-model = { workspace = true }
+brickie-metrics = { workspace = true }
+brickie-rustscan = { workspace = true }
 anyhow = "1"
 cargo_metadata = "0.23"
 protobuf = "=3.7.2"

@@ -8,12 +8,14 @@ license = "MIT"
 publish = false
 
 [dependencies]
-brickie-check = { path = "../../core/check" }
-brickie-facts = { path = "../../core/facts" }
-brickie-measure = { path = "../../core/measure" }
-brickie-model = { path = "../../core/model" }
-brickie-ui = { path = "../ui" }
-brickie-web-api = { path = "../api" }
+brickie-check = { workspace = true }
+brickie-facts = { workspace = true }
+brickie-measure = { workspace = true }
+brickie-model = { workspace = true }
+brickie-ui = { workspace = true }
+brickie-web-api = { workspace = true }
+codeview-host = { workspace = true }
+codeview-port = { workspace = true }
 anyhow = "1"
 axum = "0.8"
 serde = { version = "1", features = ["derive"] }

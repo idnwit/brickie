@@ -125,6 +125,31 @@ mod imp {
         Ok(text)
     }
 
+    /// `message` events of the window (iframes posting to this page), as JSON text.
+    pub fn on_message(f: impl Fn(String) + 'static) {
+        let cb = Closure::<dyn Fn(web_sys::MessageEvent)>::new(move |e: web_sys::MessageEvent| {
+            if let Some(t) = e.data().as_string() {
+                f(t);
+            }
+        });
+        if let Some(w) = web_sys::window() {
+            let _ = w.add_event_listener_with_callback("message", cb.as_ref().unchecked_ref());
+        }
+        cb.forget();
+    }
+
+    /// Post the JSON text `msg` to the window of the iframe `#id`.
+    pub fn post_to_frame(id: &str, msg: &str) {
+        let win = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.get_element_by_id(id))
+            .and_then(|e| e.dyn_into::<web_sys::HtmlIFrameElement>().ok())
+            .and_then(|f| f.content_window());
+        if let Some(w) = win {
+            let _ = w.post_message(&JsValue::from_str(msg), "*");
+        }
+    }
+
     /// POST the JSON text `body` to `path`; `done` gets the response text or an error message.
     pub fn post_json(
         path: &'static str,
@@ -151,6 +176,8 @@ mod imp {
     pub fn next_frame(_: impl FnOnce() + 'static) {}
     pub fn focus(_: &str) {}
     pub fn reload() {}
+    pub fn on_message(_: impl Fn(String) + 'static) {}
+    pub fn post_to_frame(_: &str, _: &str) {}
     pub fn post_json(_: &'static str, _: String, _: impl FnOnce(Result<String, String>) + 'static) {
     }
 }

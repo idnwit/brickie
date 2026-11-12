@@ -1,13 +1,13 @@
 # brickie's own architecture, checked by brickie. Crates by layer:
 #   cli (the `brickie` binary) -> web (server, viewer) -> core (model, facts, measure, check)
-#   core and web build on algo (general-purpose algorithm libraries, no brickie types).
-# Each composite splits further in its own brickie.toml (crates/algo, crates/core, crates/web).
+#   core and web build on lib (independent libraries: algo, codeview; no brickie types).
+# Each composite splits further in its own brickie.toml (crates/lib, crates/core, crates/web).
 
 [[brick]]
-name = "algo"
-path = "crates/algo"                  # composite: layout, graph, rustscan, metrics
-tags = ["algo"]
-desc = "General-purpose algorithm libraries: graph layout, SCC, Rust scanning, complexity metrics"
+name = "lib"
+path = "crates/lib"                   # composite: algo, codeview
+tags = ["lib"]
+desc = "Independent libraries: algorithms and the code viewer, no brickie business"
 
 [[brick]]
 name = "core"
@@ -54,19 +54,19 @@ reason = "the server reads the cache and checks; the viewer shares the model"
 
 [[deps.rule]]
 from = "core"
-to = "algo"
+to = "lib"
 scope = "all"
 action = "allow"
 reason = "measure and check use the metrics, scanner and graph libraries"
 
 [[deps.rule]]
 from = "web"
-to = "algo"
+to = "lib"
 scope = "all"
 action = "allow"
-reason = "the viewer lays out the brick graph"
+reason = "the viewer lays out the brick graph; the server mounts the code viewer and implements its port"
 
-# algo depends on nothing of brickie: no rule allows algo -> *.
+# lib depends on nothing of brickie: no rule allows lib -> *.
 
 # Business logic: strict. Starts at "warn" until the remaining functions are refactored
 # (docs/proposals/core-split.md, "Complexity policy"); then "error".
@@ -76,9 +76,4 @@ cognitive = 15
 nesting = 4
 level = "warn"
 
-# Algorithms: looser, accepted as isolated, tested warnings.
-[[complexity]]
-bricks = "tag:algo"
-cognitive = 60
-nesting = 6
-level = "warn"
+

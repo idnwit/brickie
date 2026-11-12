@@ -8,5 +8,4 @@ license = "MIT"
 publish = false
 
 [dependencies]
-brickie-model = { path = "../../core/model" }
 serde = { version = "1", features = ["derive"] }

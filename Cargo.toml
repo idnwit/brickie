@@ -1,4 +1,20 @@
 [workspace]
-members = ["crates/algo/layout", "crates/algo/graph", "crates/algo/rustscan", "crates/algo/metrics", "crates/core/model", "crates/core/facts", "crates/core/measure", "crates/core/check", "crates/web/api", "crates/web/server", "crates/web/ui", "crates/cli"]
+members = ["crates/lib/algo/layout", "crates/lib/algo/graph", "crates/lib/algo/rustscan", "crates/lib/algo/metrics", "crates/core/model", "crates/core/facts", "crates/core/measure", "crates/core/check", "crates/web/api", "crates/web/server", "crates/web/ui", "crates/lib/codeview/port", "crates/lib/codeview/app", "crates/lib/codeview/host", "crates/cli"]
 exclude = ["fixtures"]
 resolver = "3"
+
+[workspace.dependencies]
+# Internal crates: members depend on them with `name = { workspace = true }`.
+brickie-check = { path = "crates/core/check" }
+brickie-facts = { path = "crates/core/facts" }
+brickie-graph = { path = "crates/lib/algo/graph" }
+brickie-layout = { path = "crates/lib/algo/layout" }
+brickie-measure = { path = "crates/core/measure" }
+brickie-metrics = { path = "crates/lib/algo/metrics" }
+brickie-model = { path = "crates/core/model" }
+brickie-rustscan = { path = "crates/lib/algo/rustscan" }
+brickie-ui = { path = "crates/web/ui" }
+brickie-web = { path = "crates/web/server" }
+brickie-web-api = { path = "crates/web/api" }
+codeview-host = { path = "crates/lib/codeview/host" }
+codeview-port = { path = "crates/lib/codeview/port" }

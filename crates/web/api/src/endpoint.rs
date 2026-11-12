@@ -73,5 +73,6 @@ impl Endpoint for EdgeUses {
 
 /// `GET /`: the page (HTML, query = [`Params`]).
 pub const PAGE_PATH: &str = "/";
-/// `GET /source?file=&line=&col=&end_col=`: the source popup (HTML).
-pub const SOURCE_PATH: &str = "/source";
+/// `GET /code/?path=&line=&col=`: the code viewer (`codeview`), embedded by the source popup
+/// and the target of every source link (it needs JavaScript).
+pub const CODE_PATH: &str = "/code/";

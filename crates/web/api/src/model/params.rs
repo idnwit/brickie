@@ -58,7 +58,7 @@ fn enc(s: &str) -> String {
     out
 }
 
-/// Percent-encoded query value of `s` (for building `/source` links).
+/// Percent-encoded query value of `s` (for building code viewer links).
 pub fn encode(s: &str) -> String {
     enc(s)
 }
@@ -203,7 +203,8 @@ impl Params {
     }
 }
 
-fn decode(s: &str) -> String {
+/// Percent-decode a query value.
+pub(crate) fn decode(s: &str) -> String {
     let b = s.as_bytes();
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;

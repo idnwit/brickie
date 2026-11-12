@@ -8,9 +8,9 @@ license = "MIT"
 publish = false
 
 [dependencies]
-brickie-facts = { path = "../facts" }
-brickie-model = { path = "../model" }
-brickie-graph = { path = "../../algo/graph" }
+brickie-facts = { workspace = true }
+brickie-model = { workspace = true }
+brickie-graph = { workspace = true }
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

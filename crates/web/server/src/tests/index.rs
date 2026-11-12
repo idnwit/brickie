@@ -19,8 +19,8 @@ async fn index_renders_diagnostic_with_hydration_markers() {
     assert!(html.contains("data-hk="));
     assert!(html.contains("id=\"brickie-data\""));
     assert!(html.contains("id=\"app\""));
-    // Spans are links to the source popup; the graph is SVG.
-    assert!(html.contains("/source?file=crates/eng/src/x.rs&amp;line=2"));
+    // Spans are links to the code viewer; the graph is SVG.
+    assert!(html.contains("/code/?path=crates/eng/src/x.rs&amp;line=2"));
     assert!(html.contains("<svg"));
     assert!(
         html.contains("id=\"stage\"") && html.contains("class=\"node"),

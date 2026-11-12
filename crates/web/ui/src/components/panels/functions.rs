@@ -73,7 +73,7 @@ pub fn functions_view(cx: &Cx) -> View {
                     let f = &all[i];
                     let name = src_link(
                         cx.modal,
-                        source_href(&f.file, f.line, None, None),
+                        code_href(&f.file, f.line, None),
                         f.qname.clone(),
                         "mono",
                     );

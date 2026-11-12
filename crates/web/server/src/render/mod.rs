@@ -1,8 +1,4 @@
-//! HTML shells around the sycamore output: the main page and the source popup page.
-
-mod source;
-
-pub use source::source_html;
+//! The HTML shell around the sycamore output of the main page.
 
 use brickie_web_api::{PageData, Params};
 

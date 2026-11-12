@@ -7,7 +7,7 @@ use super::canvas::{canvas, pointer};
 use super::controls::header;
 use super::keys::keys;
 use super::panels::{detail, left};
-use super::source::modal_view;
+use super::popup::{listen, modal_view};
 use crate::platform;
 use crate::state::*;
 use brickie_web_api::*;
@@ -108,6 +108,7 @@ pub fn app(data: PageData, initial: Params) -> View {
             })
         }
     };
+    listen(sh.modal, sh.params);
     let popup = modal_view(sh.modal);
     let menu = sh.menu;
     // A click anywhere closes an open dropdown.

@@ -140,9 +140,9 @@ code, the SQL graph server for agents (`serve`/`query`), capabilities, and exper
    "Cache layout" below).
 2. `check`: **Implemented** (see "Check" below).
 3. `view`: **Implemented** (see "View (implemented)"). Shows the same `Diagnostic` values as
-   `check`; every file:line span opens a source popup scrolled to and highlighting that line.
+   `check`; every file:line span opens the code viewer (in a popup) at that line.
    The UX is a port of the Python prototype viewer (JS in one HTML file, not published): client-side Sugiyama layout, presets and data layers, selection
-   scoping, source popup with the vertical complexity tree. Ported and dropped parts are listed in
+   scoping, complexity tree (now as gutter bands in the code viewer). Ported and dropped parts are listed in
    "Port of the prototype viewer".
 4. **Implemented.** Old graph-server/contract stack, SQL rules, presets, Python prototype and
    obsolete docs removed; `src/` restructured into folders of small files (see "Code layout");
@@ -166,14 +166,16 @@ code, the SQL graph server for agents (`serve`/`query`), capabilities, and exper
 
 ## Code layout (implemented)
 
-A virtual workspace of twelve crates, grouped by layer (brickie checks this with the root
-`brickie.toml` and the nested `brickie.toml` of `crates/algo`, `crates/core`,
-`crates/core/measure`, `crates/core/check`, `crates/web`, `crates/web/server` and
-`crates/web/ui` (and the leaf `crates/web/api`): cli -> web -> core -> algo; algo
-depends on no brickie crate; see `docs/proposals/core-split.md`):
+A virtual workspace of fifteen crates, grouped by layer (brickie checks this with the root
+`brickie.toml` and the nested `brickie.toml` of `crates/lib`, `crates/lib/algo`,
+`crates/lib/codeview`, `crates/core`, `crates/core/measure`, `crates/core/check`, `crates/web`,
+`crates/web/server` and `crates/web/ui` (and the leaf `crates/web/api`): cli -> web -> core ->
+lib, web -> lib; `lib` (algo, codeview) depends on no brickie crate and its two parts never use
+each other; see
+`docs/proposals/core-split.md` and `docs/proposals/code-viewer.md`):
 
 ```
-crates/algo/           general-purpose libraries, no brickie types (tag algo, looser limits)
+crates/lib/algo/           general-purpose libraries, no brickie types (tag algo, looser limits)
   layout/              brickie-layout: Sugiyama layout and edge routing (wasm-safe)
   graph/               brickie-graph: SCC (Tarjan), cycle path
   rustscan/            brickie-rustscan: Rust tokenizer, `use` item scanner
@@ -198,12 +200,20 @@ crates/core/check/     brickie-check, folder bricks:
   review/              brickie.review.toml read and edit (internal)
   check/               config + cache + review -> diagnostics (shared by check and view); the
                        facade for rules and review (dep_subject, complexity_limits, set_review)
-crates/web/server/     brickie-web, folder bricks (own brickie.toml): routes (-> render, data; also
-                       the crate root and tests), render, data; build.rs embeds assets/ui/
+crates/web/server/     brickie-web, folder bricks (own brickie.toml): routes (-> render, data, code;
+                       also the crate root and tests), render, data, code (the code viewer's
+                       provider: views, read, marks, nav); build.rs embeds assets/ui/
 crates/web/api/        brickie-web-api, wasm-safe (serde + brickie-model): the server/UI port, see
                        "Web api port" below
 crates/web/ui/         brickie-ui, folder bricks (own brickie.toml), compiled to wasm: platform
                        (depends on nothing), state (pure) <- components (also the crate root, wasm entry)
+crates/lib/codeview/       the code viewer, independent of brickie (tag lib; own brickie.toml, exports
+                       port and host):
+  port/                codeview-port: data types, the Provider trait, endpoints, iframe messages
+  app/                 codeview-app: the UI (Sycamore, wasm, client rendered): logic (pure),
+                       web/ (explorer, editor, quick open, actions, js), static/ (page, Monaco
+                       glue, CSS)
+  host/                codeview-host: axum router over a Provider; build.rs embeds assets/codeview/
 crates/cli/            brickie: the `brickie` binary (main.rs, cli/: clap args + one file per
                        command) and the integration tests (tests/check, tests/llms, tests/measure)
 ```
@@ -244,7 +254,7 @@ the configs.
   included). Trait members, trait-impl items, fields, variants and modules are not items.
   Visibility and kind are parsed from rust-analyzer's signature text (`pub fn ..`).
 - `implements` edges come from the syntax (`impl Trait for X`), because rust-analyzer emits no
-  SCIP relationships. Paths (NPath variant) add sequential decisions; see `crates/algo/metrics/src/paths.rs`.
+  SCIP relationships. Paths (NPath variant) add sequential decisions; see `crates/lib/algo/metrics/src/paths.rs`.
 - `params` does not count `self` (clippy convention).
 
 ## Check (implemented)
@@ -354,10 +364,10 @@ folders by concern):
   JSON endpoint (`Review` POST `/review`; `Graph`, `Diagnostics`, `Functions` GET `/api/*`, where `Req` is the
   query `Params` or `()`; `Interface` POST `/api/interface` `{brick}` and `EdgeUses` POST `/api/edge-uses`
   `{from, to}` with brick paths, 400 for an unknown path), the path consts of the HTML routes, and every type crossing the port (page data,
-  params, review request/reply, source popup data). The server mounts routes at `E::PATH` with handlers typed
+  params, review request/reply). The server mounts routes at `E::PATH` with handlers typed
   `ReqOf<E>` / `ResOf<E>`; the UI calls `components::call::<E>`, which only moves JSON through
   `platform::post_json`. A contract change fails to compile on both sides. The server still depends on `ui`
-  only to render (`render_page`, `render_source`, `CSS`, `APP_ID`, `DATA_ID`). `state` is pure: `Cx::new` takes
+  only to render (`render_page`, `CSS`, `APP_ID`, `DATA_ID`). `state` is pure: `Cx::new` takes
   the stage size, and `components::app` mirrors params into the URL (push only when the URL differs from the
   last seen one; popstate records its URL first, so back/forward adds no history entries).
 
@@ -367,7 +377,7 @@ folders by concern):
   JSON, rebuilds the same tree and hydrates `#app`. The page JSON holds all diagnostics, every level of the
   brick tree (bricks, tag rows, aggregated edges per level, see "Levels") and the functions;
   nothing is filtered on the server.
-- **Layout runs on the client, once per level.** `crates/algo/layout/src/` is a pure deterministic
+- **Layout runs on the client, once per level.** `crates/lib/algo/layout/src/` is a pure deterministic
   function `layout(Input) -> Layout` (positions of boxes, ports, routed cubic paths); the server
   calls the same function for the SSR page so the no-JS page also shows the graph. It runs once
   from the
@@ -384,24 +394,55 @@ folders by concern):
   params renders the same view.
 - **Without wasm** (bundle not built) the SSR page is complete but read-only: the canvas, filters
   and links are server rendered; pan/zoom/drag, dropdowns and accept/unaccept need the bundle.
-- **Endpoints**: `GET /` (page), `GET /source?file&line&col&end_col`, `GET /api/diagnostics`,
+- **Endpoints**: `GET /` (page), `GET /api/diagnostics`,
   `/api/functions` (`brick=` takes tree paths such as `root/web`, matching the subtree),
   `/api/graph` (the levels, JSON, same params), `POST /review` (JSON
-  `{id, reason}`; `reason: null` unaccepts), `/static/ui/brickie_ui{.js,_bg.wasm}`. Cache and
+  `{id, reason}`; `reason: null` unaccepts), `/static/ui/brickie_ui{.js,_bg.wasm}`, the code
+  viewer under `/code/`. Cache and
   config are read per request (re-run `measure`, refresh).
 - **Diagnostics** are `check`'s `Diagnostic` values field for field (`DiagView`), plus a snippet
   with the span marked and `bricks`. A selected finding (`item=`) shows the same card as before
   (code, message, spans as source links, rule, help, notes, Accept/Unaccept).
-- **Source popup**: a modal with an iframe of `/source`. The page lists the file in fixed 18 px
-  rows with line anchors `#L<n>`, marks the target line or span, and, for the innermost function
-  around the target line, draws the vertical complexity tree in a sticky gutter at the left
-  (`complexity::fn_tree`, tree-sitter, computed on demand for each request, nothing is cached):
-  one column per nesting depth, one bar per decision branch over the lines it spans, opacity
-  proportional to log(paths), cold to hot colour by depth, code lines tinted by their deepest
-  branch; clicking a bar marks its lines. Only files listed in the cache are served; syntax that
-  could traverse (`..`, `.`, empty segments, absolute, `\`, NUL) is 400, unlisted files,
-  non-regular files (symlinks), files over 4 MB and paths resolving outside the cached workspace
-  root are 404.
+- **Code viewer** (`/code/`, [proposals/code-viewer.md](proposals/code-viewer.md),
+  implemented): the generic `codeview` component mounted with
+  `nest_service("/code", codeview_host::router(CodeProvider))`. The source popup opens it in its
+  iframe (`/code/?path=&line=&col=`, built by `code_href`; every source link of the UI, function
+  links included, is such a URL); on the viewer's `Ready` message the brickie UI sends `Filter`
+  (the explorer scoped to the single selected brick); a mark's
+  "finding" link posts `Link` back, which selects the finding (`?item=&lv=`) and closes the
+  popup. Every brick's details panel has an "Open code" link
+  (`/code/?filter=<level path>&view=Bricks`; the viewer then opens the brick's entry file).
+  Endpoints (`POST /code/api/{views,file,marks,bands,definition,references}`, JSON) are
+  answered by `crates/web/server/src/code/` from the config, cache and check result per request:
+  views "Bricks" (brick tree, leaf -> crate -> folders -> files; nodes carry a `NodeKind` and the
+  brick's tags, rendered as marker, colour and chips) and "Folders", badges = open errors and
+  warnings by primary-span file summed up; files only when listed in the cache and confined to
+  the workspace, `stale` when the hash differs; marks = every span of a finding in the file
+  (accepted ones as info); bands = for every measured function of the file one band over the
+  function (depth 0, heat = its worst metric / limit, capped at 1; detail lists every limited
+  metric) and one per node of its decision tree (`brickie_measure::fn_tree`, tree-sitter,
+  computed on demand per request, nothing cached; depth = nesting, heat = depth / max(nesting
+  limit, deepest)); definition = the recorded item of the reference edge (or item
+  declaration) under the cursor, else its module file; references = the edges to the same
+  symbol, labelled with the using brick, other bricks first. The viewer: explorer with view
+  switcher and "show all", tabs, Monaco read-only (theme follows `prefers-color-scheme` or
+  `Theme`), marks as Monaco markers plus a list under the editor, bands as nested bars in
+  Monaco's line-decorations gutter (one 6 px column per depth, colour cold to hot by heat, the
+  gutter widens to the deepest band; hover shows label, lines and detail; click highlights the
+  band's lines and reveals them; a "bands" toggle in the tab bar hides them), F12 / Shift+F12 (one
+  definition opens directly, otherwise a results list; cross-file opens a tab), Ctrl+P quick
+  open. Bundle: `scripts/build-codeview.sh` (called by `build-ui.sh`) fetches monaco-editor
+  0.52.2 from the npm registry (sha512 checked) and keeps only `loader.js`, `editor.main.{js,css}`,
+  the worker bootstrap, the Rust grammar and the codicon font (4.4 MB), builds the app (about
+  0.5 MB wasm) and copies the page into `assets/codeview/` (git-ignored, 4.8 MB in all);
+  `codeview-host/build.rs` embeds every file there, and without them `/code/` is a page saying
+  how to build it. No CDN at runtime. Deviations from the proposal: no hover yet, no complexity
+  info marks (complexity is shown as bands instead), endpoints are all `POST` under `api/`, `Node` has an `id` (the `Filter` target)
+  and `ToHost` a `Ready`.
+- **No source page**: the server-rendered `/source` page (and its complexity gutter) was
+  removed; its tree now lives in the code viewer as bands. Source links are plain
+  `/code/?path=&line=` hrefs, so without JavaScript they open the code viewer in a tab, which
+  itself needs JavaScript (accepted).
 - **State styling.** Colours are CSS variables in `crates/web/ui/styles/theme.css` (light and dark), rules in
   `crates/web/ui/styles/state.css`; classes only change styles, never geometry, so presets do not relayout.
 
@@ -475,15 +516,16 @@ folders by concern):
   expression other than a plain identifier as dynamic (a closure that must be `'static`), so
   values are bound to locals first; svg attributes are set with quoted names (`"viewBox"=..`);
   the wasm is about 1.2 MB without wasm-opt.
-- **Known limits**: measured time is the cache file's mtime; accept needs the wasm bundle; the
-  popup has no syntax colouring; the layout is not cached (about 25 ms natively for 15 bricks
+- **Known limits**: measured time is the cache file's mtime; accept needs the wasm bundle; source
+  links need JavaScript (the code viewer); the layout is not cached (about 25 ms natively for 15 bricks
   and 33 edges in release; the SSR page recomputes it per request).
 - Tests: `crates/web/server/src/tests/` (tower `oneshot`: index, layers and presets as params, JSON
-  endpoints, source tree/highlight/escaping/traversal/symlink, review round trip, missing
-  cache); `crates/algo/layout/src/tests.rs` (no edge crosses a box, boxes do not overlap, determinism,
+  endpoints, code viewer adapter (trees, files, marks, bands, navigation), review round trip,
+  missing cache); `crates/lib/algo/layout/src/tests.rs` (no edge crosses a box, boxes do not overlap, determinism,
   crossings at most the config order, rows follow tags, empty graphs, re-routing after a drag);
   `crates/web/ui/src/state/` (layers round trip through the URL, presets, selection,
-  scoping); `crates/algo/metrics/src/tests.rs`; `components/source/mod.rs` (gutter rendering).
+  scoping); `crates/lib/algo/metrics/src/tests.rs`; `codeview-host` tests (endpoints, bands, path
+  confinement).
 
 ### Levels (implemented)
 
@@ -557,7 +599,7 @@ Reference: the prototype's `index.html` (JS, layout and UI), not published.
 The port keeps the prototype's CSS variables, colours, edge styles, legend, header controls,
 three-pane shell and interaction behaviour; only data that no longer exists was remapped.
 
-### Layout: original JS function -> Rust (`crates/algo/layout/src/`)
+### Layout: original JS function -> Rust (`crates/lib/algo/layout/src/`)
 
 | JS function / constant | Rust | Deviation |
 | --- | --- | --- |
@@ -592,7 +634,7 @@ three-pane shell and interaction behaviour; only data that no longer exists was 
 | `listFindings`, `renderLeft`, `fRow` | `state::list_findings`, `panels::diagnostics::left`, `finding_row` | no sort/rank selects, no text-free `sub` select (code chips) |
 | `renderDetail`, `summaryHTML`, `brickHTML`, `groupHTML`, `edgeHTML`, `findingHTML` | `panels::details::detail` and siblings | content remapped |
 | `renderLegend` | `panels::legend::legend` | kinds and states of the current data |
-| `vertHTML`, `iceCol`, `heat` | `components/source/tree.rs` (`ice_col`, `heat`, `bar`) | whole file listed, tree of one function; no horizontal "ice" tab |
+| `vertHTML`, `iceCol`, `heat` | `web/server/src/code/bands.rs` + code viewer bands (`glue.js`) | every function of the file as bands in Monaco's gutter; no line tint, no horizontal "ice" tab |
 | `fn_tree_source` (`cc.py`) | `complexity::fn_tree` | flat pre-order nodes |
 
 ### Data remap (Brickwork concept -> current data)

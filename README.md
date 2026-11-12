@@ -164,13 +164,16 @@ respect (never edit the rules or the review file to make `check` pass).
 
 ## Building the viewer bundle
 
-The interactive viewer is a wasm bundle built from the `ui` crate and embedded at compile time:
+The interactive viewer is a wasm bundle built from the `ui` crate and embedded at compile time,
+together with the code viewer (`/code/`: explorer, tabs, Monaco, findings in the code, F12 /
+Shift+F12 navigation), whose script also fetches a pinned Monaco release from the npm registry
+(needs curl, tar and openssl once):
 
 ```sh
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.123 --locked   # must match crates/web/ui/Cargo.toml
-scripts/build-ui.sh        # writes assets/ui/ (git-ignored)
-cargo build --release      # embeds the bundle when assets/ui/ has it
+scripts/build-ui.sh        # writes assets/ui/ and assets/codeview/ (git-ignored)
+cargo build --release      # embeds the bundles found there
 ```
 
 Without the bundle `cargo build` still works and prints a warning.

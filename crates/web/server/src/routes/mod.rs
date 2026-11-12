@@ -1,25 +1,27 @@
-//! HTTP routes: the page, the source popup, the JSON endpoints, review and the wasm assets.
+//! HTTP routes: the page, the code viewer, the JSON endpoints, review and the wasm assets.
 
 mod api;
 mod assets;
 mod index;
 mod interface;
 mod review;
-mod source;
 
 pub use assets::wasm_embedded;
 
 use super::AppState;
+use crate::code::CodeProvider;
 use axum::Router;
 use axum::routing::{get, post};
 use brickie_web_api::{
-    Diagnostics, EdgeUses, Endpoint, Functions, Graph, Interface, PAGE_PATH, Review, SOURCE_PATH,
+    CODE_PATH, Diagnostics, EdgeUses, Endpoint, Functions, Graph, Interface, PAGE_PATH, Review,
 };
+use std::sync::Arc;
 
 pub fn router(state: AppState) -> Router {
+    let code = codeview_host::router(Arc::new(CodeProvider::new(state.config())));
     Router::new()
+        .nest_service(CODE_PATH.trim_end_matches('/'), code)
         .route(PAGE_PATH, get(index::index))
-        .route(SOURCE_PATH, get(source::source))
         .route(Diagnostics::PATH, get(api::diagnostics))
         .route(Functions::PATH, get(api::functions))
         .route(Graph::PATH, get(api::graph))

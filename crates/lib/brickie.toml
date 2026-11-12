@@ -1,0 +1,35 @@
+# Independent libraries: no brickie business, no brickie types; usable outside brickie.
+#   algo      general-purpose algorithms (layout, graph, rustscan, metrics)
+#   codeview  the code viewer, fed by a host through its port
+# The two never use each other.
+exports = ["algo", "codeview"]
+
+[[brick]]
+name = "algo"
+path = "algo"                         # composite: layout, graph, rustscan, metrics
+tags = ["algo"]
+desc = "General-purpose algorithm libraries: graph layout, SCC, Rust scanning, complexity metrics"
+
+[[brick]]
+name = "codeview"
+path = "codeview"                     # composite: port, app, host
+tags = ["component"]
+desc = "Generic code viewer: file explorer, tabs and Monaco, fed by a host through a port"
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+# Algorithms: looser, accepted as isolated, tested warnings.
+[[complexity]]
+bricks = "tag:algo"
+cognitive = 60
+nesting = 6
+level = "warn"
+
+# A component with its own business (codeview): strict like domain code.
+[[complexity]]
+bricks = "tag:component"
+cognitive = 15
+nesting = 4
+level = "warn"

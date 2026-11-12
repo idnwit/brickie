@@ -15,3 +15,4 @@ __pycache__/
 
 # brickie cache
 /.brickie/
+/assets/codeview/

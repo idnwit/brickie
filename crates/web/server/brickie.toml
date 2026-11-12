@@ -12,13 +12,19 @@ desc = "HTTP layer: router, handlers, app state, wasm assets, and the crate's te
 name = "render"
 members = ["brickie-web::render"]
 tags = ["view"]
-desc = "HTML pages: the SSR shell around the viewer and the source page"
+desc = "HTML page: the SSR shell around the viewer"
 
 [[brick]]
 name = "data"
 members = ["brickie-web::data"]
 tags = ["data"]
 desc = "Page data: diagnostics, functions and graph levels built from the check result"
+
+[[brick]]
+name = "code"
+members = ["brickie-web::code"]
+tags = ["data"]
+desc = "Adapter for the code viewer: implements codeview's provider port from the workspace"
 
 [deps]
 default = "deny"
@@ -44,3 +50,10 @@ to = "data"
 scope = "all"
 action = "allow"
 reason = "pages embed the page data"
+
+[[deps.rule]]
+from = "routes"
+to = "code"
+scope = "all"
+action = "allow"
+reason = "the router mounts the code viewer with brickie's provider"

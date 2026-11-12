@@ -90,7 +90,7 @@ pub fn diag_view(d: &Diagnostic, lines: &mut Lines) -> DiagView {
 }
 
 /// Split `text` at byte offset `start` for `len` bytes, clamped to char boundaries.
-pub fn split_bytes(text: &str, start: usize, len: usize) -> (String, String, String) {
+fn split_bytes(text: &str, start: usize, len: usize) -> (String, String, String) {
     let mut a = start.min(text.len());
     while !text.is_char_boundary(a) {
         a -= 1;

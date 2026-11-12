@@ -21,6 +21,12 @@ pub(super) fn brick_detail(cx: &Cx, b: usize) -> View {
         .strip_prefix("root/")
         .unwrap_or(&br.name)
         .to_string();
+    let open_code = src_link(
+        cx.modal,
+        code_brick_href(&br.name),
+        "</> Code".into(),
+        "codebtn",
+    );
     let (no, ni) = (out.len(), inn.len());
     let (out, inn) = (View::from(out), View::from(inn));
     let tags: Vec<View> = br
@@ -35,7 +41,7 @@ pub(super) fn brick_detail(cx: &Cx, b: usize) -> View {
     let card = scorecard(cx, b);
     let iface = super::iface::interface_section(cx, br.path.clone());
     view! {
-        h2 { (name) }
+        div(class="dhead") { h2 { (name) } span(title="Open this brick's code") { (open_code) } }
         (desc)
         div { (tags) }
         (card)
@@ -74,7 +80,7 @@ fn scorecard(cx: &Cx, b: usize) -> View {
         .map(|f| {
             let link = src_link(
                 cx.modal,
-                source_href(&f.file, f.line, None, None),
+                code_href(&f.file, f.line, None),
                 f.qname.clone(),
                 "mono",
             );

@@ -32,21 +32,26 @@ impl SpanView {
         }
     }
 
-    /// The source popup page for this span.
+    /// The code viewer at this span.
     pub fn href(&self) -> String {
-        source_href(&self.file, self.line, self.col, self.len)
+        code_href(&self.file, self.line, self.col)
     }
 }
 
-pub fn source_href(file: &str, line: u32, col: Option<u32>, len: Option<u32>) -> String {
-    let mut s = format!("{}?file={}&line={line}", crate::SOURCE_PATH, encode(file));
+/// The code viewer at a file, line and byte column (`/code/?path=&line=&col=`); line 0 opens
+/// the file without moving.
+pub fn code_href(file: &str, line: u32, col: Option<u32>) -> String {
+    let mut s = format!("{}?path={}&line={line}", crate::CODE_PATH, encode(file));
     if let Some(c) = col {
-        s += &format!("&col={c}&end_col={}", c + len.unwrap_or(1));
-    }
-    if line > 0 {
-        s += &format!("#L{line}");
+        s += &format!("&col={c}");
     }
     s
+}
+
+/// The code viewer with the Bricks explorer scoped to the brick `node` (its level path, for
+/// example `root/web/server`); the viewer opens the brick's entry file.
+pub fn code_brick_href(node: &str) -> String {
+    format!("{}?filter={}&view=Bricks", crate::CODE_PATH, encode(node))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -156,4 +161,18 @@ pub fn diag_visible(d: &DiagView, accepted: bool, p: &Params) -> bool {
             "accepted" => accepted,
             _ => true,
         }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_links_open_the_code_viewer() {
+        assert_eq!(
+            code_href("crates/a b.rs", 12, Some(5)),
+            "/code/?path=crates/a%20b.rs&line=12&col=5"
+        );
+        assert_eq!(code_href("a.rs", 3, None), "/code/?path=a.rs&line=3");
+    }
 }

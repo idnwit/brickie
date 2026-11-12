@@ -240,7 +240,8 @@ pub fn nav_link(
     }
 }
 
-/// A link to a source location: opens the popup when hydrated, the source page otherwise.
+/// A link to a source location: opens the code viewer popup when hydrated, the code viewer in a
+/// tab otherwise.
 pub fn src_link(
     modal: Signal<Option<String>>,
     href: String,

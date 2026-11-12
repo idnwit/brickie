@@ -11,13 +11,13 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-brickie-model = { path = "../../core/model" }
-brickie-web-api = { path = "../api" }
-brickie-layout = { path = "../../algo/layout" }
+brickie-web-api = { workspace = true }
+brickie-layout = { workspace = true }
+codeview-port = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sycamore = { version = "0.9", default-features = false, features = ["web"] }
-web-sys = { version = "0.3", features = ["Event", "MouseEvent", "HtmlInputElement", "Element", "Document", "Window", "KeyboardEvent", "History", "Location", "Request", "RequestInit", "Response", "Headers", "EventTarget", "WheelEvent", "DomRect", "HtmlElement"] }
+web-sys = { version = "0.3", features = ["Event", "MouseEvent", "HtmlInputElement", "Element", "Document", "Window", "KeyboardEvent", "History", "Location", "Request", "RequestInit", "Response", "Headers", "EventTarget", "WheelEvent", "DomRect", "HtmlElement", "HtmlIFrameElement", "MessageEvent"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # Must match the wasm-bindgen CLI used by scripts/build-ui.sh.

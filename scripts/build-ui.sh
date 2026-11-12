@@ -1,5 +1,6 @@
 #!/bin/sh
-# Build the browser bundle (wasm + JS glue) into assets/ui/. The brickie server embeds these
+# Build the browser bundles: the viewer (wasm + JS glue) into assets/ui/, then the code viewer
+# into assets/codeview/ (scripts/build-codeview.sh). The brickie server embeds these
 # files when they exist at compile time (see crates/web/server/build.rs) and runs SSR-only otherwise.
 #
 # Prerequisites (one time):
@@ -19,3 +20,5 @@ mkdir -p assets/ui
 wasm-bindgen --target web --no-typescript --out-dir assets/ui --out-name brickie_ui \
   "target/wasm32-unknown-unknown/$profile/brickie_ui.wasm"
 ls -l assets/ui
+# The code viewer bundle (embedded by codeview-host), same profile.
+scripts/build-codeview.sh "$@"
