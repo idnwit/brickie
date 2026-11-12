@@ -116,6 +116,45 @@ pub fn layout_input(g: &GraphView) -> layout::Input {
     }
 }
 
+/// The layout of `level`: automatic from its full edge set (without the frame edges, which are
+/// appended after the original ones), then the editor's stored positions, then the positions a
+/// patch keeps on screen.
+fn level_layout(
+    level: &LevelView,
+    change: Option<&ChangeView>,
+    editing: bool,
+    keep: Option<&Keep>,
+) -> Layout {
+    let mut layout = layout::layout(&layout_input(&level.graph));
+    // The editor's stored positions win over the automatic layout.
+    if let Some(ch) = change.filter(|_| editing) {
+        apply_hints(
+            &mut layout.pos,
+            &level.graph.bricks,
+            &ch.layout,
+            &level.path,
+        );
+    }
+    if let Some(k) = keep {
+        restore_positions(&mut layout.pos, &level.graph.bricks, &k.pos);
+    }
+    layout
+}
+
+/// The memoised evaluation and per-brick scores of a level; both follow accept/unaccept.
+fn memos(m: &Rc<Model>, params: Signal<Params>) -> (ReadSignal<Eval>, ReadSignal<Vec<BrickScore>>) {
+    let accepted = |m: &Model| -> Vec<bool> { m.cards.iter().map(|c| c.accepted.get()).collect() };
+    let eval = {
+        let m = m.clone();
+        create_memo(move || params.with(|p| evaluate(&m.g, &m.diags, &accepted(&m), p)))
+    };
+    let scores = {
+        let m = m.clone();
+        create_memo(move || brick_scores(&m.g, &m.diags, &accepted(&m)))
+    };
+    (eval, scores)
+}
+
 impl Cx {
     /// The state of level `lv`: shared signals from `sh`, fresh pan/zoom/drag and layout.
     /// `stage` is the stage size in pixels when known (the caller measures it).
@@ -124,29 +163,14 @@ impl Cx {
         let levels = sh.live.levels.get_clone_untracked();
         let change = sh.live.change.get_clone_untracked();
         let level = &levels[lv];
-        // Laid out without the frame edges, which are appended after the original ones.
-        let mut layout = layout::layout(&layout_input(&level.graph));
-        // The editor's stored positions win over the automatic layout.
-        if let Some(ch) = change
-            .as_deref()
-            .filter(|_| params.with_untracked(|p| p.editing()))
-        {
-            apply_hints(
-                &mut layout.pos,
-                &level.graph.bricks,
-                &ch.layout,
-                &level.path,
-            );
-        }
         // After a patch, boxes that were on screen stay where they were.
         let keep = sh
             .live
             .keep
             .get_clone_untracked()
             .filter(|k| k.level == level.path);
-        if let Some(k) = &keep {
-            restore_positions(&mut layout.pos, &level.graph.bricks, &k.pos);
-        }
+        let editing = params.with_untracked(|p| p.editing());
+        let layout = level_layout(level, change.as_deref(), editing, keep.as_ref());
         let m = Rc::new(Model {
             cache: sh.cache.clone(),
             g: with_frame_edges(&level.graph),
@@ -168,20 +192,7 @@ impl Cx {
                 k: 1.0,
             },
         });
-        let eval = {
-            let m = m.clone();
-            create_memo(move || {
-                let acc: Vec<bool> = m.cards.iter().map(|c| c.accepted.get()).collect();
-                params.with(|p| evaluate(&m.g, &m.diags, &acc, p))
-            })
-        };
-        let scores = {
-            let m = m.clone();
-            create_memo(move || {
-                let acc: Vec<bool> = m.cards.iter().map(|c| c.accepted.get()).collect();
-                brick_scores(&m.g, &m.diags, &acc)
-            })
-        };
+        let (eval, scores) = memos(&m, params);
         Cx {
             params,
             hover: sh.hover,

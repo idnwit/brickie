@@ -95,6 +95,66 @@ pub fn limits(
         .collect()
 }
 
+/// One file's source lines, read on first use (most files have no finding).
+struct SourceCache<'a> {
+    root: &'a Path,
+    path: &'a str,
+    lines: Option<Vec<String>>,
+}
+
+impl<'a> SourceCache<'a> {
+    fn new(root: &'a Path, path: &'a str) -> Self {
+        SourceCache {
+            root,
+            path,
+            lines: None,
+        }
+    }
+
+    /// 1-based byte column of the name in `fn <name>` on the function's line, if found.
+    fn col_of(&mut self, func: &brickie_facts::Function) -> Option<u32> {
+        let (root, path) = (self.root, self.path);
+        let lines = self.lines.get_or_insert_with(|| {
+            std::fs::read_to_string(root.join(path))
+                .map(|t| t.lines().map(str::to_string).collect())
+                .unwrap_or_default()
+        });
+        let line = lines.get(func.line as usize - 1)?;
+        line.find(&format!("fn {}", func.name))
+            .map(|b| b as u32 + 4)
+    }
+}
+
+/// The finding for one metric of a function whose leaf brick path is `leaf`, if the value
+/// exceeds the limit the rules give it.
+fn finding_for(
+    cfg: &Config,
+    leaf: &[String],
+    func: &brickie_facts::Function,
+    src: &mut SourceCache,
+    (metric, value, limit_of): Metric,
+) -> Option<Cx> {
+    let (brick, parent) = leaf.split_last()?;
+    let (limit, rule_index, rule) = best_rule(cfg, leaf, &func.scope, limit_of)?;
+    if value <= limit {
+        return None;
+    }
+    Some(Cx {
+        brick: brick.clone(),
+        level: level_name(parent),
+        file: src.path.to_string(),
+        qname: func.qname.clone(),
+        metric,
+        value,
+        limit,
+        line: func.line,
+        col: src.col_of(func),
+        name_len: func.name.len() as u32,
+        rule_index,
+        rule: rule.clone(),
+    })
+}
+
 pub(super) fn complexity(
     cache: &Cache,
     cfg: &Config,
@@ -103,46 +163,14 @@ pub(super) fn complexity(
     out: &mut Vec<Box<dyn Finding>>,
 ) {
     for (path, f) in &cache.files {
-        let mut source: Option<Vec<String>> = None;
+        let mut src = SourceCache::new(root, path);
         for func in &f.functions {
             let Some(leaf) = func.module.as_deref().and_then(|m| res.path(m)) else {
                 continue;
             };
-            let Some((brick, parent)) = leaf.split_last() else {
-                continue;
-            };
-            let metrics = metrics(func);
-            for (metric, value, limit_of) in metrics {
-                let best = best_rule(cfg, leaf, &func.scope, limit_of);
-                let Some((limit, rule_index, rule)) = best else {
-                    continue;
-                };
-                if value <= limit {
-                    continue;
-                }
-                let lines = source.get_or_insert_with(|| {
-                    std::fs::read_to_string(root.join(path))
-                        .map(|t| t.lines().map(str::to_string).collect())
-                        .unwrap_or_default()
-                });
-                let col = lines
-                    .get(func.line as usize - 1)
-                    .and_then(|l| l.find(&format!("fn {}", func.name)))
-                    .map(|b| b as u32 + 4);
-                out.push(Box::new(Cx {
-                    brick: brick.clone(),
-                    level: level_name(parent),
-                    file: path.clone(),
-                    qname: func.qname.clone(),
-                    metric,
-                    value,
-                    limit,
-                    line: func.line,
-                    col,
-                    name_len: func.name.len() as u32,
-                    rule_index,
-                    rule: rule.clone(),
-                }));
+            for metric in metrics(func) {
+                let found = finding_for(cfg, leaf, func, &mut src, metric);
+                out.extend(found.map(|c| Box::new(c) as Box<dyn Finding>));
             }
         }
     }
@@ -199,5 +227,33 @@ impl Finding for Cx {
             "lines" => format!("split the function; it is {over} lines over the limit"),
             m => format!("return early or extract a function to cut {m} by at least {over}"),
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn func(line: u32, name: &str) -> brickie_facts::Function {
+        serde_json::from_value(serde_json::json!({
+            "name": name, "qname": name, "module": null, "line": line, "end_line": line,
+            "lines": 1, "cognitive": 0, "cyclomatic": 0, "nesting": 0, "paths": 1,
+            "params": 0, "scope": "prod"
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn col_of_is_the_one_based_byte_column_of_the_name() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.rs"), "// é\npub fn run() {}\n").unwrap();
+        let mut src = SourceCache::new(dir.path(), "a.rs");
+        assert_eq!(src.col_of(&func(2, "run")), Some(8));
+        assert_eq!(src.col_of(&func(1, "run")), None);
+        assert_eq!(src.col_of(&func(9, "run")), None);
+        assert_eq!(
+            SourceCache::new(dir.path(), "none.rs").col_of(&func(1, "run")),
+            None
+        );
     }
 }

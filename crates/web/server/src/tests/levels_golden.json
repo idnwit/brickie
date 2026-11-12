@@ -1,0 +1,265 @@
+[
+  {
+    "exports": [],
+    "file": "<site>/brickie.toml",
+    "graph": {
+      "bricks": [
+        {
+          "children": [
+            "api",
+            "ui"
+          ],
+          "desc": null,
+          "exported": false,
+          "exports": [
+            "api"
+          ],
+          "file": "<site>/ws/crates/web/brickie.toml",
+          "ghost": false,
+          "hot": [],
+          "members": [
+            "path:ws/crates/web/"
+          ],
+          "name": "web",
+          "path": "root/web",
+          "planned": false,
+          "proposed": false,
+          "row": 0,
+          "tag": "app",
+          "tags": [
+            "app"
+          ],
+          "unassigned": false,
+          "worst_ratio": 0.0
+        },
+        {
+          "children": [],
+          "desc": null,
+          "exported": false,
+          "exports": [],
+          "file": null,
+          "ghost": false,
+          "hot": [],
+          "members": [
+            "core"
+          ],
+          "name": "core",
+          "path": "root/core",
+          "planned": false,
+          "proposed": false,
+          "row": 1,
+          "tag": "core",
+          "tags": [
+            "core"
+          ],
+          "unassigned": false,
+          "worst_ratio": 0.0
+        },
+        {
+          "children": [],
+          "desc": null,
+          "exported": false,
+          "exports": [],
+          "file": null,
+          "ghost": false,
+          "hot": [],
+          "members": [
+            "client"
+          ],
+          "name": "client",
+          "path": "root/client",
+          "planned": false,
+          "proposed": false,
+          "row": 0,
+          "tag": "app",
+          "tags": [
+            "app"
+          ],
+          "unassigned": false,
+          "worst_ratio": 0.0
+        }
+      ],
+      "edges": [
+        {
+          "count": 2,
+          "diags": [
+            "b87ded85"
+          ],
+          "from": 2,
+          "kind": "uses",
+          "test": false,
+          "to": 0,
+          "wall": false,
+          "worst": "error"
+        },
+        {
+          "count": 1,
+          "diags": [
+            "0ded8262"
+          ],
+          "from": 1,
+          "kind": "uses",
+          "test": false,
+          "to": 2,
+          "wall": false,
+          "worst": "error"
+        },
+        {
+          "count": 2,
+          "diags": [],
+          "from": 0,
+          "kind": "uses",
+          "test": false,
+          "to": 1,
+          "wall": false,
+          "worst": null
+        }
+      ],
+      "rows": [
+        "app",
+        "core"
+      ]
+    },
+    "path": "root"
+  },
+  {
+    "exports": [
+      "api"
+    ],
+    "file": "<site>/ws/crates/web/brickie.toml",
+    "graph": {
+      "bricks": [
+        {
+          "children": [],
+          "desc": null,
+          "exported": true,
+          "exports": [],
+          "file": null,
+          "ghost": false,
+          "hot": [],
+          "members": [
+            "web-api"
+          ],
+          "name": "api",
+          "path": "root/web/api",
+          "planned": false,
+          "proposed": false,
+          "row": 1,
+          "tag": "(untagged)",
+          "tags": [],
+          "unassigned": false,
+          "worst_ratio": 0.0
+        },
+        {
+          "children": [],
+          "desc": null,
+          "exported": false,
+          "exports": [],
+          "file": null,
+          "ghost": false,
+          "hot": [],
+          "members": [
+            "web-ui"
+          ],
+          "name": "ui",
+          "path": "root/web/ui",
+          "planned": false,
+          "proposed": false,
+          "row": 1,
+          "tag": "(untagged)",
+          "tags": [],
+          "unassigned": false,
+          "worst_ratio": 0.0
+        },
+        {
+          "children": [],
+          "desc": null,
+          "exported": false,
+          "exports": [],
+          "file": null,
+          "ghost": true,
+          "hot": [],
+          "members": [],
+          "name": "root/client",
+          "path": "root/client",
+          "planned": false,
+          "proposed": false,
+          "row": 0,
+          "tag": "inbound",
+          "tags": [],
+          "unassigned": false,
+          "worst_ratio": 0.0
+        },
+        {
+          "children": [],
+          "desc": null,
+          "exported": false,
+          "exports": [],
+          "file": null,
+          "ghost": true,
+          "hot": [],
+          "members": [],
+          "name": "root/core",
+          "path": "root/core",
+          "planned": false,
+          "proposed": false,
+          "row": 2,
+          "tag": "outbound",
+          "tags": [],
+          "unassigned": false,
+          "worst_ratio": 0.0
+        }
+      ],
+      "edges": [
+        {
+          "count": 2,
+          "diags": [],
+          "from": 0,
+          "kind": "uses",
+          "test": false,
+          "to": 3,
+          "wall": false,
+          "worst": null
+        },
+        {
+          "count": 1,
+          "diags": [],
+          "from": 1,
+          "kind": "uses",
+          "test": false,
+          "to": 0,
+          "wall": false,
+          "worst": null
+        },
+        {
+          "count": 1,
+          "diags": [],
+          "from": 2,
+          "kind": "uses",
+          "test": false,
+          "to": 0,
+          "wall": false,
+          "worst": null
+        },
+        {
+          "count": 1,
+          "diags": [
+            "b87ded85"
+          ],
+          "from": 2,
+          "kind": "uses",
+          "test": false,
+          "to": 1,
+          "wall": true,
+          "worst": "error"
+        }
+      ],
+      "rows": [
+        "inbound",
+        "(untagged)",
+        "outbound"
+      ]
+    },
+    "path": "root/web"
+  }
+]

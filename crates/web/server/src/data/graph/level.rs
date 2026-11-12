@@ -40,6 +40,52 @@ struct Acc {
     ids: BTreeSet<String>,
 }
 
+/// Leaf paths of outside neighbours.
+type Paths<'a> = BTreeSet<&'a Vec<String>>;
+
+fn outside_path(x: &End) -> Option<&Vec<String>> {
+    match x {
+        End::Outside(p) => Some(p),
+        End::Child(_) => None,
+    }
+}
+
+/// The module edges of one level folded by (from, to, kind).
+struct Agg(BTreeMap<(End, End, String), Acc>);
+
+impl Agg {
+    /// Edges with a child of `level` at either end; both ends outside are not this level's.
+    fn new(edges: &[ModEdge], level: &[String]) -> Agg {
+        let mut agg: BTreeMap<(End, End, String), Acc> = BTreeMap::new();
+        for e in edges {
+            let (Some(a), Some(b)) = (end(&e.from, level), end(&e.to, level)) else {
+                continue;
+            };
+            let inside = |x: &End| matches!(x, End::Child(_));
+            if a == b || !(inside(&a) || inside(&b)) {
+                continue;
+            }
+            let acc = agg.entry((a, b, e.kind.clone())).or_default();
+            acc.prod |= e.prod;
+            acc.refs += e.refs;
+            acc.ids.extend(e.diags.iter().cloned());
+        }
+        Agg(agg)
+    }
+
+    /// The outside neighbours: those that are an edge source, and all of them.
+    fn outside(&self) -> (Paths<'_>, Paths<'_>) {
+        let keys = || self.0.keys();
+        (
+            keys().filter_map(|(a, _, _)| outside_path(a)).collect(),
+            keys()
+                .flat_map(|(a, b, _)| [a, b])
+                .filter_map(outside_path)
+                .collect(),
+        )
+    }
+}
+
 impl<'a> Ctx<'a> {
     pub fn new(l: &'a Loaded) -> Ctx<'a> {
         Ctx {
@@ -52,126 +98,19 @@ impl<'a> Ctx<'a> {
 
     pub fn level(&self, cfg: &Config) -> LevelView {
         let name = cfg.level();
-        let mut agg: BTreeMap<(End, End, String), Acc> = BTreeMap::new();
-        for e in &self.edges {
-            let (Some(a), Some(b)) = (end(&e.from, &cfg.path), end(&e.to, &cfg.path)) else {
-                continue;
-            };
-            let inside = |x: &End| matches!(x, End::Child(_));
-            if a == b || !(inside(&a) || inside(&b)) {
-                continue;
-            }
-            let acc = agg.entry((a, b, e.kind.clone())).or_default();
-            acc.prod |= e.prod;
-            acc.refs += e.refs;
-            acc.ids.extend(e.diags.iter().cloned());
-        }
-        let sources: BTreeSet<&Vec<String>> = agg
-            .keys()
-            .filter_map(|(a, _, _)| match a {
-                End::Outside(p) => Some(p),
-                End::Child(_) => None,
-            })
-            .collect();
-        let outside: BTreeSet<&Vec<String>> = agg
-            .keys()
-            .flat_map(|(a, b, _)| [a, b])
-            .filter_map(|x| match x {
-                End::Outside(p) => Some(p),
-                End::Child(_) => None,
-            })
-            .collect();
+        let agg = Agg::new(&self.edges, &cfg.path);
+        let (sources, outside) = agg.outside();
         let mut rows: Vec<String> = Vec::new();
         if !sources.is_empty() {
             rows.push(OUT_SOURCES.into());
         }
-        let mut bricks: Vec<BrickView> = cfg
-            .bricks
-            .iter()
-            .map(|b| {
-                let mut path = cfg.path.clone();
-                path.push(b.name.clone());
-                let tag = b
-                    .tags
-                    .first()
-                    .cloned()
-                    .unwrap_or_else(|| "(untagged)".into());
-                let row = row_of(&mut rows, &tag);
-                BrickView {
-                    tag,
-                    row,
-                    tags: b.tags.clone(),
-                    members: b.members.clone(),
-                    exported: cfg.exports.iter().any(|x| x.brick == b.name),
-                    ..self.node(&path, b.name.clone())
-                }
-            })
-            .collect();
-        for p in &outside {
-            let label = if sources.contains(p) {
-                OUT_SOURCES
-            } else {
-                OUT_TARGETS
-            };
-            let row = row_of(&mut rows, label);
-            bricks.push(BrickView {
-                tag: label.into(),
-                row,
-                ghost: true,
-                ..self.node(p, level_name(p))
-            });
-        }
-        let index: BTreeMap<End, usize> = bricks
-            .iter()
-            .enumerate()
-            .map(|(i, b)| {
-                let key = if b.ghost {
-                    let p = outside.iter().nth(i - cfg.bricks.len()).cloned().cloned();
-                    End::Outside(p.unwrap_or_default())
-                } else {
-                    End::Child(b.name.clone())
-                };
-                (key, i)
-            })
-            .collect();
-        if let Some(b) = self.unassigned(cfg, &mut rows) {
-            bricks.push(b);
-        }
+        let mut bricks = self.children(cfg, &mut rows);
+        bricks.extend(self.ghosts(&mut rows, &sources, &outside));
+        let index = index_of(&bricks, &outside, cfg.bricks.len());
+        bricks.extend(self.unassigned(cfg, &mut rows));
         let hops = cycle_hops(&self.l.diagnostics, &name, &index);
-        let edges = agg
-            .into_iter()
-            .map(|((a, b, kind), mut acc)| {
-                let (from, to) = (index[&a], index[&b]);
-                if acc.prod {
-                    acc.ids
-                        .extend(hops.get(&(from, to)).into_iter().flatten().cloned());
-                }
-                let found: Vec<&Diagnostic> = acc
-                    .ids
-                    .iter()
-                    .filter_map(|id| self.diags.get(id.as_str()).copied())
-                    .collect();
-                let wall = matches!(a, End::Outside(_))
-                    && found.iter().any(|d| {
-                        d.code == rules::DEPS_PRIVATE && d.brick_level.as_deref() == Some(&name)
-                    });
-                let worst = if found.iter().any(|d| d.level == Level::Error) {
-                    Some("error".to_string())
-                } else {
-                    (!found.is_empty()).then(|| "warn".to_string())
-                };
-                EdgeView {
-                    from,
-                    to,
-                    kind,
-                    test: !acc.prod,
-                    diags: acc.ids.into_iter().collect(),
-                    count: acc.refs,
-                    worst,
-                    wall,
-                    under: Vec::new(),
-                }
-            })
+        let edges = (agg.0.into_iter())
+            .map(|(key, acc)| self.edge_view(key, acc, &index, &hops, &name))
             .collect();
         LevelView {
             path: name,
@@ -183,6 +122,86 @@ impl<'a> Ctx<'a> {
                 edges,
             },
             planned_edges: Vec::new(),
+        }
+    }
+
+    /// The children of `cfg`, each in the row of its first tag.
+    fn children(&self, cfg: &Config, rows: &mut Vec<String>) -> Vec<BrickView> {
+        let node = |b: &brickie_check::config::Brick| {
+            let mut path = cfg.path.clone();
+            path.push(b.name.clone());
+            let tag = (b.tags.first().cloned()).unwrap_or_else(|| "(untagged)".into());
+            let row = row_of(rows, &tag);
+            BrickView {
+                tag,
+                row,
+                tags: b.tags.clone(),
+                members: b.members.clone(),
+                exported: cfg.exports.iter().any(|x| x.brick == b.name),
+                ..self.node(&path, b.name.clone())
+            }
+        };
+        cfg.bricks.iter().map(node).collect()
+    }
+
+    /// The faded outside neighbours: sources in the inbound row, the rest in the outbound row.
+    fn ghosts(&self, rows: &mut Vec<String>, sources: &Paths, outside: &Paths) -> Vec<BrickView> {
+        let mut out = Vec::new();
+        for p in outside {
+            let label = if sources.contains(p) {
+                OUT_SOURCES
+            } else {
+                OUT_TARGETS
+            };
+            let row = row_of(rows, label);
+            out.push(BrickView {
+                tag: label.into(),
+                row,
+                ghost: true,
+                ..self.node(p, level_name(p))
+            });
+        }
+        out
+    }
+
+    /// One aggregated edge with the findings of its module edges (plus the cycles through it).
+    fn edge_view(
+        &self,
+        (a, b, kind): (End, End, String),
+        mut acc: Acc,
+        index: &BTreeMap<End, usize>,
+        hops: &BTreeMap<(usize, usize), Vec<String>>,
+        level: &str,
+    ) -> EdgeView {
+        let (from, to) = (index[&a], index[&b]);
+        if acc.prod {
+            acc.ids
+                .extend(hops.get(&(from, to)).into_iter().flatten().cloned());
+        }
+        let found: Vec<&Diagnostic> = acc
+            .ids
+            .iter()
+            .filter_map(|id| self.diags.get(id.as_str()).copied())
+            .collect();
+        let wall = matches!(a, End::Outside(_))
+            && found
+                .iter()
+                .any(|d| d.code == rules::DEPS_PRIVATE && d.brick_level.as_deref() == Some(level));
+        let worst = if found.iter().any(|d| d.level == Level::Error) {
+            Some("error".to_string())
+        } else {
+            (!found.is_empty()).then(|| "warn".to_string())
+        };
+        EdgeView {
+            from,
+            to,
+            kind,
+            test: !acc.prod,
+            diags: acc.ids.into_iter().collect(),
+            count: acc.refs,
+            worst,
+            wall,
+            under: Vec::new(),
         }
     }
 
@@ -231,6 +250,22 @@ impl<'a> Ctx<'a> {
             ..Default::default()
         }
     }
+}
+
+/// Brick index per end. A ghost's key is read off `outside` at `i - children` (ghosts follow
+/// the `children` children in `bricks`, in `outside` order).
+fn index_of(bricks: &[BrickView], outside: &Paths, children: usize) -> BTreeMap<End, usize> {
+    let key = |i: usize, b: &BrickView| {
+        if b.ghost {
+            let p = outside.iter().nth(i - children).cloned().cloned();
+            End::Outside(p.unwrap_or_default())
+        } else {
+            End::Child(b.name.clone())
+        }
+    };
+    (bricks.iter().enumerate())
+        .map(|(i, b)| (key(i, b), i))
+        .collect()
 }
 
 fn row_of(rows: &mut Vec<String>, tag: &str) -> usize {

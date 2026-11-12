@@ -55,7 +55,7 @@ fn edge(from: &str, to: &str, line: u32) -> Value {
 }
 
 /// core -> client is denied at the root; client -> web/ui reaches a child `web` hides.
-fn site() -> Site {
+pub(super) fn site() -> Site {
     let dir = tempfile::tempdir().unwrap();
     let crates: [(&str, &str, Vec<Value>); 4] = [
         (

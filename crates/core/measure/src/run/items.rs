@@ -3,8 +3,9 @@
 
 use super::complexity::Analysis;
 use super::edges::symbol_name;
-use crate::scip::Graph;
+use super::reach::Reach;
 use crate::scip::modules::ModuleIds;
+use crate::scip::{Graph, SymbolRow};
 use ::scip::types::descriptor::Suffix;
 use brickie_facts::{FileData, Item};
 use std::collections::{BTreeMap, HashSet};
@@ -97,6 +98,97 @@ fn owner(scip: &str, traits: &HashSet<String>) -> Owner {
     Owner::Free
 }
 
+/// What the item pass needs to judge one symbol: the graph, its module ids, which files and
+/// ranges are test code, the trait symbols and public reachability.
+struct Items<'a> {
+    g: &'a Graph,
+    ids: &'a ModuleIds,
+    analyses: &'a BTreeMap<String, Analysis>,
+    test_set: &'a HashSet<String>,
+    traits: HashSet<String>,
+    reach: Reach,
+}
+
+impl<'a> Items<'a> {
+    fn new(
+        g: &'a Graph,
+        ids: &'a ModuleIds,
+        crate_ids: &[String],
+        analyses: &'a BTreeMap<String, Analysis>,
+        test_set: &'a HashSet<String>,
+    ) -> Self {
+        let traits = g
+            .symbols
+            .iter()
+            .filter(|s| s.signature.split_whitespace().any(|t| t == "trait"))
+            .map(|s| s.scip.clone())
+            .collect();
+        Items {
+            g,
+            ids,
+            analyses,
+            test_set,
+            traits,
+            reach: Reach::new(g, ids, crate_ids),
+        }
+    }
+
+    fn is_test(&self, path: &str, s: &SymbolRow) -> bool {
+        self.test_set.contains(path) || self.analyses[path].is_test_at((s.range.0, s.range.1))
+    }
+
+    /// `(kind, name, exported)` of symbol `i` in `module`; `None` for trait members and trait
+    /// impl items.
+    fn shape(&self, i: usize, module: &str, vis: &str, kw: &'static str) -> Option<Shape> {
+        let s = &self.g.symbols[i];
+        Some(match owner(&s.scip, &self.traits) {
+            Owner::Skip => return None,
+            Owner::Free => (
+                kw,
+                s.name.clone(),
+                vis == "pub" && self.reach.item(i, module),
+            ),
+            Owner::Inherent(ty) => (
+                if kw == "fn" { "method" } else { kw },
+                format!("{ty}::{}", s.name),
+                vis == "pub" && self.reach.assoc(module, &ty),
+            ),
+        })
+    }
+
+    /// The item symbol `i` declares and the file it goes to; `None` for modules, private and
+    /// test items, items outside the module tree, and trait members.
+    fn item_of(&self, i: usize) -> Option<(&'a str, Item)> {
+        let s = &self.g.symbols[i];
+        if s.module_path.is_some() {
+            return None;
+        }
+        let (vis, kw) = parse_sig(&s.signature)?;
+        let path = self.g.files[s.file].path.as_str();
+        if self.is_test(path, s) {
+            return None;
+        }
+        let module = s.module.and_then(|m| self.ids.get(&m))?;
+        let (kind, name, exported) = self.shape(i, module, vis, kw)?;
+        let item = Item {
+            symbol: symbol_name(&s.scip, &s.name),
+            module: module.clone(),
+            kind: kind.into(),
+            name,
+            signature: one_line(&s.signature),
+            doc: first_paragraph(&s.doc),
+            line: s.range.0 + 1,
+            vis: vis.into(),
+            visible_in: self.reach.visible_in(i, module, vis),
+            exported,
+        };
+        Some((path, item))
+    }
+}
+
+/// `(kind, name, exported)` of an item.
+type Shape = (&'static str, String, bool);
+
 /// Fills `items` of every compiled file.
 pub fn add_items(
     files: &mut BTreeMap<String, FileData>,
@@ -106,49 +198,13 @@ pub fn add_items(
     analyses: &BTreeMap<String, Analysis>,
     test_set: &HashSet<String>,
 ) {
-    let traits: HashSet<String> = g
-        .symbols
-        .iter()
-        .filter(|s| s.signature.split_whitespace().any(|t| t == "trait"))
-        .map(|s| s.scip.clone())
-        .collect();
-    let reach = super::reach::Reach::new(g, ids, crate_ids);
-    for (i, s) in g.symbols.iter().enumerate() {
-        if s.module_path.is_some() {
-            continue;
-        }
-        let Some((vis, kw)) = parse_sig(&s.signature) else {
+    let items = Items::new(g, ids, crate_ids, analyses, test_set);
+    for i in 0..g.symbols.len() {
+        let Some((path, item)) = items.item_of(i) else {
             continue;
         };
-        let f = &g.files[s.file];
-        if test_set.contains(&f.path) || analyses[&f.path].is_test_at((s.range.0, s.range.1)) {
-            continue;
-        }
-        let Some(module) = s.module.and_then(|m| ids.get(&m)) else {
-            continue;
-        };
-        let (kind, name, exported) = match owner(&s.scip, &traits) {
-            Owner::Skip => continue,
-            Owner::Free => (kw, s.name.clone(), vis == "pub" && reach.item(i, module)),
-            Owner::Inherent(ty) => (
-                if kw == "fn" { "method" } else { kw },
-                format!("{ty}::{}", s.name),
-                vis == "pub" && reach.assoc(module, &ty),
-            ),
-        };
-        if let Some(fd) = files.get_mut(&f.path) {
-            fd.items.push(Item {
-                symbol: symbol_name(&s.scip, &s.name),
-                module: module.clone(),
-                kind: kind.into(),
-                name,
-                signature: one_line(&s.signature),
-                doc: first_paragraph(&s.doc),
-                line: s.range.0 + 1,
-                vis: vis.into(),
-                visible_in: reach.visible_in(i, module, vis),
-                exported,
-            });
+        if let Some(fd) = files.get_mut(path) {
+            fd.items.push(item);
         }
     }
 }
