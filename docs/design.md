@@ -192,7 +192,8 @@ each other; see
 
 ```
 crates/lib/algo/           general-purpose libraries, no brickie types (tag algo, looser limits)
-  layout/              brickie-layout: Sugiyama layout and edge routing (wasm-safe)
+  layout/              brickie-layout: Sugiyama layout and edge routing (wasm-safe); `smart/` = port and
+                       route choice (cand, choose, ports), `measure.rs` = crossings and bends
   graph/               brickie-graph: SCC (Tarjan), cycle path
   rustscan/            brickie-rustscan: Rust tokenizer, `use` item scanner
   metrics/             brickie-metrics: cognitive, cyclomatic, NPath, nesting, decision tree
@@ -204,9 +205,10 @@ crates/core/facts/     brickie-facts: the cache: model (cache.json schema), file
                        lock (`.brickie/cache.lock`, one writer at a time)
 crates/core/measure/   brickie-measure, folder bricks:
   workspace/           metadata, rust_analyzer, lock, git, crates
-  scip/                SCIP -> rows (normalise, targets, written, modules, layout)
-  run/                 mod (run, run_with: progress steps, cache lock), files, edges, items + reach (declared-interface candidates),
-                       complexity (brickie-metrics -> FnTree)
+  scip/                SCIP -> rows (normalise = the `Builder` phases, defs, link, targets, written, modules, layout;
+                       testutil = test builders)
+  run/                 mod (run, run_with: progress steps incl. a warning per unreadable file, cache lock), files, edges, items + reach (declared-interface candidates),
+                       complexity (brickie-metrics -> FnTree); goldens in `e2e_tests/` (here and in `scip`'s crate root)
 crates/core/change/    brickie-change: change sessions (folders: store (base/, ops.json, lock,
                        readers, layout), edit (toml_edit documents, ops, moves, ungroup), session
                        (open, record, review, retract/reapply, replay, editor helpers, links and

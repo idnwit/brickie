@@ -1,24 +1,35 @@
 //! Small pure helpers over SCIP symbols and ranges.
 
 use super::Span;
-use scip::types::Occurrence;
+
+/// Descriptor names of a SCIP symbol without the `crate` segment; `None` when it does not parse.
+pub fn descriptor_names(scip: &str) -> Option<Vec<String>> {
+    let sym = scip::symbol::parse_symbol(scip).ok()?;
+    Some(
+        sym.descriptors
+            .into_iter()
+            .map(|d| d.name)
+            .filter(|n| n != "crate")
+            .collect(),
+    )
+}
 
 pub fn module_path(scip: &str) -> Option<String> {
     if !scip.ends_with('/') {
         return None;
     }
-    let sym = scip::symbol::parse_symbol(scip).ok()?;
-    let names: Vec<&str> = sym
-        .descriptors
-        .iter()
-        .map(|d| d.name.as_str())
-        .filter(|n| *n != "crate")
-        .collect();
-    Some(names.join("/"))
+    Some(descriptor_names(scip)?.join("/"))
+}
+
+/// A rust-analyzer local (`local N`), which has no stable name across documents.
+pub fn is_local(scip: &str) -> bool {
+    scip.starts_with("local")
 }
 
 /// Innermost definition (by enclosing range) containing `pos`, excluding
-/// `exclude`. `defs` are (body span, symbol index) sorted by start asc, end desc.
+/// `exclude`. For a def occurrence the result can be a child (a module def at (0,0) shares its
+/// range with its first child); edges and reach drop def occurrences, so that container never
+/// reaches output. `defs` are (body span, symbol index) sorted by start asc, end desc.
 pub fn innermost(defs: &[(Span, usize)], pos: (u32, u32), exclude: Option<usize>) -> Option<usize> {
     let mut found = None;
     for &(s, id) in defs {
@@ -70,8 +81,9 @@ pub fn parent_path(p: &str) -> &str {
     p.rsplit_once('/').map(|(a, _)| a).unwrap_or("")
 }
 
-pub fn is_def(o: &Occurrence) -> bool {
-    o.symbol_roles & 1 == 1
+/// SCIP `SymbolRole::Definition` bit in an occurrence's roles.
+pub fn is_def(roles: i32) -> bool {
+    roles & 1 == 1
 }
 
 #[cfg(test)]
@@ -109,6 +121,25 @@ mod tests {
             Some("a/b")
         );
         assert_eq!(module_path("rust-analyzer cargo s 0.1.0 a/B#"), None);
+    }
+
+    #[test]
+    fn descriptor_names_drop_crate_and_reject_garbage() {
+        assert_eq!(
+            descriptor_names("rust-analyzer cargo s 0.1.0 crate/a/B#"),
+            Some(vec!["a".to_string(), "B".to_string()])
+        );
+        assert_eq!(
+            descriptor_names("rust-analyzer cargo s 0.1.0 crate/"),
+            Some(vec![])
+        );
+        assert_eq!(descriptor_names("not a symbol"), None);
+    }
+
+    #[test]
+    fn local_and_definition_checks() {
+        assert!(is_local("local 3") && !is_local("rust-analyzer cargo s 0.1.0 a/"));
+        assert!(is_def(1) && is_def(3) && !is_def(0) && !is_def(2));
     }
 
     #[test]

@@ -64,7 +64,13 @@ async fn the_watcher_pushes_what_changed() {
     let st = AppState::new(s.config());
     let mut rx = st.events.subscribe();
     crate::events::spawn(st.clone());
-    tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+    // Wait for the watcher's first look: a change opened before it would be the baseline.
+    for _ in 0..100 {
+        if st.events.last().is_some() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
     assert!(st.events.last().is_some(), "the watcher looked");
     Change::open(&s.config(), "watched").unwrap();
     let ev = tokio::time::timeout(std::time::Duration::from_secs(3), rx.recv())
@@ -77,6 +83,29 @@ async fn the_watcher_pushes_what_changed() {
             open: true,
             head: 0
         }
+    );
+}
+
+/// `Change::open` writes `ops.json` before `intent` (the marker that a change exists): a look
+/// between the two must not be remembered as "no change" for that `ops.json`.
+#[test]
+fn a_look_between_the_open_writes_does_not_hide_the_change() {
+    let s = Site::new();
+    let st = AppState::new(s.config());
+    st.events.update(snapshot(&st, 0));
+    let dir = s.config().parent().unwrap().join(".brickie/change");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("ops.json"), "[]\n").unwrap();
+    assert!(st.events.update(snapshot(&st, 0)).is_empty(), "half open");
+    std::fs::write(dir.join("readers.json"), "{}\n").unwrap();
+    std::fs::write(dir.join("intent"), "x").unwrap();
+    let ev = st.events.update(snapshot(&st, 0));
+    assert_eq!(
+        ev,
+        vec![ServerEvent::Change {
+            open: true,
+            head: 0
+        }]
     );
 }
 

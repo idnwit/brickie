@@ -15,7 +15,7 @@ pub fn assign_targets(idx: &Index, ws: &Layout, g: &mut Graph) {
         .map(|d| {
             d.occurrences
                 .iter()
-                .filter(|o| !is_def(o) && o.symbol.ends_with('/'))
+                .filter(|o| !is_def(o.symbol_roles) && o.symbol.ends_with('/'))
                 .map(|o| o.symbol.as_str())
                 .collect()
         })

@@ -62,13 +62,18 @@ pub(crate) fn tree_stamp(root: &Path) -> u64 {
 pub(crate) fn snapshot(st: &AppState, tree: u64) -> Snapshot {
     let config = st.config();
     let ops = st.root().join(".brickie/change/ops.json");
-    let change_stamp = stamp(&ops);
+    let mut change_stamp = stamp(&ops);
     let prev = st.events.last();
     let change = match prev {
         Some(p) if p.change_stamp == change_stamp => p.change,
         _ => match Change::load(&config).and_then(|c| c.status()) {
             Ok(s) => (true, s.head),
-            Err(_) => (Change::is_open(&config), 0),
+            Err(_) => {
+                // Not readable (none open, or `Change::open` is between writing `ops.json`
+                // and `intent`): never remember this stamp, so the next look reads again.
+                change_stamp = (u64::MAX, u64::MAX);
+                (Change::is_open(&config), 0)
+            }
         },
     };
     let (t, len) = stamp(&st.cache_file());

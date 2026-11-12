@@ -2,6 +2,8 @@
 //! (complexity) -> `.brickie/cache.json`.
 
 mod complexity;
+#[cfg(test)]
+mod e2e_tests;
 mod edges;
 mod files;
 mod items;
@@ -70,12 +72,24 @@ pub fn run_with(opts: &Options, progress: &dyn Fn(&str)) -> Result<PathBuf> {
         std::fs::read(&scip_path).with_context(|| format!("read SCIP {}", scip_path.display()))?;
     let idx = ::scip::types::Index::parse_from_bytes(&bytes).context("decode SCIP")?;
     drop(bytes);
-    let g = scip::normalise(&idx, &cargo_layout(&ws), &|p| {
+    let (g, mut unreadable) = scip::normalise(&idx, &cargo_layout(&ws), &|p| {
         std::fs::read_to_string(root.join(p)).ok()
     });
 
     progress("analyse files");
-    let cache = build(&g, &ws, idx.metadata.tool_info.version.clone(), &root);
+    let cache = build(
+        &g,
+        &ws,
+        idx.metadata.tool_info.version.clone(),
+        &root,
+        &mut unreadable,
+    );
+    // Unreadable files stay in the cache as empty rows; say so rather than hide it.
+    unreadable.sort();
+    unreadable.dedup();
+    for path in &unreadable {
+        progress(&format!("warning: cannot read {path}; recorded as empty"));
+    }
     progress("write cache");
     // Write then rename, so readers never see a half-written cache.
     let out = dir.join("cache.json");
@@ -85,14 +99,22 @@ pub fn run_with(opts: &Options, progress: &dyn Fn(&str)) -> Result<PathBuf> {
     Ok(out)
 }
 
-fn build(g: &Graph, ws: &metadata::Workspace, ra_version: String, root: &Path) -> Cache {
+/// The cache; paths that could not be read are appended to `unreadable`.
+fn build(
+    g: &Graph,
+    ws: &metadata::Workspace,
+    ra_version: String,
+    root: &Path,
+    unreadable: &mut Vec<String>,
+) -> Cache {
     let crate_ids = crates::crate_ids(ws);
     let crates = crates::crates(ws, &crate_ids);
     let (module_ids, module_list) = scip::modules::modules(g, &crate_ids);
-    let (sources, analyses) = files::analyze_all(g, root);
+    let (sources, analyses, unread) = files::analyze_all(g, root);
+    unreadable.extend(unread);
     let test_set = files::test_files(&analyses);
     let mut files = files::compiled_files(g, &module_ids, &sources, &analyses, &test_set);
-    files::add_uncompiled(&mut files, &crates, root);
+    unreadable.extend(files::add_uncompiled(&mut files, &crates, root));
     edges::add_edges(&mut files, g, &module_ids, &analyses, &test_set);
     items::add_items(&mut files, g, &module_ids, &crate_ids, &analyses, &test_set);
 

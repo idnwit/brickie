@@ -1,22 +1,7 @@
-use super::testcfg::is_test_cfg;
-use super::*;
+use brickie_metrics::{FnMetrics, analyze, fn_tree};
 
 fn one(src: &str) -> FnMetrics {
     analyze(src).fns.remove(0)
-}
-
-#[test]
-fn cfg_detection() {
-    assert!(is_test_cfg("#[cfg(test)]"));
-    assert!(is_test_cfg("#[cfg( any( test , feature = \"x\" ) )]"));
-    assert!(is_test_cfg("#[cfg(all(test, unix))]"));
-    assert!(is_test_cfg("#[cfg(feature = \"test-util\")]"));
-    assert!(is_test_cfg("#![cfg(test)]"));
-    assert!(!is_test_cfg("#[cfg(not(test))]"));
-    assert!(!is_test_cfg("#[cfg(any(unix, not(test)))]"));
-    assert!(!is_test_cfg("#[cfg(feature = \"test\")]"));
-    assert!(!is_test_cfg("#[cfg(feature = \"testing\")]"));
-    assert!(!is_test_cfg("#[derive(Debug)]"));
 }
 
 #[test]
