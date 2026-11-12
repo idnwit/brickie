@@ -10,7 +10,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # Must match wasm-bindgen in ui/Cargo.toml.
+  # Must match wasm-bindgen in crates/web/ui/Cargo.toml.
   WASM_BINDGEN_VERSION: 0.2.123
 
 jobs:

@@ -1,0 +1,49 @@
+# brickie's own architecture, checked by brickie. Crates by layer:
+#   cli (the `brickie` binary) -> web (server, viewer) -> core (engine, model)
+# crates/core/brickie.toml and crates/web/brickie.toml split each composite into its crates.
+
+[[brick]]
+name = "core"
+path = "crates/core"                  # composite: model (shared types), engine (brickie-core)
+tags = ["lib"]
+
+[[brick]]
+name = "web"
+path = "crates/web"                   # composite: server (brickie-web), ui (brickie-ui)
+tags = ["lib"]
+
+[[brick]]
+name = "cli"
+members = ["brickie"]                 # the binary, its tests
+tags = ["app"]
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "cli"
+to = "core"
+scope = "all"
+action = "allow"
+reason = "the commands drive the engine"
+
+[[deps.rule]]
+from = "cli"
+to = "web"
+scope = "all"
+action = "allow"
+reason = "`brickie view` starts the server"
+
+[[deps.rule]]
+from = "web"
+to = "core"
+scope = "all"
+action = "allow"
+reason = "the server reads the cache and checks; the viewer shares the model"
+
+[[complexity]]
+cognitive = 15
+nesting = 4
+params = 6
+level = "warn"

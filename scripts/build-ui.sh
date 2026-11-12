@@ -1,10 +1,10 @@
 #!/bin/sh
 # Build the browser bundle (wasm + JS glue) into assets/ui/. The brickie server embeds these
-# files when they exist at compile time (see build.rs) and runs SSR-only otherwise.
+# files when they exist at compile time (see crates/web/server/build.rs) and runs SSR-only otherwise.
 #
 # Prerequisites (one time):
 #   rustup target add wasm32-unknown-unknown
-#   cargo install wasm-bindgen-cli --version 0.2.123 --locked   # must match ui/Cargo.toml
+#   cargo install wasm-bindgen-cli --version 0.2.123 --locked   # must match crates/web/ui/Cargo.toml
 #
 # Usage: scripts/build-ui.sh [--dev]     (then `cargo build --release`)
 set -eu

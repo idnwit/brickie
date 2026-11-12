@@ -1,0 +1,24 @@
+# The webview crates: server (axum, brickie-web) renders and serves the viewer (ui, wasm).
+# The viewer depends on core's model only, never on the engine.
+exports = ["server"]
+
+[[brick]]
+name = "server"
+members = ["brickie-web"]
+tags = ["server"]
+
+[[brick]]
+name = "ui"
+members = ["brickie-ui"]
+tags = ["view"]
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "server"
+to = "ui"
+scope = "all"
+action = "allow"
+reason = "the server renders the viewer and shares its page-data model"

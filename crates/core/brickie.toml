@@ -1,0 +1,23 @@
+# The core crates: model (light, wasm-safe shared types) is the base; engine uses it.
+exports = ["model", "engine"]
+
+[[brick]]
+name = "engine"
+members = ["brickie-core"]
+tags = ["engine"]
+
+[[brick]]
+name = "model"
+members = ["brickie-model"]
+tags = ["base"]
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "engine"
+to = "model"
+scope = "all"
+action = "allow"
+reason = "the engine produces the shared model values"

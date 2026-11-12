@@ -163,35 +163,70 @@ name = "brickie"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "axum",
- "brickie-ui",
- "cargo_metadata",
+ "brickie-core",
+ "brickie-model",
+ "brickie-web",
  "clap",
- "http-body-util",
+ "serde_json",
+ "sha2",
+ "tempfile",
+]
+
+[[package]]
+name = "brickie-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "brickie-model",
+ "cargo_metadata",
  "protobuf",
  "scip",
  "serde",
  "serde_json",
  "sha2",
  "tempfile",
- "tokio",
  "toml",
  "toml_edit 0.25.19+spec-1.1.0",
- "tower",
  "tree-sitter",
  "tree-sitter-rust",
+]
+
+[[package]]
+name = "brickie-model"
+version = "0.1.0"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
 name = "brickie-ui"
 version = "0.1.0"
 dependencies = [
+ "brickie-model",
  "serde",
  "serde_json",
  "sycamore",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+]
+
+[[package]]
+name = "brickie-web"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "brickie-core",
+ "brickie-model",
+ "brickie-ui",
+ "http-body-util",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml",
+ "tower",
 ]
 
 [[package]]

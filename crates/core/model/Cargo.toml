@@ -1,0 +1,11 @@
+[package]
+name = "brickie-model"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "brickie's shared, wasm-safe data model: diagnostic levels, codes and values, function trees"
+license = "MIT"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }

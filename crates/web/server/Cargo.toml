@@ -1,0 +1,24 @@
+[package]
+name = "brickie-web"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "brickie's reviewer webview server (axum): SSR page, JSON API, embedded wasm bundle"
+license = "MIT"
+publish = false
+
+[dependencies]
+brickie-core = { path = "../../core/engine" }
+brickie-model = { path = "../../core/model" }
+brickie-ui = { path = "../ui" }
+anyhow = "1"
+axum = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "net", "macros"] }
+
+[dev-dependencies]
+http-body-util = "0.1"
+tempfile = "3"
+toml = "0.8"
+tower = { version = "0.5", features = ["util"] }

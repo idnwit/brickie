@@ -1,0 +1,29 @@
+[package]
+name = "brickie"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Measure Rust workspaces (module dependency edges and function complexity) and check them against your own brick rules"
+license = "MIT"
+repository = "https://github.com/idnwit/brickie"
+homepage = "https://github.com/idnwit/brickie"
+readme = "../../README.md"
+keywords = ["architecture", "dependencies", "complexity", "lint", "rust-analyzer"]
+categories = ["development-tools", "command-line-utilities"]
+# Not published to crates.io: the interactive viewer is a generated wasm bundle (assets/ui/,
+# git-ignored, built by scripts/build-ui.sh) and the path dependencies are not published
+# either. Releases are git tags + prebuilt binaries.
+publish = false
+
+[dependencies]
+brickie-core = { path = "../core/engine" }
+brickie-model = { path = "../core/model" }
+brickie-web = { path = "../web/server" }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+serde_json = "1"
+sha2 = "0.10"
+tempfile = "3"
