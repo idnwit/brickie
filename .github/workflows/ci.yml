@@ -21,13 +21,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy, rust-analyzer
+          components: rustfmt, clippy, rust-analyzer, rust-src
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - name: Install wasm-bindgen-cli
         run: cargo install wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION" --locked
       - name: rust-analyzer on PATH
-        # The rustup proxy exists only after the component is installed; the measure test needs it.
+        # The rustup proxy exists only after the component is installed; the measure test needs it
+        # (and rust-src: without std, macros such as `assert_eq!` stay unexpanded and the
+        # references inside them are missing).
         run: rust-analyzer --version
       - run: cargo fmt --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
