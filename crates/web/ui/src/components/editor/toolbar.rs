@@ -1,6 +1,6 @@
 //! The floating toolbar at the top of the canvas (centred, collapsible, fixed while panning):
 //! Select / Hand, the brick tiles (drag one onto the canvas, or click it then the canvas), the
-//! link types (arm one: ports show on every brick), the scope of new rules and delete.
+//! link types (arm one: ports show on every brick), the scope of new rules, delete and the shortcuts sheet (`?`).
 
 use crate::state::*;
 use brickie_web_api::change::BrickKind;
@@ -64,8 +64,8 @@ fn tiles(ed: Edit) -> View {
                 e.prevent_default();
                 e.stop_propagation();
                 ed.link_type.set(None);
-                ed.carry
-                    .set(Some((kind, e.client_x() as f64, e.client_y() as f64)));
+                let at = (e.client_x() as f64, e.client_y() as f64);
+                ed.carry.set(Some((Carry::Tile(kind), at.0, at.1)));
             };
             let label = format!("{glyph} {name}");
             view! { button(class=cls, title=tip, "data-kind"=name, on:mousedown=down) { (label) } }
@@ -121,6 +121,7 @@ pub fn toolbar(cx: &Cx) -> View {
             span(class="tgrp") { (links(ed)) }
             span(class="tgrp seg") { (scopes(ed)) }
             button(class="tb", id="tb-del", title="Delete the selection (Del)", on:click=del) { "\u{232B}" }
+            button(class="tb", id="tb-help", title="Keyboard shortcuts and gestures (?)", on:click=move |_: Click| ed.help.update(|h| *h = !*h)) { "?" }
         }
     };
     let fold = move |_: Click| ed.toolbar_open.update(|o| *o = !*o);

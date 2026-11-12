@@ -1,6 +1,7 @@
 //! Editor keys and the actions they share with buttons: `E` design mode, `V`/`H` tools, `B`
 //! brick tool (`Tab` cycles the kind), `L` link tool, `1`/`2`/`3` scope, `F2` rename, `Del`
-//! delete, `Ctrl+Z` undo (retract), `Ctrl+Shift+Z` / `Ctrl+Y` redo, `A`/`R`/`N` review proposals, `P`/`C`/`D` preview / current /
+//! delete, `Ctrl+Z` undo (retract), `Ctrl+Shift+Z` / `Ctrl+Y` redo,
+//! `Ctrl+X`/`Ctrl+V` cut and paste a brick across levels, `?` shortcuts, `A`/`R`/`N` review proposals, `P`/`C`/`D` preview / current /
 //! diff, `+`/`-`/`0` zoom.
 
 use super::{op, write};
@@ -226,6 +227,9 @@ fn reviews(cx: &Cx, key: &str) -> bool {
         "r" => platform::focus("review-note"),
         "n" => next(cx),
         "Ctrl+z" => retract(cx),
+        "Ctrl+x" => super::clip::cut(cx),
+        "Ctrl+v" => super::clip::paste(cx),
+        "?" => cx.ed.help.set(!cx.ed.help.get()),
         "Ctrl+Shift+z" | "Ctrl+y" => redo(cx),
         "p" => show(cx, true, false),
         "c" => show(cx, false, false),

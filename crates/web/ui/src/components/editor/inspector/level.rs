@@ -45,6 +45,6 @@ pub fn level_view(cx: &Cx) -> View {
         p(class="muted") { (counts) }
         label { "tags" }
         div(class="pills") { (tags) }
-        p(class="muted") { "Nothing selected. Drag a brick tile from the toolbar onto the canvas; hover a brick and drag one of its typed ports onto a sibling to add a rule; hold a brick over another to move it inside." }
+        p(class="muted") { "Nothing selected. Drag a brick tile from the toolbar onto the canvas; hover a brick and drag one of its typed ports onto a sibling to add a rule; drop a brick on another to move it inside (rest on a group to open it), or Ctrl+X / Ctrl+V across levels; select a rule and drag its arrowhead to retarget it. Press ? for all shortcuts." }
     }
 }

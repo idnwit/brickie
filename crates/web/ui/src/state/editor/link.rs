@@ -111,6 +111,18 @@ pub fn scope_key(key: &str) -> Option<&'static str> {
     }
 }
 
+/// The `set_rule` that points rule `r` (as it is now, `rule`) at `to`; `None` when unchanged.
+pub fn retarget_op(r: &super::RuleRef, rule: &RuleSpec, to: &str) -> Option<Op> {
+    (rule.to != to).then(|| Op::SetRule {
+        file: r.file.clone(),
+        index: r.index,
+        rule: RuleSpec {
+            to: to.to_string(),
+            ..rule.clone()
+        },
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,5 +154,22 @@ mod tests {
         };
         assert!(names("*", &b) && names("api", &b) && names("tag:io", &b));
         assert!(!names("ui", &b) && !names("tag:x", &b));
+    }
+
+    #[test]
+    fn retarget_changes_only_the_target() {
+        let r = super::super::RuleRef {
+            file: "brickie.toml".into(),
+            index: 2,
+        };
+        let rule = RuleSpec {
+            reason: Some("why".into()),
+            ..link_rule("a", "b", LinkType::Uses, "prod")
+        };
+        assert!(retarget_op(&r, &rule, "b").is_none());
+        let Some(Op::SetRule { index, rule: n, .. }) = retarget_op(&r, &rule, "tag:io") else {
+            panic!("no set_rule");
+        };
+        assert_eq!((index, n.to.as_str(), n.reason), (2, "tag:io", rule.reason));
     }
 }

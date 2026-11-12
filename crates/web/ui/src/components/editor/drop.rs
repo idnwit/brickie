@@ -4,7 +4,7 @@
 //! a lane, inside a brick, in a new lane), the link becomes a rule, a brick moves into a brick
 //! or up, changes lane, or just stores its position.
 
-use super::aim::{aim, clear};
+use super::aim::{aim, carried, clear};
 use super::{connect, op, send, write};
 use crate::platform;
 use crate::state::*;
@@ -34,9 +34,10 @@ fn pointer_move(cx: &Cx, x: f64, y: f64) -> bool {
         return false;
     }
     let ed = cx.ed;
-    if let Some((k, _, _)) = ed.carry.get() {
+    if let Some((k, _, _)) = ed.carry.get_clone() {
+        let what = carried(cx, &k);
         ed.carry.set(Some((k, x, y)));
-        aim(cx, Carried::Tile, x, y);
+        aim(cx, what, x, y);
         return true;
     }
     if ed.connect.with(Option::is_some) {
@@ -103,9 +104,10 @@ fn drop_tile(cx: &Cx, kind: brickie_web_api::change::BrickKind, x: f64, y: f64) 
     draft_at(cx, kind, x, y, dest);
 }
 
-fn move_brick(cx: &Cx, name: String, into: Vec<String>, place: String) {
+/// Move brick `name` of level `from` into the brick at path `into` (`place` words the toast).
+pub(super) fn move_brick(cx: &Cx, from: &str, name: String, into: Vec<String>, place: String) {
     let req = ChangeMoveRequest {
-        from: brick_path(&cx.level().path, &name),
+        from: brick_path(from, &name),
         into,
         note: None,
     };
@@ -142,11 +144,12 @@ fn drop_brick(cx: &Cx, b: usize, back: (f64, f64)) {
         Some(MoveTarget::Into(t)) => {
             let into = &cx.m.g.bricks[t].name;
             let place = format!("into {into}");
-            move_brick(cx, name, brick_path(&cx.level().path, into), place);
+            let lv = &cx.level().path;
+            move_brick(cx, lv, name, brick_path(lv, into), place);
         }
         Some(MoveTarget::Up(level)) => {
             let place = format!("up to {level}");
-            move_brick(cx, name, level_brick_path(&level), place);
+            move_brick(cx, &cx.level().path, name, level_brick_path(&level), place);
         }
         Some(MoveTarget::Lane(lane)) => {
             let file = cx.level_file().unwrap_or_default();
@@ -169,6 +172,30 @@ fn drop_brick(cx: &Cx, b: usize, back: (f64, f64)) {
     }
 }
 
+/// A lifted brick released: on its own level like a brick drag there; elsewhere into the
+/// brick under it, up, or onto the level on screen.
+fn drop_lifted(cx: &Cx, from: &str, name: String) {
+    let here = cx.level().path.clone();
+    if let Some(b) = cx.brick(&name).filter(|_| here == *from) {
+        let back = cx.drag.with(|d| d.get(&b).copied()).unwrap_or_default();
+        return drop_brick(cx, b, back);
+    }
+    let target = cx.ed.target.get_clone();
+    clear(cx.ed);
+    let (into, place) = match target {
+        Some(MoveTarget::Into(t)) => {
+            let into = cx.m.g.bricks[t].name.clone();
+            (brick_path(&here, &into), format!("into {into}"))
+        }
+        Some(MoveTarget::Up(l)) => (level_brick_path(&l), format!("up to {l}")),
+        Some(MoveTarget::No(why)) => {
+            return cx.ed.msg.set(format!("Cannot move {name} there: {why}"));
+        }
+        _ => (level_brick_path(&here), format!("to {here}")),
+    };
+    move_brick(cx, from, name, into, place);
+}
+
 /// Esc during a brick drag: put it back and forget the drag. True when there was one.
 pub fn cancel_drag(cx: &Cx) -> bool {
     let Some(Op::Drag { b, dx0, dy0, .. }) = cx.op.get() else {
@@ -189,10 +216,16 @@ pub fn release(cx: &Cx, x: f64, y: f64, op: Option<Op>) {
         return;
     }
     let ed = cx.ed;
-    if let Some((kind, _, _)) = ed.carry.get() {
-        ed.carry.set(None);
-        drop_tile(cx, kind, x, y);
-        return;
+    match ed.carry.get_clone() {
+        Some((Carry::Tile(kind), _, _)) => {
+            ed.carry.set(None);
+            return drop_tile(cx, kind, x, y);
+        }
+        Some((Carry::Brick { level, name }, _, _)) => {
+            ed.carry.set(None);
+            return drop_lifted(cx, &level, name);
+        }
+        None => {}
     }
     if ed.connect.with(Option::is_some) {
         connect::finish(cx, world(cx, x, y));

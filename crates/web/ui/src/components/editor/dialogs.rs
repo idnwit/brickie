@@ -76,7 +76,10 @@ fn plan_view(ed: Edit, plan: Plan) -> View {
 
 fn open_view(ed: Edit) -> View {
     let intent = create_signal(String::new());
-    let open = move |_: Click| {
+    let open = move || {
+        if intent.with(|i| i.trim().is_empty()) {
+            return;
+        }
         let req = ChangeOpenRequest {
             intent: intent.get_clone(),
         };
@@ -85,13 +88,19 @@ fn open_view(ed: Edit) -> View {
             platform::goto(&p.with(|p| p.change = "1".into()).url());
         });
     };
+    let enter = move |e: web_sys::KeyboardEvent| match e.key().as_str() {
+        "Enter" => open(),
+        "Escape" => ed.dialog.set(Dialog::None),
+        _ => {}
+    };
+    platform::next_frame(|| platform::focus("intent"));
     view! {
         h3 { "New design change" }
         p(class="muted") { "While the change is open, nobody writes brickie.toml: you and the coding agent record ops; publish writes them." }
-        input(id="intent", r#type="text", placeholder="intent: what is this change for?", bind:value=intent)
+        input(id="intent", r#type="text", placeholder="intent: what is this change for? (Enter opens)", bind:value=intent, on:keydown=enter)
         div(class="acts") {
             button(on:click=move |_: Click| ed.dialog.set(Dialog::None)) { "Cancel" }
-            button(class="go", disabled=move || intent.with(|i| i.trim().is_empty()), on:click=open) { "Open change" }
+            button(class="go", disabled=move || intent.with(|i| i.trim().is_empty()), on:click=move |_: Click| open()) { "Open change" }
         }
     }
 }

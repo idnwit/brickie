@@ -118,7 +118,8 @@ The design panel tabs (right column, all scoped to the **current level**):
 | Drag brick onto a sibling | target glows at once as a folder (lid tab), label "into <b>"; drop | `move_brick` via `ChangeMove {from, into}` (a leaf becomes a group) |
 | Drag brick onto the level frame edge / breadcrumb parent ("drop here = move to parent") | moves up one level | `move_brick` into parent file |
 | Drag brick onto any breadcrumb segment | moves to that ancestor level | `move_brick` |
-| Cut `Ctrl+X`, navigate, paste `Ctrl+V` | move across non-adjacent levels (e.g. into a cousin) | `move_brick` |
+| Cut `Ctrl+X`, navigate, paste `Ctrl+V` | move across non-adjacent levels (e.g. into a cousin); with a brick selected, into it (implemented: `editor/clip.rs`; the hint shows what is cut, Esc forgets it) | `move_brick` |
+| Rest a dragged brick on a group ~700 ms | the group's level opens with the brick still on the pointer (spring-loaded, see below) | `move_brick` on release |
 | Drop result | toast: "Moved; code is not moved on publish (manual step)" and N rules rewritten / exports dropped | — |
 
 Invalid targets (into itself or a descendant, onto a faded neighbour) show a red outline, a
@@ -156,9 +157,14 @@ Decisions (ambiguous points):
 - **One gesture, one undo step.** A tile into a leaf records two ops; Undo retracts both, Redo
   restores both (the page keeps the gesture's seq range).
 - **The tile ignores the frame edge** (a new brick cannot go "up"); breadcrumbs too.
-- **Spring-loaded zoom** (hover a folder ~800 ms to open its level mid-drag, macOS-style) is
-  deferred: the dragged brick belongs to the level on screen, and re-rendering another level
-  mid-drag loses it. Deeper drops: zoom in first. Back / Forward never record transient zooms.
+- **Spring-loaded zoom** (implemented 2026-11-12, `editor/spring.rs`): resting a drag on a
+  group brick for 700 ms opens its level, macOS-style; the folder fill charges while the hold
+  runs and the label adds "· hold to open". A brick dragged on its own level is lifted off it
+  (it returns to its place there) and its ghost keeps following the pointer on the new level:
+  drop into a brick (or rest again to go deeper), on the frame edge / a breadcrumb (up) or
+  anywhere else (onto this level, untagged; lanes and the new-lane zone do not apply to a
+  lifted brick). A tile carries over the same way. Esc cancels; the opened levels are
+  ordinary history entries.
 - **Feedback:** target highlights fade in (120 ms; none with `prefers-reduced-motion`); the
   result label rides on the tile ghost or under the dragged brick; after a drop a toast names
   the op(s) and "Ctrl+Z undoes".
@@ -183,7 +189,9 @@ per link type, each with its own colour and glyph (legend in the floating toolba
   mode in the floating toolbar (`prod | test | all`, default `all`, keys `1/2/3`), shown on the ports.
 - Drag from a port -> rubber band in that type's style; valid targets (siblings,
   `link_options`) highlight, and a target where this link would change nothing shows
-  "already allowed" and is not droppable.
+  "already allowed" and is not droppable; dropping there says which rule decides it, by its
+  path from the root config's directory ("No rule added for web → lib: already allowed by
+  brickie.toml:62").
 - **Drop = rule created** immediately (`add_rule`), no blocking form. The new edge is selected
   and the inspector focuses its `reason` field; typing is optional.
 - A rule without a reason gets a small "?" marker on the edge and a "rules without reason"
@@ -200,7 +208,7 @@ per link type, each with its own colour and glyph (legend in the floating toolba
 | Edit fields in inspector / Rules tab | — | `set_rule` |
 | Change an edge's type | inspector kind chips, or drag a different port onto the same target (merges kinds) | `set_rule {kinds}` |
 | `Del` on a rule-edge | removes that rule (not measured code edges) | `remove_rule` |
-| Drag an edge's arrowhead to another brick | retarget | `set_rule {to}` |
+| Drag an edge's arrowhead to another brick | retarget (implemented: the selected rule shows a handle on each arrowhead, above the port strips; only `to` changes) | `set_rule {to}` |
 
 Several kinds on one rule are shown as one edge with stacked glyphs; editing kinds in the
 inspector splits nothing. The inspector's "Now" line comes from `link_options` (deciding rule
@@ -302,6 +310,10 @@ small lock icon.
 - **Preview fails to load**: canvas shows the current design greyed, a red banner with the
   loader error and the op that caused it (link) and "Retract" on it.
 - **409 on an op**: inline error at the gesture site, nothing changes.
+- **Op recorded but the design no longer checks** (e.g. a moved brick's members fall outside
+  its new composite): the reply has no levels and `change.error` says why; the error line
+  shows it with "Ctrl+Z undoes" (the canvas keeps the last good preview).
+- **No change open**: the intent field is focused; Enter opens, Esc cancels.
 - **Stale measure / no measure**: measure prompt (above).
 
 ## Keyboard
@@ -320,7 +332,8 @@ small lock icon.
 | `Alt+←` / `Alt+→`, mouse 4 / 5 | Back / Forward through the view history (level, selection) = browser history; `←` `→` buttons by the breadcrumb, tooltip "Back to root/core"; not while typing |
 | `A` / `R` / `N` | accept / reject / next proposal |
 | `P` `C` `D` | Preview / Current / Diff |
-| `Esc` | cancel drag (the brick goes back), popover, tool |
+| `Esc` | cancel drag (the brick goes back), popover, tool, cut brick, shortcuts sheet |
+| `?` | shortcuts sheet: every key and gesture (also the toolbar's `?` button) |
 | `/` | find |
 | `+ - 0` | zoom, fit |
 

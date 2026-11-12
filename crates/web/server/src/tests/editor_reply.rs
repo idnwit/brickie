@@ -57,6 +57,9 @@ async fn writes_answer_the_change_and_the_touched_levels() {
     let check = json!({"from": "cache", "to": "engine", "scope": "prod", "action": "allow"});
     let c = json(&s, "/api/change/link-check", check).await;
     assert_eq!(c["redundant"], json!(true), "{c}");
+    // The deciding rule is named by its path from the root config's directory.
+    let why = c["why"].as_str().unwrap();
+    assert!(why.contains("brickie.toml:") && !why.contains('/'), "{why}");
     let check = json!({"from": "engine", "to": "cache", "scope": "all", "action": "deny"});
     let c = json(&s, "/api/change/link-check", check).await;
     assert_eq!(c["redundant"], json!(false), "{c}");

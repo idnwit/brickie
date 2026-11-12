@@ -6,21 +6,26 @@
 
 mod aim;
 mod bar;
+mod clip;
 mod complexity;
 mod connect;
 mod dialogs;
 mod drop;
 mod files;
+mod help;
 mod inspector;
 mod keys;
 mod layer;
 mod level_tab;
 mod live;
 mod log;
+mod marks;
 mod overlay;
 mod panel;
 mod place;
+mod retarget;
 mod rules;
+mod spring;
 mod toolbar;
 mod widgets;
 
@@ -69,8 +74,13 @@ fn forget_indices(ed: Edit) {
 
 /// Show `text` briefly.
 fn toast(ed: Edit, text: String) {
-    ed.toast.set(text);
-    crate::platform::after(2500, move || ed.toast.set(String::new()));
+    ed.toast.set(text.clone());
+    // A later toast keeps its own time.
+    crate::platform::after(2500, move || {
+        if ed.toast.with_untracked(|t| *t == text) {
+            ed.toast.set(String::new());
+        }
+    });
 }
 
 /// Call a write endpoint answering a `ChangeReply`, patch the page, then `then(done)`.
@@ -93,7 +103,14 @@ where
         // Leave fields before the re-render removes them (their blur handlers are still alive).
         crate::platform::blur_active();
         forget_indices(c.ed);
+        let broken = change.error.clone();
         c.live.apply(change, levels, Some(keep(&c)));
+        if let Some(e) = broken {
+            // The op is recorded but the design no longer checks: say why, where it happened.
+            c.ed.msg.set(format!(
+                "Recorded, but the design no longer checks (canvas not updated): {e} \u{00B7} Ctrl+Z undoes"
+            ));
+        }
         // The patch re-rendered the page: act on the new level state.
         if let Some(now) = current_cx() {
             then(&now, done);

@@ -35,7 +35,7 @@ fn quiet(cx: &Cx) -> bool {
         && ed.draft.with(Option::is_none)
         && ed.rename.with(Option::is_none)
         && ed.lane_ask.with(Option::is_none)
-        && ed.carry.get().is_none()
+        && ed.carry.with(Option::is_none)
         && !platform::typing()
 }
 

@@ -36,4 +36,9 @@
 .newlanet{fill:var(--muted);font-size:12px;text-anchor:middle;pointer-events:none}
 .tlabel.aim{fill:var(--sel)}
 @keyframes dropin{from{opacity:0}to{opacity:1}}
-@media (prefers-reduced-motion:reduce){.mtarget{animation:none}}
+/* Spring-loaded zoom: the folder fills while the hold runs (700 ms, see editor/spring.rs). */
+.mtarget.folder.spring{animation:spring .7s linear forwards}
+@keyframes spring{from{fill:color-mix(in srgb,var(--sel) 18%,transparent)}to{fill:color-mix(in srgb,var(--sel) 45%,transparent)}}
+/* Arrowhead handle of the selected rule: drag to retarget. */
+.rhandle{cursor:grab}.rhandle circle{fill:var(--panel);stroke:var(--lc,var(--sel));stroke-width:2.5}.rhandle:hover circle{fill:var(--lc,var(--sel))}
+@media (prefers-reduced-motion:reduce){.mtarget,.mtarget.folder.spring{animation:none}}

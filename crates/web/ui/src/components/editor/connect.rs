@@ -1,7 +1,8 @@
 //! Connecting, type first: dragging a typed port of a brick draws a rubber band; the sibling or
 //! tag lane under the pointer is checked (`/api/change/link-check`) and a redundant target is
 //! refused ("already allowed"). Dropping adds the rule at once (`add_rule`), selects it and
-//! focuses its reason in the inspector.
+//! focuses its reason in the inspector. Dragging the arrowhead of the selected rule
+//! (`retarget`) draws the same band and changes that rule's target instead.
 
 use super::{op_then, send};
 use crate::components::call::call;
@@ -13,7 +14,13 @@ use brickie_web_api::{ChangeLinkCheck, ChangeLinkCheckRequest};
 /// Start dragging port `ty` of brick `from` at world point `(x, y)`.
 pub fn start(ed: Edit, from: String, ty: LinkType, x: f64, y: f64) {
     ed.check.set(None);
-    ed.connect.set(Some(Connect { from, ty, x, y }));
+    ed.connect.set(Some(Connect {
+        from,
+        ty,
+        retarget: None,
+        x,
+        y,
+    }));
 }
 
 /// The selector under world point `at` for a link from `from`: a sibling or a tag lane.
@@ -66,7 +73,9 @@ pub fn moved(cx: &Cx, at: (f64, f64)) {
         return;
     }
     ed.check.set(None);
-    let Some(to) = to else { return };
+    let Some(to) = to.filter(|_| c.retarget.is_none()) else {
+        return;
+    };
     let req = check_req(cx, &c, &to);
     call::<ChangeLinkCheck>(&req, move |r| {
         let still = ed.connect.with(|k| k.is_some());
@@ -86,17 +95,35 @@ pub fn finish(cx: &Cx, at: Option<(f64, f64)>) {
     let Some(to) = at.and_then(|p| target_at(cx, &c.from, p)) else {
         return;
     };
+    if let Some(r) = &c.retarget {
+        return retarget(cx, r, &to);
+    }
     let Some(file) = cx.level_file() else { return };
     let req = check_req(cx, &c, &to);
     let cx2 = cx.clone();
     send::<ChangeLinkCheck>(ed, req, move |chk| {
         if chk.redundant {
-            ed.msg.set(format!("Already allowed: {}", chk.why));
+            let link = format!("{} \u{2192} {to}", c.from);
+            ed.msg.set(format!("No rule added for {link}: {}", chk.why));
             return;
         }
         let op = link_op(&file, &c.from, &to, c.ty, cx2.ed.scope.get());
         op_then(&cx2, op, move |now, _| select_new_rule(now, &file));
     });
+}
+
+/// Point rule `r` at `to` (its arrowhead was dropped there), keeping it selected.
+fn retarget(cx: &Cx, r: &RuleRef, to: &str) {
+    let rule =
+        cx.m.change
+            .as_deref()
+            .and_then(|ch| rule_at(ch, r))
+            .cloned();
+    let Some(op) = rule.and_then(|rule| retarget_op(r, &rule, to)) else {
+        return;
+    };
+    let r = r.clone();
+    op_then(cx, op, move |now, _| now.ed.rule.set(Some(r)));
 }
 
 /// Select the rule just added to `file` and focus its reason.

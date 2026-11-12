@@ -26,17 +26,20 @@ pub fn seq_files(ch: &Change, seq: u64) -> Result<Vec<String>> {
         .map_or_else(Vec::new, |o| op_files(&o.op)))
 }
 
-/// Every preview level, marked (empty when the preview or the cache does not load).
-fn preview_levels(ch: &Change, view: &ChangeView) -> Vec<LevelView> {
+/// Every preview level, marked; `Err`: why the preview does not check (a config that loads
+/// but breaks a rule of the tree, e.g. a member outside its composite), paths relative to the
+/// root config's directory.
+fn preview_levels(ch: &Change, view: &ChangeView) -> std::result::Result<Vec<LevelView>, String> {
     if view.error.is_some() {
-        return Vec::new();
+        return Ok(Vec::new());
     }
-    let Ok(l) = ch.preview(true).and_then(|p| p.check()) else {
-        return Vec::new();
-    };
+    let l = ch.preview(true).and_then(|p| p.check()).map_err(|e| {
+        let root = format!("{}/", ch.root().display());
+        format!("{e:#}").replace(&root, "")
+    })?;
     let mut levels = graph::levels(&l);
     mark(&mut levels, &l, view);
-    levels
+    Ok(levels)
 }
 
 fn parent(path: &str) -> &str {
@@ -46,7 +49,7 @@ fn parent(path: &str) -> &str {
 /// The preview levels at `paths` (all when empty).
 pub fn levels(ch: &Change, paths: &[String]) -> Result<Vec<LevelView>> {
     let view = change_view(ch)?;
-    let mut out = preview_levels(ch, &view);
+    let mut out = preview_levels(ch, &view).unwrap_or_default();
     if !paths.is_empty() {
         out.retain(|lv| paths.contains(&lv.path));
     }
@@ -56,12 +59,16 @@ pub fn levels(ch: &Change, paths: &[String]) -> Result<Vec<LevelView>> {
 /// The reply to a write that edited `files`: the levels of those files, their ancestors and
 /// their direct children.
 pub fn reply<T>(ch: &Change, done: T, files: &[String]) -> Result<ChangeReply<T>> {
-    let change = change_view(ch)?;
+    let mut change = change_view(ch)?;
     let hit: BTreeSet<&str> = (change.files.iter())
         .filter(|(_, f)| files.contains(f))
         .map(|(lv, _)| lv.as_str())
         .collect();
-    let mut levels = preview_levels(ch, &change);
+    // A write that leaves a preview failing its checks says why (the levels stay as they were).
+    let mut levels = preview_levels(ch, &change).unwrap_or_else(|e| {
+        change.error = Some(e);
+        Vec::new()
+    });
     levels.retain(|lv| {
         hit.iter()
             .any(|h| under(h, &lv.path) || parent(&lv.path) == *h)

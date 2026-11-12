@@ -683,16 +683,35 @@ the files and the warnings).
 - **Server addition**: `ChangeView.sheets` (`FileSheet` per config file of the preview: its own
   deps settings, rules, complexity rules, exports and includes, in file order, so a row maps to
   an op's `file` and `index`; `Preview::sheets` in `brickie-change`).
+- **Spring-loaded zoom** (`editor/spring.rs`): a drag (brick, tile or lifted brick) resting
+  on a group brick for 700 ms opens its level (the folder fill charges meanwhile, "· hold to
+  open"; none with `prefers-reduced-motion`). A brick dragged on its own level is lifted off it
+  first (`Carry::Brick {level, name}`): it goes back to its place there and its ghost keeps
+  following the pointer on the new level, where it can go into a brick (or rest to go deeper),
+  up (frame edge, breadcrumb) or onto the level (`move_brick`). Back on its own level it acts
+  as a brick drag again.
+- **Cut / paste** (`editor/clip.rs`): `Ctrl+X` marks the selected brick (hint "Cut X ...");
+  `Ctrl+V` on another level moves it there, or into the selected brick (`move_brick`); same
+  level without a selection, or into itself, is refused with the reason; `Esc` forgets it.
+- **Retarget** (`editor/retarget.rs`): the selected planned rule shows a handle on each
+  arrowhead (drawn above the port strips); dragging it draws the rubber band from the rule's
+  source and the drop records `set_rule` with only `to` changed (the rule stays selected).
+- **Writes that break the design**: a write whose preview loads but fails its checks (e.g.
+  `config/member-outside-parent` after a move) is recorded; its reply carries no levels and
+  `change.error` says why (paths relative to the root config's directory), shown at the
+  gesture ("Recorded, but the design no longer checks ... · Ctrl+Z undoes").
+- **Discoverability**: `?` (or the toolbar's `?`) opens a sheet of every key and gesture; the
+  Open-change dialog focuses the intent field (Enter opens, Esc cancels); the "already
+  allowed" refusal names the link and the deciding rule by its relative location
+  ("No rule added for web → lib: already allowed by brickie.toml:62").
 - **Deviations from the spec**: the toolbar is collapsible but not draggable; a tile click then
   a click on the canvas places a brick (no drag-a-box sizing); double-click on a leaf does not
-  rename (use `F2` or the inspector); spring-loaded zoom (hovering a folder while dragging to
-  open its level) is not implemented: a drop goes one level down, deeper levels are reached by
-  zooming in first; arrowhead retargeting,
-  cut / paste across levels, the exports strip on the frame and drag-a-tag-swatch are not
-  implemented (exports and tags are edited in the Level tab and the inspector); members have no
-  autocomplete; Diff lists the semantic diff (before / after per element) over the preview
-  rather than overlaying both designs; the measure prompt is the header's measure control and
-  the change bar's "code measured N min ago".
+  rename (use `F2` or the inspector); a lifted brick dropped on another level lands untagged
+  wherever the layout puts it (no lane retag in the same gesture); the exports strip on the
+  frame and drag-a-tag-swatch are not implemented (exports and tags are edited in the Level
+  tab and the inspector); members have no autocomplete; Diff lists the semantic diff (before /
+  after per element) over the preview rather than overlaying both designs; the measure prompt
+  is the header's measure control and the change bar's "code measured N min ago".
 
 All writing endpoints, `/review` and `POST /api/measure` included, pass one write guard (`routes/guard.rs`): loopback
 bind, loopback `Host` with the server's port, same `Origin`. Canvas positions are layout hints

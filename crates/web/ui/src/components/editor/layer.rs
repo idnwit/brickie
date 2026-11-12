@@ -4,12 +4,13 @@
 //! of a brick being moved.
 
 use super::connect;
+use super::marks::{drag_label, move_mark, new_lane_hint};
 use crate::layout::Rect;
 use crate::state::*;
 use brickie_web_api::change::{By, PlannedEdge, State};
 use sycamore::prelude::*;
 
-fn ends(cx: &Cx, sel: &str) -> Vec<usize> {
+pub(super) fn ends(cx: &Cx, sel: &str) -> Vec<usize> {
     (0..cx.m.g.bricks.len())
         .filter(|&i| !cx.m.g.bricks[i].ghost && sel != "*" && names(sel, &cx.m.g.bricks[i]))
         .collect()
@@ -183,96 +184,19 @@ fn band(cx: &Cx, c: &Connect, p: &[Rect]) -> View {
     }
 }
 
-fn mark(r: Rect, cls: &'static str, label: String) -> View {
-    view! {
-        rect(class=cls, x=r.x.to_string(), y=r.y.to_string(), width=r.w.to_string(), height=r.h.to_string(), rx="8")
-        text(class="tlabel", x=(r.x + 8.0).to_string(), y=(r.y - 6.0).to_string()) { (label) }
-    }
-}
-
-/// The drop target of a drag: the folder brick, the lane band, the new-lane zone or the frame
-/// (move up), each with what the drop does; a refused brick in red.
-fn move_mark(cx: &Cx, t: &MoveTarget, p: &[Rect]) -> View {
-    let n = p.len().min(cx.m.g.bricks.len());
-    let frame = crate::components::canvas::frame_rect(&cx.m.g, p).unwrap_or_default();
-    let rows = &cx.m.layout.rows;
-    match t {
-        MoveTarget::Into(i) if *i < n => {
-            let b = &cx.m.g.bricks[*i];
-            let lid = Rect {
-                x: p[*i].x + 6.0,
-                y: p[*i].y - 7.0,
-                w: 34.0,
-                h: 9.0,
-            };
-            let what = if b.file.is_some() {
-                format!("into {} ({} inside)", b.name, b.children.len())
-            } else {
-                format!("into {} (becomes a group)", b.name)
-            };
-            let (body, tab) = (
-                mark(p[*i], "mtarget folder", what),
-                mark(lid, "mtarget lid", String::new()),
-            );
-            view! { (tab) (body) }
-        }
-        MoveTarget::Lane(l) => match lane_rect(rows, &frame, l.as_deref()) {
-            Some(r) => mark(
-                r,
-                "mtarget lane",
-                format!(
-                    "\u{2192} tag: {}",
-                    l.as_deref().unwrap_or("none (untagged)")
-                ),
-            ),
-            None => View::default(),
-        },
-        MoveTarget::NewLane => mark(
-            new_lane_rect(rows, &frame),
-            "mtarget lane new",
-            "+ new tag lane".into(),
-        ),
-        MoveTarget::Up(l) => mark(frame, "mtarget up", format!("\u{2191} move to {l}")),
-        MoveTarget::No(why) => match cx.ed.over.get() {
-            Some(i) if i < n => mark(p[i], "mtarget no", format!("\u{2715} {why}")),
-            _ => View::default(),
-        },
-        MoveTarget::Into(_) => View::default(),
-    }
-}
-
-/// While a drag is on: the "+ new tag lane" zone, faint, so it can be found.
-fn new_lane_hint(cx: &Cx, p: &[Rect]) -> View {
-    let dragging = cx.ed.carry.get().is_some() || !cx.ed.aim_label.with(String::is_empty);
-    let Some(f) = crate::components::canvas::frame_rect(&cx.m.g, p).filter(|_| dragging) else {
-        return View::default();
-    };
-    let r = new_lane_rect(&cx.m.layout.rows, &f);
-    view! {
-        rect(class="newlane", x=r.x.to_string(), y=r.y.to_string(), width=r.w.to_string(), height=r.h.to_string(), rx="8")
-        text(class="newlanet", x=(r.x + r.w / 2.0).to_string(), y=(r.y + r.h / 2.0 + 4.0).to_string()) { "+ new tag lane" }
-    }
-}
-
-/// The result label above a dragged brick (a tile's label rides on its ghost).
-fn drag_label(cx: &Cx, p: &[Rect]) -> View {
-    let Some(Op::Drag { b, .. }) = cx.op.get() else {
-        return View::default();
-    };
-    let label = cx.ed.aim_label.get_clone();
-    if label.is_empty() || b >= p.len() {
-        return View::default();
-    }
-    let r = p[b];
-    view! { text(class="tlabel aim", x=r.x.to_string(), y=(r.y + r.h + 16.0).to_string()) { (label) } }
-}
-
 /// The editor layer (empty outside edit mode).
 pub fn layer(cx: &Cx, pos: ReadSignal<Vec<Rect>>) -> View {
     if !cx.editing() {
         return View::default();
     }
     let c = cx.clone();
+    // The dragged brick only: a pan starting (mousedown) must not re-render the layer, or the
+    // element under the pointer is replaced and its click (selecting a rule) is lost.
+    let op = cx.op;
+    let dragged = create_selector(move || match op.get() {
+        Some(Op::Drag { b, .. }) => Some(b),
+        _ => None,
+    });
     let body = move || {
         let p = pos.get_clone();
         let edges: Vec<View> = c
@@ -286,12 +210,14 @@ pub fn layer(cx: &Cx, pos: ReadSignal<Vec<Rect>>) -> View {
             .filter(|&b| b < p.len() && c.ed.connect.with(Option::is_none))
             .map(|b| ports(&c, b, p[b]))
             .collect();
+        // Above the ports: a target's port strip can sit right where the arrowhead ends.
+        let heads = super::retarget::handles(&c, &p);
         let band = c.ed.connect.get_clone().map(|k| band(&c, &k, &p));
         let mv = c.ed.target.get_clone().map(|t| move_mark(&c, &t, &p));
-        let (zone, lbl) = (new_lane_hint(&c, &p), drag_label(&c, &p));
+        let (zone, lbl) = (new_lane_hint(&c, &p), drag_label(&c, dragged.get(), &p));
         let (edges, ports, badges) = (View::from(edges), View::from(ports), badges(&c, &p));
         view! {
-            g(class="edlayer") { (edges) (badges) (ports) (band) (zone) (mv) (lbl) }
+            g(class="edlayer") { (edges) (badges) (ports) (heads) (band) (zone) (mv) (lbl) }
         }
     };
     view! { (body) }

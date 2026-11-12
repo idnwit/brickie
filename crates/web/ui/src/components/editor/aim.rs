@@ -62,7 +62,7 @@ pub fn aim(cx: &Cx, what: Carried, x: f64, y: f64) {
     let ed = cx.ed;
     let skip = match what {
         Carried::Brick(b) => Some(b),
-        Carried::Tile => None,
+        Carried::Tile | Carried::Lifted => None,
     };
     let u = under(cx, x, y, skip);
     let t = drop_target(&cx.m.g.bricks, what, &u);
@@ -70,6 +70,7 @@ pub fn aim(cx: &Cx, what: Carried, x: f64, y: f64) {
     if ed.over.get_untracked() != u.brick {
         ed.over.set(u.brick);
     }
+    super::spring::arm(cx, t.as_ref(), x, y);
     if ed.target.with_untracked(|o| *o != t) {
         ed.target.set(t);
     }
@@ -78,9 +79,31 @@ pub fn aim(cx: &Cx, what: Carried, x: f64, y: f64) {
     }
 }
 
-/// The drag ended: clear the aim.
+/// How a carry aims on the level on screen: a lifted brick back on its own level is a brick
+/// drag there.
+pub fn carried(cx: &Cx, c: &Carry) -> Carried {
+    match c {
+        Carry::Tile(_) => Carried::Tile,
+        Carry::Brick { level, name } if *level == cx.level().path => {
+            cx.brick(name).map_or(Carried::Lifted, Carried::Brick)
+        }
+        Carry::Brick { .. } => Carried::Lifted,
+    }
+}
+
+/// The drag ended: clear the aim. Only what is set changes, so a plain click does not
+/// re-render the layer under the pointer (its click would be lost).
 pub fn clear(ed: Edit) {
-    ed.target.set(None);
-    ed.over.set(None);
-    ed.aim_label.set(String::new());
+    if ed.target.with_untracked(Option::is_some) {
+        ed.target.set(None);
+    }
+    if ed.over.get_untracked().is_some() {
+        ed.over.set(None);
+    }
+    if ed.aim_label.with_untracked(|l| !l.is_empty()) {
+        ed.aim_label.set(String::new());
+    }
+    if ed.spring.with_untracked(Option::is_some) {
+        ed.spring.set(None);
+    }
 }

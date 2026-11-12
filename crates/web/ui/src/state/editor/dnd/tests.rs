@@ -138,3 +138,24 @@ fn tile_into_a_leaf_makes_it_a_group_first() {
     let ops = add_inside_ops("brickie.toml", &group, spec);
     assert!(matches!(&ops[..], [Op::AddBrick { file, .. }] if file == "g/brickie.toml"));
 }
+
+#[test]
+fn a_lifted_brick_goes_into_a_brick_up_or_onto_this_level() {
+    let bricks = vec![brick("a", &["lib"])];
+    let mut u = Under {
+        brick: Some(0),
+        new_lane: true,
+        up: Some("root".into()),
+        lane: Some(Some("lib".into())),
+    };
+    let l = Carried::Lifted;
+    assert_eq!(drop_target(&bricks, l, &u), Some(MoveTarget::Into(0)));
+    u.brick = None;
+    assert_eq!(
+        drop_target(&bricks, l, &u),
+        Some(MoveTarget::Up("root".into()))
+    );
+    u.up = None;
+    assert_eq!(drop_target(&bricks, l, &u), None);
+    assert_eq!(drop_label(&bricks, l, None), "move here");
+}

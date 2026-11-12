@@ -41,3 +41,7 @@ table.rules{font-size:12px}table.rules tr.rrow{cursor:pointer}table.rules tr.rro
 .tscroll{overflow-x:auto}input.cell{width:60px;font-size:11px;padding:1px 3px}
 .addrule select{max-width:110px}.opgrp{margin:8px 0}.ophead{cursor:pointer}
 .warn-text{color:var(--warn)}ul.refs{margin:4px 0;padding-left:18px;font-size:12px}
+/* Shortcuts sheet (?). */
+#edhelp{z-index:45;top:50%;min-width:420px;max-height:calc(100% - 24px);overflow:auto}#edhelp .row{justify-content:space-between}
+#edhelp table{border-collapse:collapse;font-size:12px}#edhelp td{padding:2px 8px 2px 0;vertical-align:top}
+#edhelp kbd{font-family:var(--mono,monospace);font-size:11px;background:var(--bg);border:1px solid var(--line,#ccc);border-radius:4px;padding:0 4px;white-space:nowrap}

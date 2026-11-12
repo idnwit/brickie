@@ -45,6 +45,37 @@ pub enum Dest {
     NewLane,
 }
 
+/// What follows the pointer outside a brick drag: a new tile from the toolbar, or a brick
+/// lifted off its level (spring-loaded zoom) that keeps following across levels.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Carry {
+    Tile(BrickKind),
+    /// Brick `name` of level `level` (`root/core`).
+    Brick {
+        level: String,
+        name: String,
+    },
+}
+
+/// A drag hovering a group brick: it opens after a short hold (spring-loaded zoom).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Spring {
+    /// Which hover this is: a timer started for an earlier one does nothing.
+    pub id: u32,
+    pub level: String,
+    pub name: String,
+    /// The pointer (client coordinates).
+    pub x: f64,
+    pub y: f64,
+}
+
+/// A brick waiting to be moved: cut (`Ctrl+X`) at `level`, pasted (`Ctrl+V`) elsewhere.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Clip {
+    pub level: String,
+    pub name: String,
+}
+
 /// The modal dialog of the change bar.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub enum Dialog {
@@ -70,6 +101,8 @@ pub enum Tool {
 pub struct Connect {
     pub from: String,
     pub ty: LinkType,
+    /// Dragging the arrowhead of this rule: the drop changes its `to` (`set_rule`).
+    pub retarget: Option<RuleRef>,
     pub x: f64,
     pub y: f64,
 }
@@ -102,8 +135,14 @@ pub struct Edit {
     pub tool: Signal<Tool>,
     /// The brick tile armed for the next click on the canvas.
     pub brick_tool: Signal<Option<BrickKind>>,
-    /// A brick tile dragged from the toolbar, and the pointer (client coordinates).
-    pub carry: Signal<Option<(BrickKind, f64, f64)>>,
+    /// A tile or lifted brick following the pointer (client coordinates).
+    pub carry: Signal<Option<(Carry, f64, f64)>>,
+    /// The group brick a drag hovers, armed to open (spring-loaded zoom).
+    pub spring: Signal<Option<Spring>>,
+    /// The brick cut with `Ctrl+X`.
+    pub clip: Signal<Option<Clip>>,
+    /// The keyboard shortcuts sheet (`?`) is open.
+    pub help: Signal<bool>,
     pub draft: Signal<Option<Draft>>,
     /// The brick renamed inline on its box.
     pub rename: Signal<Option<String>>,
@@ -152,6 +191,9 @@ impl Edit {
             tool: create_signal(Tool::Select),
             brick_tool: create_signal(None),
             carry: create_signal(None),
+            spring: create_signal(None),
+            clip: create_signal(None),
+            help: create_signal(false),
             draft: create_signal(None),
             rename: create_signal(None),
             link_type: create_signal(None),
@@ -185,7 +227,9 @@ impl Edit {
             || self.lane_ask.with(Option::is_some)
             || self.rename.with(Option::is_some)
             || self.connect.with(Option::is_some)
-            || self.carry.get().is_some()
+            || self.carry.with(Option::is_some)
+            || self.clip.with(Option::is_some)
+            || self.help.get()
             || self.confirm.get();
         self.brick_tool.set(None);
         self.link_type.set(None);
@@ -197,6 +241,9 @@ impl Edit {
         self.rename.set(None);
         self.connect.set(None);
         self.carry.set(None);
+        self.spring.set(None);
+        self.clip.set(None);
+        self.help.set(false);
         self.confirm.set(false);
         armed || open
     }

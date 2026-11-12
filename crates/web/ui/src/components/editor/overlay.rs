@@ -1,6 +1,6 @@
 //! The editor's HTML overlay on the stage: the floating toolbar, the ghost of a carried brick
 //! tile, the inline name box of a new or renamed brick, the delete confirmation, the tool hint,
-//! the op toast and error line, the empty-level hint and the Diff panel.
+//! the op toast and error line, the empty-level hint, the Diff panel and the shortcuts sheet.
 
 use super::op;
 use super::place::{draft_box, lane_box};
@@ -88,12 +88,30 @@ fn confirm_delete(cx: &Cx) -> View {
 }
 
 fn hint(ed: Edit) -> String {
+    if let Some(c) = ed.connect.get_clone().filter(|c| c.retarget.is_some()) {
+        return format!(
+            "Retarget {} {} \u{2192} ?: drop on another sibling or a tag lane \u{00B7} Esc cancels",
+            c.from,
+            c.ty.name()
+        );
+    }
     if let Some(c) = ed.connect.get_clone() {
         return format!(
             "{} {} \u{2192} ? ({}): drop on a sibling or a tag lane \u{00B7} Esc cancels",
             c.from,
             c.ty.name(),
             ed.scope.get()
+        );
+    }
+    if let Some((Carry::Brick { name, .. }, _, _)) = ed.carry.get_clone() {
+        return format!(
+            "Moving {name}: rest on a group to open it, release to drop \u{00B7} Esc cancels"
+        );
+    }
+    if let Some(c) = ed.clip.get_clone() {
+        return format!(
+            "Cut {} ({}): Ctrl+V moves it to this level, or into the selected brick \u{00B7} Esc cancels",
+            c.name, c.level
         );
     }
     if let Some(t) = ed.link_type.get() {
@@ -138,15 +156,20 @@ pub fn overlay(cx: &Cx) -> View {
         let rename = ed.rename.get_clone().map(|n| untrack(|| rename_box(&c, n)));
         let del = ed.confirm.get().then(|| untrack(|| confirm_delete(&c)));
         let diff = ed.diff.get().then(|| untrack(|| diff_panel(&c)));
-        view! { (draft) (lane) (rename) (del) (diff) }
+        let help = super::help::sheet(ed);
+        view! { (draft) (lane) (rename) (del) (diff) (help) }
     };
-    let ghost = move || match ed.carry.get() {
+    let ghost = move || match ed.carry.get_clone() {
         Some((k, x, y)) => {
+            let what = match k {
+                Carry::Tile(k) => kind_name(k).to_string(),
+                Carry::Brick { name, .. } => name,
+            };
             let no = ed.target.with(|t| matches!(t, Some(MoveTarget::No(_))));
             let cls = if no { "tghost no" } else { "tghost" };
             view! {
                 div(class=cls, style=format!("left:{}px;top:{}px", x - 50.0, y - 18.0)) {
-                    (kind_name(k))
+                    (what)
                     span(class="aimlbl") { (ed.aim_label.get_clone()) }
                 }
             }

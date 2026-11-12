@@ -71,7 +71,7 @@ fn link_check_refuses_links_that_change_nothing() {
     };
     let n = c.link_check(&[], &narrower).unwrap();
     assert!(
-        n.redundant && n.why.starts_with("already allowed by"),
+        n.redundant && n.why.starts_with("already allowed by") && !n.why.contains('/'),
         "{n:?}"
     );
     let all = c.link_check(&[], &link("a", "b", "all", "allow")).unwrap();

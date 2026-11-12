@@ -117,6 +117,22 @@ impl Change {
         Ok(out)
     }
 
+    /// A rule location (`/abs/dir/brickie.toml:12`) relative to the root config's directory,
+    /// as people read it (`crates/core/brickie.toml:12`); other text is kept.
+    fn short_loc(&self, loc: &str) -> String {
+        let (path, line) = match loc.rsplit_once(':') {
+            Some((p, l)) if l.chars().all(|c| c.is_ascii_digit()) => (p, Some(l)),
+            _ => (loc, None),
+        };
+        let Some(rel) = crate::paths::to_rel(&self.root, std::path::Path::new(path)) else {
+            return loc.to_string();
+        };
+        match line {
+            Some(l) => format!("{rel}:{l}"),
+            None => rel,
+        }
+    }
+
     /// Whether adding `link` at `level` (brick names from the root; `[]`: the root) would
     /// change what the level decides. Redundant when an equal rule exists, or when every edge
     /// it covers (each matching pair, kind and scope) is already decided as `link.action`.
@@ -137,7 +153,7 @@ impl Change {
         if let Some(r) = lv.deps.rules.iter().find(|r| same_rule(r, link)) {
             return Ok(LinkCheck {
                 redundant: true,
-                why: format!("the same rule exists at {}", r.loc),
+                why: format!("the same rule exists at {}", self.short_loc(&r.loc)),
                 rule: Some(r.loc.clone()),
             });
         }
@@ -175,7 +191,9 @@ impl Change {
         let one = (deciders.len() == 1)
             .then(|| deciders.pop_first())
             .flatten();
-        let by = one.clone().unwrap_or_else(|| "several rules".into());
+        let by = one
+            .as_deref()
+            .map_or_else(|| "several rules".into(), |l| self.short_loc(l));
         Ok(LinkCheck {
             redundant: true,
             why: format!("already {} by {by}", past(link.action)),

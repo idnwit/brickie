@@ -35,7 +35,8 @@ pub struct ChangeView {
     /// The redo stack: human ops retracted since their last new op (top last).
     #[serde(default)]
     pub redo: Vec<u64>,
-    /// Why the preview does not load (the page then shows the current design).
+    /// Why the preview does not load (the page then shows the current design). In a write's
+    /// reply, also why a preview that loads fails its checks (the reply then has no levels).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }

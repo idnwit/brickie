@@ -13,11 +13,13 @@ pub const UNTAGGED: &str = "(untagged)";
 /// Height (world units) of the "+ new tag lane" zone under the last lane.
 const NEW_LANE_H: f64 = 40.0;
 
-/// What is being dragged: an existing brick of the level, or a new tile from the toolbar.
+/// What is being dragged: an existing brick of the level, a new tile from the toolbar, or a
+/// brick lifted from another level (it can only go into a brick, up, or onto this level).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Carried {
     Brick(usize),
     Tile,
+    Lifted,
 }
 
 /// Where the pointer is, as the hit tests found it.
@@ -84,13 +86,14 @@ pub fn drop_target(bricks: &[BrickView], what: Carried, under: &Under) -> Option
             MoveTarget::Into(t)
         });
     }
-    if under.new_lane {
+    if under.new_lane && what != Carried::Lifted {
         return Some(MoveTarget::NewLane);
     }
-    if let (Carried::Brick(_), Some(up)) = (what, &under.up) {
+    if let (Carried::Brick(_) | Carried::Lifted, Some(up)) = (what, &under.up) {
         return Some(MoveTarget::Up(up.clone()));
     }
     match (what, under.lane.clone()) {
+        (Carried::Lifted, _) => None,
         (Carried::Brick(b), Some(l)) if bricks[b].tags.first() == l.as_ref() => None,
         (_, Some(l)) => Some(MoveTarget::Lane(l)),
         _ => None,
