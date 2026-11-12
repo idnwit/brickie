@@ -2,11 +2,13 @@
 //! diagnostics are the very values `brickie check` prints, converted field by field.
 
 mod diagnostics;
+mod editor;
 mod functions;
 mod graph;
 mod interface;
 mod time;
 
+pub use editor::{change_view, mark};
 pub use interface::{edge_uses, interface};
 pub use time::utc;
 
@@ -34,5 +36,6 @@ pub fn page(l: &Loaded, cache_file: &Path) -> PageData {
             .collect(),
         levels: graph::levels(l),
         functions: functions::functions(l),
+        change: None,
     }
 }

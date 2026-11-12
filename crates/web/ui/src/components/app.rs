@@ -5,6 +5,7 @@
 
 use super::canvas::{canvas, pointer};
 use super::controls::header;
+use super::editor;
 use super::keys::keys;
 use super::panels::{detail, left};
 use super::popup::{listen, modal_view};
@@ -46,10 +47,18 @@ fn banner(cache: &CacheInfo) -> View {
 /// The shell of one level.
 fn page(cx: &Cx) -> View {
     let hdr = header(cx);
-    let ban = banner(&cx.m.cache);
+    // While a change is open its bar takes the banner's place.
+    let ban = match cx.m.change {
+        Some(_) => editor::change_bar(cx),
+        None => banner(&cx.m.cache),
+    };
     let nav = left(cx);
     let stage = canvas(cx);
-    let det = detail(cx);
+    let det = if cx.editing() {
+        editor::panel(cx)
+    } else {
+        detail(cx)
+    };
     view! { (hdr) (ban) (nav) (stage) (det) }
 }
 

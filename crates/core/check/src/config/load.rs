@@ -1,6 +1,7 @@
 //! Loading the config tree: each `brickie.toml` with its `include`s merged is one level; a
 //! brick with `path = "<dir>"` loads `<dir>/brickie.toml` as the level below it.
 
+use super::source::{Disk, FileSource};
 use super::validate::validate;
 use super::{Action, Brick, ComplexityRule, Config, DepRule, Export};
 use anyhow::{Context, Result, bail};
@@ -44,19 +45,29 @@ fn header_lines(text: &str, header: &str) -> Vec<usize> {
 
 /// Load the root config and every composite below it.
 pub fn load(path: &Path) -> Result<Config> {
-    load_level(path, Vec::new(), &mut Vec::new())
+    load_from(&Disk, path)
+}
+
+/// `load` over another file source (a change's preview).
+pub fn load_from(src: &dyn FileSource, path: &Path) -> Result<Config> {
+    load_level(src, path, Vec::new(), &mut Vec::new())
 }
 
 /// One level: the file and its includes, validated, then the levels of its composites.
 /// `ancestors` holds the canonical config files above, to reject a `path` cycle.
-fn load_level(path: &Path, level: Vec<String>, ancestors: &mut Vec<PathBuf>) -> Result<Config> {
+fn load_level(
+    src: &dyn FileSource,
+    path: &Path,
+    level: Vec<String>,
+    ancestors: &mut Vec<PathBuf>,
+) -> Result<Config> {
     let mut cfg = Config {
         path: level,
         file: path.display().to_string(),
         ..Config::default()
     };
-    let canon = path
-        .canonicalize()
+    let canon = src
+        .canonicalize(path)
         .with_context(|| format!("read {}", path.display()))?;
     if ancestors.contains(&canon) {
         bail!(
@@ -65,13 +76,13 @@ fn load_level(path: &Path, level: Vec<String>, ancestors: &mut Vec<PathBuf>) -> 
             cfg.level()
         );
     }
-    load_file(path, &mut cfg, &mut Vec::new(), &mut BTreeSet::new())?;
+    load_file(src, path, &mut cfg, &mut Vec::new(), &mut BTreeSet::new())?;
     validate(&cfg)?;
     ancestors.push(canon);
     for b in &mut cfg.bricks {
         let Some(dir) = b.path.clone() else { continue };
         let file = b.base.join(&dir).join("brickie.toml");
-        if !file.is_file() {
+        if !src.is_file(&file) {
             bail!(
                 "{CONFIG_MISSING}: brick '{}' (level {}, {}) has path = \"{dir}\" but {} does not exist",
                 b.name,
@@ -85,7 +96,7 @@ fn load_level(path: &Path, level: Vec<String>, ancestors: &mut Vec<PathBuf>) -> 
         }
         let mut below = cfg.path.clone();
         below.push(b.name.clone());
-        let sub = load_level(&file, below, ancestors)
+        let sub = load_level(src, &file, below, ancestors)
             .with_context(|| format!("brick '{}' in {}", b.name, cfg.file))?;
         b.sub = Some(Box::new(sub));
     }
@@ -100,13 +111,14 @@ fn cfg_level(path: &[String]) -> String {
 /// Includes are merged before the including file: lists are concatenated, and `default` /
 /// `cycles` set by the including file override those of its includes.
 fn load_file(
+    src: &dyn FileSource,
     path: &Path,
     cfg: &mut Config,
     stack: &mut Vec<PathBuf>,
     done: &mut BTreeSet<PathBuf>,
 ) -> Result<()> {
-    let canon = path
-        .canonicalize()
+    let canon = src
+        .canonicalize(path)
         .with_context(|| format!("read {}", path.display()))?;
     if stack.contains(&canon) {
         bail!("include cycle: {} includes itself", path.display());
@@ -114,13 +126,15 @@ fn load_file(
     if !done.insert(canon.clone()) {
         return Ok(()); // already merged through another include
     }
-    let text = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    let text = src
+        .read(path)
+        .with_context(|| format!("read {}", path.display()))?;
     let raw: Raw = toml::from_str(&text).with_context(|| format!("parse {}", path.display()))?;
     let base = canon.parent().map(Path::to_path_buf).unwrap_or_default();
     stack.push(canon);
     let dir = path.parent().unwrap_or(Path::new("."));
     for inc in &raw.include {
-        load_file(&dir.join(inc), cfg, stack, done)
+        load_file(src, &dir.join(inc), cfg, stack, done)
             .with_context(|| format!("included from {}", path.display()))?;
     }
     stack.pop();

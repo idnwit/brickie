@@ -27,6 +27,8 @@ pub struct Model {
     pub diags: Vec<DiagView>,
     pub cards: Rc<Vec<Card>>,
     pub fns: Vec<FnRow>,
+    /// The open design change.
+    pub change: Option<Rc<ChangeView>>,
 }
 
 /// `S.view`: pan and zoom of the canvas, in stage pixels.
@@ -84,6 +86,7 @@ pub struct Cx {
     pub scores: ReadSignal<Vec<BrickScore>>,
     /// Entry transition of the canvas: `zin`, `zout` or none.
     pub anim: &'static str,
+    pub ed: Edit,
 }
 
 /// The layout input of a page: bricks with their row, and one edge per (from, to, kind).
@@ -115,7 +118,20 @@ impl Cx {
         let params = sh.params;
         let level = &sh.levels[lv];
         // Laid out without the frame edges, which are appended after the original ones.
-        let layout = layout::layout(&layout_input(&level.graph));
+        let mut layout = layout::layout(&layout_input(&level.graph));
+        // The editor's stored positions win over the automatic layout.
+        if let Some(ch) = sh
+            .change
+            .as_deref()
+            .filter(|_| params.with_untracked(|p| p.editing()))
+        {
+            apply_hints(
+                &mut layout.pos,
+                &level.graph.bricks,
+                &ch.layout,
+                &level.path,
+            );
+        }
         let m = Rc::new(Model {
             cache: sh.cache.clone(),
             levels: sh.levels.clone(),
@@ -125,6 +141,7 @@ impl Cx {
             diags: sh.diags.clone(),
             cards: sh.cards.clone(),
             fns: sh.fns.clone(),
+            change: sh.change.clone(),
         });
         let stage = create_signal(stage);
         let view = create_signal(match stage.get() {
@@ -164,12 +181,24 @@ impl Cx {
             eval,
             scores,
             anim: "",
+            ed: sh.ed,
         }
     }
 
     /// Change the params. The page mirrors them into the URL (see `components::app`).
     pub fn go(&self, p: Params) {
         self.params.set(p);
+    }
+
+    /// The editor is on (a change is open and its preview shown).
+    pub fn editing(&self) -> bool {
+        self.params.with(|p| editing(self.m.change.as_deref(), p))
+    }
+
+    /// The config file of the current level, relative to the root config's directory.
+    pub fn level_file(&self) -> Option<String> {
+        let ch = self.m.change.as_deref()?;
+        ch.files.get(&self.level().path).cloned()
     }
 
     /// The current level.

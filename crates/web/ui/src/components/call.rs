@@ -14,3 +14,10 @@ pub fn call<E: Endpoint>(req: &ReqOf<E>, done: impl FnOnce(Result<ResOf<E>, Stri
         done(res.and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string())))
     });
 }
+
+/// GET `E::PATH` (an endpoint without input) and hand the decoded reply to `done`.
+pub fn get<E: Endpoint<Req = ()>>(done: impl FnOnce(Result<ResOf<E>, String>) + 'static) {
+    platform::get_json(E::PATH, move |res| {
+        done(res.and_then(|t| serde_json::from_str(&t).map_err(|e| e.to_string())))
+    });
+}

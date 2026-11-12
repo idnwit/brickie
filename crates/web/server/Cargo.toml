@@ -8,6 +8,7 @@ license = "MIT"
 publish = false
 
 [dependencies]
+brickie-change = { workspace = true }
 brickie-check = { workspace = true }
 brickie-facts = { workspace = true }
 brickie-measure = { workspace = true }

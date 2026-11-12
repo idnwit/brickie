@@ -1,6 +1,7 @@
 //! Resolving every module to a leaf path in the brick tree, and the partition checks.
 //!
-//! At each level the most specific member wins (`path:` < package < module, longer wins);
+//! At each level the most specific member wins (`path:` < package < module prefix < exact module,
+//! longer wins);
 //! equal specificity in two bricks is `config/overlap`. Below a composite every module must
 //! land in exactly one child (`config/unassigned`), and a child's members must not reach
 //! modules outside the composite (`config/member-outside-parent`). At the root an unmatched

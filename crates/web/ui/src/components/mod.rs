@@ -4,6 +4,7 @@ mod app;
 mod call;
 mod canvas;
 mod controls;
+mod editor;
 mod keys;
 mod panels;
 mod popup;

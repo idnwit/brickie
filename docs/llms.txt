@@ -41,17 +41,97 @@ cache is missing: run `brickie measure`).
 
 ## Hard constraints
 
-- Never edit the `[deps]`, `[[deps.rule]]` or `[[complexity]]` sections of `brickie.toml`, and
-  never edit `brickie.review.toml`, to make `check` pass. These files are the project's decisions.
+- Never edit `brickie.toml` (or any file it includes) and never edit `brickie.review.toml` to
+  make `check` pass. These files are the project's decisions. While a change is open
+  (`brickie change` does not say `change/none`), never edit any of them at all: propose ops
+  instead (see "Change sessions").
 - Accepting a finding (an `[[accept]]` entry in `brickie.review.toml`, or Accept in the viewer) is
-  a decision for a human reviewer. If a finding looks wrong or the rule seems too strict, stop and
-  report it with the finding id instead of working around it.
+  a decision for a human reviewer. So is accepting or rejecting an op of a change. If a finding
+  looks wrong or the rule seems too strict, stop and report it with the finding id instead of
+  working around it.
 - Do not split a function mechanically just to get under a complexity limit (tiny helpers that
   only forward arguments, one statement per function). Reduce the real complexity: early returns,
   a table instead of a chain of branches, a struct instead of many parameters, a clearer
   decomposition.
 - Do not move code or add re-exports only to hide a dependency from the checker. The edge is
   measured where the code references the other module.
+
+## Change sessions
+
+A human designs in the viewer's editor and you work on the same design through a **change**:
+an ordered log of operations (ops) over the `brickie.toml` tree, kept in `.brickie/change/`.
+One change is open at a time. Nobody writes the config files while it is open; they change only
+when the human publishes.
+
+- Run `brickie change` at the start and before each step. It prints the intent, the status
+  (accepted / proposed / rejected / conflicts, cache age), the semantic diff against the config
+  as it was when the change was opened (by element, with author, notes and review notes: the
+  human's notes are your instructions), and every entry new since your last read (it then
+  moves your cursor). `--since <seq>` shows entries after `seq` without moving the cursor;
+  `--as human|agent` picks the reader (default `agent`).
+- `brickie change --todo` lists concrete tasks: `planned` bricks to create code for (with their
+  members), `drift` findings of `check` over the design (id, location, help), ops `proposed`,
+  `rejected` (with the reason) or in `conflict`, and `config` errors of the design.
+- To change the design, propose an op: `echo '<op JSON>' | brickie change propose --json
+  [--note "why"]`. Your ops stay `proposed` until the human accepts or rejects them; each review
+  is a new entry with its own `seq` and note. Never accept or reject ops yourself.
+- After code changes run `brickie measure`, then `brickie check --change`: the check of the
+  design (accepted and proposed ops) against the code. It also lists `change/planned` notes.
+- Stop and ask the human when an op of yours is rejected or in conflict; do not re-propose the
+  same op.
+- `brickie change publish --dry-run` shows what publishing would write and why it would refuse;
+  publishing and `brickie change discard` are the human's decision.
+- `--format json` on every `brickie change` command prints the same data as JSON: `brickie
+  change` prints `{status, diff, new: {from, head, entries}}`, `--todo` a list of
+  `{kind, text, seq?, id?, help?}`, `propose` the op record, `publish --dry-run`
+  `{files: [{path, action, note, content?}], blockers}`.
+
+An op record is `{seq, by: human|agent, at, op, file, key, before, after, note, state:
+proposed|accepted|rejected, review: {seq, by, note}, conflict}`; `file` is the physical config
+file it edits (relative to the root config's directory), `key` the element (`brick:<name>`,
+`rule:<i>`, `complexity:<i>`, `exports`, `deps`, `include`, `file`), `before` / `after` its
+canonical TOML. A review entry is `{entry: "review", seq, by, at, target, verdict, note}`.
+
+Ops (`file` is required on each; fields mirror the `brickie.toml` reference below):
+
+```json
+{"op": "add_brick", "file": "brickie.toml", "brick": {"name": "store", "members": ["path:crates/store/"], "tags": ["core"], "desc": "..."}}
+{"op": "remove_brick", "file": "brickie.toml", "name": "store"}
+{"op": "set_brick", "file": "brickie.toml", "name": "store", "desc": "...", "tags": [], "members": [], "path": ""}
+{"op": "add_brick", "file": "brickie.toml", "brick": {"name": "ui", "kind": "group"}}
+{"op": "rename_brick", "file": "brickie.toml", "from": "store", "to": "db"}
+{"op": "move_brick", "file": "brickie.toml", "name": "db", "into_file": "brickie.toml", "into": "core"}
+{"op": "make_composite", "file": "brickie.toml", "name": "db", "path": "crates/db"}
+{"op": "set_exports", "file": "crates/db/brickie.toml", "exports": [{"brick": "api"}, {"brick": "x", "scope": "test"}]}
+{"op": "add_rule", "file": "brickie.toml", "rule": {"from": "app", "to": "db", "action": "allow", "reason": "..."}}
+{"op": "set_rule", "file": "brickie.toml", "index": 0, "rule": {"from": "app", "to": "db", "action": "deny"}}
+{"op": "remove_rule", "file": "brickie.toml", "index": 0}
+{"op": "add_complexity", "file": "brickie.toml", "rule": {"bricks": "tag:core", "cognitive": 15}}
+{"op": "set_complexity", "file": "brickie.toml", "index": 0, "rule": {"cognitive": 12}}
+{"op": "remove_complexity", "file": "brickie.toml", "index": 0}
+{"op": "set_deps", "file": "brickie.toml", "default": "deny", "cycles": "deny"}
+{"op": "create_file", "file": "presets/layers.toml"}
+{"op": "add_include", "file": "brickie.toml", "path": "presets/layers.toml"}
+{"op": "remove_include", "file": "brickie.toml", "path": "presets/layers.toml"}
+```
+
+`kind` (`crate`, `module`, `group`) is optional and kept in the op only: `crate` with no
+members defaults them to `path:crates/<name>/` (`path:<name>/` in a nested file), `group`
+defaults `path` to the name and creates its `brickie.toml`; a `module` needs its members
+(`<crate>::<module>`). `move_brick` moves a brick into the children of brick `into` of
+`into_file` (made a composite when it is a leaf) or, without `into`, into the level file
+`into_file`; `path:` members are rebased, and when moving into a sibling the source file's rules
+on the brick now name the sibling. Publishing moves no code: the plan lists a moved brick as a
+manual step. `set_brick` changes only the fields given (an empty `desc` or `path` removes it).
+`rename_brick` also renames the brick in the rules, complexity selectors and `exports` of the
+same file. `make_composite` sets `path` and creates `<path>/brickie.toml`. Rule and complexity
+`index` count the `[[deps.rule]]` / `[[complexity]]` tables of that one file, from 0.
+
+Publishing writes the config files (comments and order kept) and scaffolds the code of bricks
+the change added: the folder of a composite, a crate (`Cargo.toml`, `src/lib.rs`, a workspace
+member) for a `path:` or unknown package member, or a module (`<module>/mod.rs` and a `pub mod`
+line in its parent) for a module member. Existing files are never overwritten. A scaffolded brick
+stays planned until the next `brickie measure`.
 
 ## Reading a diagnostic
 
@@ -187,6 +267,23 @@ Configuration errors (exit 2, printed on stderr with the code first; no findings
 These are decisions about the brick structure: report them to the maintainers rather than editing
 the config to silence them.
 
+### change/planned, change/conflict, change/proposed, change/outside-edit, change/invalid, change/open, change/none
+
+Change sessions (see "Change sessions"):
+
+- `change/planned` (a note of `check --change` and a `--todo` task): a brick of the design has no
+  measured module. Create its code as its members say (or wait for publish to scaffold it), then
+  `brickie measure`.
+- `change/conflict`: an op no longer replays: the element it edits is not what it was when the op
+  was recorded (usually an earlier op was rejected). Stop and ask the human; publish refuses.
+- `change/proposed`: publish refuses while an op waits for review. The human reviews it.
+- `change/outside-edit`: a config file was edited by hand while the change was open; publish
+  refuses. Report it: the human restores the file or discards the change.
+- `change/invalid`: the published design would not load (for example a rule naming an unknown
+  brick). Propose a fixing op or ask the human.
+- `change/open`: `brickie change open` while a change is open. `change/none`: a `brickie change`
+  command with no change open; without one, work as in "Workflow".
+
 ## brickie.toml reference
 
 ```toml
@@ -198,11 +295,12 @@ exports = ["api", { brick = "internal", scope = "test" }]
 
 [[brick]]                      # group modules into a brick
 name = "engine"                # unique in this file
-members = ["my-engine", "my-app::api", "path:crates/engine/"]
-                               # package name (all its targets), module id, or path:<dir>/
-                               # (crates whose manifest is under the folder, relative to this
-                               # file); the most specific member wins (path: < package < module,
-                               # a longer path or module wins); a tie across bricks is an error
+members = ["my-engine", "my-app::api", "module:my-app::entry", "path:crates/engine/"]
+                               # package name (all its targets), module prefix (and descendants),
+                               # exact module id, or path:<dir>/ (crates whose manifest is under
+                               # the folder, relative to this file); the most specific member
+                               # wins (path: < package < module prefix < exact module, and a
+                               # longer path or module wins); a tie across bricks is an error
 tags = ["core"]                # optional labels used by rule selectors
 desc = "Rule evaluation"       # optional one-line description, shown in the viewer
                                # (brick tooltip and details panel); no effect on checks

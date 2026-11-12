@@ -29,13 +29,7 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
             )
         }
     };
-    let kind = if brick.ghost {
-        " ghost"
-    } else if brick.composite() {
-        " comp"
-    } else {
-        ""
-    };
+    let kind = kind_class(&brick);
     let cls = {
         let cx = cx.clone();
         move || {
@@ -208,6 +202,19 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
             (zoom)
         }
     }
+}
+
+/// The box classes of a brick's kind, with the change preview marks: planned (no code yet)
+/// and agent-proposed bricks.
+fn kind_class(b: &BrickView) -> String {
+    let kind = match (b.ghost, b.composite()) {
+        (true, _) => " ghost",
+        (_, true) => " comp",
+        _ => "",
+    };
+    let planned = if b.planned { " planned" } else { "" };
+    let proposed = if b.proposed { " proposed" } else { "" };
+    format!("{kind}{planned}{proposed}")
 }
 
 /// Two clicks on one brick closer than this (ms) are a double-click.

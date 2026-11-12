@@ -14,6 +14,14 @@ pub const CONFIG_MEMBER_OUTSIDE_PARENT: &str = "config/member-outside-parent";
 pub const CONFIG_OVERLAP: &str = "config/overlap";
 pub const CONFIG_UNASSIGNED: &str = "config/unassigned";
 pub const CONFIG_UNKNOWN_EXPORT: &str = "config/unknown-export";
+// Change sessions (`brickie change`, `check --change`).
+pub const CHANGE_PLANNED: &str = "change/planned";
+pub const CHANGE_CONFLICT: &str = "change/conflict";
+pub const CHANGE_PROPOSED: &str = "change/proposed";
+pub const CHANGE_OUTSIDE_EDIT: &str = "change/outside-edit";
+pub const CHANGE_INVALID: &str = "change/invalid";
+pub const CHANGE_OPEN: &str = "change/open";
+pub const CHANGE_NONE: &str = "change/none";
 
 /// Complexity metrics; the code of a finding is `complexity/<metric>`.
 pub const METRICS: [&str; 6] = [
@@ -40,6 +48,13 @@ pub fn all() -> Vec<String> {
         CONFIG_OVERLAP,
         CONFIG_UNASSIGNED,
         CONFIG_UNKNOWN_EXPORT,
+        CHANGE_PLANNED,
+        CHANGE_CONFLICT,
+        CHANGE_PROPOSED,
+        CHANGE_OUTSIDE_EDIT,
+        CHANGE_INVALID,
+        CHANGE_OPEN,
+        CHANGE_NONE,
     ]
     .iter()
     .map(|c| c.to_string())

@@ -163,14 +163,31 @@ name = "brickie"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "brickie-change",
  "brickie-check",
  "brickie-measure",
  "brickie-model",
  "brickie-web",
  "clap",
+ "serde",
  "serde_json",
  "sha2",
  "tempfile",
+]
+
+[[package]]
+name = "brickie-change"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "brickie-check",
+ "brickie-facts",
+ "brickie-model",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "toml",
+ "toml_edit 0.25.19+spec-1.1.0",
 ]
 
 [[package]]
@@ -260,6 +277,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "brickie-change",
  "brickie-check",
  "brickie-facts",
  "brickie-measure",
@@ -281,6 +299,7 @@ dependencies = [
 name = "brickie-web-api"
 version = "0.1.0"
 dependencies = [
+ "brickie-model",
  "serde",
 ]
 

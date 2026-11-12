@@ -69,7 +69,7 @@ include = ["presets/layered.toml"]   # optional: another file with the same sche
 
 [[brick]]
 name = "engine"
-members = ["acme-engine"]            # package name, crate::module, or path:<dir>/
+members = ["acme-engine"]            # package, crate::module prefix, module:<exact-id>, or path:<dir>/
 tags = ["core"]
 
 [[brick]]

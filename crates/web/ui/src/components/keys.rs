@@ -1,6 +1,7 @@
 //! Page keys (registered once, acting on the level on screen): presets `1`-`3`, `/` search,
-//! `j`/`k` through the findings, `Escape` closes the popup, then the finding, then the
-//! selection and finally zooms out; `Backspace` zooms out.
+//! `j`/`k` through the findings, `Escape` drops the editor's armed tool or open form, closes
+//! the popup, then the finding, then the selection and finally zooms out; `Backspace` zooms
+//! out.
 
 use super::panels::current_list;
 use crate::platform;
@@ -34,6 +35,7 @@ pub fn keys(cur: &Cur) {
                 let name = ["arch", "viol", "all"][key.as_bytes()[0] as usize - b'1' as usize];
                 c.go(with_preset(&p, name));
             }
+            "Escape" if c.ed.cancel() => return true,
             "Escape" => {
                 let selected = !p.brick.is_empty() || !p.group.is_empty() || !p.edge.is_empty();
                 if c.modal.get_clone().is_some() {

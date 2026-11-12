@@ -1,6 +1,7 @@
 //! Command line: argument parsing and one file per command.
 
 mod args;
+mod change;
 mod check;
 mod interface;
 mod llms;
@@ -23,7 +24,9 @@ pub fn run() -> Result<i32> {
             config,
             format,
             color,
-        } => Ok(check::run(&config, format, color)),
+            change,
+        } => Ok(check::run(&config, format, color, change)),
+        Command::Change(args) => Ok(change::run(args)),
         Command::Interface {
             brick,
             config,

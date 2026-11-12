@@ -38,8 +38,10 @@ User requirements (fixed):
   leaves always have two distinct siblings under their lowest common ancestor.
 - Names and tags are local to a file; rules only select that file's own children. No selectors
   across levels.
-- Members: `crate`, `crate::module`, or `path:<dir>/` (crates whose manifest is under the folder).
-  The most specific match wins: `path:` < package < module; a longer `path:` beats a shorter one.
+- Members: `crate`, `crate::module` (a module prefix), `module:<id>` (one exact module), or
+  `path:<dir>/` (crates whose manifest is under the folder). The most specific match wins:
+  `path:` < package < module prefix < exact module; a longer `path:` or module id beats a
+  shorter one.
 
 ### Contract
 

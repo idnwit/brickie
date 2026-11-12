@@ -20,6 +20,7 @@ use frame::{cut, frame_rect, frame_view};
 pub use pointer::pointer;
 use rows::row_labels;
 
+use crate::components::editor;
 use crate::layout::Rect;
 use crate::platform;
 use crate::state::*;
@@ -158,6 +159,7 @@ pub fn canvas(cx: &Cx) -> View {
     };
     let crumbs = crate::components::controls::crumbs(cx);
     let bnd = crate::components::controls::boundary(cx);
+    let edit = editor::overlay(cx);
     // The svg has no viewBox: one user unit is one CSS pixel of the stage, so pointer
     // positions map straight into the pan/zoom transform. On the next frame (the stage is in
     // the DOM) measure it and fit. Always set the view: after hydration the DOM still shows
@@ -183,6 +185,7 @@ pub fn canvas(cx: &Cx) -> View {
             }
             div(class="selbox", style=sel_box)
             div(class="ovl") { (crumbs) (bnd) }
+            (edit)
         }
     }
 }

@@ -1,7 +1,7 @@
 //! State that outlives a level: the URL params, the review state of every finding, the popup
 //! and menus, and the page data. [`Cx`] is rebuilt from it each time the level changes.
 
-use super::Cx;
+use super::{Cx, Edit};
 use brickie_web_api::*;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -35,6 +35,9 @@ pub struct Shared {
     pub diags: Vec<DiagView>,
     pub cards: Rc<Vec<Card>>,
     pub fns: Vec<FnRow>,
+    /// The open design change.
+    pub change: Option<Rc<ChangeView>>,
+    pub ed: Edit,
 }
 
 /// The [`Cx`] of the level on screen, for window-level handlers registered once.
@@ -66,6 +69,8 @@ impl Shared {
             diags: data.diags,
             cards: Rc::new(cards),
             fns: data.functions,
+            change: data.change.map(Rc::new),
+            ed: Edit::new(),
         }
     }
 

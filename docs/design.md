@@ -83,7 +83,7 @@ include = ["presets/layered.toml"]   # a preset is a file with the same schema, 
 
 [[brick]]                            # group modules into a brick, tag it
 name = "engine"
-members = ["my-engine"]              # crate, crate::module or path:<dir>/
+members = ["my-engine"]              # package, crate::module prefix, module:<exact-id> or path:<dir>/
 tags = ["core"]
 
 [[brick]]
@@ -163,10 +163,23 @@ code, the SQL graph server for agents (`serve`/`query`), capabilities, and exper
    items in the cache (schema 6), `interface/unused`, `brickie interface <brick> [--json]
    [--from <brick>]`, the viewer's Interface section and the code behind a selected edge
    (`POST /api/interface`, `POST /api/edge-uses`).
+9. Design editor and change sessions ([proposals/editor.md](proposals/editor.md)):
+   a draw.io-like edit mode of the viewer; humans and one coding agent record ops in a single
+   open change (never editing `brickie.toml` directly), reviewed per op and published with
+   scaffolding; `brickie change` tells the agent what changed, by whom, and what is left.
+   Phases 1, 2 and 6 **implemented**: `crates/core/change` (op log in `.brickie/change/`,
+   replay with conflicts, preview as a `FileSource` for the loader, review, semantic diff, todo,
+   publish with refusal checks and scaffolding, `move_brick`, brick kinds, link options, layout
+   hints), `brickie check --change`, `brickie change` (open, show, `--since`, `--todo`,
+   propose, accept, reject, publish `--dry-run`, discard), `change/*` codes and the llms.txt
+   "Change sessions" section. Phases 3 and 4 (the viewer's edit mode) **implemented**: change
+   endpoints behind a loopback/same-origin write guard, the preview shown with `change=1`,
+   palette, inspector, link drawing, move by drag, ops log with review, publish dialog (see
+   "View", "Design editor"). Rules panel, presets and includes (5) and MCP (7) are open.
 
 ## Code layout (implemented)
 
-A virtual workspace of fifteen crates, grouped by layer (brickie checks this with the root
+A virtual workspace of sixteen crates, grouped by layer (brickie checks this with the root
 `brickie.toml` and the nested `brickie.toml` of `crates/lib`, `crates/lib/algo`,
 `crates/lib/codeview`, `crates/core`, `crates/core/measure`, `crates/core/check`, `crates/web`,
 `crates/web/server` and `crates/web/ui` (and the leaf `crates/web/api`): cli -> web -> core ->
@@ -183,16 +196,23 @@ crates/lib/algo/           general-purpose libraries, no brickie types (tag algo
                        (tree-sitter)
 crates/core/model/     brickie-model: light, wasm-safe shared types: Level, codes (every
                        diagnostic code), Diagnostic values (Span, Note, RuleRef, DiagEdge),
-                       FnTree/TreeNode
+                       FnTree/TreeNode, change (Op, OpRecord, Entry, Plan, DiffEntry, Task, ...)
 crates/core/facts/     brickie-facts: the cache: model (cache.json schema), files (tree walk), hash
 crates/core/measure/   brickie-measure, folder bricks:
   workspace/           metadata, rust_analyzer, lock, git, crates
   scip/                SCIP -> rows (normalise, targets, written, modules, layout)
   run/                 mod (run), files, edges, items + reach (declared-interface candidates),
                        complexity (brickie-metrics -> FnTree)
+crates/core/change/    brickie-change: change sessions (folders: store (base/, ops.json, lock,
+                       readers, layout), edit (toml_edit documents, ops, moves), session (open,
+                       record, review, replay, editor helpers), preview (FileSource over the
+                       docs, planned bricks), report (status, diff, todo), publish (plan,
+                       scaffold)); the op/record/report types are plain data in
+                       `brickie_model::change` so `crates/web/api` can share them
 crates/core/check/     brickie-check, folder bricks:
   diag/                model (Finding -> Diagnostic), summary, text
-  config/              schema (one level of the tree), selector, load (tree + include), validate,
+  config/              schema (one level of the tree), selector, load (tree + include, over a
+                       `FileSource`: disk or a change's preview), source, validate,
                        member (member matching, specificity), resolve (module -> leaf path)
   rules/               lift (common ancestor, exports), deps, private, cycles (brickie-graph),
                        complexity, unmapped, stale (internal)
@@ -277,7 +297,7 @@ complexity, unmapped, stale, `codes.rs`), `diag/` (diagnostic value and text pri
   unknown fields (`deny_unknown_fields` everywhere), missing include.
 - **Resolution** (`config/resolve.rs`, `config/member.rs`): every module gets a leaf path
   (`["web", "api"]`). At each level the most specific member wins: `path:` < package < module
-  id, a longer path or module id beats a shorter one; equal specificity across bricks is
+  prefix < exact `module:<id>`; a longer path or module id beats a shorter one; equal specificity across bricks is
   `config/overlap`. Below a composite the children must partition its modules: a module in no
   child is `config/unassigned`, a child member matching a module outside the composite is
   `config/member-outside-parent`. At the root an unmatched module is only unmapped. All
@@ -350,19 +370,24 @@ complexity, unmapped, stale, `codes.rs`), `diag/` (diagnostic value and text pri
 Stack: axum 0.8 + sycamore 0.9, no htmx and no JS framework. Code layout (small focused files,
 folders by concern):
 
-- `crates/web/server/src/`: `lib.rs` (options, state, `run`), `routes/` (`index`, `source`, `api`, `review`,
-  `assets`), `render/` (page and source-popup HTML shells), `data/` (page data from the cache:
-  `diagnostics`, `graph/` (per-level aggregation: `edges`, `level`, `heat`), `functions`,
-  `time`), `tests/`.
-- `crates/web/api/` (`brickie-web-api`): `endpoint.rs` (the `Endpoint` trait and markers), `source.rs`,
-  `model/` (page data and pure helpers: `params`, `diag`, `graph`, `levels`, `function`, `score`, `boundary`, `interface`).
-- `crates/web/ui/` (`brickie-ui`): `state/` (`layers`, `selection`, `focus`, `eval`, `shared`, `ctx`), `components/`
-  (`app`, `keys`, `canvas/` incl. `frame`, `panels/` incl. `node`, `controls/` incl. `crumbs`,
-  `source/`), `platform.rs`, `wasm.rs`, `styles/*.css`.
+- `crates/web/server/src/`: `lib.rs` (options, state incl. the bound address, `run`), `routes/`
+  (`index`, `api`, `interface`, `review`, `editor` (change endpoints), `guard` (write guard),
+  `view` (page data of a request: current design or change preview), `assets`), `render/`
+  (page HTML shell), `data/` (page data from the cache: `diagnostics`, `graph/` (per-level
+  aggregation: `edges`, `level`, `heat`), `functions`, `interface`, `editor` (change view,
+  planned/proposed marks), `time`), `tests/`.
+- `crates/web/api/` (`brickie-web-api`): `endpoint/` (`mod`: the `Endpoint` trait and markers;
+  `editor`: the change endpoints), `model/` (page data and pure helpers: `params`, `diag`,
+  `graph`, `levels`, `function`, `score`, `boundary`, `interface`, `editor` (change view and
+  requests; re-exports `brickie_model::change` as `change`)).
+- `crates/web/ui/` (`brickie-ui`): `state/` (`layers`, `selection`, `focus`, `eval`, `shared`,
+  `ctx`, `editor`), `components/` (`app`, `keys`, `call`, `canvas/` incl. `frame`, `panels/`
+  incl. `node`, `controls/` incl. `crumbs`, `editor/` (`bar`, `dialogs`, `palette`,
+  `inspector`, `log`, `overlay`, `drop`), `popup`), `platform.rs`, `wasm.rs`, `styles/*.css`.
 
 - **Web api port.** `crates/web/api` holds the `Endpoint` trait (`PATH`, `Req`, `Res`) with one marker per
   JSON endpoint (`Review` POST `/review`; `Graph`, `Diagnostics`, `Functions` GET `/api/*`, where `Req` is the
-  query `Params` or `()`; `Interface` POST `/api/interface` `{brick}` and `EdgeUses` POST `/api/edge-uses`
+  query `Params` (with `change=1`: the open change's preview); `Interface` POST `/api/interface` `{brick}` and `EdgeUses` POST `/api/edge-uses`
   `{from, to}` with brick paths, 400 for an unknown path), the path consts of the HTML routes, and every type crossing the port (page data,
   params, review request/reply). The server mounts routes at `E::PATH` with handlers typed
   `ReqOf<E>` / `ResOf<E>`; the UI calls `components::call::<E>`, which only moves JSON through
@@ -526,6 +551,17 @@ folders by concern):
   `crates/web/ui/src/state/` (layers round trip through the URL, presets, selection,
   scoping); `crates/lib/algo/metrics/src/tests.rs`; `codeview-host` tests (endpoints, bands, path
   confinement).
+
+### Design editor (implemented)
+
+Edit mode of the viewer over a change session (proposal: `docs/proposals/editor.md`, "Editor
+notes"). `change=1` shows the open change's preview (the same level aggregation over
+`Preview::check`; `BrickView.planned` / `proposed` mark bricks with no code yet and agent
+proposals) with the editor panel (palette, inspector, ops log) in place of the detail panel;
+the change bar replaces the banner. Every op goes through `/api/change/*` and the page reloads.
+All writing endpoints, `/review` included, pass one write guard (`routes/guard.rs`): loopback
+bind, loopback `Host` with the server's port, same `Origin`. Canvas positions are layout hints
+in the change, never ops.
 
 ### Levels (implemented)
 

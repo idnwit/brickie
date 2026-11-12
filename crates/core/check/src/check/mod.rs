@@ -22,7 +22,13 @@ pub struct Loaded {
 }
 
 pub fn load(config: &Path) -> Result<Loaded> {
-    let cfg = config::load(config)?;
+    load_from(&config::Disk, config)
+}
+
+/// `load` with the config tree read from `src` (a change's preview); the cache and the review
+/// file are read from disk.
+pub fn load_from(src: &dyn config::FileSource, config: &Path) -> Result<Loaded> {
+    let cfg = config::load_from(src, config)?;
     let cache = read_cache(config)?;
     let review = review::read(config)?;
     let root = Path::new(&cache.workspace_root);

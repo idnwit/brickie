@@ -3,6 +3,7 @@
 
 mod boundary;
 mod diag;
+mod editor;
 mod function;
 mod graph;
 mod interface;
@@ -12,6 +13,7 @@ mod score;
 
 pub use boundary::*;
 pub use diag::*;
+pub use editor::*;
 pub use function::*;
 pub use graph::*;
 pub use interface::*;
@@ -29,4 +31,7 @@ pub struct PageData {
     /// Every level of the brick tree, the root first.
     pub levels: Vec<LevelView>,
     pub functions: Vec<FnRow>,
+    /// The open design change (`None`: none is open).
+    #[serde(default)]
+    pub change: Option<ChangeView>,
 }

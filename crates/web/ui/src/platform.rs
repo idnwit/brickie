@@ -101,11 +101,20 @@ mod imp {
         }
     }
 
-    async fn post(path: &str, body: String) -> Result<String, String> {
+    /// Go to `url` (a full page load).
+    pub fn goto(url: &str) {
+        if let Some(w) = web_sys::window() {
+            let _ = w.location().set_href(url);
+        }
+    }
+
+    async fn fetch(path: &str, body: Option<String>) -> Result<String, String> {
         let window = web_sys::window().ok_or("no window")?;
         let init = web_sys::RequestInit::new();
-        init.set_method("POST");
-        init.set_body(&JsValue::from_str(&body));
+        init.set_method(if body.is_some() { "POST" } else { "GET" });
+        if let Some(body) = body {
+            init.set_body(&JsValue::from_str(&body));
+        }
         let headers = web_sys::Headers::new().map_err(|_| "headers")?;
         let _ = headers.set("content-type", "application/json");
         init.set_headers(&headers);
@@ -156,7 +165,12 @@ mod imp {
         body: String,
         done: impl FnOnce(Result<String, String>) + 'static,
     ) {
-        wasm_bindgen_futures::spawn_local(async move { done(post(path, body).await) });
+        wasm_bindgen_futures::spawn_local(async move { done(fetch(path, Some(body)).await) });
+    }
+
+    /// GET `path`; `done` gets the response text or an error message.
+    pub fn get_json(path: &'static str, done: impl FnOnce(Result<String, String>) + 'static) {
+        wasm_bindgen_futures::spawn_local(async move { done(fetch(path, None).await) });
     }
 }
 
@@ -180,6 +194,8 @@ mod imp {
     pub fn post_to_frame(_: &str, _: &str) {}
     pub fn post_json(_: &'static str, _: String, _: impl FnOnce(Result<String, String>) + 'static) {
     }
+    pub fn get_json(_: &'static str, _: impl FnOnce(Result<String, String>) + 'static) {}
+    pub fn goto(_: &str) {}
 }
 
 pub use imp::*;

@@ -31,6 +31,14 @@ pub struct AppState {
     config: Arc<PathBuf>,
     /// Serialises writes to `brickie.review.toml`.
     review_lock: Arc<Mutex<()>>,
+    /// The address the server listens on, for the write guard (`routes::guard`).
+    bind: Arc<Bind>,
+}
+
+/// Host and port the server is bound to (`port` `None`: unknown, any port matches).
+struct Bind {
+    host: String,
+    port: Option<u16>,
 }
 
 impl AppState {
@@ -38,7 +46,20 @@ impl AppState {
         AppState {
             config: Arc::new(config),
             review_lock: Arc::new(Mutex::new(())),
+            bind: Arc::new(Bind {
+                host: "127.0.0.1".into(),
+                port: None,
+            }),
         }
+    }
+
+    /// The same state for a server bound to `host:port`.
+    pub fn bound(mut self, host: &str, port: u16) -> Self {
+        self.bind = Arc::new(Bind {
+            host: host.to_string(),
+            port: Some(port),
+        });
+        self
     }
 
     fn load(&self) -> Result<Loaded, Failure> {
@@ -71,7 +92,7 @@ impl IntoResponse for Failure {
 }
 
 pub fn run(opts: &Options) -> Result<()> {
-    let state = AppState::new(opts.config.clone());
+    let state = AppState::new(opts.config.clone()).bound(&opts.bind, opts.port);
     // Fail early on a missing cache or config instead of on the first request.
     check::load(&opts.config)?;
     let addr = format!("{}:{}", opts.bind, opts.port);

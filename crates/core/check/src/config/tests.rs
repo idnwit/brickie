@@ -2,7 +2,7 @@
 //! built in code). `fixture` is shared with the rule tests.
 
 use super::{Config, Resolved, load, resolve};
-use brickie_facts::Cache;
+use brickie_facts::{Cache, Crate, Module};
 use serde_json::{Value, json};
 use std::path::Path;
 
@@ -177,4 +177,71 @@ fn longer_path_member_beats_shorter() {
     assert_eq!(r.path("web-api::m").unwrap(), ["web", "api"]);
     assert_eq!(r.path("web-ui::m").unwrap(), ["web", "ui"]);
     assert_eq!(r.path("web-shared::m").unwrap(), ["web", "shared"]);
+}
+
+#[test]
+fn exact_module_member_allows_parent_composite_with_root_sibling_descendant() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("crates/app")).unwrap();
+    std::fs::write(
+        dir.path().join("brickie.toml"),
+        r#"
+[[brick]]
+name = "parent"
+path = "crates/app"
+
+[[brick]]
+name = "root"
+members = ["module:app"]
+
+[[brick]]
+name = "descendant"
+members = ["module:app::parent::child"]
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("crates/app/brickie.toml"),
+        r#"
+[[brick]]
+name = "leaf"
+members = ["module:app::parent"]
+"#,
+    )
+    .unwrap();
+    let cfg = load(&dir.path().join("brickie.toml")).unwrap();
+    let krate = Crate {
+        id: "app".into(),
+        package: "app".into(),
+        version: "0".into(),
+        target: "app".into(),
+        kind: "lib".into(),
+        root: "crates/app/src/lib.rs".into(),
+        dir: "crates/app".into(),
+    };
+    let modules = vec![
+        Module {
+            id: "app".into(),
+            krate: "app".into(),
+            file: "crates/app/src/lib.rs".into(),
+            line: 1,
+        },
+        Module {
+            id: "app::parent".into(),
+            krate: "app".into(),
+            file: "crates/app/src/parent.rs".into(),
+            line: 1,
+        },
+        Module {
+            id: "app::parent::child".into(),
+            krate: "app".into(),
+            file: "crates/app/src/parent/child.rs".into(),
+            line: 1,
+        },
+    ];
+    let ws = dir.path().canonicalize().unwrap();
+    let resolved = resolve(&cfg, &[krate], &modules, &ws).unwrap();
+    assert_eq!(resolved.path("app").unwrap(), ["root"]);
+    assert_eq!(resolved.path("app::parent").unwrap(), ["parent", "leaf"]);
+    assert_eq!(resolved.path("app::parent::child").unwrap(), ["descendant"]);
 }

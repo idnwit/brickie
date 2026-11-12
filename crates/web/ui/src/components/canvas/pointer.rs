@@ -51,8 +51,9 @@ pub fn pointer(cur: &Cur) {
         }
     });
     let cur2 = cur.clone();
-    platform::on_mouse("mouseup", move |_, _| {
+    platform::on_mouse("mouseup", move |x, y| {
         let Some(c) = current(&cur2) else { return };
+        crate::components::editor::release(&c, x, y, c.op.get());
         if let Some(Op::Box { x0, y0, x1, y1 }) = c.op.get() {
             // Drag-box selection: bricks whose boxes intersect the rectangle.
             let v = c.view.get();

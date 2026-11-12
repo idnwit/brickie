@@ -35,6 +35,10 @@ pub struct BrickView {
     pub exported: bool,
     /// A faded neighbour outside the current level, with edges crossing its boundary.
     pub ghost: bool,
+    /// Change preview: in the design, but no measured module maps to it yet.
+    pub planned: bool,
+    /// Change preview: added by a coding agent's op that is still proposed.
+    pub proposed: bool,
 }
 
 impl BrickView {

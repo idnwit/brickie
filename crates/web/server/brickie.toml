@@ -6,7 +6,7 @@ exports = ["routes"]
 name = "routes"
 members = ["brickie-web"]             # the crate root, `routes` and tests; the folders below win
 tags = ["http"]
-desc = "HTTP layer: router, handlers, app state, wasm assets, and the crate's tests"
+desc = "HTTP layer: router, handlers (incl. the change endpoints and their write guard), app state, wasm assets, and the crate's tests"
 
 [[brick]]
 name = "render"
@@ -18,7 +18,7 @@ desc = "HTML page: the SSR shell around the viewer"
 name = "data"
 members = ["brickie-web::data"]
 tags = ["data"]
-desc = "Page data: diagnostics, functions and graph levels built from the check result"
+desc = "Page data: diagnostics, functions, graph levels and the change view built from the check result"
 
 [[brick]]
 name = "code"
