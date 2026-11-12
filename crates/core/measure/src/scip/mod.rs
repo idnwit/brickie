@@ -1,19 +1,25 @@
 //! Normalise a rust-analyzer SCIP index plus cargo metadata and the source snapshot into raw
 //! graph rows. Pure: no I/O besides the `source` callback.
 
+mod defs;
 mod helpers;
 pub mod layout;
+mod link;
 pub mod modules;
 mod normalise;
 mod targets;
+#[cfg(test)]
+pub(crate) mod testutil;
 mod written;
 
 pub use brickie_rustscan::UseItem;
+pub use helpers::descriptor_names;
 pub use normalise::normalise;
 
 /// (start_line, start_col, end_line, end_col), 0-based, end exclusive.
 pub type Span = (u32, u32, u32, u32);
 
+#[derive(Default)]
 pub struct FileRow {
     pub path: String,
     pub package: Option<usize>,
@@ -56,6 +62,13 @@ pub struct OccRow {
     /// The reference ends its path (not followed by `::`, except `::*`): the leaf of a `use`
     /// or the module of a glob import, rather than a qualifier segment.
     pub path_end: bool,
+}
+
+impl OccRow {
+    /// A definition site (as opposed to a reference).
+    pub fn is_def(&self) -> bool {
+        helpers::is_def(self.roles)
+    }
 }
 
 #[derive(Default)]

@@ -4,6 +4,8 @@
 //! Folder bricks (see `brickie.toml`): `workspace` (cargo and tool facts), `scip` (index rows),
 //! `run` (the flow that combines them into the cache).
 
+#[cfg(test)]
+mod e2e_tests;
 mod run;
 mod scip;
 mod workspace;

@@ -74,6 +74,25 @@ reason = "the viewer lays out the brick graph; the server mounts the code viewer
 bricks = "tag:domain"
 cognitive = 15
 nesting = 4
+params = 6
+lines = 80
+level = "warn"
+
+# Hard ceiling for every brick, including a new one without a tag: past this a function is
+# unreviewable. An error, so CI fails; lower tag rules stay warnings until their step lands.
+[[complexity]]
+bricks = "*"
+cognitive = 60
+nesting = 6
+lines = 200
+level = "error"
+
+# Test code: only the extreme cases.
+[[complexity]]
+bricks = "*"
+scope = "test"
+cognitive = 40
+lines = 150
 level = "warn"
 
 

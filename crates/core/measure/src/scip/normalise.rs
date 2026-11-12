@@ -1,215 +1,205 @@
-//! SCIP index -> [`Graph`] rows.
+//! SCIP index -> [`Graph`] rows: a builder owning the graph under construction and the indexes
+//! the phases share. The graph-only phases are in `link.rs`, definitions in `defs.rs`.
 
-use super::helpers::*;
+use super::defs::DefIndex;
+use super::helpers::{innermost, is_def, is_local};
 use super::layout::Layout;
+use super::link::{assign_parents, file_defs, file_modules, link_modules, name_crate_roots};
 use super::targets::assign_targets;
-use super::written;
-use super::*;
-use ::scip::types::Index;
+use super::written::Written;
+use super::{FileRow, Graph, OccRow, Span, UseItem, span};
+use ::scip::types::{Index, Occurrence};
 use brickie_facts::sha256_hex;
 use brickie_rustscan as use_scan;
-use std::collections::HashMap;
+use std::ops::Range;
 
-pub fn normalise(idx: &Index, ws: &Layout, source: &dyn Fn(&str) -> Option<String>) -> Graph {
-    let mut g = Graph::default();
-    let info: HashMap<&str, &::scip::types::SymbolInformation> = idx
-        .documents
+/// The graph, plus the relative paths whose source `source` could not provide (recorded as
+/// empty: sha256 of the empty string, zero lines).
+pub fn normalise(
+    idx: &Index,
+    ws: &Layout,
+    source: &dyn Fn(&str) -> Option<String>,
+) -> (Graph, Vec<String>) {
+    let mut b = Builder::new(idx, ws);
+    b.add_files(source);
+    b.collect_defs();
+    b.index_tree();
+    assign_targets(idx, ws, &mut b.g);
+    name_crate_roots(&mut b.g, ws);
+    link_modules(&mut b.g);
+    b.add_occurrences();
+    (b.g, b.unreadable)
+}
+
+/// The graph being built plus the per-file and per-definition indexes the phases share.
+pub(super) struct Builder<'a> {
+    pub(super) idx: &'a Index,
+    pub(super) ws: &'a Layout,
+    pub(super) g: Graph,
+    /// Per file (same order as `idx.documents`): its source text.
+    sources: Vec<String>,
+    /// Per file: the range of its `use` items in `g.use_items`.
+    file_uses: Vec<Range<usize>>,
+    /// Paths whose source could not be read.
+    unreadable: Vec<String>,
+    pub(super) defs: DefIndex<'a>,
+    /// Per file: (body span, symbol) sorted for containment queries.
+    file_defs: Vec<Vec<(Span, usize)>>,
+}
+
+/// Package owning `path`: the one with the longest directory prefix (an empty dir owns all).
+fn package_of(ws: &Layout, path: &str) -> Option<usize> {
+    ws.packages
         .iter()
-        .flat_map(|d| d.symbols.iter())
-        .filter(|s| !s.symbol.starts_with("local"))
-        .map(|s| (s.symbol.as_str(), s))
-        .collect();
+        .enumerate()
+        .filter(|(_, p)| p.dir.is_empty() || path.starts_with(&format!("{}/", p.dir)))
+        .max_by_key(|(_, p)| p.dir.len())
+        .map(|(i, _)| i)
+}
 
-    // Files, use items, definitions.
-    let mut file_uses: Vec<Vec<UseItem>> = Vec::new();
-    let mut sources: Vec<String> = Vec::new();
-    let mut defs_by_scip: HashMap<&str, Vec<usize>> = HashMap::new();
-    let mut def_key: HashMap<(&str, usize), usize> = HashMap::new();
-    for (fi, doc) in idx.documents.iter().enumerate() {
-        let path = doc.relative_path.clone();
-        let package = ws
-            .packages
-            .iter()
-            .enumerate()
-            .filter(|(_, p)| p.dir.is_empty() || path.starts_with(&format!("{}/", p.dir)))
-            .max_by_key(|(_, p)| p.dir.len())
-            .map(|(i, _)| i);
-        let src = source(&path).unwrap_or_default();
-        let uses = use_scan::use_items(&src);
-        g.files.push(FileRow {
-            sha256: sha256_hex(src.as_bytes()),
-            lines: src.lines().count() as u32,
-            path,
-            package,
-            target: None,
-            module: None,
-        });
-        file_uses.push(uses);
-        sources.push(src);
-        for o in doc.occurrences.iter().filter(|o| is_def(o)) {
-            if o.symbol.starts_with("local") || def_key.contains_key(&(o.symbol.as_str(), fi)) {
-                continue;
-            }
-            let id = g.symbols.len();
-            def_key.insert((o.symbol.as_str(), fi), id);
-            defs_by_scip.entry(o.symbol.as_str()).or_default().push(id);
-            let si = info.get(o.symbol.as_str());
-            let range = span(&o.range);
-            g.symbols.push(SymbolRow {
-                scip: o.symbol.clone(),
+/// Index of the `use` item (sorted by start) containing `pos`, if any.
+fn use_at(uses: &[UseItem], pos: (u32, u32)) -> Option<usize> {
+    let k = uses.partition_point(|u| u.start_pos <= pos);
+    k.checked_sub(1).filter(|&k| uses[k].contains(pos.0, pos.1))
+}
+
+impl<'a> Builder<'a> {
+    fn new(idx: &'a Index, ws: &'a Layout) -> Self {
+        Builder {
+            idx,
+            ws,
+            g: Graph::default(),
+            sources: Vec::new(),
+            file_uses: Vec::new(),
+            unreadable: Vec::new(),
+            defs: DefIndex::default(),
+            file_defs: Vec::new(),
+        }
+    }
+
+    /// One `FileRow` per document, and every file's `use` items appended to `g.use_items` in
+    /// document order. Unreadable files hash and count as the empty string, and are listed in
+    /// `unreadable`.
+    fn add_files(&mut self, source: &dyn Fn(&str) -> Option<String>) {
+        for doc in &self.idx.documents {
+            let path = doc.relative_path.clone();
+            let src = source(&path).unwrap_or_else(|| {
+                self.unreadable.push(path.clone());
+                String::new()
+            });
+            let start = self.g.use_items.len();
+            self.g.use_items.extend(use_scan::use_items(&src));
+            self.file_uses.push(start..self.g.use_items.len());
+            self.g.files.push(FileRow {
+                sha256: sha256_hex(src.as_bytes()),
+                lines: src.lines().count() as u32,
+                package: package_of(self.ws, &path),
+                path,
+                target: None,
                 module: None,
-                parent: None,
-                name: si.map(|s| s.display_name.clone()).unwrap_or_default(),
-                file: fi,
-                range,
-                body: if o.enclosing_range.is_empty() {
-                    range
-                } else {
-                    span(&o.enclosing_range)
-                },
-                module_path: module_path(&o.symbol),
-                signature: si
-                    .and_then(|s| s.signature_documentation.as_ref())
-                    .map(|d| d.text.clone())
-                    .unwrap_or_default(),
-                doc: si
-                    .and_then(|s| s.documentation.first())
-                    .cloned()
-                    .unwrap_or_default(),
             });
-        }
-    }
-    // Per-file definitions sorted for containment; symbol.parent_id.
-    let mut file_defs: Vec<Vec<(Span, usize)>> = vec![Vec::new(); g.files.len()];
-    for (i, s) in g.symbols.iter().enumerate() {
-        file_defs[s.file].push((s.body, i));
-    }
-    for defs in &mut file_defs {
-        defs.sort_by_key(|&(s, i)| ((s.0, s.1), std::cmp::Reverse((s.2, s.3)), i));
-    }
-    // Only defs sorted before a symbol can be its parent: keeps the parent
-    // relation acyclic when two definitions share the same enclosing range.
-    for defs in &file_defs {
-        for (i, parent) in parents(defs, |i| (g.symbols[i].range.0, g.symbols[i].range.1)) {
-            g.symbols[i].parent = parent;
+            self.sources.push(src);
         }
     }
 
-    // File module: the module definition starting at (0, 0), else outermost.
-    for (fi, defs) in file_defs.iter().enumerate() {
-        let mods: Vec<usize> = defs
-            .iter()
-            .map(|&(_, i)| i)
-            .filter(|&i| g.symbols[i].module_path.is_some())
-            .collect();
-        g.files[fi].module = mods
-            .iter()
-            .copied()
-            .find(|&i| (g.symbols[i].body.0, g.symbols[i].body.1) == (0, 0))
-            .or(mods.first().copied());
+    /// Containment order per file, then `symbol.parent` and `file.module`.
+    fn index_tree(&mut self) {
+        self.file_defs = file_defs(&self.g);
+        assign_parents(&mut self.g, &self.file_defs);
+        file_modules(&mut self.g, &self.file_defs);
     }
 
-    assign_targets(idx, ws, &mut g);
-    // Crate roots have no display name in SCIP; use the target name.
-    for s in g.symbols.iter_mut() {
-        if s.module_path.as_deref() == Some("")
-            && s.name.is_empty()
-            && let Some(t) = g.files[s.file].target
-        {
-            s.name = ws.targets[t].name.clone();
-        }
-    }
-
-    // Module rows: parent by (target, parent path); symbol.module_id.
-    let mut registry: HashMap<(Option<usize>, &str), usize> = HashMap::new();
-    for (i, s) in g.symbols.iter().enumerate() {
-        if let Some(p) = &s.module_path {
-            registry
-                .entry((g.files[s.file].target, p.as_str()))
-                .or_insert(i);
-        }
-    }
-    let mut modules = Vec::new();
-    let mut module_of = vec![None; g.symbols.len()];
-    for (i, s) in g.symbols.iter().enumerate() {
-        if let Some(p) = &s.module_path {
-            let parent = if p.is_empty() {
-                None
-            } else {
-                registry
-                    .get(&(g.files[s.file].target, parent_path(p)))
-                    .copied()
-            };
-            modules.push(ModuleRow { symbol: i });
-            module_of[i] = parent;
-        } else {
-            let mut cur = s.parent;
-            while let Some(c) = cur {
-                if g.symbols[c].module_path.is_some() {
-                    break;
+    /// One `OccRow` per occurrence of a workspace symbol; occurrences of locals and of external
+    /// symbols are skipped.
+    fn add_occurrences(&mut self) {
+        for (fi, doc) in self.idx.documents.iter().enumerate() {
+            let written = Written::new(&self.sources[fi]);
+            for o in doc.occurrences.iter().filter(|o| !is_local(&o.symbol)) {
+                if let Some(row) = self.occurrence(fi, o, &written) {
+                    self.g.occurrences.push(row);
                 }
-                cur = g.symbols[c].parent;
             }
-            module_of[i] = cur.or(g.files[s.file].module);
-        }
-    }
-    for (s, m) in g.symbols.iter_mut().zip(module_of) {
-        s.module = m;
-    }
-    g.modules = modules;
-
-    // Use items.
-    let mut use_base = vec![0usize; g.files.len()];
-    for (fi, uses) in file_uses.iter().enumerate() {
-        use_base[fi] = g.use_items.len();
-        for u in uses {
-            g.use_items.push(u.clone());
         }
     }
 
-    // Occurrences of workspace symbols.
-    for (fi, doc) in idx.documents.iter().enumerate() {
-        let uses = &file_uses[fi];
-        let written = written::Written::new(&sources[fi]);
-        let target = g.files[fi].target;
-        for o in &doc.occurrences {
-            if o.symbol.starts_with("local") {
-                continue;
-            }
-            let range = span(&o.range);
-            let pos = (range.0, range.1);
-            let use_idx = if is_def(o) {
-                None
-            } else {
-                let k = uses.partition_point(|u| u.start_pos <= pos);
-                k.checked_sub(1).filter(|&k| uses[k].contains(pos.0, pos.1))
-            };
-            let Some(cands) = defs_by_scip.get(o.symbol.as_str()) else {
-                continue; // external symbol: not part of the workspace graph
-            };
-            let symbol = if let Some(&id) = def_key.get(&(o.symbol.as_str(), fi)) {
-                id
-            } else {
-                let same: Vec<usize> = cands
-                    .iter()
-                    .copied()
-                    .filter(|&c| g.files[g.symbols[c].file].target == target)
-                    .collect();
-                let pool = if same.is_empty() { cands } else { &same };
-                pool[0]
-            };
-            g.occurrences.push(OccRow {
-                symbol,
-                file: fi,
-                range,
-                roles: o.symbol_roles,
-                container: innermost(&file_defs[fi], pos, Some(symbol)),
-                import: use_idx.is_some(),
-                use_item: use_idx.map(|k| use_base[fi] + k),
-                written: written.at(range, use_idx.is_some()),
-                path_end: written.is_path_end(range),
-            });
+    fn occurrence(&self, fi: usize, o: &Occurrence, written: &Written) -> Option<OccRow> {
+        let range = span(&o.range);
+        let pos = (range.0, range.1);
+        let uses = self.file_uses[fi].clone();
+        let use_idx = if is_def(o.symbol_roles) {
+            None
+        } else {
+            use_at(&self.g.use_items[uses.clone()], pos).map(|k| uses.start + k)
+        };
+        let target = self.g.files[fi].target;
+        let symbol = self.defs.resolve(&self.g, &o.symbol, fi, target)?;
+        Some(OccRow {
+            symbol,
+            file: fi,
+            range,
+            roles: o.symbol_roles,
+            // For a def occurrence this may name a child (see `innermost`); defs are dropped later.
+            container: innermost(&self.file_defs[fi], pos, Some(symbol)),
+            import: use_idx.is_some(),
+            use_item: use_idx,
+            written: written.at(range, use_idx.is_some()),
+            path_end: written.is_path_end(range),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::scip::layout::Package;
+
+    fn ws(dirs: &[&str]) -> Layout {
+        Layout {
+            packages: dirs.iter().map(|d| Package { dir: (*d).into() }).collect(),
+            targets: Vec::new(),
         }
     }
-    g
+
+    #[test]
+    fn longest_dir_wins() {
+        let ws = ws(&["crates/a", "crates/a/sub"]);
+        assert_eq!(package_of(&ws, "crates/a/sub/x.rs"), Some(1));
+        assert_eq!(package_of(&ws, "crates/a/x.rs"), Some(0));
+    }
+
+    #[test]
+    fn empty_dir_owns_everything_but_loses_to_longer() {
+        let ws = ws(&["", "crates/a"]);
+        assert_eq!(package_of(&ws, "src/x.rs"), Some(0));
+        assert_eq!(package_of(&ws, "crates/a/x.rs"), Some(1));
+    }
+
+    #[test]
+    fn prefix_must_end_at_a_separator() {
+        assert_eq!(package_of(&ws(&["crates/a"]), "crates/ab/x.rs"), None);
+        assert_eq!(package_of(&ws(&[]), "x.rs"), None);
+    }
+
+    fn item(start: (u32, u32), end: (u32, u32)) -> UseItem {
+        UseItem {
+            start: 0,
+            end: 0,
+            start_pos: start,
+            end_pos: end,
+            is_pub: false,
+            vis: String::new(),
+        }
+    }
+
+    #[test]
+    fn use_at_boundaries() {
+        let uses = [item((1, 0), (1, 10)), item((3, 0), (4, 5))];
+        assert_eq!(use_at(&uses, (0, 0)), None);
+        assert_eq!(use_at(&uses, (1, 0)), Some(0));
+        assert_eq!(use_at(&uses, (1, 9)), Some(0));
+        assert_eq!(use_at(&uses, (2, 0)), None);
+        assert_eq!(use_at(&uses, (3, 3)), Some(1));
+        assert_eq!(use_at(&uses, (9, 0)), None);
+        assert_eq!(use_at(&[], (0, 0)), None);
+    }
 }

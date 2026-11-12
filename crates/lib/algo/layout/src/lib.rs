@@ -12,6 +12,8 @@
 
 mod anneal;
 mod compute;
+#[cfg(test)]
+mod e2e_tests;
 mod geometry;
 mod measure;
 mod order;
@@ -20,8 +22,6 @@ mod place;
 mod ports;
 mod rank;
 mod smart;
-#[cfg(test)]
-mod tests;
 
 pub use geometry::Route;
 pub use measure::{measure_items, score_layout};
@@ -55,6 +55,26 @@ pub struct Rect {
     pub y: f64,
     pub w: f64,
     pub h: f64,
+}
+
+impl Rect {
+    /// Whether `q` lies strictly inside the box grown by margin `m` (negative `m` shrinks it).
+    pub fn contains(&self, q: &Pt, m: f64) -> bool {
+        q.x > self.x - m
+            && q.x < self.x + self.w + m
+            && q.y > self.y - m
+            && q.y < self.y + self.h + m
+    }
+
+    /// Length of side `sd`: the width for top/bottom, the height for left/right.
+    pub fn side_len(&self, sd: Side) -> f64 {
+        if sd.horizontal() { self.h } else { self.w }
+    }
+
+    /// Extent as `[x0, x1, y0, y1]`, the layout of [`bbox`](geometry::bbox).
+    pub(crate) fn bb(&self) -> [f64; 4] {
+        [self.x, self.x + self.w, self.y, self.y + self.h]
+    }
 }
 
 /// A box side (`'t' 'b' 'l' 'r'` in the original).
@@ -185,5 +205,39 @@ impl Layout {
     }
     pub fn edge_ends(&self, e: usize) -> (usize, usize) {
         self.edges[e]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const R: Rect = Rect {
+        x: 10.0,
+        y: 20.0,
+        w: 100.0,
+        h: 40.0,
+    };
+
+    #[test]
+    fn contains_is_strict_and_grows_with_margin() {
+        let at = |x, y| Pt { x, y };
+        assert!(R.contains(&at(11.0, 21.0), 0.0));
+        // on the border is not inside; a margin moves the border
+        assert!(!R.contains(&at(10.0, 30.0), 0.0));
+        assert!(R.contains(&at(9.0, 30.0), 2.0));
+        assert!(!R.contains(&at(8.0, 30.0), 2.0));
+        // a negative margin shrinks the box
+        assert!(!R.contains(&at(12.0, 30.0), -2.0));
+        assert!(R.contains(&at(12.5, 30.0), -2.0));
+    }
+
+    #[test]
+    fn side_len_and_bb() {
+        assert_eq!(R.side_len(Side::T), 100.0);
+        assert_eq!(R.side_len(Side::B), 100.0);
+        assert_eq!(R.side_len(Side::L), 40.0);
+        assert_eq!(R.side_len(Side::R), 40.0);
+        assert_eq!(R.bb(), [10.0, 110.0, 20.0, 60.0]);
     }
 }

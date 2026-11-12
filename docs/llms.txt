@@ -228,8 +228,11 @@ says by how much it is over. Metrics:
 
 - `cognitive`: how hard the function is to read. `+1 + nesting` per `if`, `match` (once, not per
   arm), `for`, `while`, `loop`, `let ... else`; `+1` per `else`; `+1` per sequence of like `&&` /
-  `||`; `+1` per labeled `break`/`continue` and per direct recursive call. `?` is free. Fix: guard
-  clauses and early `return`/`continue`, `?` instead of nested matches, extract a cohesive step.
+  `||`; `+1` per labeled `break`/`continue` and per direct recursive call. `?` is free. Closures
+  add nesting but no cost themselves (as in SonarSource). Macro bodies (token trees such as
+  `println!(..)`, `vec![..]`, `view! {..}`) are not parsed, so branching inside them is not
+  measured. Fix:
+  guard clauses and early `return`/`continue`, `?` instead of nested matches, extract a cohesive step.
 - `cyclomatic`: `1 + if + loops + (match arms - 1) + let-else + && + || + ?`. Fix: replace long
   chains with a lookup table, data-driven code, or split by responsibility.
 - `nesting`: deepest nesting of branches, loops and closures. Fix: invert conditions and return

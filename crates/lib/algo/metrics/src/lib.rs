@@ -16,14 +16,14 @@
 //! * **params**: every parameter of the signature except `self` (clippy convention).
 //!
 //! Macro bodies (token trees) are not parsed. Nested `fn` items are measured separately.
+//! A closure adds nesting but no cost itself, and a labeled `break`/`continue` costs a flat `+1`
+//! (no nesting increment); both match the SonarSource definition.
 
 mod analyze;
 mod cognitive;
 mod paths;
 mod syntax;
 mod testcfg;
-#[cfg(test)]
-mod tests;
 mod tree;
 
 pub use analyze::analyze;

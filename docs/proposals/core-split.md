@@ -93,6 +93,11 @@ nesting = 6
 level = "warn"
 ```
 
+Config as of 2026-11-12: `tag:domain` also limits `params` (6) and `lines` (80), still `warn`. A root
+`bricks = "*"` ceiling (cognitive 60, nesting 6, lines 200) is an `error` for every brick, so it
+also caps algorithms (`smart_route`, `walk`, `measure_items` fail until refactored or accepted). A
+`scope = "test"` rule warns on extreme test functions (cognitive 40, lines 150).
+
 Path to zero complexity errors:
 
 1. Extract the algorithms into `algo`. Most heavy findings move there, where they are accepted as

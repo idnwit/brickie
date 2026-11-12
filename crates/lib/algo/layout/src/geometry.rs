@@ -161,3 +161,74 @@ pub fn bbox(pts: &[Pt]) -> [f64; 4] {
     }
     b
 }
+
+/// True when the bounding boxes `a` and `b` (`[x0, x1, y0, y1]`) are more than `margin` apart on
+/// an axis; with margin 0 touching boxes are not apart.
+pub fn bb_apart(a: &[f64; 4], b: &[f64; 4], margin: f64) -> bool {
+    b[1] < a[0] - margin || a[1] < b[0] - margin || b[3] < a[2] - margin || a[3] < b[2] - margin
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The three replaced formulas, verbatim, on `[x0, x1, y0, y1]` boxes.
+    fn old_bbox_apart(a: &[f64; 4], b: &[f64; 4]) -> bool {
+        a[1] < b[0] || b[1] < a[0] || a[3] < b[2] || b[3] < a[2]
+    }
+    fn old_far_apart(a: &[f64; 4], b: &[f64; 4]) -> bool {
+        b[1] < a[0] - 8.0 || a[1] < b[0] - 8.0 || b[3] < a[2] - 8.0 || a[3] < b[2] - 8.0
+    }
+    fn old_inline(bb: [f64; 4], n: &Rect) -> bool {
+        !(bb[1] < n.x || bb[0] > n.x + n.w || bb[3] < n.y || bb[2] > n.y + n.h)
+    }
+
+    #[test]
+    fn bb_apart_matches_the_replaced_formulas() {
+        let vals = [-10.0, -0.0, 0.0, 5.0, 7.5, 8.0, 10.0, 18.0, 18.5, f64::NAN];
+        let mut boxes = Vec::new();
+        for &x0 in &vals {
+            for &x1 in &vals {
+                for &y in &[(0.0, 4.0), (-0.0, 0.0), (20.0, 30.0), (f64::NAN, 1.0)] {
+                    boxes.push([x0, x1, y.0, y.1]);
+                }
+            }
+        }
+        let base = [0.0, 10.0, 0.0, 10.0];
+        let nodes = [
+            Rect {
+                x: 0.0,
+                y: 0.0,
+                w: 10.0,
+                h: 10.0,
+            },
+            Rect {
+                x: 10.0,
+                y: 10.0,
+                w: 0.0,
+                h: 5.0,
+            },
+        ];
+        for a in boxes.iter().chain([&base]) {
+            for b in boxes.iter().chain([&base]) {
+                assert_eq!(bb_apart(a, b, 0.0), old_bbox_apart(a, b), "{a:?} {b:?}");
+                assert_eq!(bb_apart(a, b, 8.0), old_far_apart(a, b), "{a:?} {b:?}");
+            }
+            for n in &nodes {
+                assert_eq!(!bb_apart(a, &n.bb(), 0.0), old_inline(*a, n), "{a:?} {n:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn bb_apart_touching_and_gap_boundaries() {
+        let a = [0.0, 10.0, 0.0, 10.0];
+        // touching edges overlap at margin 0; a gap of 0.5 is apart
+        assert!(!bb_apart(&a, &[10.0, 20.0, 0.0, 10.0], 0.0));
+        assert!(bb_apart(&a, &[10.5, 20.0, 0.0, 10.0], 0.0));
+        // margin 8 is strict: a gap of exactly 8 is not apart
+        assert!(!bb_apart(&a, &[18.0, 20.0, 0.0, 10.0], 8.0));
+        assert!(bb_apart(&a, &[18.5, 20.0, 0.0, 10.0], 8.0));
+        assert!(bb_apart(&a, &[0.0, 10.0, 18.5, 20.0], 8.0));
+    }
+}

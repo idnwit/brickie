@@ -20,7 +20,8 @@ desc = "Generic code viewer: file explorer, tabs and Monaco, fed by a host throu
 default = "deny"
 cycles = "deny"
 
-# Algorithms: looser, accepted as isolated, tested warnings.
+# Algorithms: looser than domain. The root `*` ceiling (cognitive 60, an error) already caps
+# them, so over-limit algorithms must be refactored or accepted in the review file.
 [[complexity]]
 bricks = "tag:algo"
 cognitive = 60
