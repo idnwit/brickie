@@ -5,33 +5,47 @@ use anyhow::Result;
 use brickie_change::{By, Change, Op, State};
 use brickie_check::check::Loaded;
 use brickie_check::config::{Config, level_name};
-use brickie_web_api::{ChangeView, LevelView};
+use brickie_web_api::{ChangeView, LevelInfo, LevelView};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 /// Status, log, diff, tasks and layout of the open change. `error` is set when the preview
 /// does not load (`files` then lists no level).
 pub fn change_view(ch: &Change) -> Result<ChangeView> {
-    let (files, error) = match ch.preview(true).and_then(|p| p.load_config()) {
+    let (mut files, mut levels, mut sheets) = (BTreeMap::new(), BTreeMap::new(), BTreeMap::new());
+    let preview = ch.preview(true);
+    if let Ok(p) = &preview {
+        sheets = p.sheets();
+    }
+    let error = match preview.and_then(|p| p.load_config()) {
         Ok(cfg) => {
-            let mut files = BTreeMap::new();
-            level_files(&cfg, ch.root(), &mut files);
-            (files, None)
+            level_files(&cfg, ch.root(), &mut files, &mut levels);
+            None
         }
-        Err(e) => (BTreeMap::new(), Some(format!("{e:#}"))),
+        Err(e) => Some(format!("{e:#}")),
     };
+    let log = ch.log()?;
     Ok(ChangeView {
         status: ch.status()?,
-        log: ch.log()?.ops,
+        redo: brickie_change::redo_stack(&log.entries),
+        log: log.ops,
         diff: ch.diff()?,
         todo: ch.todo().unwrap_or_default(),
         layout: ch.layout()?,
         files,
+        levels,
+        planned_edges: ch.planned_edges().unwrap_or_default(),
+        sheets,
         error,
     })
 }
 
-fn level_files(cfg: &Config, root: &Path, out: &mut BTreeMap<String, String>) {
+fn level_files(
+    cfg: &Config,
+    root: &Path,
+    out: &mut BTreeMap<String, String>,
+    infos: &mut BTreeMap<String, LevelInfo>,
+) {
     let file = Path::new(&cfg.file);
     let rel = file.strip_prefix(root).unwrap_or(file);
     let rel = rel
@@ -40,10 +54,30 @@ fn level_files(cfg: &Config, root: &Path, out: &mut BTreeMap<String, String>) {
         .collect::<Vec<_>>()
         .join("/");
     out.insert(level_name(&cfg.path), rel);
+    infos.insert(level_name(&cfg.path), level_info(cfg));
     for b in &cfg.bricks {
         if let Some(sub) = &b.sub {
-            level_files(sub, root, out);
+            level_files(sub, root, out, infos);
         }
+    }
+}
+
+/// The bricks, tags and valid rule selectors of a level.
+fn level_info(cfg: &Config) -> LevelInfo {
+    let bricks: Vec<String> = cfg.bricks.iter().map(|b| b.name.clone()).collect();
+    let mut tags: Vec<String> = Vec::new();
+    for t in cfg.bricks.iter().flat_map(|b| &b.tags) {
+        if !tags.contains(t) {
+            tags.push(t.clone());
+        }
+    }
+    let mut selectors = vec!["*".to_string()];
+    selectors.extend(bricks.iter().cloned());
+    selectors.extend(tags.iter().map(|t| format!("tag:{t}")));
+    LevelInfo {
+        bricks,
+        tags,
+        selectors,
     }
 }
 
@@ -69,13 +103,19 @@ fn proposed(view: &ChangeView) -> BTreeSet<String> {
     out
 }
 
-/// Mark planned and agent-proposed bricks on the preview levels.
+/// Mark planned and agent-proposed bricks, and the planned edges, on the preview levels.
 pub fn mark(levels: &mut [LevelView], l: &Loaded, view: &ChangeView) {
     let planned: BTreeSet<String> = brickie_change::planned(&l.cfg, &l.resolved)
         .iter()
         .map(|p| level_name(p))
         .collect();
     let proposed = proposed(view);
+    for lv in levels.iter_mut() {
+        lv.planned_edges = (view.planned_edges.iter())
+            .filter(|e| e.level == lv.path)
+            .cloned()
+            .collect();
+    }
     for b in levels.iter_mut().flat_map(|lv| lv.graph.bricks.iter_mut()) {
         if b.ghost {
             continue;

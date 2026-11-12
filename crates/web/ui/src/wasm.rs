@@ -13,6 +13,10 @@ thread_local! {
 /// again disposes the previous root first.
 #[wasm_bindgen]
 pub fn hydrate() -> Result<(), JsValue> {
+    // Panics go to the console with their message (wasm aborts with "unreachable" otherwise).
+    std::panic::set_hook(Box::new(|info| {
+        web_sys::console::error_1(&JsValue::from_str(&info.to_string()));
+    }));
     let doc = web_sys::window()
         .and_then(|w| w.document())
         .ok_or("no document")?;

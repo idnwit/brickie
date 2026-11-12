@@ -72,6 +72,22 @@ impl Change {
         if by != By::Human {
             bail!("only a human reviews ops");
         }
+        match verdict {
+            Verdict::Retract => bail!("use retract to take back an op"),
+            Verdict::Restore => bail!("use redo to restore a retracted op"),
+            _ => {}
+        }
+        self.append_review(by, target, verdict, note)
+    }
+
+    /// Append a review entry of op `target` (any verdict; callers check who may give it).
+    pub(super) fn append_review(
+        &self,
+        by: By,
+        target: u64,
+        verdict: Verdict,
+        note: Option<String>,
+    ) -> Result<ReviewEntry> {
         let entry = self.store.append(|entries, seq| {
             let ops = materialize(entries);
             let o = ops
@@ -80,7 +96,8 @@ impl Change {
                 .with_context(|| format!("no op with seq {target}"))?;
             let same = matches!(
                 (o.state, verdict),
-                (State::Accepted, Verdict::Accept) | (State::Rejected, Verdict::Reject)
+                (State::Accepted, Verdict::Accept | Verdict::Restore)
+                    | (State::Rejected, Verdict::Reject | Verdict::Retract)
             );
             if same {
                 bail!("op {target} is already {:?}", o.state);

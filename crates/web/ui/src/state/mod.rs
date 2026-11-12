@@ -4,15 +4,21 @@
 mod ctx;
 mod editor;
 mod eval;
+mod events;
 mod focus;
+mod history;
 mod layers;
+mod live;
 mod selection;
 mod shared;
 
 pub use ctx::*;
 pub use editor::*;
 pub use eval::*;
+pub use events::*;
 pub use focus::*;
+pub use history::*;
 pub use layers::*;
+pub use live::*;
 pub use selection::*;
 pub use shared::*;

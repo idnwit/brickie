@@ -22,6 +22,8 @@ pub const CHANGE_OUTSIDE_EDIT: &str = "change/outside-edit";
 pub const CHANGE_INVALID: &str = "change/invalid";
 pub const CHANGE_OPEN: &str = "change/open";
 pub const CHANGE_NONE: &str = "change/none";
+pub const CHANGE_PLANNED_EDGE: &str = "change/planned-edge";
+pub const CHANGE_NO_REASON: &str = "change/no-reason";
 
 /// Complexity metrics; the code of a finding is `complexity/<metric>`.
 pub const METRICS: [&str; 6] = [
@@ -55,6 +57,8 @@ pub fn all() -> Vec<String> {
         CHANGE_INVALID,
         CHANGE_OPEN,
         CHANGE_NONE,
+        CHANGE_PLANNED_EDGE,
+        CHANGE_NO_REASON,
     ]
     .iter()
     .map(|c| c.to_string())

@@ -17,7 +17,7 @@ fn file(module: &str, edge_to: Option<&str>) -> Value {
 }
 
 /// Modules pa, pb, pc; `pb -> pa` is denied by the design.
-fn cache(ws: &Ws, root: &str) {
+pub(super) fn cache(ws: &Ws, root: &str) {
     let ids = ["pa", "pb", "pc"];
     let crates: Vec<Value> = ids
         .iter()

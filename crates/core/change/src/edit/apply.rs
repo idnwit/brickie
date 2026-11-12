@@ -20,6 +20,7 @@ pub fn apply(docs: &mut Docs, op: &Op) -> Result<()> {
         Op::MakeComposite { file, name, path } => return make_composite(docs, file, name, path),
         Op::AddBrick { file, brick } => return super::moves::add_brick(docs, file, brick),
         Op::MoveBrick { .. } => return super::moves::move_brick(docs, op),
+        Op::Ungroup { file, name } => return super::ungroup::ungroup(docs, file, name),
         _ => {}
     }
     let doc = docs.get_mut(op.file())?;
@@ -67,7 +68,8 @@ pub fn apply(docs: &mut Docs, op: &Op) -> Result<()> {
         Op::CreateFile { .. }
         | Op::MakeComposite { .. }
         | Op::AddBrick { .. }
-        | Op::MoveBrick { .. } => unreachable!("handled above"),
+        | Op::MoveBrick { .. }
+        | Op::Ungroup { .. } => unreachable!("handled above"),
     }
 }
 

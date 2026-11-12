@@ -8,6 +8,7 @@ mod element;
 mod moves;
 mod rules;
 mod table;
+mod ungroup;
 
 pub use apply::apply;
 pub use docs::Docs;

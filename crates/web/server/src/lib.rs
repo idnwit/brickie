@@ -6,6 +6,7 @@
 //! read-only SSR page whose filters are plain links. See docs/design.md, step 3.
 mod code;
 mod data;
+mod events;
 mod measure;
 mod render;
 mod routes;
@@ -36,6 +37,8 @@ pub struct AppState {
     bind: Arc<Bind>,
     /// The measure job (`/api/measure`).
     measure: Arc<measure::Jobs>,
+    /// The file watcher's state and the event channel (`/api/events`).
+    events: Arc<events::Hub>,
 }
 
 /// Host and port the server is bound to (`port` `None`: unknown, any port matches).
@@ -54,6 +57,7 @@ impl AppState {
                 port: None,
             }),
             measure: Arc::new(measure::Jobs::new(measure::measure_runner())),
+            events: Arc::new(events::Hub::new()),
         }
     }
 
@@ -83,6 +87,11 @@ impl AppState {
         self.config.as_ref().clone()
     }
 
+    /// The directory of the root config (where `.brickie/` lives).
+    fn root(&self) -> PathBuf {
+        brickie_check::check::config_dir(&self.config)
+    }
+
     fn cache_file(&self) -> PathBuf {
         brickie_check::check::config_dir(&self.config).join(".brickie/cache.json")
     }
@@ -109,6 +118,7 @@ pub fn run(opts: &Options) -> Result<()> {
     let addr = format!("{}:{}", opts.bind, opts.port);
     let rt = tokio::runtime::Runtime::new().context("start tokio")?;
     rt.block_on(async {
+        events::spawn(state.clone());
         let listener = tokio::net::TcpListener::bind(&addr)
             .await
             .with_context(|| format!("bind {addr}"))?;

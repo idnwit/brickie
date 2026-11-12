@@ -287,6 +287,7 @@ dependencies = [
  "brickie-web-api",
  "codeview-host",
  "codeview-port",
+ "futures-util",
  "http-body-util",
  "serde",
  "serde_json",

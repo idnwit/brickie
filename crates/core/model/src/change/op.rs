@@ -132,6 +132,13 @@ pub enum Op {
         name: String,
         path: String,
     },
+    /// Undo a composite: its children (with their rules and complexity rules) are lifted into
+    /// `file`, the brick stays as a leaf without `path`, and its level file is dropped from the
+    /// design (publish lists it for deletion by hand).
+    Ungroup {
+        file: String,
+        name: String,
+    },
     SetExports {
         file: String,
         exports: Vec<ExportSpec>,
@@ -192,6 +199,7 @@ impl Op {
             | Op::RenameBrick { file, .. }
             | Op::MoveBrick { file, .. }
             | Op::MakeComposite { file, .. }
+            | Op::Ungroup { file, .. }
             | Op::SetExports { file, .. }
             | Op::AddRule { file, .. }
             | Op::RemoveRule { file, .. }
@@ -215,6 +223,7 @@ impl Op {
             Op::RenameBrick { .. } => "rename_brick",
             Op::MoveBrick { .. } => "move_brick",
             Op::MakeComposite { .. } => "make_composite",
+            Op::Ungroup { .. } => "ungroup",
             Op::SetExports { .. } => "set_exports",
             Op::AddRule { .. } => "add_rule",
             Op::RemoveRule { .. } => "remove_rule",

@@ -132,7 +132,7 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
     };
     let (c1, c2) = (cx.clone(), cx.clone());
     let down = move |e: Click| {
-        if e.button() != 0 {
+        if !grabs(&c1, &e) {
             return;
         }
         e.stop_propagation();
@@ -214,7 +214,13 @@ fn kind_class(b: &BrickView) -> String {
     };
     let planned = if b.planned { " planned" } else { "" };
     let proposed = if b.proposed { " proposed" } else { "" };
-    format!("{kind}{planned}{proposed}")
+    let unassigned = if b.unassigned { " unassigned" } else { "" };
+    format!("{kind}{planned}{proposed}{unassigned}")
+}
+
+/// A press that grabs the brick: left button, not the Hand tool (which pans from anywhere).
+fn grabs(cx: &Cx, e: &Click) -> bool {
+    e.button() == 0 && cx.ed.tool.get() != Tool::Hand
 }
 
 /// Two clicks on one brick closer than this (ms) are a double-click.

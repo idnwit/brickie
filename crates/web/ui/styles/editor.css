@@ -1,4 +1,4 @@
-/* Design editor (edit mode): change bar, palette, inspector, ops log, stage overlay, marks. */
+/* Design editor (edit mode): change bar, design panel, ops log, dialogs. Canvas parts: editor-canvas.css. */
 :root{--agent:#7e4bb0;--planned:#7d858d}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--agent:#b98af0;--planned:#9aa3ab}}
 #cbar{grid-column:1/4;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:5px 14px;background:var(--hl);border-bottom:1px solid var(--line);font-size:13px}
@@ -8,16 +8,11 @@
 .chip.agent{border-color:var(--agent);color:var(--agent)}.chip.conflict,.chip.rejected{border-color:var(--err);color:var(--err)}
 .chip.planned{border-style:dashed}.chip.accepted{border-color:var(--ok);color:var(--ok)}.chip.human{color:var(--sel);border-color:var(--sel)}
 button.danger{border-color:var(--err);color:var(--err)}
-#detail.editor #palette{border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px}
-.pals{display:flex;gap:6px}.pal{flex:1;padding:8px 4px;border:1px dashed var(--muted);border-radius:6px;background:var(--panel);cursor:grab;font-weight:600}
-.pal.on{border-style:solid;border-color:var(--sel);background:var(--sel);color:#fff}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:8px}.tab{border:0;border-bottom:2px solid transparent;background:none;padding:6px 10px;font-weight:600;color:var(--muted)}
 .tab.on{color:var(--ink);border-bottom-color:var(--sel)}
 #detail.editor .form label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 #detail.editor .row,.edpop .row{display:flex;gap:6px;align-items:center}#detail.editor .row input{flex:1}
 textarea.desc{min-height:60px}
-.lchips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}.lchip{padding:2px 8px;border:1px solid var(--sel);border-radius:10px;color:var(--sel);background:var(--panel);cursor:grab;font-size:12px}
-.lchip.on{background:var(--sel);color:#fff}
 td.la.allow{color:var(--ok)}td.la.deny{color:var(--err)}
 .oprec{border:1px solid var(--line);border-left:3px solid var(--sel);border-radius:6px;padding:6px 8px;margin:6px 0;font-size:12px}
 .oprec.agent{border-left-color:var(--agent);background:color-mix(in srgb,var(--agent) 6%,transparent)}
@@ -34,4 +29,20 @@ td.pa{font-weight:600}td.pa.skip{color:var(--warn)}td.pa.create,td.pa.mkdir{colo
 .edhint{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:var(--sel);color:#fff;border-radius:14px;padding:4px 12px;font-size:12px;pointer-events:none}
 .edmsg{position:absolute;right:12px;bottom:12px;max-width:50%;font-size:12px}.edmsg:empty{display:none}
 .node.planned .box{stroke-dasharray:6 4;stroke:var(--planned)}
+.node.unassigned .box{stroke-dasharray:3 3;stroke:var(--b-warn)}
 .node.proposed .box{stroke-dasharray:6 4;stroke:var(--agent);stroke-width:2}
+#cbar button.chip{cursor:pointer}#design.on{background:var(--agent);border-color:var(--agent);color:#fff}
+#detail.editor .tabs{flex-wrap:wrap}
+.pills{display:flex;flex-wrap:wrap;gap:4px;align-items:center}.pill{display:inline-flex;align-items:center;gap:2px;padding:0 4px 0 8px;border:1px solid var(--line);border-radius:10px;font-size:12px;background:var(--band)}
+.pill.exp{cursor:pointer}.pill.tag{padding-right:8px}.px{border:0;background:none;padding:0 4px;color:var(--muted);line-height:1}.px:hover{color:var(--err)}
+input.padd{flex:1;min-width:90px;font-size:12px;padding:2px 6px}
+.revbar{border:1px dashed var(--agent);border-radius:6px;padding:8px;margin-bottom:10px;display:grid;gap:6px;background:color-mix(in srgb,var(--agent) 8%,transparent)}
+.kchip.on{background:var(--lc,var(--sel));color:#fff}
+table.rules{font-size:12px}table.rules tr.rrow{cursor:pointer}table.rules tr.rrow:hover{background:var(--band)}table.rules tr.on{background:var(--hl)}table.rules tr.inc{background:color-mix(in srgb,var(--planned) 12%,transparent)}
+.tscroll{overflow-x:auto}input.cell{width:60px;font-size:11px;padding:1px 3px}
+.addrule select{max-width:110px}.opgrp{margin:8px 0}.ophead{cursor:pointer}
+.warn-text{color:var(--warn)}ul.refs{margin:4px 0;padding-left:18px;font-size:12px}
+/* Shortcuts sheet (?). */
+#edhelp{z-index:45;top:50%;min-width:420px;max-height:calc(100% - 24px);overflow:auto}#edhelp .row{justify-content:space-between}
+#edhelp table{border-collapse:collapse;font-size:12px}#edhelp td{padding:2px 8px 2px 0;vertical-align:top}
+#edhelp kbd{font-family:var(--mono,monospace);font-size:11px;background:var(--bg);border:1px solid var(--line,#ccc);border-radius:4px;padding:0 4px;white-space:nowrap}

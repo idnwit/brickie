@@ -56,6 +56,13 @@ impl Change {
                 content: Some(text),
             });
         }
+        plan.files.extend(docs.removed().iter().map(|rel| PlanFile {
+            path: rel.clone(),
+            action: PlanAction::Skip,
+            note: "no longer part of the design (ungrouped); delete it by hand".into(),
+            content: None,
+        }));
+        plan.warnings = self.reason_warnings()?;
         match preview.load_config() {
             Ok(cfg) => {
                 let (added, moved) = added_bricks(&ops);
@@ -70,6 +77,11 @@ impl Change {
                 }));
             }
             Err(e) => plan.blockers.push(format!("{CHANGE_INVALID}: {e:#}")),
+        }
+        // The design must be finished: every partition error the draft tolerated blocks.
+        if let Ok(l) = preview.check() {
+            let pending = l.resolved.pending.iter();
+            (plan.blockers).extend(pending.map(|p| format!("{CHANGE_INVALID}: {}", p.message)));
         }
         Ok(plan)
     }

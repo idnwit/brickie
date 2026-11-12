@@ -1,58 +1,15 @@
-//! Helpers for the editor: building `move_brick` from brick paths, the links a brick may draw
-//! to its siblings, and canvas layout hints (UI only, never ops).
+//! Helpers for the editor: building `move_brick` from brick paths and canvas layout hints (UI
+//! only, never ops). The links a brick may draw are in `links`.
 
 use super::Change;
 use crate::paths::to_rel;
 use anyhow::{Context, Result};
-use brickie_check::config::{Action, Brick, Config, DepRule, KINDS, Sel};
-use brickie_model::change::{LayoutHint, LinkOption, Op};
+use brickie_check::config::Config;
+use brickie_model::change::{LayoutHint, Op};
 use std::collections::BTreeMap;
 
-fn sel(s: &Sel, b: &Brick) -> Option<u32> {
-    match s {
-        Sel::Any => Some(1),
-        Sel::Tag(t) => b.tags.contains(t).then_some(2),
-        Sel::Brick(n) => (n == &b.name).then_some(3),
-    }
-}
-
-/// The rule deciding an edge `from -> to` of `kind` / `scope` at a level (highest
-/// specificity, deny on a tie), or `None` for `deps.default`.
-fn decide<'a>(
-    level: &'a Config,
-    from: &Brick,
-    to: &Brick,
-    kind: &str,
-    scope: &str,
-) -> Option<&'a DepRule> {
-    let mut best: Option<(u32, &DepRule)> = None;
-    for r in &level.deps.rules {
-        let kinds_ok = r.kinds.is_empty() || r.kinds.iter().any(|k| k == kind);
-        let (Some(a), Some(b)) = (sel(&r.from, from), sel(&r.to, to)) else {
-            continue;
-        };
-        if !kinds_ok || !r.scope.matches(scope) {
-            continue;
-        }
-        let better = match best {
-            None => true,
-            Some((s, cur)) => {
-                a + b > s || (a + b == s && r.action == Action::Deny && cur.action == Action::Allow)
-            }
-        };
-        if better {
-            best = Some((a + b, r));
-        }
-    }
-    best.map(|(_, r)| r)
-}
-
-fn action(a: Action) -> String {
-    if a == Action::Allow { "allow" } else { "deny" }.into()
-}
-
 impl Change {
-    fn design(&self) -> Result<Config> {
+    pub(super) fn design(&self) -> Result<Config> {
         self.preview(true)?.load_config()
     }
 
@@ -83,33 +40,6 @@ impl Change {
             into,
             path: None,
         })
-    }
-
-    /// For the brick at `path`, every link it may draw to a sibling: each edge kind and scope
-    /// with what the level's rules decide now.
-    pub fn link_options(&self, path: &[String]) -> Result<Vec<LinkOption>> {
-        let cfg = self.design()?;
-        let (_, parent) = path.split_last().context("empty brick path")?;
-        let level = cfg.node(parent).context("no such level")?;
-        let from = cfg
-            .brick_at(path)
-            .with_context(|| format!("no brick {path:?}"))?;
-        let mut out = Vec::new();
-        for to in level.bricks.iter().filter(|b| b.name != from.name) {
-            for kind in KINDS {
-                for scope in ["prod", "test"] {
-                    let r = decide(level, from, to, kind, scope);
-                    out.push(LinkOption {
-                        to: to.name.clone(),
-                        kind: kind.into(),
-                        scope: scope.into(),
-                        action: action(r.map_or(level.deps.default, |r| r.action)),
-                        rule: r.map(|r| r.loc.clone()),
-                    });
-                }
-            }
-        }
-        Ok(out)
     }
 
     /// Canvas positions by brick path (`root/web/api`).

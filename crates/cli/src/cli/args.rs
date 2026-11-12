@@ -92,7 +92,8 @@ pub struct ChangeArgs {
     /// Show the entries after this seq; does not move the reader cursor.
     #[arg(long)]
     pub since: Option<u64>,
-    /// List concrete tasks: planned bricks, drift findings, rejected and conflicting ops.
+    /// List concrete tasks: planned bricks and edges, drift findings, rules without a reason,
+    /// proposed, rejected and conflicting ops.
     #[arg(long)]
     pub todo: bool,
     #[command(subcommand)]
@@ -126,6 +127,13 @@ pub enum ChangeCmd {
         #[arg(long)]
         note: Option<String>,
     },
+    /// Take back a human op (undo; default: the latest one). The log keeps it, rejected.
+    Retract { seq: Option<u64> },
+    /// Restore the latest retracted human op (redo); a new human op clears the redo stack.
+    Redo,
+    /// Re-record a conflicting op as a human op against the current design; the original is
+    /// rejected.
+    Reapply { seq: u64 },
     /// Write the config files and scaffold new bricks, then close the change.
     Publish {
         /// Print the plan (files to write, create or edit; blockers) without writing.

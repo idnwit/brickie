@@ -31,7 +31,7 @@ pub fn run(config: &Path, format: Format, color: ColorArg, change: bool) -> i32 
 }
 
 fn check(config: &Path, json: bool, color: Color, change: bool) -> Result<i32> {
-    let (loaded, planned) = if change {
+    let (loaded, planned, pending): (_, Vec<String>, Vec<String>) = if change {
         let preview = Change::load(config)?.preview(true)?;
         let l = preview.check()?;
         let planned = match preview.cache_mismatch(&l) {
@@ -41,9 +41,13 @@ fn check(config: &Path, json: bool, color: Color, change: bool) -> Result<i32> {
                 .map(|p| planned_text(&l.cfg, p))
                 .collect(),
         };
-        (l, planned)
+        // The draft's unfinished partition (publish refuses while any is left).
+        let pending = (l.resolved.pending.iter())
+            .map(brickie_change::pending_text)
+            .collect();
+        (l, planned, pending)
     } else {
-        (check::load(config)?, Vec::new())
+        (check::load(config)?, Vec::new(), Vec::new())
     };
     let Loaded {
         cache,
@@ -58,9 +62,13 @@ fn check(config: &Path, json: bool, color: Color, change: bool) -> Result<i32> {
             "summary": {"errors": s.errors, "warnings": s.warnings, "accepted": s.accepted},
             "diagnostics": ds,
             "planned": planned,
+            "pending": pending,
         });
         println!("{}", serde_json::to_string_pretty(&out)?);
     } else {
+        for p in &pending {
+            println!("pending: {p}");
+        }
         for p in &planned {
             println!("note[{CHANGE_PLANNED}]: {p}");
         }

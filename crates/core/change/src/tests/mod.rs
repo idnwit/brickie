@@ -1,9 +1,13 @@
 //! Engine tests on a temporary workspace (no cache: config-level behaviour only).
 
 mod design;
+mod draft;
 mod drift;
+mod edges;
 mod publish;
 mod replay;
+mod undo;
+mod ungroup;
 
 use crate::{BrickSpec, By, Change, Op};
 use std::path::{Path, PathBuf};

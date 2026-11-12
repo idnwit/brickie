@@ -1,7 +1,7 @@
 //! The change bar's dialogs: open a change (intent), the publish plan (every file publish
 //! writes, and why it would refuse), after publish the offer to measure now, and discard.
 
-use super::{send, send_reload};
+use super::send;
 use crate::components::call::get;
 use crate::components::controls::start_measure;
 use crate::platform;
@@ -48,16 +48,25 @@ fn plan_view(ed: Edit, plan: Plan) -> View {
             view! { li(class="err-text") { (b) } }
         })
         .collect();
+    let warnings: Vec<View> = plan
+        .warnings
+        .iter()
+        .map(|w| {
+            let w = w.clone();
+            view! { li(class="warn-text") { (w) } }
+        })
+        .collect();
     let blocked = !plan.blockers.is_empty();
-    let (rows, blockers) = (View::from(rows), View::from(blockers));
+    let (rows, blockers, warnings) = (View::from(rows), View::from(blockers), View::from(warnings));
     let publish = move |_: Click| {
         send::<ChangePublish>(ed, (), move |_| ed.dialog.set(Dialog::Published));
     };
     view! {
         h3 { "Publish" }
-        p(class="muted") { "Publish writes these files (existing files are never overwritten), then closes the change." }
-        table(class="plan") { (rows) }
         ul { (blockers) }
+        p(class="muted") { "Publish writes these files (existing files are never overwritten), then closes the change. Moved bricks keep their code where it is (manual step)." }
+        table(class="plan") { (rows) }
+        ul { (warnings) }
         div(class="acts") {
             button(on:click=move |_: Click| ed.dialog.set(Dialog::None)) { "Cancel" }
             button(class="go", disabled=blocked, on:click=publish) { "Publish" }
@@ -67,7 +76,10 @@ fn plan_view(ed: Edit, plan: Plan) -> View {
 
 fn open_view(ed: Edit) -> View {
     let intent = create_signal(String::new());
-    let open = move |_: Click| {
+    let open = move || {
+        if intent.with(|i| i.trim().is_empty()) {
+            return;
+        }
         let req = ChangeOpenRequest {
             intent: intent.get_clone(),
         };
@@ -76,13 +88,19 @@ fn open_view(ed: Edit) -> View {
             platform::goto(&p.with(|p| p.change = "1".into()).url());
         });
     };
+    let enter = move |e: web_sys::KeyboardEvent| match e.key().as_str() {
+        "Enter" => open(),
+        "Escape" => ed.dialog.set(Dialog::None),
+        _ => {}
+    };
+    platform::next_frame(|| platform::focus("intent"));
     view! {
         h3 { "New design change" }
         p(class="muted") { "While the change is open, nobody writes brickie.toml: you and the coding agent record ops; publish writes them." }
-        input(id="intent", r#type="text", placeholder="intent: what is this change for?", bind:value=intent)
+        input(id="intent", r#type="text", placeholder="intent: what is this change for? (Enter opens)", bind:value=intent, on:keydown=enter)
         div(class="acts") {
             button(on:click=move |_: Click| ed.dialog.set(Dialog::None)) { "Cancel" }
-            button(class="go", disabled=move || intent.with(|i| i.trim().is_empty()), on:click=open) { "Open change" }
+            button(class="go", disabled=move || intent.with(|i| i.trim().is_empty()), on:click=move |_: Click| open()) { "Open change" }
         }
     }
 }
@@ -115,7 +133,7 @@ fn discard_view(ed: Edit) -> View {
         p(class="muted") { "Every op of the change is deleted; brickie.toml stays as it is." }
         div(class="acts") {
             button(on:click=move |_: Click| ed.dialog.set(Dialog::None)) { "Cancel" }
-            button(class="danger", on:click=move |_: Click| send_reload::<ChangeDiscard>(ed, ())) { "Discard" }
+            button(class="danger", on:click=move |_: Click| send::<ChangeDiscard>(ed, (), |_| platform::goto("/"))) { "Discard" }
         }
     }
 }

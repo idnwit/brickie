@@ -4,6 +4,7 @@
 mod boundary;
 mod diag;
 mod editor;
+mod events;
 mod function;
 mod graph;
 mod interface;
@@ -15,6 +16,7 @@ mod score;
 pub use boundary::*;
 pub use diag::*;
 pub use editor::*;
+pub use events::*;
 pub use function::*;
 pub use graph::*;
 pub use interface::*;

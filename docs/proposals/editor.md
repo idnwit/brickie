@@ -84,8 +84,13 @@ User decisions (fixed):
 - **planned**: a brick whose members/selectors match no measured module (a composite whose
   `path:` crate does not exist yet); an allowed edge the design adds but no measured module edge
   uses.
-- **drift**: measured modules no brick covers or no child takes (`config/unassigned`-style), and
-  `deps/deny`, `deps/private`, `deps/cycle` findings on preview edges.
+- **drift**: `deps/deny`, `deps/private`, `deps/cycle` findings on preview edges.
+- **unfinished**: the preview resolves as a draft (`check::load_draft_from`, `Mode::Draft`):
+  `config/unassigned`, `config/overlap` (first brick wins) and `config/member-outside-parent`
+  (ignored) do not abort; they are `Resolved::pending`, listed as `[config]` todo tasks and
+  `pending:` lines of `check --change`, drawn as the `(unassigned)` placeholder brick
+  (`BrickView::unassigned`) of the composite, and each blocks publish as `change/invalid`.
+  Parse and validation errors still fail the preview. Plain `check` stays strict.
 - The change is **built** when nothing is planned, there is no drift and `check --change` has no
   errors. All of this depends on a fresh `measure`: outputs show the cache age and `stale/*`.
 - New codes (`change/planned`, `change/conflict`, ...) go into `codes.rs` and `docs/llms.txt`.
@@ -150,7 +155,8 @@ propose; read `brickie change` at the start and before each step; after code cha
   `DiffEntry`, `Task`, `Plan`, `LinkOption`, `LayoutHint` are plain serde data in
   `brickie_model::change` (wasm-safe; `crates/web/api` can use them). The engine is
   `crates/core/change` (`Change::{open, load, record, review, log, since, preview, status,
-  diff, todo, publish_plan, publish, discard, move_op, link_options, layout, set_layout}`).
+  diff, todo, publish_plan, publish, discard, move_op, link_options, link_check, retract,
+  reapply, planned_edges, reasonless_rules, layout, set_layout}`).
 - `ops.json` holds both op records and review entries; an op's `state` / `review` are derived
   from its last review, so no entry is rewritten. `conflict` is derived on every read by
   replaying accepted and proposed ops. Only a human reviews.
@@ -169,11 +175,32 @@ propose; read `brickie change` at the start and before each step; after code cha
   item of the plan (a manual step). Canvas positions are not ops: `layout.json` in the change
   keeps them (`layout` / `set_layout`).
 - Deviations: rename and move do not rewrite accepted review ids (an id is a hash of the finding,
-  which changes with the brick name; the old acceptance simply stops matching). Planned *edges*
-  (allowed edges with no measured use) are not listed yet; planned bricks are (`change/planned`
-  in `check --change` and `--todo`). `check --change` checks accepted plus proposed ops.
+  which changes with the brick name; the old acceptance simply stops matching). Planned edges
+  are the rules the change *adds* (canonical text not among the base rules of the same file)
+  that no measured module edge backs at their level (`Change::planned_edges`, `PlannedEdge`
+  with level, file, rule index, selectors, kinds, scope, action, reason, help and the last op
+  that wrote it); the allow ones are `change/planned-edge` `link` tasks of `--todo`. Rules
+  the change adds without a `reason` are `change/no-reason` `reason` tasks and publish
+  `warnings` (not blockers). `check --change` checks accepted plus proposed ops.
   Scaffolding matches new bricks by name; a package member that is not measured becomes a crate
   at `<dir of the file>/<brick name>/`.
+
+- Editor UX gaps (2026-11-12, `editor-ux.md` "Gaps"): **retract** is a review entry with
+  verdict `retract` on a human op (the op counts as rejected; the log stays append-only;
+  `Change::retract(None)` takes the latest accepted human op). **Redo** (`Change::redo`) is a
+  review with verdict `restore` on the top of the redo stack (`redo_stack(entries)`: human ops
+  retracted since the last new human op, a manual accept / reject of one ends its redo); it
+  fails, recording nothing, when the op does not replay or would turn a later accepted op into
+  a conflict (replay is in seq order). **Re-apply** re-records a
+  conflicting op's `Op` as a human op against the current design and rejects the original
+  (`re-applied as op N`); it fails, recording nothing, when the op does not apply now.
+  **Ungroup** is an op: children, rules and complexity rules of the composite's file move up
+  (`path:` members rebased), its exports are dropped, the brick stays a leaf without `path`;
+  refused when the child file has `include` or `[deps] default`/`cycles`. Decision on the
+  file: publish never deletes; the dropped file is a `skip` item ("delete it by hand"), a
+  file created in the change just disappears. **Link check** (`Change::link_check(level,
+  Link)`) says a rule is redundant when an equal rule exists or every edge it covers (matching
+  pairs x kinds x scopes) is already decided as asked.
 
 ## Editor notes (phases 3, 4: the web half)
 
@@ -181,21 +208,28 @@ propose; read `brickie change` at the start and before each step; after code cha
   `crates/web/server/src/routes/editor.rs`): `ChangeState` GET `/api/change` (status, log,
   diff, todo, layout, level files, preview error; `null` when none is open), `ChangeOpen`,
   `ChangeOp` (a human op, accepted when recorded), `ChangeMove` (`{from, into}` brick paths ->
-  `Change::move_op` -> recorded), `ChangeReview` (accept/reject with a note), `ChangeLinks`
-  (read only), `ChangeLayout`, `ChangePublishPlan` GET, `ChangePublish`, `ChangeDiscard`. A
+  `Change::move_op` -> recorded), `ChangeReview` (accept/reject with a note), `ChangeRetract`
+  (`{seq?}`), `ChangeRedo` (`{}`, POST `/api/change/redo`), `ChangeReapply` (`{seq}`), `ChangeLinks` and `ChangeLinkCheck` (read only),
+  `ChangeLevels` (`{paths}` -> marked preview levels, read only), `ChangeLayout`,
+  `ChangePublishPlan` GET, `ChangePublish`, `ChangeDiscard`. Op, move, review, retract, redo and
+  re-apply answer `ChangeReply {done, change, levels}`: the change view after the write and
+  the preview levels of the files it edited, their ancestors and direct children, for
+  in-place patching. The change view also carries `levels` (per level: bricks, tags and valid
+  selectors), `planned_edges` and `redo` (the redo stack); each preview `LevelView` carries its `planned_edges`. A
   refused change operation is a 409 with the engine's message.
 - **Preview in the page.** `change=1` (a `Params` field) makes the page, `/api/graph`,
   `/api/diagnostics` and `/api/functions` load the change's preview (`Preview::check`) and run
   the same level aggregation over it; bricks carry `planned` (no measured module,
   `brickie_change::planned`) and `proposed` (added or renamed by an agent op still proposed).
-  Planned bricks have no edges; the layout takes them as edge-less boxes. A preview that does
-  not load falls back to the current design and the change bar shows the error.
+  Planned bricks have no edges; the layout takes them as edge-less boxes. The preview is a
+  draft (see "unfinished" above). A preview that does not load falls back to the current design and the change bar shows the error.
   `PageData.change` embeds the change view, so the editor needs no extra request on load.
 - **Write guard** (`routes/guard.rs`, an axum extractor on `/review` and every writing change
   endpoint): the server must be bound to loopback, the `Host` must name a loopback address
   with the server's port (DNS rebinding), and an `Origin`, when sent, must equal
   `http://<Host>`; without `Origin`, `Sec-Fetch-Site` must not be cross-site. Otherwise 403.
-- **UI** (`crates/web/ui/src/components/editor/`, state in `state/editor.rs`): the header's
+- **UI** (first version, replaced by `editor-ux.md`; current state in `docs/design.md`,
+  "Design editor"). `crates/web/ui/src/components/editor/`, state in `state/editor/`: the header's
   Design button opens a change (intent dialog); while one is open the change bar replaces the
   banner (intent, op/proposed/conflict/planned chips, Preview/Current, Publish with the plan
   dialog listing every file and blocker, Discard). In Preview the right panel is the editor:
@@ -208,7 +242,5 @@ propose; read `brickie change` at the start and before each step; after code cha
   with Accept/Reject and a note). Dragging a brick onto another asks to move it inside
   (`ChangeMove`); dropped elsewhere its position is stored. Planned bricks are dashed, agent
   proposals dashed in the agent colour. Escape drops an armed tool, link or open form.
-- **Deviations.** After each op the page reloads (the server's preview is the only truth; the
-  URL keeps level and selection) instead of patching the canvas in place. Rules drawn between
-  planned or unmeasured bricks show no edge on the canvas (planned edges are not drawn yet; the
-  op log and diff list them). Ops are recorded as the human only; the agent uses the CLI.
+- **Deviations.** The first version reloaded the page after each op; the editor UX version
+  patches the touched levels in place from `ChangeReply` (`editor-ux.md`). Ops are recorded as the human only; the agent uses the CLI.

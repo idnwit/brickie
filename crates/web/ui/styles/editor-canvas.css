@@ -1,0 +1,44 @@
+/* Design editor on the canvas: floating toolbar, typed ports and link colours, planned rule
+   edges, agent badges, drop targets, inline name boxes, toast, diff panel. */
+:root{--l-uses:#2f7dd1;--l-implements:#2e9e6b;--l-reexports:#d18a2f;--l-deny:#d23c3c}
+#stage{user-select:none}
+#toolbar{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:40;display:flex;flex-wrap:wrap;gap:6px;align-items:center;max-width:calc(100% - 24px);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 6px;box-shadow:0 4px 14px rgba(0,0,0,.15);cursor:default}
+#toolbar .tgrp{display:inline-flex;gap:2px;padding-right:6px;border-right:1px solid var(--line)}
+.tb{padding:3px 8px;font-size:12px;border-radius:6px;background:var(--panel)}.tb.tile{cursor:grab;border-style:dashed}
+.tb.lt{color:var(--lc);border-color:var(--lc)}.tb.lt.on{background:var(--lc);color:#fff}.tb.fold{border:0}
+.tghost{position:fixed;z-index:80;pointer-events:none;width:100px;height:36px;border:2px dashed var(--sel);border-radius:6px;background:color-mix(in srgb,var(--sel) 15%,var(--panel));display:flex;align-items:center;justify-content:center;font-weight:600;opacity:.85}
+.inbox{position:absolute;z-index:35;display:grid;gap:4px;background:var(--panel);border:2px solid var(--sel);border-radius:6px;padding:6px;min-width:170px;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+.inbox input{font-weight:600}.inbox .inmem{font:12px ui-monospace,monospace;font-weight:400}
+.toast{position:absolute;left:14px;bottom:14px;z-index:45;background:var(--ink);color:var(--panel);border-radius:6px;padding:4px 10px;font-size:12px}
+.emptyhint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--muted);border:2px dashed var(--line);border-radius:10px;padding:24px 30px;pointer-events:none}
+.diffp{position:absolute;right:10px;top:56px;bottom:10px;width:min(460px,60%);overflow:auto;z-index:38;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;box-shadow:0 4px 14px rgba(0,0,0,.2);cursor:default}
+.diffp .dcols{display:grid;grid-template-columns:1fr 1fr;gap:4px}.diffp pre.before{background:color-mix(in srgb,var(--err) 10%,var(--band))}.diffp pre.after{background:color-mix(in srgb,var(--ok) 12%,var(--band))}
+.lport{cursor:crosshair}.lport circle{fill:var(--panel);stroke:var(--lc);stroke-width:2}.lport text{fill:var(--lc);font-size:9px;pointer-events:none}.lport:hover circle{fill:var(--lc)}.lport:hover text{fill:#fff}
+.l-uses{--lc:var(--l-uses)}.l-implements{--lc:var(--l-implements)}.l-reexports{--lc:var(--l-reexports)}.l-deny{--lc:var(--l-deny)}
+.pedge{cursor:pointer}.pedge .line{fill:none;stroke:var(--lc);stroke-width:2;stroke-dasharray:7 5}.pedge .hit{fill:none;stroke:transparent;stroke-width:12}
+.pedge.agent .line{stroke:var(--agent)}.pedge.sel .line{stroke-width:3.5}.pedge.l-deny .line{stroke-dasharray:3 4}
+.qmark circle{fill:var(--warn);stroke:var(--panel)}.qmark text{fill:#fff;font-size:11px;font-weight:700;pointer-events:none}
+.abadge{fill:var(--agent);font-weight:700;font-size:12px}
+.ebadge circle{stroke:var(--panel);stroke-width:2}.ebadge text{fill:#fff;font-size:11px;font-weight:700;pointer-events:none}.ebadge.agent circle{fill:var(--agent)}.ebadge.conflict circle{fill:var(--err)}
+.band{fill:none;stroke:var(--lc);stroke-width:2.5;stroke-dasharray:6 4;pointer-events:none}
+.ltarget{fill:none;stroke:var(--ok);stroke-width:2;stroke-dasharray:4 3;pointer-events:none}.ltarget.no{stroke:var(--muted);fill:color-mix(in srgb,var(--muted) 12%,transparent)}
+.tlabel{fill:var(--ink);font-size:12px;font-weight:600;pointer-events:none}
+.mtarget{fill:color-mix(in srgb,var(--sel) 12%,transparent);stroke:var(--sel);stroke-width:2.5;pointer-events:none}.mtarget.up{stroke-dasharray:8 5}.mtarget.no{stroke:var(--err);fill:color-mix(in srgb,var(--err) 10%,transparent)}
+/* drag and drop: folders and lanes */
+#stage.nodrop,#stage.nodrop *{cursor:not-allowed!important}
+.tghost{width:auto;min-width:100px;flex-direction:column;height:auto;min-height:36px;padding:3px 6px}.tghost.no{border-color:var(--err)}
+.aimlbl{font-size:11px;font-weight:500;color:var(--muted);white-space:nowrap}.tghost.no .aimlbl{color:var(--err)}
+.inbox .whither{font-size:11px;color:var(--muted)}
+.mtarget{animation:dropin .12s ease-out}.mtarget.folder{stroke-width:3;fill:color-mix(in srgb,var(--sel) 18%,transparent)}
+.mtarget.lid{fill:color-mix(in srgb,var(--sel) 35%,transparent)}
+.mtarget.lane{fill:color-mix(in srgb,var(--sel) 8%,transparent);stroke-dasharray:6 4}
+.newlane{fill:none;stroke:var(--line);stroke-width:1.5;stroke-dasharray:6 5;pointer-events:none}
+.newlanet{fill:var(--muted);font-size:12px;text-anchor:middle;pointer-events:none}
+.tlabel.aim{fill:var(--sel)}
+@keyframes dropin{from{opacity:0}to{opacity:1}}
+/* Spring-loaded zoom: the folder fills while the hold runs (700 ms, see editor/spring.rs). */
+.mtarget.folder.spring{animation:spring .7s linear forwards}
+@keyframes spring{from{fill:color-mix(in srgb,var(--sel) 18%,transparent)}to{fill:color-mix(in srgb,var(--sel) 45%,transparent)}}
+/* Arrowhead handle of the selected rule: drag to retarget. */
+.rhandle{cursor:grab}.rhandle circle{fill:var(--panel);stroke:var(--lc,var(--sel));stroke-width:2.5}.rhandle:hover circle{fill:var(--lc,var(--sel))}
+@media (prefers-reduced-motion:reduce){.mtarget,.mtarget.folder.spring{animation:none}}
