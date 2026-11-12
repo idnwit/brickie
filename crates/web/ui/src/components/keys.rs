@@ -26,7 +26,9 @@ pub fn keys(cur: &Cur) {
         if in_input {
             return false;
         }
-        let Some(c) = current(&cur) else {
+        // A key the editor handles is not a page key.
+        let Some(c) = current(&cur).filter(|c| crate::components::editor::key(c, &key).is_none())
+        else {
             return false;
         };
         let p = c.params.get_clone();

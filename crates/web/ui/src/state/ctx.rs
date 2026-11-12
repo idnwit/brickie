@@ -86,6 +86,9 @@ pub struct Cx {
     pub scores: ReadSignal<Vec<BrickScore>>,
     /// Entry transition of the canvas: `zin`, `zout` or none.
     pub anim: &'static str,
+    /// Fit the view once the stage is measured (false when a patch kept the view).
+    pub fit: bool,
+    pub live: Live,
     pub ed: Edit,
 }
 
@@ -116,12 +119,13 @@ impl Cx {
     /// `stage` is the stage size in pixels when known (the caller measures it).
     pub fn new(sh: &Shared, lv: usize, stage: Option<(f64, f64)>) -> Cx {
         let params = sh.params;
-        let level = &sh.levels[lv];
+        let levels = sh.live.levels.get_clone_untracked();
+        let change = sh.live.change.get_clone_untracked();
+        let level = &levels[lv];
         // Laid out without the frame edges, which are appended after the original ones.
         let mut layout = layout::layout(&layout_input(&level.graph));
         // The editor's stored positions win over the automatic layout.
-        if let Some(ch) = sh
-            .change
+        if let Some(ch) = change
             .as_deref()
             .filter(|_| params.with_untracked(|p| p.editing()))
         {
@@ -132,21 +136,31 @@ impl Cx {
                 &level.path,
             );
         }
+        // After a patch, boxes that were on screen stay where they were.
+        let keep = sh
+            .live
+            .keep
+            .get_clone_untracked()
+            .filter(|k| k.level == level.path);
+        if let Some(k) = &keep {
+            restore_positions(&mut layout.pos, &level.graph.bricks, &k.pos);
+        }
         let m = Rc::new(Model {
             cache: sh.cache.clone(),
-            levels: sh.levels.clone(),
-            lv,
             g: with_frame_edges(&level.graph),
+            levels,
+            lv,
             layout,
             diags: sh.diags.clone(),
             cards: sh.cards.clone(),
             fns: sh.fns.clone(),
-            change: sh.change.clone(),
+            change,
         });
         let stage = create_signal(stage);
-        let view = create_signal(match stage.get() {
-            Some(s) => fit_view(&m.layout, s),
-            None => Vw {
+        let view = create_signal(match (&keep, stage.get()) {
+            (Some(k), _) => k.view,
+            (None, Some(s)) => fit_view(&m.layout, s),
+            (None, None) => Vw {
                 x: 0.0,
                 y: 0.0,
                 k: 1.0,
@@ -181,6 +195,8 @@ impl Cx {
             eval,
             scores,
             anim: "",
+            fit: keep.is_none(),
+            live: sh.live,
             ed: sh.ed,
         }
     }

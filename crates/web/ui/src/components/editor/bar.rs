@@ -1,49 +1,89 @@
-//! The change bar (in place of the banner while a change is open): intent, status chips,
-//! Preview/Current, Publish and Discard. Without a change, the header's "Design" button opens
-//! one.
+//! The header's "Design" toggle (`E`) and the change bar (in place of the banner while a change
+//! is open): intent, status chips that act (proposed / conflicts -> Ops tab, planned -> select
+//! the planned bricks, no reason -> Ops tab), Preview | Current | Diff, Publish and Discard.
 
 use super::dialogs::dialog;
+use super::keys::toggle_design;
 use crate::state::*;
-use brickie_web_api::{ChangeView, Params};
+use brickie_web_api::ChangeView;
+use brickie_web_api::change::TaskKind;
 use sycamore::prelude::*;
 
-/// The header button that opens a new change (only when none is open).
+/// The header button: opens a change (none open) or toggles design mode.
 pub fn design_button(cx: &Cx) -> View {
-    if cx.m.change.is_some() {
-        return View::default();
-    }
-    let ed = cx.ed;
-    let d = dialog(ed);
+    let on = cx.editing();
+    let c = cx.clone();
+    let cls = if on { "on" } else { "" };
+    let tip = "Design (E): draw bricks and rules on the canvas; publish writes brickie.toml";
+    let d = if cx.m.change.is_none() {
+        dialog(cx.ed)
+    } else {
+        View::default()
+    };
     view! {
-        button(id="design", title="Open a design change: draw bricks and rules, publish them to brickie.toml",
-            on:click=move |_: Click| ed.dialog.set(Dialog::Open)) { "Design" }
+        button(id="design", class=cls, title=tip, on:click=move |_: Click| toggle_design(&c)) { "Design" }
         (d)
     }
 }
 
-fn chip(text: String, cls: &'static str) -> View {
-    view! { span(class=format!("chip {cls}")) { (text) } }
+fn count(ch: &ChangeView, k: TaskKind) -> usize {
+    ch.todo.iter().filter(|t| t.kind == k).count()
 }
 
-fn chips(ch: &ChangeView) -> View {
-    let s = &ch.status;
+/// A status chip that acts when clicked.
+fn chip(text: String, cls: &'static str, act: impl Fn() + 'static) -> View {
+    view! { button(class=format!("chip {cls}"), on:click=move |_: Click| act()) { (text) } }
+}
+
+fn to_ops(ed: Edit, filter: &'static str) -> impl Fn() {
+    move || {
+        ed.tab.set("ops");
+        ed.ops_filter.set(filter);
+    }
+}
+
+fn chips(cx: &Cx, ch: &ChangeView) -> View {
+    let (s, ed) = (&ch.status, cx.ed);
     let mut out = vec![chip(
         format!("{} ops", s.accepted + s.proposed + s.rejected),
         "",
+        to_ops(ed, "all"),
     )];
     if s.proposed > 0 {
-        out.push(chip(format!("{} proposed", s.proposed), "agent"));
+        out.push(chip(
+            format!("{} proposed", s.proposed),
+            "agent",
+            to_ops(ed, "proposed"),
+        ));
     }
     if s.conflicts > 0 {
-        out.push(chip(format!("{} conflicts", s.conflicts), "conflict"));
+        out.push(chip(
+            format!("{} conflicts", s.conflicts),
+            "conflict",
+            to_ops(ed, "conflict"),
+        ));
     }
-    let planned = ch
-        .todo
-        .iter()
-        .filter(|t| t.kind == brickie_web_api::change::TaskKind::Planned)
-        .count();
+    let planned = count(ch, TaskKind::Planned);
     if planned > 0 {
-        out.push(chip(format!("{planned} planned"), "planned"));
+        let c = cx.clone();
+        out.push(chip(format!("{planned} planned"), "planned", move || {
+            let bricks: Vec<usize> = (0..c.m.g.bricks.len())
+                .filter(|&i| c.m.g.bricks[i].planned)
+                .collect();
+            c.select(Sel::Group {
+                tags: vec![],
+                bricks,
+            });
+        }));
+    }
+    let reasons = count(ch, TaskKind::Reason);
+    if reasons > 0 {
+        let c = cx.clone();
+        out.push(chip(
+            format!("{reasons} without reason"),
+            "planned",
+            move || c.ed.tab.set("rules"),
+        ));
     }
     if let Some(e) = ch.error.clone() {
         out.push(view! { span(class="chip conflict", title=e) { "preview does not load" } });
@@ -51,22 +91,29 @@ fn chips(ch: &ChangeView) -> View {
     View::from(out)
 }
 
-/// Preview (`on`) or Current: a full page load of the other design.
-fn seg(label: &'static str, on: bool, cx: &Cx) -> View {
-    let c = cx.clone();
-    let cls = move || {
-        let now = c.params.with(|p| p.editing());
-        format!("segb{}", if now == on { " on" } else { "" })
+/// Preview / Current / Diff.
+fn segs(cx: &Cx) -> View {
+    let ed = cx.ed;
+    let item = move |label: &'static str, key: &'static str| {
+        let c = cx.clone();
+        let cls = move || {
+            let on = match key {
+                "p" => c.editing() && !ed.diff.get(),
+                "c" => !c.editing(),
+                _ => c.editing() && ed.diff.get(),
+            };
+            format!("segb{}", if on { " on" } else { "" })
+        };
+        let c = cx.clone();
+        let tip = format!("{label} ({})", key.to_uppercase());
+        view! { button(class=cls, title=tip, on:click=move |_: Click| { super::key(&c, key); }) { (label) } }
     };
-    let target =
-        move |p: &Params| p.with(|p| p.change = if on { "1".into() } else { String::new() });
-    let href = cx.params.with(target).url();
-    let c = cx.clone();
-    let go = move |e: Click| {
-        e.prevent_default();
-        crate::platform::goto(&c.params.with(target).url());
-    };
-    view! { a(class=cls, href=href, on:click=go) { (label) } }
+    let (p, c, d) = (
+        item("Preview", "p"),
+        item("Current", "c"),
+        item("Diff", "d"),
+    );
+    view! { span(class="seg") { (p) (c) (d) } }
 }
 
 /// The bar of the open change.
@@ -75,23 +122,25 @@ pub fn change_bar(cx: &Cx) -> View {
         return View::default();
     };
     let ed = cx.ed;
-    let (prev, cur) = (seg("Preview", true, cx), seg("Current", false, cx));
     let intent = ch.status.intent.clone();
     let tip = intent.clone();
-    let chips = chips(&ch);
-    let msg = move || ed.msg.get_clone();
+    let (chips, segs) = (chips(cx, &ch), segs(cx));
+    let age = ch.status.cache_age_secs.map_or(String::new(), |s| {
+        format!("code measured {} min ago", s / 60)
+    });
     let d = dialog(ed);
     view! {
         div(id="cbar") {
             span(class="muted") { "change" }
             b(class="intent", title=tip) { (intent) }
             (chips)
-            span(class="seg") { (prev) (cur) }
-            span(class="err-text") { (msg) }
+            (segs)
+            span(class="muted") { (age) }
+            span(class="err-text") { (move || ed.msg.get_clone()) }
             button(class="go", on:click=move |_: Click| {
                 ed.dialog.set(Dialog::Publish(None));
                 super::dialogs::load_plan(ed);
-            }) { "Publish" }
+            }) { "Publish\u{2026}" }
             button(class="danger", on:click=move |_: Click| ed.dialog.set(Dialog::Discard)) { "Discard" }
             (d)
         }

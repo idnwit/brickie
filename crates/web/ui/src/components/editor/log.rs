@@ -1,10 +1,14 @@
-//! The ops log: every op of the change, newest first; agent ops are styled apart and the
-//! proposed ones get Accept / Reject with a note.
+//! The Ops tab: the change log grouped by element in plain words, with author and state chips
+//! and the file; filters (agent / human / proposed / conflict); a row selects its element on
+//! the canvas; "Accept all from agent" (confirmed); conflicts offer Re-apply as mine.
 
-use super::send_reload;
+use super::inspector::review_bar;
+use super::widgets::seg;
+use super::write;
 use crate::state::*;
 use brickie_web_api::change::{By, OpRecord, State, Verdict};
 use brickie_web_api::{ChangeReview, ChangeReviewRequest};
+use std::collections::BTreeMap;
 use sycamore::prelude::*;
 
 fn state_name(s: State) -> &'static str {
@@ -15,29 +19,29 @@ fn state_name(s: State) -> &'static str {
     }
 }
 
-fn review(ed: Edit, seq: u64) -> View {
-    let note = create_signal(String::new());
-    let go = move |verdict: Verdict| {
-        move |_: Click| {
-            let n = note.get_clone();
-            let req = ChangeReviewRequest {
-                seq,
-                verdict,
-                note: (!n.trim().is_empty()).then_some(n),
-            };
-            send_reload::<ChangeReview>(ed, req);
-        }
+/// Select the element of `r` on the canvas (its level, its brick).
+fn show(cx: &Cx, r: &OpRecord) {
+    let Some(ch) = cx.m.change.as_deref() else {
+        return;
     };
-    view! {
-        div(class="review") {
-            input(r#type="text", placeholder="note (why)", bind:value=note)
-            button(class="go", on:click=go(Verdict::Accept)) { "Accept" }
-            button(class="danger", on:click=go(Verdict::Reject)) { "Reject" }
-        }
-    }
+    let level = op_level(ch, r).unwrap_or_else(|| "root".into());
+    let brick = op_brick(&r.op).unwrap_or_default().to_string();
+    cx.ed.rule.set(
+        ch.planned_edges
+            .iter()
+            .find(|e| e.seq == Some(r.seq))
+            .map(|e| RuleRef {
+                file: e.file.clone(),
+                index: e.rule,
+            }),
+    );
+    cx.go(cx
+        .params
+        .with(|p| p.at_level(&level))
+        .with(|p| p.brick = brick));
 }
 
-fn entry(ed: Edit, r: &OpRecord) -> View {
+fn entry(cx: &Cx, r: &OpRecord) -> View {
     let by = if r.by == By::Agent { "agent" } else { "human" };
     let st = state_name(r.state);
     let cls = format!(
@@ -48,39 +52,93 @@ fn entry(ed: Edit, r: &OpRecord) -> View {
             ""
         }
     );
-    let head = format!("#{} {} {}", r.seq, r.op.name(), r.key);
-    let file = r.file.clone();
+    let head = format!("#{} {}", r.seq, describe(&r.op));
     let note = r.note.clone().map(|n| view! { div(class="muted") { (n) } });
-    let reviewed = r.review.as_ref().map(|v| {
-        let t = format!(
-            "{st} by {:?}{}",
-            v.by,
-            v.note.as_ref().map_or(String::new(), |n| format!(": {n}"))
-        );
-        view! { div(class="muted") { (t) } }
-    });
-    let conflict = r
-        .conflict
-        .clone()
-        .map(|c| view! { div(class="err-text") { "conflict: " (c) } });
-    let act = (r.by == By::Agent && r.state == State::Proposed).then(|| review(ed, r.seq));
+    let (c, rec) = (cx.clone(), r.clone());
+    let act = (r.by == By::Agent && r.state == State::Proposed).then(|| review_bar(cx, &[r.seq]));
     view! {
         div(class=cls) {
-            div(class="ophead") { span(class=format!("chip {by}")) { (by) } b { (head) } span(class=format!("chip {st}")) { (st) } }
-            div(class="mono muted") { (file) }
-            (note) (reviewed) (conflict) (act)
+            div(class="ophead", on:click=move |_: Click| show(&c, &rec)) {
+                span(class=format!("chip {by}")) { (by) } b { (head) } span(class=format!("chip {st}")) { (st) }
+            }
+            (note) (act)
         }
     }
 }
 
-/// The ops log tab.
+/// Accept `seqs` one after the other (each reply patches the page before the next).
+fn accept_chain(cx: &Cx, mut seqs: Vec<u64>) {
+    let Some(seq) = seqs.pop() else { return };
+    let req = ChangeReviewRequest {
+        seq,
+        verdict: Verdict::Accept,
+        note: Some("accepted with all".into()),
+    };
+    write::<ChangeReview, _>(cx, req, format!("accepted #{seq}"), move |now, _| {
+        accept_chain(now, seqs)
+    });
+}
+
+fn accept_all(cx: &Cx) -> View {
+    let ask = create_signal(false);
+    let c = cx.clone();
+    let go = move |_: Click| {
+        ask.set(false);
+        let mut seqs: Vec<u64> =
+            c.m.change
+                .as_deref()
+                .map(|ch| {
+                    ch.log
+                        .iter()
+                        .filter(|r| pending(r) && r.conflict.is_none())
+                        .map(|r| r.seq)
+                        .collect()
+                })
+                .unwrap_or_default();
+        seqs.reverse();
+        accept_chain(&c, seqs);
+    };
+    view! {
+        (move || if ask.get() {
+            let go = go.clone();
+            view! { span { "Accept every agent proposal? " button(class="go", on:click=go) { "Yes" } button(on:click=move |_: Click| ask.set(false)) { "No" } } }
+        } else {
+            view! { button(on:click=move |_: Click| ask.set(true)) { "Accept all from agent" } }
+        })
+    }
+}
+
 pub fn log(cx: &Cx) -> View {
-    let Some(ch) = cx.m.change.as_ref() else {
+    let Some(ch) = cx.m.change.clone() else {
         return View::default();
     };
-    if ch.log.is_empty() {
-        return view! { p(class="muted") { "No ops yet. Draw a brick from the palette." } };
+    let ed = cx.ed;
+    let filter = ed.ops_filter.get();
+    let filters = seg(
+        &["all", "agent", "human", "proposed", "conflict"],
+        filter,
+        move |f| ed.ops_filter.set(f),
+    );
+    let mut groups: BTreeMap<(String, String), Vec<&OpRecord>> = BTreeMap::new();
+    for r in ch.log.iter().rev().filter(|r| keep_op(filter, r)) {
+        groups
+            .entry((r.file.clone(), r.key.clone()))
+            .or_default()
+            .push(r);
     }
-    let items: Vec<View> = ch.log.iter().rev().map(|r| entry(cx.ed, r)).collect();
-    View::from(items)
+    let items: Vec<View> = groups
+        .into_iter()
+        .map(|((file, key), recs)| {
+            let title = format!("{key} \u{00B7} {file}");
+            let rows: Vec<View> = recs.into_iter().map(|r| entry(cx, r)).collect();
+            let rows = View::from(rows);
+            view! { div(class="opgrp") { div(class="muted mono") { (title) } (rows) } }
+        })
+        .collect();
+    let empty = items
+        .is_empty()
+        .then(|| view! { p(class="muted") { "No ops here. Drag a brick from the toolbar." } });
+    let all = ch.log.iter().any(pending).then(|| accept_all(cx));
+    let items = View::from(items);
+    view! { div(class="row") { (filters) } (all) (items) (empty) }
 }

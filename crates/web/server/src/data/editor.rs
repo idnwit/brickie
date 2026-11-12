@@ -12,8 +12,12 @@ use std::path::Path;
 /// Status, log, diff, tasks and layout of the open change. `error` is set when the preview
 /// does not load (`files` then lists no level).
 pub fn change_view(ch: &Change) -> Result<ChangeView> {
-    let (mut files, mut levels) = (BTreeMap::new(), BTreeMap::new());
-    let error = match ch.preview(true).and_then(|p| p.load_config()) {
+    let (mut files, mut levels, mut sheets) = (BTreeMap::new(), BTreeMap::new(), BTreeMap::new());
+    let preview = ch.preview(true);
+    if let Ok(p) = &preview {
+        sheets = p.sheets();
+    }
+    let error = match preview.and_then(|p| p.load_config()) {
         Ok(cfg) => {
             level_files(&cfg, ch.root(), &mut files, &mut levels);
             None
@@ -29,6 +33,7 @@ pub fn change_view(ch: &Change) -> Result<ChangeView> {
         files,
         levels,
         planned_edges: ch.planned_edges().unwrap_or_default(),
+        sheets,
         error,
     })
 }

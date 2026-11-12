@@ -6,6 +6,7 @@ mod editor;
 mod eval;
 mod focus;
 mod layers;
+mod live;
 mod selection;
 mod shared;
 
@@ -14,5 +15,6 @@ pub use editor::*;
 pub use eval::*;
 pub use focus::*;
 pub use layers::*;
+pub use live::*;
 pub use selection::*;
 pub use shared::*;

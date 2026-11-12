@@ -175,8 +175,10 @@ code, the SQL graph server for agents (`serve`/`query`), capabilities, and exper
    propose, accept, reject, publish `--dry-run`, discard), `change/*` codes and the llms.txt
    "Change sessions" section. Phases 3 and 4 (the viewer's edit mode) **implemented**: change
    endpoints behind a loopback/same-origin write guard, the preview shown with `change=1`,
-   palette, inspector, link drawing, move by drag, ops log with review, publish dialog (see
-   "View", "Design editor"). Rules panel, presets and includes (5) and MCP (7) are open.
+   floating toolbar, typed ports, inspector, move by drag, ops with review, publish dialog,
+   then the editor UX spec (`docs/proposals/editor-ux.md`: design panel tabs incl. Rules,
+   complexity, exports, includes and presets; in-place patching) (see "View", "Design
+   editor"). MCP (7) is open.
 
 ## Code layout (implemented)
 
@@ -208,7 +210,8 @@ crates/core/measure/   brickie-measure, folder bricks:
 crates/core/change/    brickie-change: change sessions (folders: store (base/, ops.json, lock,
                        readers, layout), edit (toml_edit documents, ops, moves, ungroup), session
                        (open, record, review, retract/reapply, replay, editor helpers, links and
-                       link check), preview (FileSource over the docs, planned bricks), report
+                       link check), preview (FileSource over the docs, planned bricks, file
+                       sheets for the editor's tables), report
                        (status, diff, todo, added rules: planned edges, no reason), publish (plan,
                        scaffold)); the op/record/report types are plain data in
                        `brickie_model::change` so `crates/web/api` can share them
@@ -229,7 +232,10 @@ crates/web/server/     brickie-web, folder bricks (own brickie.toml): routes (->
 crates/web/api/        brickie-web-api, wasm-safe (serde + brickie-model): the server/UI port, see
                        "Web api port" below
 crates/web/ui/         brickie-ui, folder bricks (own brickie.toml), compiled to wasm: platform
-                       (depends on nothing), state (pure) <- components (also the crate root, wasm entry)
+                       (depends on nothing), state (pure; `state/editor/`: ops, hit tests, typed
+                       links, sheets, patching) <- components (also the crate root, wasm entry;
+                       `components/editor/`: toolbar, panel tabs, inspector/, canvas layer,
+                       connect, drop, keys, poll)
 crates/lib/codeview/       the code viewer, independent of brickie (tag lib; own brickie.toml, exports
                        port and host):
   port/                codeview-port: data types, the Provider trait, endpoints, iframe messages
@@ -386,9 +392,11 @@ folders by concern):
   `graph`, `levels`, `function`, `score`, `boundary`, `interface`, `editor` (change view and
   requests; re-exports `brickie_model::change` as `change`)).
 - `crates/web/ui/` (`brickie-ui`): `state/` (`layers`, `selection`, `focus`, `eval`, `shared`,
-  `ctx`, `editor`), `components/` (`app`, `keys`, `call`, `canvas/` incl. `frame`, `panels/`
-  incl. `node`, `controls/` incl. `crumbs`, `editor/` (`bar`, `dialogs`, `palette`,
-  `inspector`, `log`, `overlay`, `drop`), `popup`), `platform.rs`, `wasm.rs`, `styles/*.css`.
+  `ctx`, `live`, `editor/` (`ops`, `hit`, `link`, `sheet`, `patch`, `words`)), `components/`
+  (`app`, `keys`, `call`, `canvas/` incl. `frame`, `panels/` incl. `node`, `controls/` incl.
+  `crumbs`, `editor/` (`bar`, `dialogs`, `toolbar`, `panel`, `inspector/`, `rules`,
+  `complexity`, `level_tab`, `files`, `log`, `layer`, `connect`, `drop`, `overlay`, `keys`,
+  `poll`, `widgets`), `popup`), `platform.rs`, `wasm.rs`, `styles/*.css`.
 
 - **Web api port.** `crates/web/api` holds the `Endpoint` trait (`PATH`, `Req`, `Res`) with one marker per
   JSON endpoint (`Review` POST `/review`; `Graph`, `Diagnostics`, `Functions` GET `/api/*`, where `Req` is the
@@ -576,15 +584,69 @@ folders by concern):
 
 ### Design editor (implemented)
 
-Edit mode of the viewer over a change session (proposal: `docs/proposals/editor.md`, "Editor
-notes"). `change=1` shows the open change's preview (the same level aggregation over
-`Preview::check`; `BrickView.planned` / `proposed` mark bricks with no code yet and agent
-proposals) with the editor panel (palette, inspector, ops log) in place of the detail panel;
-the change bar replaces the banner. Every op goes through `/api/change/*` and the page reloads;
-the writes also answer the change and the touched preview levels (`ChangeReply`) for in-place
-patching, and the preview carries planned edges (rules the change adds with no measured edge).
-Retract (undo), re-apply of a conflicting op, `ungroup` and a link check are in the engine and
-the API (`docs/proposals/editor.md`, "Editor UX gaps").
+Edit mode of the viewer over a change session (UX spec: `docs/proposals/editor-ux.md`; change
+model and endpoints: `docs/proposals/editor.md`). `change=1` shows the open change's preview
+(the same level aggregation over `Preview::check`; `BrickView.planned` / `proposed` mark bricks
+with no code yet and agent proposals). The header button **Design** (`E`) opens a change (intent
+dialog) or toggles edit mode; the change bar replaces the banner (chips that act: proposed /
+conflicts / without reason open the Ops or Rules tab, planned selects the planned bricks;
+Preview | Current | Diff with `P`/`C`/`D`; the measure age; Publish shows blockers first, then
+the files and the warnings).
+
+- **Layout**: the left column stays the findings panel; the right column is the design panel
+  (`components/editor/panel.rs`) with tabs Inspector, Rules (`[deps]` default / cycles, the rule
+  table of the level's file and its includes, each row with its physical file, tinted when
+  included; an add row with the level's selectors; the complexity table, one auto-applying cell
+  per limit), Level (exports with scope pills), Files (includes, "New preset" = `create_file` +
+  `add_include`, shared-file warnings) and Ops (grouped by element, plain words, author / state
+  chips, filters agent / human / proposed / conflict, "Accept all from agent"). A floating
+  toolbar sits at the top of the canvas (`editor/toolbar.rs`, collapsible, outside the pan/zoom
+  transform): Select / Hand (`V`/`H`), the brick tiles Crate / Module / Group (drag with a ghost
+  or click then click the canvas; `B`, `Tab` cycles), the link types uses / implements /
+  reexports / deny (`L`: ports on every brick), the scope of new rules prod / test / all
+  (`1`/`2`/`3` in edit mode) and delete.
+- **Canvas** (`editor/layer.rs`, inside the pan/zoom group): typed ports (one per link type,
+  own colour and glyph) on the hovered or selected brick; dragging one draws a rubber band,
+  outlines the siblings and checks the target under the pointer with `/api/change/link-check`
+  (refused targets read "already allowed"); the drop records `add_rule` at once, selects the
+  rule and focuses its reason (`editor/connect.rs`). A tag lane (row) is a `tag:<t>` target.
+  Planned edges (`LevelView.planned_edges`) are dashed in their type's colour, deny red, agent
+  proposals violet with an `A`, a "?" without a reason; a click selects the rule. Bricks touched
+  by pending agent ops carry an `A` badge, conflicting ones `!`. A new brick is named inline on
+  its box (`editor/overlay.rs`; module members prefilled `crate::`), `F2` renames inline, `Del`
+  opens a confirmation listing the rules and exports that name the brick.
+- **Moving** (`editor/drop.rs`): a brick held 400 ms over a sibling targets it ("Move into X");
+  over the band around the frame or a breadcrumb it targets the parent / that ancestor ("Move
+  to ..."); a faded neighbour is refused. Release records `move_brick` (`/api/change/move`),
+  otherwise stores the position (`/api/change/layout`). The inspector has Make group / Ungroup.
+- **Inspector**: brick (review bar for its pending agent ops; name, description, tag pills,
+  member chips, group path; each applies on blur / Enter as one op, no Save), rule (kinds,
+  scope, action, reason, help, file and shared-by count, Delete), measured edge (the deciding
+  rules of the level, linked) and, with nothing selected, the level (file, deps, tags).
+- **Review**: the review bar has Accept / Reject (a note is required to reject) and, for a
+  conflict, "Re-apply as mine" (`/api/change/reapply`); `A`/`R`/`N` accept, focus the reject
+  note, jump to the next proposal (its level, selected and centred). `Ctrl+Z` retracts the latest
+  human op (`/api/change/retract`). Ops written elsewhere (the agent's `brickie change propose`)
+  arrive by polling `GET /api/change` every 3 s while nothing is in progress; a toast tells
+  how many proposals came.
+- **In-place patching**: every write answers `ChangeReply {done, change, levels}`; the editor
+  replaces the touched levels (`state::patch_levels`, levels missing from `change.files`
+  dropped), swaps the change and re-renders the level on screen without a reload
+  (`state::Live`: levels, change and a revision signal), keeping pan/zoom and the boxes of
+  bricks that were on screen (`state::Keep`); only new bricks get their drop point or an
+  automatic place. Selection lives in the URL params and the editor's rule selection.
+- **Server addition**: `ChangeView.sheets` (`FileSheet` per config file of the preview: its own
+  deps settings, rules, complexity rules, exports and includes, in file order, so a row maps to
+  an op's `file` and `index`; `Preview::sheets` in `brickie-change`).
+- **Deviations from the spec**: the toolbar is collapsible but not draggable; a tile click then
+  a click on the canvas places a brick (no drag-a-box sizing); double-click on a leaf does not
+  rename (use `F2` or the inspector); dropping a tile onto a brick, arrowhead retargeting,
+  cut / paste across levels, the exports strip on the frame and drag-a-tag-swatch are not
+  implemented (exports and tags are edited in the Level tab and the inspector); members have no
+  autocomplete; Diff lists the semantic diff (before / after per element) over the preview
+  rather than overlaying both designs; the measure prompt is the header's measure control and
+  the change bar's "code measured N min ago".
+
 All writing endpoints, `/review` and `POST /api/measure` included, pass one write guard (`routes/guard.rs`): loopback
 bind, loopback `Host` with the server's port, same `Origin`. Canvas positions are layout hints
 in the change, never ops.

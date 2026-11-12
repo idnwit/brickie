@@ -10,7 +10,9 @@ pub fn pointer(cur: &Cur) {
     let cur1 = cur.clone();
     platform::on_mouse("mousemove", move |x, y| {
         let Some(c) = current(&cur1) else { return };
-        let Some(op) = c.op.get() else { return };
+        let Some(op) = crate::components::editor::pointer_op(&c, x, y) else {
+            return;
+        };
         match op {
             Op::Pan { sx, sy, vx, vy } => {
                 let k = c.view.with(|v| v.k);

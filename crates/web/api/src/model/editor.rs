@@ -5,7 +5,7 @@
 pub use brickie_model::change;
 
 use crate::LevelView;
-use change::{DiffEntry, LayoutHint, Op, OpRecord, PlannedEdge, Status, Task, Verdict};
+use change::{DiffEntry, FileSheet, LayoutHint, Op, OpRecord, PlannedEdge, Status, Task, Verdict};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -28,6 +28,10 @@ pub struct ChangeView {
     /// Rules the change adds that no measured edge backs yet (also on each [`LevelView`]).
     #[serde(default)]
     pub planned_edges: Vec<PlannedEdge>,
+    /// Every config file of the preview (its own rules, complexity, deps, exports, includes),
+    /// by the same relative path as `files` values: the editor's Rules / Level / Files tabs.
+    #[serde(default)]
+    pub sheets: BTreeMap<String, FileSheet>,
     /// Why the preview does not load (the page then shows the current design).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,

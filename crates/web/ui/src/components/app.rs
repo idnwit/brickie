@@ -92,6 +92,7 @@ pub fn app(data: PageData, initial: Params) -> View {
         });
         keys(&cur);
         pointer(&cur);
+        editor::start_poll();
     }
     let lvl = {
         let sh = sh.clone();
@@ -103,8 +104,10 @@ pub fn app(data: PageData, initial: Params) -> View {
         let (sh, cur) = (sh.clone(), cur.clone());
         move || {
             let lv = lvl.get();
+            // An editor patch re-renders the level in place (pan/zoom kept).
+            sh.live.rev.track();
             untrack(|| {
-                let depth = sh.levels[lv].path.matches('/').count();
+                let depth = sh.live.levels.with(|l| l[lv].path.matches('/').count());
                 let anim = match prev.replace(Some(depth)) {
                     Some(d) if depth > d => "zin",
                     Some(d) if depth < d => "zout",
@@ -113,6 +116,7 @@ pub fn app(data: PageData, initial: Params) -> View {
                 let mut cx = Cx::new(&sh, lv, platform::stage_rect().map(|r| (r.2, r.3)));
                 cx.anim = anim;
                 *cur.borrow_mut() = Some(cx.clone());
+                set_current_cx(&cx);
                 page(&cx)
             })
         }

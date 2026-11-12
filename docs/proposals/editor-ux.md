@@ -1,6 +1,8 @@
 # Proposal: design editor UX
 
-Status: **proposal** (not implemented). This replaces the UI half of `editor.md` ("Editor
+Status: **implemented** (2026-11-12) in `crates/web/ui/src/components/editor/` and
+`state/editor/`; what differs from this spec is listed in `docs/design.md`, "Design editor",
+"Deviations from the spec". This replaces the UI half of `editor.md` ("Editor
 (view)", "Editor notes"); the change model, ops, endpoints and agent loop stay as they are. Goal:
 an editor a person can use by hand for every field of the config schema, next to the agent,
 with direct manipulation on the canvas.
@@ -306,7 +308,9 @@ small lock icon.
 ## Gaps (schema or engine work needed)
 
 Status (2026-11-12): 1, 2, 5, 6, 7 and "rules without reason" are implemented in the engine and
-the server API (see `editor.md` "Editor UX gaps" and "Endpoints"); the UI does not use them yet.
+the server API (see `editor.md` "Editor UX gaps" and "Endpoints") and used by the UI. The UI
+also needed the rules, complexity rules, exports and includes of each file:
+`ChangeView.sheets` (`FileSheet`).
 
 1. **Undo/retract** a human op: done: `ChangeRetract {seq?}` (`None`: the latest human op) adds
    a review with verdict `retract`; the op counts as rejected, the log is not rewritten.

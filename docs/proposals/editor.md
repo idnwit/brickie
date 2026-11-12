@@ -219,7 +219,8 @@ propose; read `brickie change` at the start and before each step; after code cha
   endpoint): the server must be bound to loopback, the `Host` must name a loopback address
   with the server's port (DNS rebinding), and an `Origin`, when sent, must equal
   `http://<Host>`; without `Origin`, `Sec-Fetch-Site` must not be cross-site. Otherwise 403.
-- **UI** (`crates/web/ui/src/components/editor/`, state in `state/editor.rs`): the header's
+- **UI** (first version, replaced by `editor-ux.md`; current state in `docs/design.md`,
+  "Design editor"). `crates/web/ui/src/components/editor/`, state in `state/editor/`: the header's
   Design button opens a change (intent dialog); while one is open the change bar replaces the
   banner (intent, op/proposed/conflict/planned chips, Preview/Current, Publish with the plan
   dialog listing every file and blocker, Discard). In Preview the right panel is the editor:
@@ -232,7 +233,5 @@ propose; read `brickie change` at the start and before each step; after code cha
   with Accept/Reject and a note). Dragging a brick onto another asks to move it inside
   (`ChangeMove`); dropped elsewhere its position is stored. Planned bricks are dashed, agent
   proposals dashed in the agent colour. Escape drops an armed tool, link or open form.
-- **Deviations.** After each op the page reloads (the server's preview is the only truth; the
-  URL keeps level and selection) instead of patching the canvas in place; the server now
-  answers the touched levels (`ChangeReply`) and the planned edges, the UI does not use them
-  yet (`editor-ux.md`). Ops are recorded as the human only; the agent uses the CLI.
+- **Deviations.** The first version reloaded the page after each op; the editor UX version
+  patches the touched levels in place from `ChangeReply` (`editor-ux.md`). Ops are recorded as the human only; the agent uses the CLI.

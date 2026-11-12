@@ -6,6 +6,7 @@ mod edge;
 mod op;
 mod record;
 mod report;
+mod sheet;
 
 pub use edge::{LinkCheck, PlannedEdge};
 pub use op::{BrickKind, BrickSpec, ComplexitySpec, ExportSpec, Op, RuleSpec};
@@ -13,3 +14,4 @@ pub use record::{By, Entry, OpRecord, Review, ReviewEntry, State, Verdict};
 pub use report::{
     DiffEntry, DiffOp, LayoutHint, LinkOption, Plan, PlanAction, PlanFile, Status, Task, TaskKind,
 };
+pub use sheet::FileSheet;

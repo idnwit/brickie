@@ -2,6 +2,7 @@
 //! normal loader and `check`.
 
 mod planned;
+mod sheets;
 
 pub use planned::{cache_mismatch, planned};
 
