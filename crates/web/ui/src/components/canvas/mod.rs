@@ -148,13 +148,7 @@ pub fn canvas(cx: &Cx) -> View {
     let c = cx.clone();
     // The entry transition (`zin`/`zout`) plays once when the level's stage mounts.
     let anim = cx.anim;
-    let pan_cls = move || {
-        if matches!(c.op.get(), Some(Op::Pan { .. })) {
-            format!("pan {anim}")
-        } else {
-            anim.to_string()
-        }
-    };
+    let pan_cls = move || stage_class(&c, anim);
     let c = cx.clone();
     let sel_box = move || match c.op.get() {
         Some(Op::Box { x0, y0, x1, y1 }) => format!(
@@ -198,4 +192,15 @@ pub fn canvas(cx: &Cx) -> View {
             (edit)
         }
     }
+}
+
+/// Classes of `#stage`: its entry transition, `pan` while panning, `nodrop` over a refused drop.
+fn stage_class(c: &Cx, anim: &str) -> String {
+    let no = c.ed.target.with(|t| matches!(t, Some(MoveTarget::No(_))));
+    let pan = matches!(c.op.get(), Some(Op::Pan { .. }));
+    format!(
+        "{}{anim}{}",
+        if pan { "pan " } else { "" },
+        if no { " nodrop" } else { "" }
+    )
 }

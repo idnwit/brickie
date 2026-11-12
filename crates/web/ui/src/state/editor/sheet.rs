@@ -155,6 +155,7 @@ pub(super) mod tests {
                 cache_age_secs: None,
             },
             log: vec![],
+            redo: vec![],
             diff: vec![],
             todo: vec![],
             layout: BTreeMap::new(),

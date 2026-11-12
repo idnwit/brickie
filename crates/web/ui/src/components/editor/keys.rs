@@ -1,12 +1,12 @@
 //! Editor keys and the actions they share with buttons: `E` design mode, `V`/`H` tools, `B`
 //! brick tool (`Tab` cycles the kind), `L` link tool, `1`/`2`/`3` scope, `F2` rename, `Del`
-//! delete, `Ctrl+Z` retract, `A`/`R`/`N` review proposals, `P`/`C`/`D` preview / current /
+//! delete, `Ctrl+Z` undo (retract), `Ctrl+Shift+Z` / `Ctrl+Y` redo, `A`/`R`/`N` review proposals, `P`/`C`/`D` preview / current /
 //! diff, `+`/`-`/`0` zoom.
 
 use super::{op, write};
 use crate::platform;
 use crate::state::*;
-use brickie_web_api::change::{BrickKind, Op, Verdict};
+use brickie_web_api::change::{BrickKind, Op, OpRecord, Verdict};
 use brickie_web_api::*;
 
 /// Design on/off: opens a change first when none is open.
@@ -45,10 +45,36 @@ pub fn delete_selection(cx: &Cx) {
     }
 }
 
-/// Take back the latest human op (`Ctrl+Z`).
+/// Take back the latest human op (`Ctrl+Z`); a gesture that recorded several ops (a tile
+/// dropped into a leaf brick) is taken back whole, its ops one after the other.
 pub fn retract(cx: &Cx) {
     let req = ChangeRetractRequest { seq: None };
-    write::<ChangeRetract, _>(cx, req, "retracted the last op".into(), |_, _| {});
+    let toast = op_toast("Undid", cx, undo_target);
+    write::<ChangeRetract, _>(cx, req, toast, |now, r| {
+        if undo_more(&now.ed.groups.get_clone(), r.target) {
+            retract(now);
+        }
+    });
+}
+
+/// Restore the latest retracted human op (`Ctrl+Shift+Z` / `Ctrl+Y`), a gesture whole.
+pub fn redo(cx: &Cx) {
+    let toast = op_toast("Redid", cx, redo_target);
+    write::<ChangeRedo, _>(cx, ChangeRedoRequest {}, toast, |now, r| {
+        if redo_more(&now.ed.groups.get_clone(), r.target) {
+            redo(now);
+        }
+    });
+}
+
+/// `Undid: Added brick tel`, naming the op `pick` finds in the open change.
+fn op_toast(word: &str, cx: &Cx, pick: impl Fn(&ChangeView) -> Option<&OpRecord>) -> String {
+    let what =
+        cx.m.change
+            .as_deref()
+            .and_then(pick)
+            .map(|o| describe(&o.op));
+    format!("{word}: {}", what.unwrap_or_default())
 }
 
 /// Accept or reject op `seq`.
@@ -200,6 +226,7 @@ fn reviews(cx: &Cx, key: &str) -> bool {
         "r" => platform::focus("review-note"),
         "n" => next(cx),
         "Ctrl+z" => retract(cx),
+        "Ctrl+Shift+z" | "Ctrl+y" => redo(cx),
         "p" => show(cx, true, false),
         "c" => show(cx, false, false),
         "d" => show(cx, true, true),

@@ -24,3 +24,16 @@
 .ltarget{fill:none;stroke:var(--ok);stroke-width:2;stroke-dasharray:4 3;pointer-events:none}.ltarget.no{stroke:var(--muted);fill:color-mix(in srgb,var(--muted) 12%,transparent)}
 .tlabel{fill:var(--ink);font-size:12px;font-weight:600;pointer-events:none}
 .mtarget{fill:color-mix(in srgb,var(--sel) 12%,transparent);stroke:var(--sel);stroke-width:2.5;pointer-events:none}.mtarget.up{stroke-dasharray:8 5}.mtarget.no{stroke:var(--err);fill:color-mix(in srgb,var(--err) 10%,transparent)}
+/* drag and drop: folders and lanes */
+#stage.nodrop,#stage.nodrop *{cursor:not-allowed!important}
+.tghost{width:auto;min-width:100px;flex-direction:column;height:auto;min-height:36px;padding:3px 6px}.tghost.no{border-color:var(--err)}
+.aimlbl{font-size:11px;font-weight:500;color:var(--muted);white-space:nowrap}.tghost.no .aimlbl{color:var(--err)}
+.inbox .whither{font-size:11px;color:var(--muted)}
+.mtarget{animation:dropin .12s ease-out}.mtarget.folder{stroke-width:3;fill:color-mix(in srgb,var(--sel) 18%,transparent)}
+.mtarget.lid{fill:color-mix(in srgb,var(--sel) 35%,transparent)}
+.mtarget.lane{fill:color-mix(in srgb,var(--sel) 8%,transparent);stroke-dasharray:6 4}
+.newlane{fill:none;stroke:var(--line);stroke-width:1.5;stroke-dasharray:6 5;pointer-events:none}
+.newlanet{fill:var(--muted);font-size:12px;text-anchor:middle;pointer-events:none}
+.tlabel.aim{fill:var(--sel)}
+@keyframes dropin{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.mtarget{animation:none}}

@@ -182,7 +182,11 @@ propose; read `brickie change` at the start and before each step; after code cha
 
 - Editor UX gaps (2026-11-12, `editor-ux.md` "Gaps"): **retract** is a review entry with
   verdict `retract` on a human op (the op counts as rejected; the log stays append-only;
-  `Change::retract(None)` takes the latest accepted human op). **Re-apply** re-records a
+  `Change::retract(None)` takes the latest accepted human op). **Redo** (`Change::redo`) is a
+  review with verdict `restore` on the top of the redo stack (`redo_stack(entries)`: human ops
+  retracted since the last new human op, a manual accept / reject of one ends its redo); it
+  fails, recording nothing, when the op does not replay or would turn a later accepted op into
+  a conflict (replay is in seq order). **Re-apply** re-records a
   conflicting op's `Op` as a human op against the current design and rejects the original
   (`re-applied as op N`); it fails, recording nothing, when the op does not apply now.
   **Ungroup** is an op: children, rules and complexity rules of the composite's file move up
@@ -200,13 +204,13 @@ propose; read `brickie change` at the start and before each step; after code cha
   diff, todo, layout, level files, preview error; `null` when none is open), `ChangeOpen`,
   `ChangeOp` (a human op, accepted when recorded), `ChangeMove` (`{from, into}` brick paths ->
   `Change::move_op` -> recorded), `ChangeReview` (accept/reject with a note), `ChangeRetract`
-  (`{seq?}`), `ChangeReapply` (`{seq}`), `ChangeLinks` and `ChangeLinkCheck` (read only),
+  (`{seq?}`), `ChangeRedo` (`{}`, POST `/api/change/redo`), `ChangeReapply` (`{seq}`), `ChangeLinks` and `ChangeLinkCheck` (read only),
   `ChangeLevels` (`{paths}` -> marked preview levels, read only), `ChangeLayout`,
-  `ChangePublishPlan` GET, `ChangePublish`, `ChangeDiscard`. Op, move, review, retract and
+  `ChangePublishPlan` GET, `ChangePublish`, `ChangeDiscard`. Op, move, review, retract, redo and
   re-apply answer `ChangeReply {done, change, levels}`: the change view after the write and
   the preview levels of the files it edited, their ancestors and direct children, for
   in-place patching. The change view also carries `levels` (per level: bricks, tags and valid
-  selectors) and `planned_edges`; each preview `LevelView` carries its `planned_edges`. A
+  selectors), `planned_edges` and `redo` (the redo stack); each preview `LevelView` carries its `planned_edges`. A
   refused change operation is a 409 with the engine's message.
 - **Preview in the page.** `change=1` (a `Params` field) makes the page, `/api/graph`,
   `/api/diagnostics` and `/api/functions` load the change's preview (`Preview::check`) and run

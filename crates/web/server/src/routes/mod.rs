@@ -4,6 +4,7 @@
 mod api;
 mod assets;
 mod editor;
+mod events;
 mod guard;
 mod index;
 mod interface;
@@ -37,6 +38,7 @@ pub fn router(state: AppState) -> Router {
         .route(ChangeMove::PATH, post(editor::move_brick))
         .route(ChangeReview::PATH, post(editor::review))
         .route(ChangeRetract::PATH, post(editor::retract))
+        .route(ChangeRedo::PATH, post(editor::redo))
         .route(ChangeReapply::PATH, post(editor::reapply))
         .route(ChangeLinks::PATH, post(editor::links))
         .route(ChangeLinkCheck::PATH, post(editor::link_check))
@@ -46,6 +48,7 @@ pub fn router(state: AppState) -> Router {
         .route(ChangePublish::PATH, post(editor::publish))
         .route(ChangeDiscard::PATH, post(editor::discard))
         .route(MeasureStatus::PATH, get(measure::status))
+        .route(EVENTS_PATH, get(events::events))
         .route(MeasureStart::PATH, post(measure::start))
         .route("/static/ui/brickie_ui.js", get(assets::ui_js))
         .route("/static/ui/brickie_ui_bg.wasm", get(assets::ui_wasm))

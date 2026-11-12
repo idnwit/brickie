@@ -9,6 +9,7 @@ mod undo;
 
 pub use links::Link;
 pub use replay::{materialize, replay};
+pub use undo::redo_stack;
 
 use crate::preview::Preview;
 use crate::store::{self, Store};

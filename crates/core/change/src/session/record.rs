@@ -72,8 +72,10 @@ impl Change {
         if by != By::Human {
             bail!("only a human reviews ops");
         }
-        if verdict == Verdict::Retract {
-            bail!("use retract to take back an op");
+        match verdict {
+            Verdict::Retract => bail!("use retract to take back an op"),
+            Verdict::Restore => bail!("use redo to restore a retracted op"),
+            _ => {}
         }
         self.append_review(by, target, verdict, note)
     }
@@ -94,7 +96,7 @@ impl Change {
                 .with_context(|| format!("no op with seq {target}"))?;
             let same = matches!(
                 (o.state, verdict),
-                (State::Accepted, Verdict::Accept)
+                (State::Accepted, Verdict::Accept | Verdict::Restore)
                     | (State::Rejected, Verdict::Reject | Verdict::Retract)
             );
             if same {

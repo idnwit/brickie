@@ -65,6 +65,12 @@ fn dispatch(a: ChangeArgs) -> Result<i32> {
                 format!("#{} retracted op {}\n", r.seq, r.target)
             })?;
         }
+        ChangeCmd::Redo => {
+            let r = c.redo()?;
+            print(json, &r, || {
+                format!("#{} restored op {}\n", r.seq, r.target)
+            })?;
+        }
         ChangeCmd::Reapply { seq } => {
             let r = c.reapply(seq)?;
             print(json, &r, || render::record(&r))?;

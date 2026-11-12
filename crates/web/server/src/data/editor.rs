@@ -24,9 +24,11 @@ pub fn change_view(ch: &Change) -> Result<ChangeView> {
         }
         Err(e) => Some(format!("{e:#}")),
     };
+    let log = ch.log()?;
     Ok(ChangeView {
         status: ch.status()?,
-        log: ch.log()?.ops,
+        redo: brickie_change::redo_stack(&log.entries),
+        log: log.ops,
         diff: ch.diff()?,
         todo: ch.todo().unwrap_or_default(),
         layout: ch.layout()?,

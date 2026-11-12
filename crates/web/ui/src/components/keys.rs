@@ -37,6 +37,7 @@ pub fn keys(cur: &Cur) {
                 let name = ["arch", "viol", "all"][key.as_bytes()[0] as usize - b'1' as usize];
                 c.go(with_preset(&p, name));
             }
+            "Escape" if crate::components::editor::cancel_drag(&c) => return true,
             "Escape" if c.ed.cancel() => return true,
             "Escape" => {
                 let selected = !p.brick.is_empty() || !p.group.is_empty() || !p.edge.is_empty();

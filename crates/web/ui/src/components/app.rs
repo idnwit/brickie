@@ -70,16 +70,18 @@ pub fn app(data: PageData, initial: Params) -> View {
         // The URL last seen or written. Params changes that differ from it are user navigation
         // and push a history entry; back/forward (popstate) records its URL first, so it does not.
         let url = Rc::new(RefCell::new(params.with(|p| p.url())));
-        let u = url.clone();
+        let (u, nav) = (url.clone(), sh.nav);
         platform::on_popstate(move || {
             let p = Params::from_query(&platform::search());
             *u.borrow_mut() = p.url();
+            nav.update(|n| n.popped(&p.url()));
             params.set(p);
         });
         create_effect(move || {
             let now = params.with(|p| p.url());
             if *url.borrow() != now {
                 platform::push_url(&now);
+                nav.update(|n| n.push(now.clone()));
                 *url.borrow_mut() = now;
             }
         });
@@ -91,8 +93,9 @@ pub fn app(data: PageData, initial: Params) -> View {
             }
         });
         keys(&cur);
+        platform::on_history_nav(platform::history_go);
         pointer(&cur);
-        editor::start_poll();
+        editor::start_live(sh.bus);
     }
     let lvl = {
         let sh = sh.clone();

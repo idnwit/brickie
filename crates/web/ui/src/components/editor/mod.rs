@@ -4,6 +4,7 @@
 //! the pointer and key hooks that turn gestures into ops. Every write answers a `ChangeReply`
 //! whose levels patch the page in place: no reload, pan/zoom and selection kept.
 
+mod aim;
 mod bar;
 mod complexity;
 mod connect;
@@ -14,21 +15,22 @@ mod inspector;
 mod keys;
 mod layer;
 mod level_tab;
+mod live;
 mod log;
 mod overlay;
 mod panel;
-mod poll;
+mod place;
 mod rules;
 mod toolbar;
 mod widgets;
 
 pub use bar::{change_bar, design_button};
-pub use drop::{pointer_op, release};
+pub use drop::{cancel_drag, pointer_op, release};
 pub use keys::key;
 pub use layer::layer;
+pub use live::start as start_live;
 pub use overlay::overlay;
 pub use panel::panel;
-pub use poll::start as start_poll;
 
 use super::call::call;
 use crate::state::*;
@@ -61,7 +63,7 @@ fn keep(cx: &Cx) -> Keep {
 /// Drop the brick indices the editor holds: a patched level numbers its bricks anew.
 fn forget_indices(ed: Edit) {
     ed.hot.set(None);
-    ed.hold.set(None);
+    ed.over.set(None);
     ed.target.set(None);
 }
 
@@ -84,6 +86,9 @@ where
             change,
             levels,
         } = reply;
+        // A gesture's earlier op may have re-rendered the level since this call: patch the
+        // level on screen now.
+        let c = current_cx().unwrap_or(c);
         self::toast(c.ed, toast);
         // Leave fields before the re-render removes them (their blur handlers are still alive).
         crate::platform::blur_active();

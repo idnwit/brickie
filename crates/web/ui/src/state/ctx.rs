@@ -90,6 +90,8 @@ pub struct Cx {
     pub fit: bool,
     pub live: Live,
     pub ed: Edit,
+    pub nav: Signal<Nav>,
+    pub bus: Bus,
 }
 
 /// The layout input of a page: bricks with their row, and one edge per (from, to, kind).
@@ -198,6 +200,8 @@ impl Cx {
             fit: keep.is_none(),
             live: sh.live,
             ed: sh.ed,
+            nav: sh.nav,
+            bus: sh.bus,
         }
     }
 

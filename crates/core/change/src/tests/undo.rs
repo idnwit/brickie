@@ -41,3 +41,45 @@ fn reapply_records_a_conflicting_op_against_the_current_design() {
     assert_eq!(c.status().unwrap().conflicts, 0);
     assert!(c.preview(false).unwrap().files()["brickie.toml"].contains("desc = \"y\""));
 }
+
+#[test]
+fn redo_restores_retracted_ops_last_first() {
+    let ws = Ws::new();
+    let c = ws.open();
+    c.record(H, desc("a", "one"), None).unwrap();
+    c.record(H, desc("b", "two"), None).unwrap();
+    c.retract(None).unwrap();
+    c.retract(None).unwrap();
+    assert_eq!(crate::redo_stack(&c.log().unwrap().entries), vec![2, 1]);
+    let r = c.redo().unwrap();
+    assert_eq!((r.target, r.verdict), (1, Verdict::Restore));
+    assert_eq!(c.log().unwrap().ops[0].state, State::Accepted);
+    assert!(c.preview(false).unwrap().files()["brickie.toml"].contains("one"));
+    assert_eq!(c.redo().unwrap().target, 2);
+    assert!(c.redo().is_err(), "nothing left to redo");
+    assert!(c.review(H, 1, Verdict::Restore, None).is_err());
+}
+
+#[test]
+fn a_new_human_op_clears_the_redo_stack() {
+    let ws = Ws::new();
+    let c = ws.open();
+    c.record(H, desc("a", "one"), None).unwrap();
+    c.retract(None).unwrap();
+    c.record(H, desc("b", "two"), None).unwrap();
+    assert!(crate::redo_stack(&c.log().unwrap().entries).is_empty());
+    assert!(c.redo().is_err());
+}
+
+#[test]
+fn redo_refuses_an_op_that_no_longer_applies() {
+    let ws = Ws::new();
+    let c = ws.open();
+    c.record(H, desc("a", "mine"), None).unwrap();
+    c.retract(None).unwrap();
+    let theirs = c.record(A, desc("a", "theirs"), None).unwrap();
+    c.review(H, theirs.seq, Verdict::Accept, None).unwrap();
+    let e = c.redo().unwrap_err().to_string();
+    assert!(e.contains("cannot redo op 1"), "{e}");
+    assert_eq!(c.log().unwrap().ops[0].state, State::Rejected);
+}

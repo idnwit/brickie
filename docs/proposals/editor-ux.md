@@ -99,28 +99,69 @@ The design panel tabs (right column, all scoped to the **current level**):
 | Gesture | Result | Op |
 |---|---|---|
 | Drag palette tile onto empty canvas | ghost box follows; drop -> inline name field on the box (module: `crate::mod` hint prefilled) | `add_brick {kind}` + `set_layout` |
+| Drag palette tile into a **tag lane** | lane glows "→ tag: lib"; the name box says "tag: lib" | `add_brick {tags: [lane]}` (layout places it in the lane) |
 | `B` then click canvas / double-click empty canvas | same, kind from last used (Tab cycles kind) | `add_brick` |
-| Drop palette tile **onto a brick** | brick highlights "add inside"; becomes composite if leaf | `make_composite` (if leaf) + `add_brick` in child file |
+| Drop palette tile **onto a brick** | brick highlights as a folder "into web (3 inside)" / "(becomes a group)"; name box says "into web"; you stay on this level | `make_composite` (if leaf) + `add_brick` in child file (one undo step) |
 | Double-click name / `F2` | inline rename on the box | `rename_brick` |
 | Edit desc/tags/members/path in inspector, blur | — | `set_brick` (only changed fields) |
 | Drag a tag swatch onto a brick / click `x` on a tag pill | tag added / removed | `set_brick {tags}` |
 | `Del` / toolbar ⌫ / context "Delete" | confirm popover listing rules and exports that reference it | `remove_brick` |
 | Inspector "Make group" on a leaf | asks dir (default name) | `make_composite` |
 | Inspector "Ungroup" | children lifted to the parent level, brick stays a leaf | `ungroup` |
-| Drag brick to empty space | position stored | `set_layout` (not an op) |
+| Drag brick to empty space / within its own lane | position stored | `set_layout` (not an op) |
+| Drag brick into **another tag lane** | lane glows "→ tag: lib" | `set_brick {tags}`: first tag replaced by the lane's, others kept; "(untagged)" lane drops the first tag |
 
 ### Moving between levels
 
 | Gesture | Result | Op |
 |---|---|---|
-| Drag brick onto a sibling, hold 400 ms | target glows, label "Move into <b>"; drop | `move_brick` via `ChangeMove {from, into}` |
+| Drag brick onto a sibling | target glows at once as a folder (lid tab), label "into <b>"; drop | `move_brick` via `ChangeMove {from, into}` (a leaf becomes a group) |
 | Drag brick onto the level frame edge / breadcrumb parent ("drop here = move to parent") | moves up one level | `move_brick` into parent file |
 | Drag brick onto any breadcrumb segment | moves to that ancestor level | `move_brick` |
 | Cut `Ctrl+X`, navigate, paste `Ctrl+V` | move across non-adjacent levels (e.g. into a cousin) | `move_brick` |
 | Drop result | toast: "Moved; code is not moved on publish (manual step)" and N rules rewritten / exports dropped | — |
 
-Invalid targets (into itself or a descendant, onto a module brick whose crate is elsewhere) show
-a red "no" cursor and a reason tooltip; drop is ignored.
+Invalid targets (into itself or a descendant, onto a faded neighbour) show a red outline, a
+not-allowed cursor and the reason; the drop is ignored and the brick goes back.
+
+### Drag and drop: folders and lanes (implemented 2026-11-12)
+
+Mental model: **a brick is a folder, a tag lane is a shelf.** Dropping on a brick puts the
+thing inside; dropping in a lane files it under that tag; dropping on empty canvas only
+places it.
+
+What lies under the pointer decides, in this order (the first match wins):
+
+| # | Under the pointer | Existing brick dragged | New tile dragged | Highlight / ghost label |
+|---|---|---|---|---|
+| 1 | a brick body (this level) | `move_brick` into it | `make_composite` (if leaf) + `add_brick` inside | folder fill, lid tab; "into web (3 inside)" / "(becomes a group)" |
+| 1 | the dragged brick itself, a faded neighbour | refused | refused (neighbour) | red; "✕ reason"; not-allowed cursor |
+| 2 | "+ new tag lane" zone (under the last lane, shown while dragging) | tag asked inline, then `set_brick {tags}` | name and tag asked inline, `add_brick {tags}` | dashed band; "new tag lane…" |
+| 3 | frame edge band / a breadcrumb | `move_brick` up | ignored (falls through) | frame dashed; "up to root" |
+| 4 | a tag lane (nearest row inside the frame) | other lane: retag; own lane: position only | `add_brick {tags: [lane]}` | lane band; "→ tag: lib" / "remove first tag" |
+| 5 | empty canvas | position stored | `add_brick` untagged, at the drop point | "move here" / "place here" |
+
+Decisions (ambiguous points):
+
+- **No hold delay.** Folder targeting is immediate, like Finder / Explorer; the target shows
+  what will happen, and Esc or moving away cancels, so a hold adds latency without safety.
+- **Retag replaces the first tag only.** The first tag is the lane a brick is drawn in; other
+  tags are rule selectors the user set on purpose. A lane already among the other tags is not
+  duplicated. Untagged lane = drop the first tag.
+- **A lane drop lets the layout place the brick** (its stored position is cleared), so it lands
+  tidily in the lane instead of where the pointer was; a drop on empty canvas or in its own
+  lane keeps the exact position.
+- **A tile dropped in a brick does not navigate.** You stay on the level; the folder's child
+  count updates and the toast says "Added sub into cli · Ctrl+Z undoes".
+- **One gesture, one undo step.** A tile into a leaf records two ops; Undo retracts both, Redo
+  restores both (the page keeps the gesture's seq range).
+- **The tile ignores the frame edge** (a new brick cannot go "up"); breadcrumbs too.
+- **Spring-loaded zoom** (hover a folder ~800 ms to open its level mid-drag, macOS-style) is
+  deferred: the dragged brick belongs to the level on screen, and re-rendering another level
+  mid-drag loses it. Deeper drops: zoom in first. Back / Forward never record transient zooms.
+- **Feedback:** target highlights fade in (120 ms; none with `prefers-reduced-motion`); the
+  result label rides on the tile ghost or under the dragged brick; after a drop a toast names
+  the op(s) and "Ctrl+Z undoes".
 
 ### Connecting (dependency rules)
 
@@ -214,7 +255,10 @@ small lock icon.
 - **Conflict**: red striped outline + `!` badge on canvas; the op row explains ("rule #3 changed
   since; expected X, found Y") with actions Reject, or Re-apply-as-mine (Gap: needs a
   rebase helper). Publish is blocked and the button says why.
-- New agent ops arriving (poll) show a toast "Agent proposed 2 ops [Show]"; unseen ones pulse once.
+- Changes made elsewhere reach the page through Server-Sent Events (`/api/events`, see
+  `design.md` Serve "Events"): an agent's op is patched in place within a second; a re-measure
+  or a config edit outside the change shows a "… · Refresh" pill instead of reloading.
+- New agent ops arriving show a toast "Agent proposed 2 ops [Show]"; unseen ones pulse once.
 
 ## Change bar, preview, publish
 
@@ -237,7 +281,8 @@ small lock icon.
 | Hover brick | lift shadow, connection handles, name tooltip with file |
 | Selected | 2px accent outline, inspector populated |
 | Dragging brick | 60% ghost follows; original stays dimmed in place |
-| Valid drop target (move into) | target fill accent 10%, label "Move into X" |
+| Valid drop target (into a brick) | folder: accent fill, lid tab, label "into X (N inside)" |
+| Lane drop target | lane band accent, label "→ tag: T"; "+ new tag lane" zone under the last lane |
 | Parent drop zone | frame edge highlights, label "Move to <parent>" |
 | Invalid target | red outline, "no" cursor, reason tooltip |
 | Linking | rubber-band arrow; valid siblings outlined green; existing rule shows "already allowed by #n" |
@@ -270,10 +315,12 @@ small lock icon.
 | `Backspace` | out to parent level |
 | `Del` | delete selection (with confirm popover) |
 | `Ctrl+X` / `Ctrl+V` | move brick across levels |
-| `Ctrl+Z` | retract last human op |
+| `Ctrl+Z` | undo: retract the last human op (a multi-op gesture whole); also the change bar's Undo |
+| `Ctrl+Shift+Z` / `Ctrl+Y` | redo: restore the last retracted op (gesture whole); also Redo, whose tooltip names it |
+| `Alt+←` / `Alt+→`, mouse 4 / 5 | Back / Forward through the view history (level, selection) = browser history; `←` `→` buttons by the breadcrumb, tooltip "Back to root/core"; not while typing |
 | `A` / `R` / `N` | accept / reject / next proposal |
 | `P` `C` `D` | Preview / Current / Diff |
-| `Esc` | cancel drag, popover, tool |
+| `Esc` | cancel drag (the brick goes back), popover, tool |
 | `/` | find |
 | `+ - 0` | zoom, fit |
 

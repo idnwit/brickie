@@ -129,6 +129,7 @@ pub fn change_bar(cx: &Cx) -> View {
         format!("code measured {} min ago", s / 60)
     });
     let d = dialog(ed);
+    let undo = undo_redo(cx, &ch);
     view! {
         div(id="cbar") {
             span(class="muted") { "change" }
@@ -136,6 +137,7 @@ pub fn change_bar(cx: &Cx) -> View {
             (chips)
             (segs)
             span(class="muted") { (age) }
+            (undo)
             span(class="err-text") { (move || ed.msg.get_clone()) }
             button(class="go", on:click=move |_: Click| {
                 ed.dialog.set(Dialog::Publish(None));
@@ -143,6 +145,21 @@ pub fn change_bar(cx: &Cx) -> View {
             }) { "Publish\u{2026}" }
             button(class="danger", on:click=move |_: Click| ed.dialog.set(Dialog::Discard)) { "Discard" }
             (d)
+        }
+    }
+}
+
+/// Undo / Redo of the human's own ops, each naming what it would do.
+fn undo_redo(cx: &Cx, ch: &ChangeView) -> View {
+    let groups = cx.ed.groups.get_clone();
+    let (u, r) = (undo_target(ch), redo_target(ch));
+    let (ut, rt) = (undo_tip("Undo", u, &groups), undo_tip("Redo", r, &groups));
+    let (uoff, roff) = (u.is_none(), r.is_none());
+    let (c1, c2) = (cx.clone(), cx.clone());
+    view! {
+        span(class="seg") {
+            button(id="undo", title=format!("{ut} (Ctrl+Z)"), disabled=uoff, on:click=move |_: Click| super::keys::retract(&c1)) { "\u{21B6} Undo" }
+            button(id="redo", title=format!("{rt} (Ctrl+Shift+Z)"), disabled=roff, on:click=move |_: Click| super::keys::redo(&c2)) { "Redo \u{21B7}" }
         }
     }
 }

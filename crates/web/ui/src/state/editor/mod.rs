@@ -2,30 +2,47 @@
 //! helpers the components use to build ops, place bricks, hit-test drops, draw typed links and
 //! patch the levels in place. No DOM access.
 
+mod dnd;
 mod hit;
 mod link;
 mod ops;
 mod patch;
 mod sheet;
+mod undo;
 mod words;
 
+pub use dnd::*;
 pub use hit::*;
 pub use link::*;
 pub use ops::*;
 pub use patch::*;
 pub use sheet::*;
+pub use undo::*;
 pub use words::*;
 
 use brickie_web_api::ChangeView;
 use brickie_web_api::change::{BrickKind, LinkCheck, LinkOption, Plan};
 use sycamore::prelude::*;
 
-/// A brick being added: its kind and canvas (world) position; the name is asked inline.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// A brick being added: its kind, canvas (world) position and where it goes; the name (and
+/// for a new lane, the tag) is asked inline.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Draft {
     pub kind: BrickKind,
     pub x: f64,
     pub y: f64,
+    pub dest: Dest,
+}
+
+/// Where a new brick (or a lane drop) goes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Dest {
+    /// On this level, with these tags.
+    Here(Vec<String>),
+    /// Inside the brick of this name (a child of its level).
+    Into(String),
+    /// On this level, in a new tag lane (asked inline).
+    NewLane,
 }
 
 /// The modal dialog of the change bar.
@@ -67,8 +84,12 @@ pub struct RuleRef {
 /// Where a dragged brick would go on release.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MoveTarget {
-    /// Into the sibling at this index (held long enough).
+    /// Into the sibling at this index (like a folder).
     Into(usize),
+    /// Into a tag lane (`None`: the untagged lane).
+    Lane(Option<String>),
+    /// Onto the "+ new tag lane" zone (the tag is asked).
+    NewLane,
     /// Up to the level at this path (frame edge or breadcrumb).
     Up(String),
     /// Not allowed here, with the reason.
@@ -95,8 +116,15 @@ pub struct Edit {
     pub check: Signal<Option<(String, LinkCheck)>>,
     /// The brick under the pointer (ports show on it).
     pub hot: Signal<Option<usize>>,
-    /// A brick held over a sibling: the sibling and since when (ms).
-    pub hold: Signal<Option<(usize, f64)>>,
+    /// The brick under the pointer while dragging (the drop target's box).
+    pub over: Signal<Option<usize>>,
+    /// The ghost's result label while dragging (empty: not dragging).
+    pub aim_label: Signal<String>,
+    /// Gestures that recorded several ops, `(first seq, last seq)`: undo and redo take each
+    /// back or restore it whole.
+    pub groups: Signal<Vec<(u64, u64)>>,
+    /// A brick dropped on the new-lane zone: its name and where the tag box shows (world).
+    pub lane_ask: Signal<Option<(String, f64, f64)>>,
     pub target: Signal<Option<MoveTarget>>,
     pub rule: Signal<Option<RuleRef>>,
     /// Link options of the selected brick (the inspector's "now" lines).
@@ -131,7 +159,10 @@ impl Edit {
             connect: create_signal(None),
             check: create_signal(None),
             hot: create_signal(None),
-            hold: create_signal(None),
+            over: create_signal(None),
+            aim_label: create_signal(String::new()),
+            groups: create_signal(Vec::new()),
+            lane_ask: create_signal(None),
             target: create_signal(None),
             rule: create_signal(None),
             links: create_signal(Vec::new()),
@@ -150,7 +181,8 @@ impl Edit {
     /// Drop the armed tool, a drag in progress and any open form; false when nothing was.
     pub fn cancel(&self) -> bool {
         let armed = self.brick_tool.get().is_some() || self.link_type.get().is_some();
-        let open = self.draft.get().is_some()
+        let open = self.draft.with(Option::is_some)
+            || self.lane_ask.with(Option::is_some)
             || self.rename.with(Option::is_some)
             || self.connect.with(Option::is_some)
             || self.carry.get().is_some()
@@ -158,6 +190,10 @@ impl Edit {
         self.brick_tool.set(None);
         self.link_type.set(None);
         self.draft.set(None);
+        self.lane_ask.set(None);
+        self.aim_label.set(String::new());
+        self.target.set(None);
+        self.over.set(None);
         self.rename.set(None);
         self.connect.set(None);
         self.carry.set(None);

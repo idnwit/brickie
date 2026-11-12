@@ -1,7 +1,7 @@
 //! State that outlives a level: the URL params, the review state of every finding, the popup
 //! and menus, and the page data. [`Cx`] is rebuilt from it each time the level changes.
 
-use super::{Cx, Edit, Live};
+use super::{Bus, Cx, Edit, Live, Nav};
 use brickie_web_api::*;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -37,6 +37,10 @@ pub struct Shared {
     /// The levels and the open design change (patched in place by the editor).
     pub live: Live,
     pub ed: Edit,
+    /// Back / Forward history of the view.
+    pub nav: Signal<Nav>,
+    /// What the server's event stream drives (pill, measure job).
+    pub bus: Bus,
 }
 
 /// The [`Cx`] of the level on screen, for window-level handlers registered once.
@@ -58,6 +62,8 @@ impl Shared {
             })
             .collect();
         Shared {
+            nav: create_signal(Nav::new(initial.url())),
+            bus: Bus::new(),
             params: create_signal(initial),
             hover: create_signal(None),
             modal: create_signal(None),

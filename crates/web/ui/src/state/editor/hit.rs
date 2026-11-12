@@ -1,14 +1,11 @@
 //! Hit tests of the editor's gestures in canvas (world) space: bricks, tag lanes, the level
 //! frame's edge, and where a dragged brick would move.
 
-use super::{MoveTarget, layout_key};
+use super::layout_key;
 use crate::layout::{Rect, RowOut};
 use brickie_web_api::BrickView;
 use brickie_web_api::change::LayoutHint;
 use std::collections::BTreeMap;
-
-/// How long (ms) a brick must be held over a sibling before release moves it inside.
-pub const HOLD_MS: f64 = 400.0;
 
 /// Width (world units) of the band around the frame where a drop moves the brick up.
 const EDGE_BAND: f64 = 28.0;
@@ -77,25 +74,6 @@ pub fn parent_level(lv: &str) -> Option<String> {
     lv.rsplit_once('/').map(|(up, _)| up.to_string())
 }
 
-/// Where a dragged brick, held over `over` since `since` (ms), would go at time `now`: a sibling
-/// held long enough, the parent on the frame edge, or nothing.
-pub fn move_target(
-    bricks: &[BrickView],
-    over: Option<usize>,
-    hold: Option<(usize, f64)>,
-    now: f64,
-    up: Option<String>,
-) -> Option<MoveTarget> {
-    if let Some(t) = over {
-        if bricks[t].ghost {
-            return Some(MoveTarget::No("outside this level".into()));
-        }
-        let held = hold.is_some_and(|(h, since)| h == t && now - since >= HOLD_MS);
-        return held.then_some(MoveTarget::Into(t));
-    }
-    up.map(MoveTarget::Up)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -150,18 +128,5 @@ mod tests {
         assert!(!on_frame_edge(&f, (-100.0, 20.0)));
         assert_eq!(parent_level("root/web").as_deref(), Some("root"));
         assert_eq!(parent_level("root"), None);
-    }
-
-    #[test]
-    fn holding_over_a_sibling_moves_into_it() {
-        let bricks = vec![brick("a", false), brick("b", false), brick("x", true)];
-        let early = move_target(&bricks, Some(1), Some((1, 0.0)), 100.0, None);
-        assert_eq!(early, None);
-        let held = move_target(&bricks, Some(1), Some((1, 0.0)), 500.0, None);
-        assert_eq!(held, Some(MoveTarget::Into(1)));
-        let ghost = move_target(&bricks, Some(2), None, 0.0, None);
-        assert!(matches!(ghost, Some(MoveTarget::No(_))));
-        let up = move_target(&bricks, None, None, 0.0, Some("root".into()));
-        assert_eq!(up, Some(MoveTarget::Up("root".into())));
     }
 }

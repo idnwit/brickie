@@ -32,6 +32,9 @@ pub struct ChangeView {
     /// by the same relative path as `files` values: the editor's Rules / Level / Files tabs.
     #[serde(default)]
     pub sheets: BTreeMap<String, FileSheet>,
+    /// The redo stack: human ops retracted since their last new op (top last).
+    #[serde(default)]
+    pub redo: Vec<u64>,
     /// Why the preview does not load (the page then shows the current design).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -110,6 +113,10 @@ pub struct ChangeRetractRequest {
     #[serde(default)]
     pub seq: Option<u64>,
 }
+
+/// Restore the latest retracted human op (redo).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChangeRedoRequest {}
 
 /// Re-record the conflicting op `seq` as a human op against the current design.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

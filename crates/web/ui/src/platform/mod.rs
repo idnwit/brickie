@@ -25,7 +25,7 @@ mod imp {
         cb.forget();
     }
 
-    /// Key presses (Ctrl/Cmd chords as `Ctrl+<key>`) outside text inputs (`in_input` is true inside them); `f` returns whether to
+    /// Key presses (Ctrl/Cmd chords as `Ctrl+<key>` / `Ctrl+Shift+<key>`) outside text inputs (`in_input` is true inside them); `f` returns whether to
     /// `preventDefault`.
     pub fn on_key(f: impl Fn(String, bool) -> bool + 'static) {
         let cb =
@@ -34,7 +34,9 @@ mod imp {
                     return;
                 }
                 // Ctrl/Cmd chords arrive as `Ctrl+<key>` (lower case).
-                let key = if e.ctrl_key() || e.meta_key() {
+                let key = if (e.ctrl_key() || e.meta_key()) && e.shift_key() {
+                    format!("Ctrl+Shift+{}", e.key().to_lowercase())
+                } else if e.ctrl_key() || e.meta_key() {
                     format!("Ctrl+{}", e.key().to_lowercase())
                 } else {
                     e.key()
@@ -97,13 +99,6 @@ mod imp {
         if let Some(w) = web_sys::window() {
             let _ = w.set_timeout_with_callback_and_timeout_and_arguments_0(cb.unchecked_ref(), ms);
         }
-    }
-
-    /// Milliseconds since the page loaded (`performance.now()`).
-    pub fn now() -> f64 {
-        web_sys::window()
-            .and_then(|w| w.performance())
-            .map_or(0.0, |p| p.now())
     }
 
     /// The `href` of the breadcrumb link under client point `(x, y)`.
@@ -241,9 +236,6 @@ mod imp {
     pub fn typing() -> bool {
         false
     }
-    pub fn now() -> f64 {
-        0.0
-    }
     pub fn crumb_at(_: f64, _: f64) -> Option<String> {
         None
     }
@@ -256,4 +248,7 @@ mod imp {
     pub fn goto(_: &str) {}
 }
 
+mod live;
+
 pub use imp::*;
+pub use live::*;

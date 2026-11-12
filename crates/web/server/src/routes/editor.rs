@@ -82,6 +82,17 @@ pub async fn retract(
     Ok(Json(data::reply(&ch, entry, &files).map_err(fail)?))
 }
 
+pub async fn redo(
+    State(st): State<AppState>,
+    _: Guard,
+    Json(_): Json<ReqOf<ChangeRedo>>,
+) -> Res<ChangeRedo> {
+    let ch = open(&st)?;
+    let entry = ch.redo().map_err(fail)?;
+    let files = data::seq_files(&ch, entry.target).map_err(fail)?;
+    Ok(Json(data::reply(&ch, entry, &files).map_err(fail)?))
+}
+
 pub async fn reapply(
     State(st): State<AppState>,
     _: Guard,

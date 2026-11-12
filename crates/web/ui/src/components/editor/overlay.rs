@@ -2,74 +2,21 @@
 //! tile, the inline name box of a new or renamed brick, the delete confirmation, the tool hint,
 //! the op toast and error line, the empty-level hint and the Diff panel.
 
+use super::op;
+use super::place::{draft_box, lane_box};
 use super::toolbar::{kind_name, toolbar};
-use super::{op, op_then};
 use crate::state::*;
-use brickie_web_api::change::{BrickKind, LayoutHint};
-use brickie_web_api::*;
+
 use sycamore::prelude::*;
 
-fn stop(e: Click) {
+pub(super) fn stop(e: Click) {
     e.stop_propagation();
 }
 
 /// Screen style of world point `(x, y)`.
-fn at(cx: &Cx, x: f64, y: f64) -> String {
+pub(super) fn at(cx: &Cx, x: f64, y: f64) -> String {
     let v = cx.view.get();
     format!("left:{}px;top:{}px", x * v.k + v.x, y * v.k + v.y)
-}
-
-/// Store the drop point (so the patched level draws the brick there), then add the brick.
-fn add_draft(cx: &Cx, op: brickie_web_api::change::Op, key: String, d: Draft, name: String) {
-    let hint = Some(LayoutHint { x: d.x, y: d.y });
-    let c = cx.clone();
-    let req = ChangeLayoutRequest { brick: key, hint };
-    super::send::<ChangeLayout>(cx.ed, req, move |_| {
-        op_then(&c, op, move |now, _| super::select_brick(now, &name));
-    });
-}
-
-/// The inline name box of a brick being placed: Enter adds it where it was dropped.
-fn draft_box(cx: &Cx, d: Draft) -> View {
-    let ed = cx.ed;
-    let name = create_signal(String::new());
-    let members = create_signal(if d.kind == BrickKind::Module {
-        "crate::".to_string()
-    } else {
-        String::new()
-    });
-    let (file, lv) = (cx.level_file().unwrap_or_default(), cx.level().path.clone());
-    let c = cx.clone();
-    let add = move || {
-        // Read the box's signals before closing it (closing disposes them).
-        let (n, m) = (name.get_clone().trim().to_string(), members.get_clone());
-        if n.is_empty() {
-            return;
-        }
-        ed.draft.set(None);
-        add_draft(
-            &c,
-            add_brick_op(&file, d.kind, &n, &m),
-            layout_key(&lv, &n),
-            d,
-            n,
-        );
-    };
-    let a2 = add.clone();
-    let enter = move |e: web_sys::KeyboardEvent| match e.key().as_str() {
-        "Enter" => a2(),
-        "Escape" => ed.draft.set(None),
-        _ => {}
-    };
-    let module = (d.kind == BrickKind::Module).then(|| view! { input(class="inmem", r#type="text", title="members: crate::module", bind:value=members) });
-    let ph = format!("{} name, Enter", kind_name(d.kind).to_lowercase());
-    let style = at(cx, d.x, d.y);
-    view! {
-        div(class="inbox draft", style=style, on:mousedown=stop, on:click=stop) {
-            input(id="inline-name", r#type="text", placeholder=ph, bind:value=name, on:keydown=enter)
-            (module)
-        }
-    }
 }
 
 /// Inline rename on the box (F2): Enter renames.
@@ -183,15 +130,26 @@ pub fn overlay(cx: &Cx) -> View {
     let c = cx.clone();
     let floating = move || {
         let c = c.clone();
-        let draft = ed.draft.get().map(|d| untrack(|| draft_box(&c, d)));
+        let draft = ed.draft.get_clone().map(|d| untrack(|| draft_box(&c, d)));
+        let lane = ed
+            .lane_ask
+            .get_clone()
+            .map(|(n, x, y)| untrack(|| lane_box(&c, n, x, y)));
         let rename = ed.rename.get_clone().map(|n| untrack(|| rename_box(&c, n)));
         let del = ed.confirm.get().then(|| untrack(|| confirm_delete(&c)));
         let diff = ed.diff.get().then(|| untrack(|| diff_panel(&c)));
-        view! { (draft) (rename) (del) (diff) }
+        view! { (draft) (lane) (rename) (del) (diff) }
     };
     let ghost = move || match ed.carry.get() {
         Some((k, x, y)) => {
-            view! { div(class="tghost", style=format!("left:{}px;top:{}px", x - 50.0, y - 18.0)) { (kind_name(k)) } }
+            let no = ed.target.with(|t| matches!(t, Some(MoveTarget::No(_))));
+            let cls = if no { "tghost no" } else { "tghost" };
+            view! {
+                div(class=cls, style=format!("left:{}px;top:{}px", x - 50.0, y - 18.0)) {
+                    (kind_name(k))
+                    span(class="aimlbl") { (ed.aim_label.get_clone()) }
+                }
+            }
         }
         None => View::default(),
     };

@@ -129,6 +129,8 @@ pub enum ChangeCmd {
     },
     /// Take back a human op (undo; default: the latest one). The log keeps it, rejected.
     Retract { seq: Option<u64> },
+    /// Restore the latest retracted human op (redo); a new human op clears the redo stack.
+    Redo,
     /// Re-record a conflicting op as a human op against the current design; the original is
     /// rejected.
     Reapply { seq: u64 },

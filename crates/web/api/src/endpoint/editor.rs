@@ -6,8 +6,8 @@ use super::Endpoint;
 use crate::change::{LinkCheck, LinkOption, OpRecord, Plan, ReviewEntry};
 use crate::{
     ChangeLayoutRequest, ChangeLevelsRequest, ChangeLinkCheckRequest, ChangeLinksRequest,
-    ChangeMoveRequest, ChangeOpRequest, ChangeOpenRequest, ChangeReapplyRequest, ChangeReply,
-    ChangeRetractRequest, ChangeReviewRequest, ChangeView, LevelView,
+    ChangeMoveRequest, ChangeOpRequest, ChangeOpenRequest, ChangeReapplyRequest, ChangeRedoRequest,
+    ChangeReply, ChangeRetractRequest, ChangeReviewRequest, ChangeView, LevelView,
 };
 
 /// `GET /api/change`: the open change (`null`: none is open).
@@ -55,6 +55,15 @@ pub struct ChangeRetract;
 impl Endpoint for ChangeRetract {
     const PATH: &'static str = "/api/change/retract";
     type Req = ChangeRetractRequest;
+    type Res = ChangeReply<ReviewEntry>;
+}
+
+/// `POST /api/change/redo`: restore the latest retracted human op (409 when it no longer
+/// applies or nothing is retracted).
+pub struct ChangeRedo;
+impl Endpoint for ChangeRedo {
+    const PATH: &'static str = "/api/change/redo";
+    type Req = ChangeRedoRequest;
     type Res = ChangeReply<ReviewEntry>;
 }
 

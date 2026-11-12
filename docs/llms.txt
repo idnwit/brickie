@@ -84,7 +84,9 @@ when the human publishes.
   design (accepted and proposed ops) against the code. It also lists `change/planned` notes.
 - Stop and ask the human when an op of yours is rejected or in conflict; do not re-propose the
   same op. The human may take back their own ops (`brickie change retract [seq]`, an entry with
-  verdict `retract`; the op then counts as rejected) or re-record a conflicting op against the
+  verdict `retract`; the op then counts as rejected), restore the latest retracted one
+  (`brickie change redo`, verdict `restore`; refused when it no longer applies; a new human op
+  clears what can be redone) or re-record a conflicting op against the
   current design (`brickie change reapply <seq>`: a new human op, the original rejected with
   note `re-applied as op N`).
 - `brickie change publish --dry-run` shows what publishing would write and why it would refuse;
@@ -99,7 +101,7 @@ proposed|accepted|rejected, review: {seq, by, note}, conflict}`; `file` is the p
 file it edits (relative to the root config's directory), `key` the element (`brick:<name>`,
 `rule:<i>`, `complexity:<i>`, `exports`, `deps`, `include`, `file`), `before` / `after` its
 canonical TOML. A review entry is `{entry: "review", seq, by, at, target, verdict:
-accept|reject|retract, note}`.
+accept|reject|retract|restore, note}`.
 
 Ops (`file` is required on each; fields mirror the `brickie.toml` reference below):
 

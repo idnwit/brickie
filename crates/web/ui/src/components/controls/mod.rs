@@ -74,7 +74,8 @@ pub fn header(cx: &Cx) -> View {
     let dragged = move || !c.drag.with(|d| d.is_empty());
     let counts = counts(cx);
     let design = crate::components::editor::design_button(cx);
-    let measure = measure::measure(&cx.m.cache);
+    let measure = measure::measure(&cx.m.cache, cx.bus.job);
+    let pill = measure::pill(cx.bus.pill);
     view! {
         header {
             b { "brickie" }
@@ -86,6 +87,7 @@ pub fn header(cx: &Cx) -> View {
             button(id="reload", on:click=move |_: Click| platform::reload()) { "Reload" }
             (design)
             (measure)
+            (pill)
             span(class="cnt") { (counts) }
         }
     }

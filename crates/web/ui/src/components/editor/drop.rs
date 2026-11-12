@@ -1,11 +1,11 @@
 //! Pointer hooks of edit mode. On move: a carried brick tile follows the pointer, a port drag
-//! updates its rubber band, a dragged brick finds where it would go (held over a sibling: move
-//! into; on the frame edge or a breadcrumb: move up), and hovering shows a brick's ports. On
-//! release: the tile becomes an inline-named draft, the link becomes a rule, the brick moves
-//! (or its position is stored).
+//! updates its rubber band, a dragged brick or tile aims (see `aim`), and hovering shows a
+//! brick's ports. On release: a tile becomes an inline-named draft where it was aimed (here, in
+//! a lane, inside a brick, in a new lane), the link becomes a rule, a brick moves into a brick
+//! or up, changes lane, or just stores its position.
 
-use super::{connect, send, write};
-use crate::components::canvas::frame_rect;
+use super::aim::{aim, clear};
+use super::{connect, op, send, write};
 use crate::platform;
 use crate::state::*;
 use brickie_web_api::change::LayoutHint;
@@ -22,55 +22,6 @@ pub fn world(cx: &Cx, x: f64, y: f64) -> Option<(f64, f64)> {
     Some(((sx - v.x) / v.k, (sy - v.y) / v.k))
 }
 
-/// The level a breadcrumb under the pointer names (an ancestor of the level on screen).
-fn crumb_level(x: f64, y: f64) -> Option<String> {
-    let href = platform::crumb_at(x, y)?;
-    let q = href.split_once('?').map_or("", |(_, q)| q);
-    Some(Params::from_query(q).level_path().to_string())
-        .map(|l| if l.is_empty() { "root".into() } else { l })
-}
-
-/// After the hold time, a brick still held over sibling `t` targets it (move into).
-fn arm_hold(cx: &Cx, t: usize) {
-    let c = cx.clone();
-    platform::after(HOLD_MS as i32 + 20, move || {
-        // The level may have been re-rendered meanwhile (its signals gone).
-        let held = c.op.is_alive()
-            && c.ed.hold.get().map(|h| h.0) == Some(t)
-            && matches!(c.op.get(), Some(Op::Drag { .. }));
-        if held && !c.m.g.bricks[t].ghost {
-            c.ed.target.set(Some(MoveTarget::Into(t)));
-        }
-    });
-}
-
-/// Where the dragged brick `b` would go with the pointer at client `(x, y)`.
-fn aim(cx: &Cx, b: usize, x: f64, y: f64) {
-    let ed = cx.ed;
-    let pos = positions(&cx.m.layout, &cx.drag.get_clone_untracked());
-    let at = world(cx, x, y);
-    let over = at.and_then(|p| hit_any(&pos, p, Some(b)));
-    if over != ed.hold.get().map(|h| h.0) {
-        ed.hold.set(over.map(|t| (t, platform::now())));
-        if let Some(t) = over {
-            arm_hold(cx, t);
-        }
-    }
-    let edge = at
-        .zip(frame_rect(&cx.m.g, &pos))
-        .is_some_and(|(p, f)| on_frame_edge(&f, p));
-    let up = crumb_level(x, y)
-        .filter(|l| *l != cx.level().path)
-        .or_else(|| edge.then(|| parent_level(&cx.level().path)).flatten());
-    ed.target.set(move_target(
-        &cx.m.g.bricks,
-        over,
-        ed.hold.get(),
-        platform::now(),
-        up,
-    ));
-}
-
 /// The pointer moved to client `(x, y)`: the canvas operation to go on with, `None` when the
 /// editor consumed the move (or there is none).
 pub fn pointer_op(cx: &Cx, x: f64, y: f64) -> Option<Op> {
@@ -85,6 +36,7 @@ fn pointer_move(cx: &Cx, x: f64, y: f64) -> bool {
     let ed = cx.ed;
     if let Some((k, _, _)) = ed.carry.get() {
         ed.carry.set(Some((k, x, y)));
+        aim(cx, Carried::Tile, x, y);
         return true;
     }
     if ed.connect.with(Option::is_some) {
@@ -94,7 +46,7 @@ fn pointer_move(cx: &Cx, x: f64, y: f64) -> bool {
         return true;
     }
     if let (Some(Op::Drag { b, .. }), true) = (cx.op.get(), cx.moved.get()) {
-        aim(cx, b, x, y);
+        aim(cx, Carried::Brick(b), x, y);
         return false;
     }
     if cx.op.get().is_none() {
@@ -121,9 +73,15 @@ fn hover(cx: &Cx, x: f64, y: f64) {
     }
 }
 
-fn draft_at(cx: &Cx, kind: brickie_web_api::change::BrickKind, x: f64, y: f64) {
+/// Open the inline name box of a new `kind` brick at client `(x, y)`, going to `dest`.
+fn draft_at(cx: &Cx, kind: brickie_web_api::change::BrickKind, x: f64, y: f64, dest: Dest) {
     if let Some((wx, wy)) = world(cx, x, y) {
-        cx.ed.draft.set(Some(Draft { kind, x: wx, y: wy }));
+        cx.ed.draft.set(Some(Draft {
+            kind,
+            x: wx,
+            y: wy,
+            dest,
+        }));
         cx.ed.brick_tool.set(None);
         // The box renders synchronously: focus it now, and again once painted.
         platform::focus("inline-name");
@@ -131,47 +89,98 @@ fn draft_at(cx: &Cx, kind: brickie_web_api::change::BrickKind, x: f64, y: f64) {
     }
 }
 
-fn move_brick(cx: &Cx, name: String, into: Vec<String>) {
+/// A tile released where it was aimed.
+fn drop_tile(cx: &Cx, kind: brickie_web_api::change::BrickKind, x: f64, y: f64) {
+    let target = cx.ed.target.get_clone();
+    clear(cx.ed);
+    let dest = match target {
+        Some(MoveTarget::Into(t)) => Dest::Into(cx.m.g.bricks[t].name.clone()),
+        Some(MoveTarget::Lane(l)) => Dest::Here(l.into_iter().collect()),
+        Some(MoveTarget::NewLane) => Dest::NewLane,
+        Some(MoveTarget::No(why)) => return cx.ed.msg.set(format!("Cannot add there: {why}")),
+        Some(MoveTarget::Up(_)) | None => Dest::Here(vec![]),
+    };
+    draft_at(cx, kind, x, y, dest);
+}
+
+fn move_brick(cx: &Cx, name: String, into: Vec<String>, place: String) {
     let req = ChangeMoveRequest {
         from: brick_path(&cx.level().path, &name),
         into,
         note: None,
     };
-    let toast = format!("Moved {name}; code is not moved on publish (manual step)");
+    let toast =
+        format!("Moved {name} {place} \u{00B7} Ctrl+Z undoes; code is not moved on publish");
     write::<ChangeMove, _>(cx, req, toast, |_, _| {});
 }
 
-fn store_position(cx: &Cx, b: usize) {
+/// Store brick `b`'s position (`keep`: where it was dropped; else drop the stored one, so the
+/// layout places it in its new lane), then `then`.
+fn store_position(cx: &Cx, b: usize, keep: bool, then: impl FnOnce() + 'static) {
     let pos = positions(&cx.m.layout, &cx.drag.get_clone());
     let req = ChangeLayoutRequest {
         brick: layout_key(&cx.level().path, &cx.m.g.bricks[b].name),
-        hint: Some(LayoutHint {
+        hint: keep.then_some(LayoutHint {
             x: pos[b].x,
             y: pos[b].y,
         }),
     };
-    send::<ChangeLayout>(cx.ed, req, |_| {});
+    send::<ChangeLayout>(cx.ed, req, move |_| then());
 }
 
-/// The end of a brick drag: move it, refuse, or store its position.
-fn drop_brick(cx: &Cx, b: usize) {
+/// The end of a brick drag: into a brick, up, to another lane, refused, or repositioned.
+fn drop_brick(cx: &Cx, b: usize, back: (f64, f64)) {
     let ed = cx.ed;
     let target = ed.target.get_clone();
-    ed.target.set(None);
-    ed.hold.set(None);
-    if cx.m.g.bricks[b].ghost {
+    clear(ed);
+    let brick = &cx.m.g.bricks[b];
+    if brick.ghost {
         return;
     }
-    let name = cx.m.g.bricks[b].name.clone();
+    let name = brick.name.clone();
     match target {
         Some(MoveTarget::Into(t)) => {
-            let into = brick_path(&cx.level().path, &cx.m.g.bricks[t].name);
-            move_brick(cx, name, into);
+            let into = &cx.m.g.bricks[t].name;
+            let place = format!("into {into}");
+            move_brick(cx, name, brick_path(&cx.level().path, into), place);
         }
-        Some(MoveTarget::Up(level)) => move_brick(cx, name, level_brick_path(&level)),
-        Some(MoveTarget::No(why)) => ed.msg.set(format!("Cannot move {name} there: {why}")),
-        None => store_position(cx, b),
+        Some(MoveTarget::Up(level)) => {
+            let place = format!("up to {level}");
+            move_brick(cx, name, level_brick_path(&level), place);
+        }
+        Some(MoveTarget::Lane(lane)) => {
+            let file = cx.level_file().unwrap_or_default();
+            let o = retag_op(&file, brick, lane.as_deref());
+            let c = cx.clone();
+            store_position(cx, b, false, move || o.into_iter().for_each(|o| op(&c, o)));
+        }
+        Some(MoveTarget::NewLane) => {
+            let p = positions(&cx.m.layout, &cx.drag.get_clone())[b];
+            ed.lane_ask.set(Some((name, p.x, p.y)));
+            platform::next_frame(|| platform::focus("inline-name"));
+        }
+        Some(MoveTarget::No(why)) => {
+            cx.drag.update(|d| {
+                d.insert(b, back);
+            });
+            ed.msg.set(format!("Cannot move {name} there: {why}"));
+        }
+        None => store_position(cx, b, true, || {}),
     }
+}
+
+/// Esc during a brick drag: put it back and forget the drag. True when there was one.
+pub fn cancel_drag(cx: &Cx) -> bool {
+    let Some(Op::Drag { b, dx0, dy0, .. }) = cx.op.get() else {
+        return false;
+    };
+    cx.drag.update(|d| {
+        d.insert(b, (dx0, dy0));
+    });
+    cx.op.set(None);
+    cx.moved.set(false);
+    clear(cx.ed);
+    true
 }
 
 /// The pointer went up at client `(x, y)` during `op`.
@@ -182,7 +191,7 @@ pub fn release(cx: &Cx, x: f64, y: f64, op: Option<Op>) {
     let ed = cx.ed;
     if let Some((kind, _, _)) = ed.carry.get() {
         ed.carry.set(None);
-        draft_at(cx, kind, x, y);
+        drop_tile(cx, kind, x, y);
         return;
     }
     if ed.connect.with(Option::is_some) {
@@ -192,10 +201,12 @@ pub fn release(cx: &Cx, x: f64, y: f64, op: Option<Op>) {
     match op {
         Some(Op::Pan { sx, sy, .. }) if (x - sx).abs() + (y - sy).abs() < 4.0 => {
             if let Some(kind) = ed.brick_tool.get() {
-                draft_at(cx, kind, x, y);
+                // A click with the armed tile: into the brick or lane under it, like a drop.
+                super::aim::aim(cx, Carried::Tile, x, y);
+                drop_tile(cx, kind, x, y);
             }
         }
-        Some(Op::Drag { b, .. }) if cx.moved.get() => drop_brick(cx, b),
-        _ => {}
+        Some(Op::Drag { b, dx0, dy0, .. }) if cx.moved.get() => drop_brick(cx, b, (dx0, dy0)),
+        _ => clear(ed),
     }
 }
