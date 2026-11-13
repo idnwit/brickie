@@ -68,8 +68,7 @@ reason = "the viewer lays out the brick graph; the server mounts the code viewer
 
 # lib depends on nothing of brickie: no rule allows lib -> *.
 
-# Business logic: strict, an error (docs/proposals/core-split.md, "Complexity policy"; the
-# functions that exceeded it were refactored in docs/proposals/complexity-refactor.md).
+# Business logic: strict, an error (docs/design/complexity.md).
 [[complexity]]
 bricks = "tag:domain"
 cognitive = 15

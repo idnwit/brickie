@@ -3,7 +3,7 @@
 //! axum serves a page rendered by sycamore (`brickie-ui`) with hydration keys, JSON endpoints
 //! and the code viewer (`/code/`). Every GET depends only on its query params, the cache and the config,
 //! all read per request. The browser bundle (wasm) is optional: without it the page is a
-//! read-only SSR page whose filters are plain links. See docs/design.md, step 3.
+//! read-only SSR page whose filters are plain links. See docs/design/serve.md.
 mod code;
 mod data;
 mod events;

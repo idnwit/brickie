@@ -6,8 +6,10 @@
 Commits and PR titles must follow [Conventional Commits](https://www.conventionalcommits.org/):
 `<type>(<optional scope>): <summary>` with type one of `feat`, `fix`, `docs`, `refactor`,
 `perf`, `test`, `build`, `ci`, `chore`, `revert`; add `!` or a `BREAKING CHANGE:` footer for
-breaking changes. PRs are squash-merged, so the PR title becomes the commit on `main`; the
-`pr-title` check enforces it. The changelog and version bump are generated from these commits.
+breaking changes. PRs are merged by squash or rebase (no merge commits; `main` keeps a linear
+history). With squash the PR title becomes the commit on `main` (the `pr-title` check enforces
+it); with rebase every commit must be a Conventional Commit. The changelog and version bump are
+generated from these commits.
 
 ## Checks
 

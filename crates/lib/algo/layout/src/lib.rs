@@ -5,7 +5,7 @@
 //! isotonic regression, ports on all four sides and smooth cubic routes.
 //!
 //! Pure and deterministic: [`layout`] has no randomness (fixed LCG seeds). Every function names
-//! its JavaScript original. Deviations are listed in `docs/design.md`, step 3.
+//! its JavaScript original. Deviations are listed in `docs/design/serve.md`, "Layout port".
 
 // The index loops and tuple-heavy tables mirror the original line by line.
 #![allow(clippy::needless_range_loop, clippy::type_complexity)]
