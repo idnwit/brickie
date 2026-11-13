@@ -1,4 +1,4 @@
-//! The code viewer's contract (docs/proposals/code-viewer.md): what a host provides (data types
+//! The code viewer's contract (docs/design/serve.md, "Code viewer"): what a host provides (data types
 //! and the [`Provider`] trait), the HTTP endpoints the viewer calls, and the iframe messages
 //! between the host page and the viewer. No dependency on any host application.
 

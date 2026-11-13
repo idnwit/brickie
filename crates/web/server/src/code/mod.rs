@@ -1,4 +1,4 @@
-//! brickie's adapter for the code viewer (docs/proposals/code-viewer.md): implements the
+//! brickie's adapter for the code viewer (docs/design/serve.md, "Code viewer"): implements the
 //! `codeview` provider port from the config, the cache and the check result, read per request
 //! like every other route. Trees in `views`, file text in `read`, findings as marks in `marks`,
 //! function complexity trees as gutter bands in `bands`,
