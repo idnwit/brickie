@@ -40,5 +40,5 @@ wasm-bindgen --target web --no-typescript --out-dir "$out" --out-name codeview_a
   "target/wasm32-unknown-unknown/$profile/codeview_app.wasm"
 cp crates/lib/codeview/app/static/index.html crates/lib/codeview/app/static/glue.js \
   crates/lib/codeview/app/static/codeview.css "$out/"
-du -sh --apparent-size "$out"
+du -sh "$out"
 ls -l "$out/codeview_app_bg.wasm"
