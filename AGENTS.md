@@ -20,16 +20,37 @@ agreed requirements, decisions and status; keep it in step with the code.
 - Keep user-facing discussion short. Distinguish proposals from implemented and verified
   behaviour; never report something as done without code and verification.
 
+## Token economy
+
+Adapted from the caveman skill; full rules in [.rules/caveman.md](.rules/caveman.md). Every token is
+billed and read.
+
+- Chat replies: answer first, then reason, then next step. No greeting, hedging, recap or closer.
+  Short words, one idea per sentence. Drop articles only when the sentence still reads in one pass;
+  never drop `not`/`never`/`no`/`only`. Reply in the user's language.
+- Code, commands, paths, numbers and errors stay verbatim. Quote only the shortest decisive error
+  line. Show changed lines plus 1-2 lines of context, not whole files.
+- No text between routine tool calls. One line before a multi-step run, one per phase change, one
+  with the result.
+- Read only what is needed: search first, then read a line range. Do not re-read a file just edited.
+  Send searches, sweeps and check runs to a small subagent and keep only its conclusion.
+- Use plain full sentences for anything persisted (code, comments, docs, commits, PRs), for
+  security warnings, irreversible actions, and questions to the user.
+- Docs: state each fact once and link instead of repeating. Prefer tables and lists over prose.
+  Drop history, narration and status that git already holds; keep decisions and their reasons.
+
 ## Code and verification
 
 - Rust checks: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`
   (plus `cargo clippy -p brickie-ui --features hydrate --target wasm32-unknown-unknown` when the
   UI changed), `cargo test --workspace`. Documentation-only changes need a consistency and link
   review.
-- Source layout is in `docs/design.md` ("Code layout"): folders by concern, small focused files
+- Source layout is in `docs/design/layout.md`: folders by concern, small focused files
   (about 300 lines or fewer, tests aside), no flat `src/`; crates by layer under `crates/`.
 - Development stage: no backward compatibility. Keep a single current API/model path; breaking
   CLI or schema changes are fine, but update callers, docs and tests in the same change.
+- `docs/llms.txt` is embedded in the binary and read by agents with no repo access: keep it
+  standalone, with no links or references to other repo files.
 - Adding a diagnostic code: add it to `crates/core/model/src/codes.rs` and document how to fix it in
   `docs/llms.txt` (a test enforces this).
 - The viewer bundle is built with `scripts/build-ui.sh`; `assets/ui/` is git-ignored.

@@ -2,7 +2,7 @@
 //!
 //! The same components run in two places: on the server, where [`render_page`] renders them to
 //! HTML with hydration keys, and in the browser, where the `hydrate` export (feature `hydrate`,
-//! wasm32 only) attaches signals to that HTML. See `docs/design.md`, step 3.
+//! wasm32 only) attaches signals to that HTML. See `docs/design/serve.md`, "Layout port".
 
 mod components;
 pub use brickie_layout as layout;
