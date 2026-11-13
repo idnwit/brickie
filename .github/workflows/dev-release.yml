@@ -3,6 +3,8 @@ name: dev release
 on:
   push:
     branches: [main]
+  # Manual runs from a branch build every target but never publish (see the publish job).
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -58,6 +60,7 @@ jobs:
   publish:
     name: publish dev release
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
