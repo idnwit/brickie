@@ -17,6 +17,11 @@ resolution: [check.md](check.md).
 | Brick mapping | not in the cache | editing config never needs a re-measure |
 | Cycles | per composite | names are local to a level |
 
+Decision: a rule's `via` names exported children of its `to` composite, so a root rule can say
+"ui may use only `ports-in` of `application`". It adds no new selector kind: exports remain the
+ceiling and the rule order stays irrelevant (two independent reviews preferred it to path
+selectors).
+
 Rejected: `imports` lists, `@` selectors (lifting to the common ancestor gives the policy),
 auto-discovery of nested configs, `pub`-derived exports, friend exports, cross-level selectors,
 wheel-driven semantic zoom.

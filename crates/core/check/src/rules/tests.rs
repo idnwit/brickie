@@ -65,7 +65,7 @@ fn edges_are_checked_at_the_common_ancestor() {
         &f,
         "deps/default",
         "root",
-        "`core` (core) uses `web` (app) in tests"
+        "`core` (core) uses `web` (app) via `ui` in tests"
     ));
     let root_defaults = f
         .iter()

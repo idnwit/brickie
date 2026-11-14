@@ -269,3 +269,47 @@ members = ["module:app::parent"]
     assert_eq!(resolved.path("app::parent").unwrap(), ["parent", "leaf"]);
     assert_eq!(resolved.path("app::parent::child").unwrap(), ["descendant"]);
 }
+
+#[test]
+fn via_must_name_exports_of_a_composite() {
+    let root = |rule: &str| {
+        format!("{ROOT}\n[[deps.rule]]\nfrom = \"core\"\nto = {rule}\naction = \"allow\"\n")
+    };
+    let cases = [
+        ("\"web\"\nvia = [\"api\"]", None),
+        (
+            "\"web\"\nvia = [\"shared\"]",
+            Some("'shared' is not exported"),
+        ),
+        ("\"web\"\nvia = []", Some("empty list")),
+        (
+            "\"core\"\nvia = [\"api\"]",
+            Some("needs `to` to name a composite"),
+        ),
+        (
+            "\"tag:app\"\nvia = [\"api\"]",
+            Some("needs `to` to name a composite"),
+        ),
+        (
+            "\"*\"\nvia = [\"api\"]",
+            Some("needs `to` to name a composite"),
+        ),
+    ];
+    for (to, bad) in cases {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("crates/web")).unwrap();
+        std::fs::write(dir.path().join("brickie.toml"), root(to)).unwrap();
+        std::fs::write(dir.path().join("crates/web/brickie.toml"), WEB).unwrap();
+        let r = load(&dir.path().join("brickie.toml"));
+        match bad {
+            None => assert!(r.is_ok(), "{to}: {:?}", r.err()),
+            Some(m) => {
+                let e = format!("{:#}", r.unwrap_err());
+                assert!(
+                    e.contains("config/unknown-via") && e.contains(m),
+                    "{to}: {e}"
+                );
+            }
+        }
+    }
+}

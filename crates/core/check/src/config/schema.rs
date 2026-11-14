@@ -97,6 +97,20 @@ impl Scope {
     }
 }
 
+impl DepRule {
+    /// Specificity of the `to` side for a target brick entered through child `entered`
+    /// (`None` for a leaf target): a `via` rule needs the child in `via` and scores one more.
+    pub fn to_rank(&self, to: &Brick, entered: Option<&str>) -> Option<u32> {
+        let base = self.to.specificity(to)?;
+        match &self.via {
+            None => Some(base),
+            Some(via) => entered
+                .is_some_and(|e| via.iter().any(|v| v == e))
+                .then_some(base + 1),
+        }
+    }
+}
+
 pub const KINDS: [&str; 3] = ["uses", "implements", "reexports"];
 
 #[derive(Debug, Clone, Deserialize)]
@@ -104,6 +118,8 @@ pub const KINDS: [&str; 3] = ["uses", "implements", "reexports"];
 pub struct DepRule {
     pub from: Sel,
     pub to: Sel,
+    /// Exported children of the `to` composite the rule applies to; `None` matches any entry.
+    pub via: Option<Vec<String>>,
     /// Empty means all kinds.
     #[serde(default)]
     pub kinds: Vec<String>,

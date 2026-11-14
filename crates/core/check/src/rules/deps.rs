@@ -20,17 +20,21 @@ struct Dep {
     to_module: String,
     kind: String,
     scope: String,
+    /// The child of `to` the edge enters through; `None` when `to` is a leaf.
+    entered: Option<String>,
     evidence: Vec<Evidence>,
     /// Index and rule that denied the edge; `None` when the default applied.
     rule: Option<(usize, DepRule)>,
 }
 
 /// The most specific matching rule (brick 3 > tag 2 > `*` 1, summed over from and to); on a
-/// tie a deny rule wins.
+/// tie a deny rule wins. A rule with `via` matches only an edge entering `to` through one of
+/// those children and scores one more on the `to` side.
 fn pick_rule<'a>(
     rules: &'a [DepRule],
     from: &Brick,
     to: &Brick,
+    entered: Option<&str>,
     kind: &str,
     scope: &str,
 ) -> Option<(usize, &'a DepRule)> {
@@ -39,7 +43,7 @@ fn pick_rule<'a>(
         if !(r.kinds.is_empty() || r.kinds.iter().any(|k| k == kind)) || !r.scope.matches(scope) {
             continue;
         }
-        let (Some(a), Some(b)) = (r.from.specificity(from), r.to.specificity(to)) else {
+        let (Some(a), Some(b)) = (r.from.specificity(from), r.to_rank(to, entered)) else {
             continue;
         };
         let rank = a + b;
@@ -77,7 +81,8 @@ pub(super) fn deps(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Bo
             }));
         }
         let rules = &l.level.deps;
-        let rule = pick_rule(&rules.rules, l.from, l.to, &e.kind, &e.scope);
+        let entered = p2.get(l.k + 1).map(String::as_str);
+        let rule = pick_rule(&rules.rules, l.from, l.to, entered, &e.kind, &e.scope);
         if rule.map_or(rules.default, |(_, r)| r.action) == Action::Allow {
             continue;
         }
@@ -90,6 +95,7 @@ pub(super) fn deps(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Bo
             to_module: e.to,
             kind: e.kind,
             scope: e.scope,
+            entered: entered.map(String::from),
             evidence: e.evidence,
             rule: rule.map(|(i, r)| (i, r.clone())),
         }));
@@ -106,6 +112,11 @@ pub(super) fn verb(kind: &str) -> &'static str {
 
 pub(super) fn in_tests(scope: &str) -> &'static str {
     if scope == "test" { " in tests" } else { "" }
+}
+
+/// ` via `ports-out`` for an edge entering a composite through that child.
+pub(super) fn via_note(entered: Option<&str>) -> String {
+    entered.map_or_else(String::new, |e| format!(" via `{e}`"))
 }
 
 /// ` (in root/web)` below the root, empty at the root.
@@ -139,12 +150,13 @@ impl Finding for Dep {
     }
     fn message(&self) -> String {
         format!(
-            "`{}`{} {} `{}`{}{}{}",
+            "`{}`{} {} `{}`{}{}{}{}",
             self.from.name,
             tags(&self.from),
             verb(&self.kind),
             self.to.name,
             tags(&self.to),
+            via_note(self.entered.as_deref()),
             in_tests(&self.scope),
             at_level(&self.level)
         )
