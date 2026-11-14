@@ -72,8 +72,12 @@ you, hand edit), task chips (planned bricks, rules without a reason) and Undo / 
 - Undo (`Ctrl+Z`) reverts your latest edit as a new version; Redo (`Ctrl+Shift+Z`) reverts the
   undo.
 - When a coding agent (`brickie design ...`) or a hand edit changes the design, the page updates
-  in place and a toast names the change with an Undo. An edit of yours based on an older version
-  is re-sent on the new one; when it no longer applies, a toast says why.
+  in place and a toast names the change with an Undo (`agent v16: <note>` when the version has
+  a note). An edit of yours based on an older version is re-sent on the new one only when no
+  version in between touched the same brick, rule or limit; otherwise a toast says
+  `Not applied: agent v16 changed brick web`.
+- The copy icon next to the name of a selected brick or rule (tooltip "Copy ref for the agent")
+  copies its CLI name (`web/api`, `rule web -> store (prod)`) to paste into the agent's chat.
 - Bricks keep where you drop them (`.brickie/layout.json`, not part of the design). Auto layout
   forgets the positions of the level on screen and lays it out again.
 

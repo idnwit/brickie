@@ -153,3 +153,20 @@ fn history_keeps_at_most_cap_versions() {
     let first = d.state(log[0].v).unwrap();
     assert!(String::from_utf8_lossy(&first["brickie.toml"]).contains("desc = \"d3\""));
 }
+
+#[test]
+fn dry_run_reports_and_writes_nothing() {
+    let ws = Ws::new();
+    let d = ws.design();
+    let base = d.head().unwrap().v;
+    let before = ws.read("brickie.toml");
+    let plan = d.dry_run(base, vec![add("c", &["pc"])]).unwrap();
+    assert!(
+        plan.diff.iter().any(|l| l.contains("brick c")),
+        "{:?}",
+        plan.diff
+    );
+    assert_eq!(ws.read("brickie.toml"), before);
+    assert_eq!(d.log().unwrap().len(), 1);
+    assert!(d.dry_run(base + 1, vec![add("c", &[])]).is_err());
+}

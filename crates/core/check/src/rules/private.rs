@@ -63,8 +63,8 @@ impl Finding for Private {
     }
     fn help(&self) -> Option<String> {
         Some(format!(
-            "use an exported brick of `{}` instead; if `{}` is meant to be public, add it to `exports` in that file (or a scoped entry such as {{ brick = \"{}\", scope = \"test\" }})",
-            self.to, self.hidden, self.hidden
+            "use an exported brick of `{}` instead; if `{}` is meant to be public, add it to `exports` in that file (or a scoped entry such as {{ brick = \"{}\", scope = \"test\" }}); or run `brickie design export set {} [--scope prod|test]`",
+            self.to, self.hidden, self.hidden, self.hidden
         ))
     }
     /// Names are local to the finding's level (the composite): the hidden child.

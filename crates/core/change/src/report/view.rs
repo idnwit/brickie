@@ -6,7 +6,7 @@ use crate::paths::to_rel;
 use anyhow::Result;
 use brickie_check::check;
 use brickie_check::config::{self, Action, Brick, Config, Scope, level_name};
-use brickie_model::design::{BrickView, DesignView, LevelView, LimitView, RuleView};
+use brickie_model::design::{BrickView, DesignView, LevelView, LimitView, RuleView, Task};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -17,10 +17,51 @@ struct Marks<'a> {
 }
 
 impl Design {
+    /// The todo list of a design held in memory (the files and the measured cache on disk).
+    pub(crate) fn todo_of(&self, src: &crate::preview::Preview) -> Vec<Task> {
+        let Ok(cfg) = src.load_config() else {
+            return Vec::new();
+        };
+        let loaded = match self.root().join(".brickie/cache.json").is_file() {
+            true => check::load_draft_from(src, &self.config_path()).map_err(|e| format!("{e:#}")),
+            false => Err("no measurements yet".into()),
+        };
+        todo(self.root(), &cfg, loaded.as_ref().map_err(String::clone)).tasks
+    }
+
     /// The design at the head; fails when it does not load.
     pub fn show(&self) -> Result<DesignView> {
+        Ok(self.show_checked()?.0)
+    }
+
+    /// The config tree for `show`. A missing nested file is read as an empty level and named in
+    /// the warnings, so the rest of the design still shows.
+    fn config_lenient(&self) -> Result<(Config, Vec<String>)> {
+        let err = match self.config() {
+            Ok(cfg) => return Ok((cfg, Vec::new())),
+            Err(e) => e,
+        };
+        let mut files = self.files()?;
+        let missing = crate::design::missing(self.root(), &files);
+        if missing.is_empty() {
+            return Err(err);
+        }
+        for m in &missing {
+            files.insert(m.clone(), Vec::new());
+        }
+        let docs = crate::edit::Docs::from_base(&files, None)?;
+        let preview = crate::preview::Preview::new(self.root(), self.config_name(), &docs);
+        let cfg = preview.load_config().map_err(|_| err)?;
+        let warnings = (missing.iter())
+            .map(|m| format!("missing file {m}: shown as empty; `brickie design undo` restores it"))
+            .collect();
+        Ok((cfg, warnings))
+    }
+
+    /// `show` plus warnings about config files that are missing.
+    pub fn show_checked(&self) -> Result<(DesignView, Vec<String>)> {
         let head = self.head()?;
-        let cfg = self.config()?;
+        let (cfg, warnings) = self.config_lenient()?;
         let loaded = match self.root().join(".brickie/cache.json").is_file() {
             true => check::load_draft_from(&config::Disk, &self.config_path())
                 .map_err(|e| format!("{e:#}")),
@@ -34,14 +75,15 @@ impl Design {
             planned: t.planned.iter().map(|p| level_name(p)).collect(),
             unbacked: t.unbacked,
         };
-        Ok(DesignView {
+        let view = DesignView {
             v: head.v,
             hash: head.hash.clone(),
             by: head.by,
             at: head.at,
             root: level(&cfg, &marks),
             todo: t.tasks,
-        })
+        };
+        Ok((view, warnings))
     }
 }
 

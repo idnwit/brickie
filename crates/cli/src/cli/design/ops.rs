@@ -16,6 +16,18 @@ fn kind(k: Kind) -> BrickKind {
     }
 }
 
+/// The ops of any edit command, and its write arguments.
+pub fn edit(d: &Design, e: Edit) -> Result<(Vec<Op>, Write)> {
+    match e {
+        Edit::Brick(c) => brick(d, c),
+        Edit::Rule(c) => rule(d, c),
+        Edit::Export(c) => export(d, c),
+        Edit::Limit(c) => limit(d, c),
+        Edit::Deps(c) => deps(d, c),
+        Edit::Include(c) => include(d, c),
+    }
+}
+
 /// The ops of a brick command, and its write arguments.
 pub fn brick(d: &Design, c: BrickCmd) -> Result<(Vec<Op>, Write)> {
     Ok(match c {

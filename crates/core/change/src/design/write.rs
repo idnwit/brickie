@@ -5,13 +5,13 @@
 use super::tree::{self, Files};
 use super::{Design, history, stale};
 use crate::edit::{Docs, apply};
-use crate::lock::write_atomic;
+use crate::lock::{Lock, write_atomic};
 use crate::preview::Preview;
 use crate::report::diff::diff;
 use crate::scaffold;
 use anyhow::{Context, Result, bail};
 use brickie_model::codes::DESIGN_INVALID;
-use brickie_model::design::{By, Op, PlanAction, PlanFile, Version};
+use brickie_model::design::{By, Op, PlanAction, PlanFile, Task, Version};
 use std::collections::BTreeSet;
 
 /// What a write did.
@@ -25,17 +25,69 @@ pub struct Outcome {
     pub scaffold: Vec<PlanFile>,
 }
 
+/// What `apply` would do.
+#[derive(Debug)]
+pub struct Plan {
+    /// The semantic diff, as `design diff` prints it.
+    pub diff: Vec<String>,
+    /// Tasks the change adds to the todo list.
+    pub new_todo: Vec<Task>,
+    /// Code files that would be scaffolded.
+    pub scaffold: Vec<PlanFile>,
+}
+
+struct Prepared {
+    entries: Vec<Version>,
+    old: Files,
+    new: Files,
+    cfg: brickie_check::config::Config,
+}
+
 impl Design {
     /// Apply `ops` on top of version `base`, as one new version by `by`.
     pub fn apply(&self, base: u64, by: By, note: Option<String>, ops: Vec<Op>) -> Result<Outcome> {
+        let lock = self.lock()?;
+        let p = self.prepare(&lock, base, &ops)?;
+        let mut out = self.commit(&p.entries, &p.old, &p.new, by, note, ops.clone())?;
+        if out.changed {
+            out.scaffold = self.scaffold(&p.cfg, &ops)?;
+            out.scaffold.extend(tree::created(&p.old, &p.new));
+        }
+        Ok(out)
+    }
+
+    /// Run `apply` in memory only: check the base, apply and validate the ops, and report what
+    /// would change. Nothing is written (a hand edit is still recorded, as on any read).
+    pub fn dry_run(&self, base: u64, ops: Vec<Op>) -> Result<Plan> {
+        let lock = self.lock()?;
+        let p = self.prepare(&lock, base, &ops)?;
+        let before = Docs::from_base(&p.old, Some(self.root.clone()))?;
+        let before = self.todo_of(&Preview::new(&self.root, &self.config, &before));
+        let after = Docs::from_base(&p.new, Some(self.root.clone()))?;
+        let after = self.todo_of(&Preview::new(&self.root, &self.config, &after));
+        let new_todo = (after.into_iter())
+            .filter(|t| !before.iter().any(|b| b.text == t.text))
+            .collect();
+        Ok(Plan {
+            diff: diff(&p.old, &p.new),
+            new_todo,
+            scaffold: [
+                self.scaffold_plan(&p.cfg, &ops),
+                tree::created(&p.old, &p.new),
+            ]
+            .concat(),
+        })
+    }
+
+    /// Check the base, apply `ops` to the files in memory and validate the whole design.
+    fn prepare(&self, lock: &Lock, base: u64, ops: &[Op]) -> Result<Prepared> {
         if ops.is_empty() {
             bail!("nothing to apply");
         }
-        let lock = self.lock()?;
-        let (entries, old) = self.sync(&lock)?;
+        let (entries, old) = self.sync(lock)?;
         stale::check(&entries, base)?;
         let mut docs = Docs::from_base(&old, Some(self.root.clone()))?;
-        for op in &ops {
+        for op in ops {
             apply(&mut docs, op).with_context(|| format!("{} on {}", op.name(), op.file()))?;
         }
         let cfg = Preview::new(&self.root, &self.config, &docs)
@@ -44,11 +96,12 @@ impl Design {
         let new: Files = (docs.texts().into_iter())
             .map(|(k, v)| (k, v.into_bytes()))
             .collect();
-        let mut out = self.commit(&entries, &old, &new, by, note, ops.clone())?;
-        if out.changed {
-            out.scaffold = self.scaffold(&cfg, &ops)?;
-        }
-        Ok(out)
+        Ok(Prepared {
+            entries,
+            old,
+            new,
+            cfg,
+        })
     }
 
     /// Revert the file changes of version `target` (default: the head) as a new version. Refused
@@ -65,7 +118,9 @@ impl Design {
         if t.full {
             bail!("v{n} is the oldest kept version; there is nothing before it to go back to");
         }
-        if by == By::Agent && t.by != By::Agent {
+        // An agent may restore files a hand edit deleted, and nothing else of it.
+        let restores = t.by == By::External && t.files.is_empty() && !t.removed.is_empty();
+        if by == By::Agent && t.by != By::Agent && !restores {
             bail!(
                 "v{n} was made by {}; an agent never undoes it (ask the human)",
                 t.by.name()
@@ -169,20 +224,25 @@ impl Design {
         })
     }
 
-    /// Scaffold the code of the bricks the ops add (never overwrites a file).
-    fn scaffold(&self, cfg: &brickie_check::config::Config, ops: &[Op]) -> Result<Vec<PlanFile>> {
-        let mut added = BTreeSet::new();
+    /// The code files the ops' new bricks need (never overwrites a file); nothing is written.
+    fn scaffold_plan(&self, cfg: &brickie_check::config::Config, ops: &[Op]) -> Vec<PlanFile> {
         // A composite made of an existing brick needs no code: its folder holds the new
         // `brickie.toml` already.
-        for op in ops {
-            if let Op::AddBrick { brick, .. } = op {
-                added.insert(brick.name.clone());
-            }
+        let added: BTreeSet<String> = (ops.iter())
+            .filter_map(|op| match op {
+                Op::AddBrick { brick, .. } => Some(brick.name.clone()),
+                _ => None,
+            })
+            .collect();
+        match added.is_empty() {
+            true => Vec::new(),
+            false => scaffold::scaffold(&self.root, cfg, &added),
         }
-        if added.is_empty() {
-            return Ok(Vec::new());
-        }
-        let plan = scaffold::scaffold(&self.root, cfg, &added);
+    }
+
+    /// Scaffold the code of the bricks the ops add (never overwrites a file).
+    fn scaffold(&self, cfg: &brickie_check::config::Config, ops: &[Op]) -> Result<Vec<PlanFile>> {
+        let plan = self.scaffold_plan(cfg, ops);
         for f in &plan {
             let path = self.root.join(&f.path);
             match (f.action, &f.content) {

@@ -22,3 +22,8 @@ pub fn inspector(cx: &Cx) -> View {
     };
     view! { (body) }
 }
+
+/// The icon button that copies `text`, the CLI name of the selection, for the agent's chat.
+pub(super) fn copy_ref(text: String) -> View {
+    view! { button(class="px copy-ref", title="Copy ref for the agent", aria-label="Copy ref for the agent", on:click=move |_: Click| crate::platform::copy_text(&text)) { "\u{29C9}" } }
+}

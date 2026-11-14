@@ -58,6 +58,15 @@ impl Docs {
         Ok(self.files.entry(file.to_string()).or_default())
     }
 
+    /// Create `file` unless it is in the design or on disk already (never overwrites).
+    pub fn ensure(&mut self, file: &str) -> Result<()> {
+        let on_disk = self.root.as_ref().is_some_and(|r| r.join(file).exists());
+        if !self.files.contains_key(file) && !on_disk {
+            self.create(file)?;
+        }
+        Ok(())
+    }
+
     /// Drop a file from the design. A file an op created is simply gone; a base file is
     /// remembered in `removed`.
     pub fn remove(&mut self, file: &str) {

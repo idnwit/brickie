@@ -15,7 +15,8 @@ pub use history::CAP;
 pub use links::Link;
 pub use stale::{Stale, ago};
 pub use tree::Files;
-pub use write::Outcome;
+pub(crate) use tree::missing;
+pub use write::{Outcome, Plan};
 
 use crate::lock::Lock;
 use crate::report::diff::diff;

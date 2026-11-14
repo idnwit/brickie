@@ -138,6 +138,12 @@ fn unused_items_are_reported_per_leaf() {
     assert_eq!(found.len(), 2, "{found:?}");
     assert!(found[0].contains("`dead` is declared by `api`"));
     assert!(found[1].contains("`util` is declared by `shared`"));
+    let help = unused(&c, &cfg, &res)
+        .iter()
+        .find_map(|f| diagnostic(f.as_ref()).help)
+        .unwrap();
+    assert!(help.contains("make it private, or remove it if nothing uses it"));
+    assert!(!help.contains("pub(super)"));
 }
 
 #[test]

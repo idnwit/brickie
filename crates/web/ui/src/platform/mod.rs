@@ -93,6 +93,13 @@ mod imp {
         }
     }
 
+    /// Copy `text` to the clipboard (needs a secure context; fails silently otherwise).
+    pub fn copy_text(text: &str) {
+        if let Some(w) = web_sys::window() {
+            let _ = w.navigator().clipboard().write_text(text);
+        }
+    }
+
     /// Run `f` once after `ms` milliseconds (`setTimeout`).
     pub fn after(ms: i32, f: impl FnOnce() + 'static) {
         let cb = Closure::once_into_js(f);
@@ -246,6 +253,7 @@ mod imp {
     }
     pub fn get_json(_: &'static str, _: impl FnOnce(Result<String, String>) + 'static) {}
     pub fn goto(_: &str) {}
+    pub fn copy_text(_: &str) {}
 }
 
 mod live;

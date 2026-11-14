@@ -9,7 +9,8 @@
 1. `brickie measure` reads the code (cargo metadata, rust-analyzer, tree-sitter) and writes
    `.brickie/cache.json` next to `brickie.toml`. It is slow: run it once per round of edits.
 2. `brickie check` reads the cache and rules, prints diagnostics, and exits non-zero on an
-   unaccepted error. It is fast and never runs rust-analyzer.
+   unaccepted error. It is fast and never runs rust-analyzer. It checks structure (edges,
+   complexity), not runtime behaviour: pair it with the project's own tests.
 3. Fix the code each diagnostic points at.
 4. Re-run `measure`, then `check`, until the exit code is 0.
 
@@ -51,15 +52,16 @@ The `brickie.toml` tree is the design. A human edits it in the viewer and you ed
 `brickie design`; every edit is written to the files at once. The design has one version number
 for the whole tree (`v15`); `.brickie/history/` keeps the last 200 versions (who, when, note,
 ops, semantic diff). Your edits are recorded as `agent`, the viewer's as `human`, and a hand edit
-of the files as `external` (found on the next read or write). Never edit the config files by
-hand; use `brickie design`.
+of the files as `external`. Never edit the config files by hand; use `brickie design`.
 
-- Read first: `brickie design show` prints `design v15 <hash>` and the tree: each level with its
-  file, bricks (kind, members, tags, children), rules `from -> to [via] (scope) allow|deny
-  "reason"`, limits and deps, then a `todo` list. `--since N` prints only the versions after N,
-  each with its author, note and diff lines.
-- Every write takes `--base N`: the version you read (or set `BRICKIE_BASE`). When the design has
-  moved on, nothing is written and the command exits 3:
+Concurrency contract (a human may edit at the same time):
+
+- Run `brickie design show` at the start of every design task and use the base it prints; never
+  reuse a base you remember. Any read or write may record a pending hand edit as an `external`
+  version first, so the head can move under you (`--dry-run` prints the head it ran on).
+- Every write takes `--base N` (or set `BRICKIE_BASE`) and `--note "why"`, which the human reads
+  in the log. When the design has moved on, nothing is
+  written and the command exits 3:
 
   ```
   error[design/stale]: design is at v15 (by human, 12s ago), your edit was based on v13. Nothing was written.
@@ -69,19 +71,54 @@ hand; use `brickie design`.
   Re-read with `brickie design show`, then retry with --base 15.
   ```
 
-  Re-read once, check the changes still allow your edit, and retry on the new base. If it is stale
-  again, or a human's version changed what you were editing, stop and ask the human.
+  Re-read (`show`, or `show --since N`), check the changes still allow your edit, and retry once
+  on the new base. If it is stale again, or a human's version changed what you were editing, stop
+  and ask the human; stop too when your edit contradicts a human's note. An unknown base (newer
+  than the head, or older than the kept history) also gives exit 3.
+- After your first write, `show` starts with a `since your last version (agent):` header listing
+  the human and external versions since then (author, note, diff lines); read them before you
+  edit. It is empty until you have written once, and when there is nothing new.
+- `undo [V]` reverts the file changes of version V (default: the head) as a new version, comments
+  included. It refuses when a later version changed the same file and was not undone. Never undo
+  a human's or an external version (the CLI refuses); ask the human. After a nested
+  `brickie.toml` was deleted, `show` warns and `undo` restores it.
+
+- `show` prints `design v15 <hash>` and the tree: each level
+  with its file, bricks (kind, members, tags, children), rules `from -> to [via] (scope)
+  allow|deny "reason"`, limits and deps, then a `todo` list. `--since N` prints only the
+  versions after N, each with its author, note and diff lines. `--in P` prints only the level
+  owned by composite P and its subtree (use it on a large design).
 - A write prints `ok: v16` (`ok: v15 (no change)` when nothing changed) and lists code it
   scaffolded. A write that would leave the design invalid writes nothing (`design/invalid`).
 - Bricks are named by path from the root (`web/api`, `root/web/api` is the same); a level by the
   composite brick that owns it (`--in web`; default: the root level). Never use indices.
-- `--note "why"` on any write; the human reads it in the log.
+- Prefer one `apply` per task: `brickie design apply --base N --note "why"` reads one op per
+  stdin line and writes them all as ONE version, so the human sees one toast and has one Undo.
+  A line is a write command without the `brickie design` prefix and without `--base`, `--note`
+  or `--dry-run`; blank lines and lines whose first character is `#` are ignored (a `#` elsewhere
+  is part of the value); quote values with spaces (`"..."` or `'...'`):
 
-Commands (each write also takes `--base N` and `--note`):
+  ```
+  brickie design apply --base 15 --note "add store" <<'EOF'
+  brick add store --kind crate --desc "data access"
+  rule add web store allow --reason "web reads data"
+  EOF
+  ```
+
+  A bad line stops everything: the error names the line number and nothing is written. Names
+  in a line resolve against the design as it is now, so a line cannot refer to a brick an
+  earlier line adds, except by `brick add --in` or in a rule's `FROM`/`TO`.
+- `--dry-run` (on `apply` and on every write command) checks the base, applies and validates
+  everything in memory, prints the diff and the todos the change adds, and writes nothing (no
+  version, no scaffold). Use it before a large `apply`.
+
+Commands (each write also takes `--base N`, `--note` and `--dry-run`; `undo` takes `--base`
+only):
 
 ```
-brickie design show [--since N] [--format json]
+brickie design show [--since N] [--in P] [--format json]
 brickie design log | diff A [B] | undo [V]
+brickie design apply   (ops on stdin, one per line)
 brickie design brick add NAME [--in P] [--kind crate|module|group] [--members a,b] [--tags a,b] [--desc D] [--path DIR]
 brickie design brick set PATH [--members] [--tags] [--desc] [--path]   (empty --desc/--path removes)
 brickie design brick rename PATH NEW | move PATH --into P|root | rm PATH
@@ -103,9 +140,13 @@ brickie design include add|rm FILE [--in P]
 - A limit is named by its `bricks` selector (default `*`); in `limit set` a metric of `0` removes
   it.
 - `brick add --kind crate` with no members defaults them to `path:crates/<name>/`
-  (`path:<name>/` in a nested file); `--kind group` makes a composite in its own folder with a new
-  `brickie.toml`. Missing code of a new brick is scaffolded (folder, crate `Cargo.toml` and
-  `src/lib.rs` plus a workspace member, or a module file); existing files are never overwritten.
+  (`path:<name>/` in a nested file); `--kind group` makes a composite in its own folder
+  `<name>/` next to its parent file, with a new `brickie.toml`. Pass `--path` or `--members` to
+  choose. `brick set NAME --path P` makes a module composite and creates
+  `P/brickie.toml` when it is absent. Missing code of a new brick is scaffolded (folder, crate
+  `Cargo.toml` and `src/lib.rs` plus a workspace member, or a module file; the write lists what it
+  created); existing files are never overwritten.
+- A rule's `scope` is `prod` unless set: edges from test code need `rule add ... --scope test|all`.
 - `brick group NAME CHILD...` makes composite NAME next to the children and moves them in;
   `ungroup` lifts the children, their rules and limits back up (the child file stays on disk).
   `brick move` rebases `path:` members; it moves no code.
@@ -113,14 +154,10 @@ brickie design include add|rm FILE [--in P]
   in the `via` entries of the parent rules when it is a composite's child. Removing, moving or
   unexporting a child that a parent rule names in `via` fails with `design/invalid`: change the
   rule first.
-- `undo [V]` reverts the file changes of version V (default: the head) as a new version, comments
-  included. It refuses when a later version changed the same file and was not undone. Never undo a human's or an
-  external version (the CLI refuses); ask the human.
-- Stop and report instead of editing when your edit contradicts a human's note or a version the
-  human just made.
 - After code changes run `brickie measure`, then `brickie design show` (the todo list) and
   `brickie check`.
-- `--format json`: `show` prints `{v, hash, by, at, root: {path, file, bricks: [{name, kind,
+- `--format json`: `show` also has `since_agent: [version...]` when there are versions after your
+  last one; `--dry-run` prints `{dry_run, diff, new_todo, scaffold}`. `show` prints `{v, hash, by, at, root: {path, file, bricks: [{name, kind,
   members, tags, desc, todo, children}], exports, default, cycles, rules: [{file, from, to, via,
   kinds, scope, action, reason, todo}], limits: [{file, bricks, metrics, level, scope}]}, todo:
   [{kind, text}]}`; `log` a list of versions `{v, hash, prev, by, at, note, ops, diff, files,
@@ -284,11 +321,8 @@ The design (see "Editing the design"):
 - `design/invalid`: the edit would leave a design that does not load (for example a rule naming
   an unknown brick, or a `via` child removed). Nothing was written. Fix the edit, or make the
   related change in the same order the message suggests (for example change the rule first).
-- `design/stale` (exit code 3): your `--base` is not the head; nothing was written. Re-read with
-  `brickie design show` (or `--since <your base>`), then retry once with `--base <head>`. If it is
-  stale again or a human changed the same thing, stop and ask the human. An unknown base (newer
-  than the head, or older than the kept history) also gives this code: run `show` and use its
-  version.
+- `design/stale` (exit code 3): your `--base` is not the head; nothing was written. Follow the
+  concurrency contract in "Editing the design".
 - `design/no-match`: no rule or limit matches what you named, or several rules `FROM -> TO` match.
   The message lists the candidates; name an existing one, or add `--kind` and `--scope` to pick
   one. For bricks, check the path with `brickie design show`.

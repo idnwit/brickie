@@ -25,8 +25,14 @@ pub fn changed_by_other(before: u64, now: &DesignState) -> Option<(String, u64)>
     let v = (now.history.iter().rev())
         .take_while(|v| v.v > before)
         .find(|v| v.by != By::Human)?;
-    let what = v.diff.first().cloned().unwrap_or_else(|| version_words(v));
-    Some((format!("{} changed: {what}", by_word(v.by)), v.v))
+    let text = match v.note.as_deref().filter(|n| !n.trim().is_empty()) {
+        Some(note) => format!("{} v{}: {note}", by_word(v.by), v.v),
+        None => {
+            let what = v.diff.first().cloned().unwrap_or_else(|| version_words(v));
+            format!("{} changed: {what}", by_word(v.by))
+        }
+    };
+    Some((text, v.v))
 }
 
 /// Nothing in progress that a re-render would drop (a drag, a name being typed, a request).
@@ -138,5 +144,10 @@ mod tests {
             Some(("agent changed: + brick b5".into(), 5))
         );
         assert_eq!(changed_by_other(5, &d), None);
+        d.history[1].note = Some("cut web to store".into());
+        assert_eq!(
+            changed_by_other(4, &d),
+            Some(("agent v5: cut web to store".into(), 5))
+        );
     }
 }
