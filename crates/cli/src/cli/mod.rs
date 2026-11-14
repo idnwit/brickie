@@ -24,7 +24,9 @@ pub fn run() -> Result<i32> {
             config,
             format,
             color,
-        } => Ok(check::run(&config, format, color)),
+            bricks,
+            skip,
+        } => Ok(check::run(&config, format, color, &bricks, &skip)),
         Command::Design(args) => Ok(design::run(*args)),
         Command::Interface {
             brick,

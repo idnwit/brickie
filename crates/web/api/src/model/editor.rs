@@ -26,10 +26,6 @@ pub struct DesignState {
     /// Level path -> what a rule selector there may name (for client-side validation).
     #[serde(default)]
     pub levels: BTreeMap<String, LevelInfo>,
-    /// Allow rules between named bricks that no measured edge uses yet (also on each
-    /// [`LevelView`]).
-    #[serde(default)]
-    pub planned_edges: Vec<PlannedEdge>,
     /// Every config file of the design (its own rules, complexity, deps, exports, includes),
     /// by the same relative path as `files` values.
     #[serde(default)]
@@ -49,8 +45,8 @@ pub struct LayoutHint {
     pub y: f64,
 }
 
-/// An allow rule between named bricks that no measured edge uses yet: the canvas draws it
-/// dashed. Named by identity (`file`, `from`, `to`, `kinds`, `scope`).
+/// An allow rule between named bricks that no measured edge backs: the canvas draws it as a
+/// planned or unused link. Named by identity (`file`, `from`, `to`, `kinds`, `scope`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlannedEdge {
     /// Level path the rule applies to (`root`, `root/web`).
@@ -67,6 +63,11 @@ pub struct PlannedEdge {
     pub action: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
+    /// `planned` (an end is not fully measured yet) or `unused` (both ends are measured and no
+    /// edge matches), as `brickie-check` computed it.
+    pub state: String,
+    /// What the rule still waits for, for example "no `uses` edge in test scope".
+    pub filter: String,
 }
 
 /// The names a level offers to rule selectors.

@@ -7,7 +7,10 @@ use anyhow::{Context, Result, bail};
 use brickie_facts::{Cache, SCHEMA_VERSION};
 
 mod facade;
+mod scope;
 pub use facade::*;
+pub use scope::{Counts, Filter, Filtered};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 /// Config, cache and the diagnostics derived from them (review decisions applied, sorted).
@@ -19,6 +22,8 @@ pub struct Loaded {
     /// Module id -> leaf path in the tree.
     pub resolved: Resolved,
     pub diagnostics: Vec<Diagnostic>,
+    /// Diagnostic id -> owner brick paths (`root/web/api`), for scoped checks.
+    pub owners: BTreeMap<String, Vec<String>>,
 }
 
 pub fn load(config: &Path) -> Result<Loaded> {
@@ -49,6 +54,9 @@ fn load_mode(src: &dyn config::FileSource, config: &Path, mode: Mode) -> Result<
     found.extend(interface::unused(&cache, &cfg, &resolved));
     let mut diagnostics: Vec<Diagnostic> =
         found.iter().map(|f| diag::diagnostic(f.as_ref())).collect();
+    let owners = (found.iter())
+        .map(|f| (diag::finding_id(&f.code(), &f.subject()), f.owners()))
+        .collect();
     for d in &mut diagnostics {
         if let Some(a) = review.accept.iter().find(|a| a.id == d.id) {
             d.accepted = true;
@@ -61,6 +69,7 @@ fn load_mode(src: &dyn config::FileSource, config: &Path, mode: Mode) -> Result<
         cache,
         resolved,
         diagnostics,
+        owners,
     })
 }
 

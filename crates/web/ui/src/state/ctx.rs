@@ -20,7 +20,7 @@ pub struct Model {
     pub diags: Vec<DiagView>,
     pub cards: Rc<Vec<Card>>,
     pub fns: Vec<FnRow>,
-    /// Edit mode: the planned rule pairs routed by the layout, as layout edges
+    /// The planned rule pairs routed by the layout, as layout edges
     /// `plan0 + i` (empty outside edit mode).
     pub planned: Vec<(usize, usize)>,
     pub plan0: usize,
@@ -84,7 +84,7 @@ pub struct Cx {
 }
 
 /// The layout of `level`: automatic from its full edge set (without the frame edges, which are
-/// appended after the original ones; in edit mode with the planned rule pairs after them), then the editor's stored positions, then the positions a
+/// appended after the original ones; with the planned rule pairs after them), then the editor's stored positions, then the positions a
 /// patch keeps on screen.
 fn level_layout(
     level: &LevelView,
@@ -92,11 +92,7 @@ fn level_layout(
     editing: bool,
     keep: Option<&Keep>,
 ) -> Layout {
-    let extra = if editing {
-        planned_pairs(level)
-    } else {
-        Vec::new()
-    };
+    let extra = planned_pairs(level);
     let mut layout = layout::layout(&layout_input(&level.graph, &extra));
     // The editor's stored positions win over the automatic layout.
     if let Some(ch) = design.filter(|_| editing) {
@@ -143,11 +139,7 @@ impl Cx {
             .filter(|k| k.level == level.path);
         let editing = params.with_untracked(|p| p.editing());
         let layout = level_layout(level, design.as_deref(), editing, keep.as_ref());
-        let planned = if editing {
-            planned_pairs(level)
-        } else {
-            Vec::new()
-        };
+        let planned = planned_pairs(level);
         let plan0 = level.graph.edges.len();
         let m = Rc::new(Model {
             cache: sh.cache.clone(),
@@ -223,7 +215,7 @@ impl Cx {
     }
 
     /// The routed path of planned pair `a -> b` for box positions `p` (`None` when the pair is
-    /// not routed, outside edit mode).
+    /// not routed).
     pub fn planned_route(&self, a: usize, b: usize, p: &[Rect]) -> Option<layout::Route> {
         let i = self.m.planned.iter().position(|&x| x == (a, b))?;
         self.m.layout.path(self.m.plan0 + i, p)

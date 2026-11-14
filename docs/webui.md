@@ -55,6 +55,22 @@ edges in and out, what the brick depends on and who uses it, and its declared in
 number of uses per item. The Code button opens the brick in the embedded code viewer; any
 `file:line` link opens it at that place.
 
+## Planned and unused links
+
+An allow rule between two bricks that no measured edge backs draws as a link in both modes, one
+line per brick pair (the worst state wins; the tooltip lists every rule with its state, reason
+and what it waits for). Dash is the edge kind (`implements`, `reexports`).
+
+| Look | Meaning |
+| --- | --- |
+| half-opaque line | planned: an end has no measured code yet |
+| warning-colour line with `!` | unused: both ends are measured and no edge matches (`deps/unused`) |
+| warning-colour `?` | the rule has no reason |
+| `A` | an agent added the rule |
+
+Hover or select a link to see its reason (cut to 40 characters, full text in the tooltip); on
+touch a tap selects it. Reasons never show on all links at once.
+
 ## Design mode
 
 `Design` (or `E`) switches to Design mode (`edit=1`): the canvas edits the live design. Every

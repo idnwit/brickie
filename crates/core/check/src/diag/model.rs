@@ -26,6 +26,15 @@ pub trait Finding {
     fn brick_level(&self) -> Option<String> {
         None
     }
+    /// Full level paths (`root/web/api`) of the bricks that own the finding, for scoped checks.
+    /// Default: every brick in `bricks` at `brick_level`; none without a level.
+    fn owners(&self) -> Vec<String> {
+        let level = self.brick_level();
+        let level = level.as_deref();
+        (self.bricks().iter())
+            .filter_map(|b| level.map(|l| format!("{l}/{b}")))
+            .collect()
+    }
 }
 
 pub fn finding_id(code: &str, subject: &str) -> String {

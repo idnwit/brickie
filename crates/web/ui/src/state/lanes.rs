@@ -1,4 +1,4 @@
-//! The layout input of a level: its bricks in their tag lanes and its edges, plus (in edit mode)
+//! The layout input of a level: its bricks in their tag lanes and its edges, plus
 //! one edge per (from, to) brick pair of its planned rules, so the automatic layout orders the
 //! lanes and bricks for the rules too and routes them around the boxes. The untagged lane carries
 //! no tag semantics: it moves to the lane position that keeps the edges shortest (last on ties).

@@ -5,6 +5,7 @@
 mod edges;
 mod heat;
 mod level;
+mod links;
 #[cfg(test)]
 mod tests;
 

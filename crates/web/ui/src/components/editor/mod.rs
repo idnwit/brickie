@@ -24,7 +24,6 @@ mod panel;
 mod place;
 mod retarget;
 mod rules;
-mod spot;
 mod spring;
 mod toolbar;
 mod widgets;

@@ -86,6 +86,7 @@ pub fn canvas(cx: &Cx) -> View {
     let bnd = crate::components::controls::boundary(cx);
     let edit = editor::overlay(cx);
     let layer = editor::layer(cx, pos);
+    let links = crate::components::links::layer(cx, pos);
     // The svg has no viewBox: one user unit is one CSS pixel of the stage, so pointer
     // positions map straight into the pan/zoom transform. On the next frame (the stage is in
     // the DOM) measure it and fit. Always set the view: after hydration the DOM still shows
@@ -106,6 +107,7 @@ pub fn canvas(cx: &Cx) -> View {
                     g(class="lay") { (low) }
                     g(class="lay top") { (top) }
                     g { (nodes) }
+                    (links)
                     (layer)
                 }
             }

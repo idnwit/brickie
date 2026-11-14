@@ -49,7 +49,7 @@ User guide: [../webui.md](../webui.md#design-mode).
 
 | Topic | Decision | Reason |
 | --- | --- | --- |
-| Endpoints | `GET /api/design` (`DesignState`: head `v`, `by`, last 50 versions, todo, level files and selectors, planned edges, per-file sheets, layout hints); `POST /api/design/{edit, move, undo}` (one human version each, `base` required); `links`, `link-check`, `levels` (read only); `layout`, `relayout` (hints) | one current path over `brickie_change::Design`, shared with the CLI |
+| Endpoints | `GET /api/design` (`DesignState`: head `v`, `by`, last 50 versions, todo, level files and selectors, per-file sheets, layout hints); `POST /api/design/{edit, move, undo}` (one human version each, `base` required); `links`, `link-check`, `levels` (read only); `layout`, `relayout` (hints) | one current path over `brickie_change::Design`, shared with the CLI |
 | Author | every viewer write is `human`; no field in the request | the surface decides, as in the CLI |
 | Stale base | 409 with the `design/stale` text and header `x-brickie-head`; the page reloads the design and re-sends the same request once on the new head only when no version since its base touched an identity of the request (brick by name, rule by file and key, limit by file and `bricks`; a rule op also touches the bricks it names `from`/`to`, so a rename or removal of one stales it; a version without ops touches all); the server checks this and answers a clash with `<author> v<N> changed <identity>` (no stale text), shown as `Not applied: <that>` | an edit by identity must not override another writer's change to the same thing |
 | Copy ref | an icon button in the brick and rule inspector copies the CLI name (`web/api`, `rule web -> store (prod)`; `[kinds]` only when another rule of the file has the same ends and scope); tooltip "Copy ref for the agent" | the human pastes it into the agent's chat |
@@ -73,5 +73,5 @@ automated tests: the toolbar's look at narrow widths and drag gestures end to en
 
 Canvas first (create, connect, move, delete, rename are gestures); one selection, one inspector;
 every edit is a version with Undo; never lose place; design vs reality stays legible (planned
-dashed, drift amber, agent versions marked). Connecting is type first: one port per link type,
+half-opaque, unused and drift amber, agent versions marked). Connecting is type first: one port per link type,
 nothing to fill in after the drop. A brick is a folder: dropping a brick on a brick nests it.

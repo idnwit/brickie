@@ -30,6 +30,9 @@ pub fn evaluate(cache: &Cache, cfg: &Config, res: &Resolved, root: &Path) -> Vec
     deps::deps(cache, cfg, res, &mut out);
     cycles::cycles(cache, cfg, res, &mut out);
     complexity::complexity(cache, cfg, res, root, &mut out);
+    out.extend(unused_link::unused_links(&links::link_states(
+        cache, cfg, res,
+    )));
     for m in &cache.modules {
         if res.path(&m.id).is_none() {
             out.push(Box::new(Unmapped {
@@ -46,8 +49,10 @@ mod complexity;
 mod cycles;
 mod deps;
 mod lift;
+mod links;
 mod private;
 mod unmapped;
+mod unused_link;
 
 #[cfg(test)]
 mod tests;
@@ -56,6 +61,8 @@ mod via_tests;
 
 pub use complexity::limits as complexity_limits;
 pub use deps::dep_subject;
+pub use links::{Link, LinkState, link_states};
 use unmapped::Unmapped;
 mod stale;
 pub use stale::evaluate as evaluate_stale;
+pub use unused_link::filter_text;

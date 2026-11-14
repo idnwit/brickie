@@ -1,11 +1,12 @@
 //! Tasks for the coding agent (and the human): what the design asks that the code lacks,
 //! computed against the live design and the measured cache.
 
-use super::edges;
 use crate::preview::{cache_mismatch, planned};
-use brickie_check::check::Loaded;
+use brickie_check::check::{Loaded, filter_text, link_states};
 use brickie_check::config::{Config, Pending, level_name};
-use brickie_model::codes::{CONFIG_UNASSIGNED, DESIGN_NO_REASON, DESIGN_PLANNED};
+use brickie_model::codes::{
+    CONFIG_UNASSIGNED, DESIGN_NO_REASON, DESIGN_PLANNED, DESIGN_PLANNED_EDGE,
+};
 use brickie_model::design::{Task, TaskKind};
 use std::path::Path;
 
@@ -47,8 +48,16 @@ fn measured(l: &Loaded, t: &mut Todo) {
         let text = format!("{DESIGN_PLANNED}: {}", planned_text(&l.cfg, p));
         t.tasks.push(task(TaskKind::Planned, text));
     }
-    for (loc, text) in edges::unbacked(l) {
-        t.unbacked.push(loc);
+    for link in link_states(l) {
+        let text = format!(
+            "{DESIGN_PLANNED_EDGE}: rule {} -> {} in {} allows an edge no measured code uses yet (state: {}; {})",
+            link.from,
+            link.to,
+            level_name(&link.level),
+            link.state.name(),
+            filter_text(&link),
+        );
+        t.unbacked.push(link.loc);
         t.tasks.push(task(TaskKind::Link, text));
     }
 }

@@ -72,6 +72,7 @@ pub(super) fn deps(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Bo
                 file: composite.file.clone(),
                 hidden: child.to_string(),
                 from: l.from.name.clone(),
+                owner: format!("{}/{}", l.level.level(), l.from.name),
                 to: l.to.name.clone(),
                 from_module: e.from.clone(),
                 to_module: e.to.clone(),
@@ -202,6 +203,9 @@ impl Finding for Dep {
     }
     fn bricks(&self) -> Vec<String> {
         vec![self.from.name.clone(), self.to.name.clone()]
+    }
+    fn owners(&self) -> Vec<String> {
+        vec![format!("{}/{}", self.level, self.from.name)]
     }
     fn brick_level(&self) -> Option<String> {
         Some(self.level.clone())

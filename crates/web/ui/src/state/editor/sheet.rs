@@ -144,7 +144,6 @@ pub(crate) mod tests {
                 ("root/web".to_string(), "web/brickie.toml".to_string()),
             ]),
             levels: BTreeMap::new(),
-            planned_edges: vec![],
             sheets: BTreeMap::from([
                 ("web/brickie.toml".to_string(), own),
                 ("shared.toml".to_string(), shared),
