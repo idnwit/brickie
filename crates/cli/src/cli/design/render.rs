@@ -1,6 +1,6 @@
 //! Text output of `brickie design`.
 
-use brickie_change::{BrickView, DesignView, LevelView, Outcome, PlanAction, Version, ago};
+use brickie_change::{BrickView, DesignView, LevelView, Outcome, Plan, PlanAction, Version, ago};
 use std::fmt::Write;
 
 /// `ok: v16`, plus the code files scaffolded.
@@ -16,9 +16,22 @@ pub fn outcome(o: &Outcome) -> String {
             PlanAction::Mkdir => "mkdir",
             PlanAction::Skip => "skipped",
         };
-        let _ = writeln!(s, "  {what} {}: {}", f.path, f.note);
+        let _ = writeln!(s, "  {what} {}", entry(f));
     }
     s
+}
+
+/// `path: note`, or `path (note)` when the note is a parenthesised tag.
+fn entry(f: &brickie_change::PlanFile) -> String {
+    match f.note.starts_with('(') {
+        true => format!("{} {}", f.path, f.note),
+        false => format!("{}: {}", f.path, f.note),
+    }
+}
+
+/// One `warning:` line per message.
+pub fn warnings(w: &[String]) -> String {
+    w.iter().map(|m| format!("warning: {m}\n")).collect()
 }
 
 pub fn lines(lines: &[String]) -> String {
@@ -50,6 +63,48 @@ pub fn since(head: &Version, n: u64, log: &[Version]) -> String {
     }
     log.iter().for_each(|e| version(&mut s, e));
     s
+}
+
+/// The human and external versions after the agent's last one; empty when there are none.
+pub fn since_agent(log: &[Version]) -> String {
+    if log.is_empty() {
+        return String::new();
+    }
+    let mut s = String::from("since your last version (agent):\n");
+    log.iter().for_each(|e| version(&mut s, e));
+    s.push('\n');
+    s
+}
+
+/// What a `--dry-run` would do.
+pub fn plan(head: u64, p: &Plan) -> String {
+    let mut s = format!("dry run on v{head} (nothing written)\n");
+    match p.diff.is_empty() {
+        true => s.push_str("no change\n"),
+        false => p.diff.iter().for_each(|l| {
+            let _ = writeln!(s, "  {l}");
+        }),
+    }
+    if !p.new_todo.is_empty() {
+        s.push_str("new todo\n");
+        for t in &p.new_todo {
+            let _ = writeln!(s, "  - {}", t.text);
+        }
+    }
+    for f in &p.scaffold {
+        let _ = writeln!(s, "  would scaffold {}", entry(f));
+    }
+    s
+}
+
+pub fn plan_json(head: u64, p: &Plan) -> serde_json::Value {
+    serde_json::json!({
+        "dry_run": true,
+        "head": head,
+        "diff": p.diff,
+        "new_todo": p.new_todo,
+        "scaffold": p.scaffold,
+    })
 }
 
 pub fn show(v: &DesignView) -> String {

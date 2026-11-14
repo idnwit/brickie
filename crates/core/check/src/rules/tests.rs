@@ -91,6 +91,54 @@ fn private_respects_scoped_exports() {
     assert_eq!(f.iter().filter(|x| x.0 == "deps/private").count(), 2);
 }
 
+/// Help texts of the findings with `code` whose message contains `needle`.
+fn helps(code: &str, needle: &str) -> Vec<String> {
+    let (dir, cfg) = fixture(ROOT, WEB);
+    let res = resolved(dir.path(), &cfg).unwrap();
+    let c = cache(
+        &dir.path().canonicalize().unwrap(),
+        &[
+            ("web-api", vec![edge("web-api", "web-ui", "prod")], vec![]),
+            (
+                "core",
+                vec![
+                    edge("core", "web-ui", "test"),
+                    edge("core", "web-shared", "prod"),
+                ],
+                vec![],
+            ),
+            (
+                "web-shared",
+                vec![edge("web-shared", "web-api", "prod")],
+                vec![],
+            ),
+        ],
+    );
+    super::evaluate(&c, &cfg, &res, dir.path())
+        .iter()
+        .map(|f| diagnostic(f.as_ref()))
+        .filter(|d| d.code == code && d.message.contains(needle))
+        .filter_map(|d| d.help)
+        .collect()
+}
+
+#[test]
+fn default_help_names_the_scope_for_test_edges() {
+    let test = helps("deps/default", "in tests");
+    assert_eq!(test.len(), 1, "{test:?}");
+    assert!(test[0].contains("brickie design rule add core web allow --scope all"));
+    let prod = helps("deps/default", "`shared` uses `api`");
+    assert_eq!(prod.len(), 1, "{prod:?}");
+    assert!(!prod[0].contains("--scope"));
+}
+
+#[test]
+fn private_help_gives_the_export_command() {
+    let h = helps("deps/private", "`shared`");
+    assert_eq!(h.len(), 1, "{h:?}");
+    assert!(h[0].contains("brickie design export set shared [--scope prod|test]"));
+}
+
 #[test]
 fn cycles_are_found_per_level() {
     let f = findings(ROOT, WEB);

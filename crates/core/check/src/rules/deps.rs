@@ -192,6 +192,11 @@ impl Finding for Dep {
         Some(match &self.rule {
             Some((_, r)) if r.help.is_some() => r.help.clone().unwrap_or_default(),
             Some(_) => "remove the dependency, or change the rule if it is intended".into(),
+            None if self.scope == "test" => format!(
+                "remove the dependency, or add a rule that covers tests: \
+                 `brickie design rule add {} {} allow --scope all` (or `--scope test`)",
+                self.from.name, self.to.name
+            ),
             None => "remove the dependency, or add a [[deps.rule]] that allows it".into(),
         })
     }

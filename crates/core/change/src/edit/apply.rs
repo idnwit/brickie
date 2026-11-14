@@ -13,6 +13,21 @@ use brickie_model::design::Op;
 use toml_edit::value;
 
 pub fn apply(docs: &mut Docs, op: &Op) -> Result<()> {
+    apply_one(docs, op)?;
+    // Making a brick composite with `set --path` scaffolds its level file, as `add` does.
+    if let Op::SetBrick {
+        file,
+        path: Some(p),
+        ..
+    } = op
+    {
+        let p = p.trim_end_matches('/');
+        docs.ensure(&join_rel(file, &format!("{p}/brickie.toml")))?;
+    }
+    Ok(())
+}
+
+fn apply_one(docs: &mut Docs, op: &Op) -> Result<()> {
     if let Op::CreateFile { file } = op {
         docs.create(file)?;
         return Ok(());

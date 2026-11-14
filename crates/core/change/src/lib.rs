@@ -20,6 +20,6 @@ mod scaffold;
 mod tests;
 
 pub use brickie_model::design::*;
-pub use design::{CAP, Design, Files, Link, Outcome, Stale, ago, brick_path};
+pub use design::{CAP, Design, Files, Link, Outcome, Plan, Stale, ago, brick_path};
 pub use preview::planned;
 pub use report::{pending_text, planned_text};

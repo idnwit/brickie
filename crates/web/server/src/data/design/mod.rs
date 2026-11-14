@@ -2,8 +2,10 @@
 //! the levels: planned bricks (no measured module yet) and planned edges (allow rules no
 //! measured edge uses yet).
 
+mod conflict;
 mod layout;
 
+pub use conflict::first_conflict;
 pub use layout::{clear_level, read_layout, set_hint};
 
 use anyhow::Result;

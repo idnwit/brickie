@@ -62,6 +62,9 @@ brickie check     # fast: exits 1 on errors
 brickie serve     # viewer on http://127.0.0.1:7881
 ```
 
+A dependency rule defaults to `scope = "prod"`; edges from test code need `scope = "test"` or `"all"`.
+`check` verifies structure, not runtime behaviour: keep the project's own tests.
+
 ## Docs
 
 | Topic | Where |

@@ -149,10 +149,11 @@ pub fn brick_view(cx: &Cx, b: usize) -> View {
     });
     let sub = format!("{state} \u{00B7} in {file}");
     let title = brick.name.clone();
+    let copy = super::copy_ref(brick_ref(&lv, &brick.name));
     let (f, a) = (fields(cx, file.clone(), &brick), actions(cx, file, &brick));
     let now = now_lines(cx.ed);
     view! {
-        h2 { (title) }
+        h2 { (title) (copy) }
         p(class="muted") { (sub) }
         (zoom)
         (f)

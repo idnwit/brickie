@@ -219,3 +219,87 @@ async fn writes_need_the_same_origin() {
     let resp = router(wide).oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn a_stale_write_that_clashes_is_refused_without_the_stale_text() {
+    let s = Site::new();
+    let (st, text) = s
+        .post(
+            "/api/design/edit",
+            json!({"base": 1, "ops": [add("cache")]}),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{text}");
+    // Same brick on the old base: a conflict naming the writer, no retry hint.
+    let (st, head, text) = post_head(
+        &s,
+        "/api/design/edit",
+        json!({"base": 1, "ops": [add("cache")]}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::CONFLICT);
+    assert_eq!(head, None);
+    assert!(
+        text.contains("human v2 changed brick cache") && !text.contains("design/stale"),
+        "{text}"
+    );
+}
+
+#[tokio::test]
+async fn a_stale_rule_on_a_removed_brick_is_a_conflict_not_invalid() {
+    let s = Site::new();
+    for (base, op) in [
+        (1, add("store")),
+        (
+            2,
+            json!({"op": "remove_brick", "file": "brickie.toml", "name": "store"}),
+        ),
+    ] {
+        let (st, text) = s
+            .post("/api/design/edit", json!({"base": base, "ops": [op]}))
+            .await;
+        assert_eq!(st, StatusCode::OK, "{text}");
+    }
+    let rule = json!({"op": "add_rule", "file": "brickie.toml",
+        "rule": {"from": "web", "to": "store", "action": "allow"}});
+    let (st, _, text) = post_head(&s, "/api/design/edit", json!({"base": 2, "ops": [rule]})).await;
+    assert_eq!(st, StatusCode::CONFLICT, "{text}");
+    assert!(
+        text.contains("changed brick store") && !text.contains("design/"),
+        "{text}"
+    );
+}
+
+#[tokio::test]
+async fn a_stale_undo_retries_only_when_nothing_since_touched_the_version() {
+    let s = Site::new();
+    for (base, name) in [(1, "cache"), (2, "other")] {
+        let (st, text) = s
+            .post(
+                "/api/design/edit",
+                json!({"base": base, "ops": [add(name)]}),
+            )
+            .await;
+        assert_eq!(st, StatusCode::OK, "{text}");
+    }
+    // v3 touched another brick: undoing v2 from base 2 may be re-sent on the head.
+    let (st, head, text) = post_head(&s, "/api/design/undo", json!({"base": 2, "v": 2})).await;
+    assert_eq!(
+        (st, head.as_deref()),
+        (StatusCode::CONFLICT, Some("3")),
+        "{text}"
+    );
+    assert!(text.contains("design/stale"), "{text}");
+    // v4 removes the brick v2 added: a conflict naming the writer, no retry hint.
+    let gone = json!({"op": "remove_brick", "file": "brickie.toml", "name": "cache"});
+    let (st, text) = s
+        .post("/api/design/edit", json!({"base": 3, "ops": [gone]}))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{text}");
+    let (st, head, text) = post_head(&s, "/api/design/undo", json!({"base": 2, "v": 2})).await;
+    assert_eq!((st, head), (StatusCode::CONFLICT, None));
+    assert!(
+        text.contains("human v4 changed brick cache") && !text.contains("design/stale"),
+        "{text}"
+    );
+}

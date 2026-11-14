@@ -52,8 +52,7 @@ impl Finding for Unused {
     }
     fn help(&self) -> Option<String> {
         Some(
-            "make it private (or narrower, e.g. `pub(super)`) if only this brick needs it, \
-             remove it if dead, or add a test that exercises it"
+            "make it private, or remove it if nothing uses it; or add a test that exercises it"
                 .into(),
         )
     }

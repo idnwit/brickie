@@ -11,7 +11,7 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use brickie_change::{By, Link, Outcome, Stale, brick_path};
+use brickie_change::{By, Design, Link, Op, Outcome, Stale, brick_path};
 use brickie_web_api::*;
 
 type Res<E> = Result<Json<ResOf<E>>, Failure>;
@@ -36,6 +36,19 @@ impl From<Failure> for Refused {
     }
 }
 
+/// A stale write whose ops touch what a version since its base touched is refused with the
+/// conflict (`<author> v<N> changed <identity>`, no `design/stale` text, so the page does not
+/// re-send it); any other stale write keeps the stale error and may be re-sent on the head.
+fn settle(d: &Design, base: u64, ops: &[Op], err: anyhow::Error) -> Refused {
+    if err.downcast_ref::<Stale>().is_some()
+        && let Ok(log) = d.log()
+        && let Some(why) = data::design::first_conflict(&log, base, ops)
+    {
+        return Refused(anyhow::anyhow!(why));
+    }
+    Refused(err)
+}
+
 /// The reply to a write: the design after it and every level.
 fn reply(st: &AppState, out: Outcome) -> Result<Json<EditReply>, Refused> {
     let (levels, design) = edit_levels(st)?;
@@ -55,9 +68,10 @@ pub async fn edit(
     _: Guard,
     Json(req): Json<ReqOf<DesignEdit>>,
 ) -> Result<Json<EditReply>, Refused> {
-    let out = design(&st)?
-        .apply(req.base, By::Human, None, req.ops)
-        .map_err(Refused)?;
+    let d = design(&st)?;
+    let out = d
+        .apply(req.base, By::Human, None, req.ops.clone())
+        .map_err(|e| settle(&d, req.base, &req.ops, e))?;
     reply(&st, out)
 }
 
@@ -69,8 +83,8 @@ pub async fn move_brick(
     let d = design(&st)?;
     let op = d.move_op(&req.from, &req.into).map_err(Refused)?;
     let out = d
-        .apply(req.base, By::Human, None, vec![op])
-        .map_err(Refused)?;
+        .apply(req.base, By::Human, None, vec![op.clone()])
+        .map_err(|e| settle(&d, req.base, &[op], e))?;
     reply(&st, out)
 }
 
@@ -79,9 +93,16 @@ pub async fn undo(
     _: Guard,
     Json(req): Json<ReqOf<DesignUndo>>,
 ) -> Result<Json<EditReply>, Refused> {
-    let out = design(&st)?
-        .undo(req.base, By::Human, req.v)
-        .map_err(Refused)?;
+    let d = design(&st)?;
+    let out = d.undo(req.base, By::Human, req.v).map_err(|e| {
+        // The undone version is the one named, else the head the page saw.
+        let n = req.v.unwrap_or(req.base);
+        let ops = (d.log().ok())
+            .and_then(|l| l.into_iter().find(|v| v.v == n))
+            .map(|v| v.ops)
+            .unwrap_or_default();
+        settle(&d, req.base, &ops, e)
+    })?;
     reply(&st, out)
 }
 

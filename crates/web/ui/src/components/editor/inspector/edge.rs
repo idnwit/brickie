@@ -143,13 +143,14 @@ pub fn rule_view(cx: &Cx, r: RuleRef) -> View {
     let title = format!("{} \u{2192} {}{via}", rule.from, rule.to);
     let sub = format!("{} rule in {}", rule.action, r.file);
     let c = cx.clone();
+    let copy = super::copy_ref(rule_ref(ch.sheets.get(&r.file), &rule));
     let (k, ch2, t) = (
         kinds(cx, &r, &rule),
         choices(cx, &r, &rule),
         texts(cx, &r, &rule),
     );
     view! {
-        h2 { (title) }
+        h2 { (title) (copy) }
         p(class="muted mono") { (sub) }
         (shared)
         div(class="form") { (t) (missing) (k) (ch2) }

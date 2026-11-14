@@ -3,6 +3,7 @@
 
 use crate::paths::join_rel;
 use anyhow::Result;
+use brickie_model::design::{PlanAction, PlanFile};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -27,6 +28,17 @@ pub fn read(root: &Path, config: &str) -> Result<Files> {
         out.insert(review, bytes);
     }
     Ok(out)
+}
+
+/// The config files the tree names but the disk lacks (a deleted nested `brickie.toml`).
+pub fn missing(root: &Path, files: &Files) -> Vec<String> {
+    let mut out: Vec<String> = (files.iter())
+        .flat_map(|(rel, bytes)| references(rel, bytes))
+        .filter(|r| !files.contains_key(r) && !root.join(r).is_file())
+        .collect();
+    out.sort();
+    out.dedup();
+    out
 }
 
 /// The config files a file names: its includes and its composites' `brickie.toml`.
@@ -73,4 +85,19 @@ pub fn hash(files: &Files) -> String {
         eat(b);
     }
     format!("{h:016x}")
+}
+
+/// One `created <dir>/` entry per `brickie.toml` in `new` that `old` lacks (a group's folder).
+pub fn created(old: &Files, new: &Files) -> Vec<PlanFile> {
+    (new.keys())
+        .filter(|p| !old.contains_key(*p))
+        .filter_map(|p| p.strip_suffix("brickie.toml"))
+        .filter(|dir| !dir.is_empty())
+        .map(|dir| PlanFile {
+            path: dir.to_string(),
+            action: PlanAction::Create,
+            note: "(group)".into(),
+            content: None,
+        })
+        .collect()
 }
