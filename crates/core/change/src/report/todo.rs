@@ -2,11 +2,9 @@
 //! computed against the live design and the measured cache.
 
 use crate::preview::{cache_mismatch, planned};
-use brickie_check::check::{Loaded, filter_text, link_states};
+use brickie_check::check::{Loaded, filter_text, unused_links};
 use brickie_check::config::{Config, Pending, level_name};
-use brickie_model::codes::{
-    CONFIG_UNASSIGNED, DESIGN_NO_REASON, DESIGN_PLANNED, DESIGN_PLANNED_EDGE,
-};
+use brickie_model::codes::{CONFIG_UNASSIGNED, DEPS_UNUSED, DESIGN_NO_REASON, DESIGN_PLANNED};
 use brickie_model::design::{Task, TaskKind};
 use std::path::Path;
 
@@ -48,17 +46,16 @@ fn measured(l: &Loaded, t: &mut Todo) {
         let text = format!("{DESIGN_PLANNED}: {}", planned_text(&l.cfg, p));
         t.tasks.push(task(TaskKind::Planned, text));
     }
-    for link in link_states(l) {
+    for link in unused_links(l) {
         let text = format!(
-            "{DESIGN_PLANNED_EDGE}: rule {} -> {} in {} allows an edge no measured code uses yet (state: {}; {})",
+            "{DEPS_UNUSED}: rule {} -> {} in {} is unused ({}); write the code, or hide it with `--skip deps/unused` while coding",
             link.from,
             link.to,
             level_name(&link.level),
-            link.state.name(),
             filter_text(&link),
         );
         t.unbacked.push(link.loc);
-        t.tasks.push(task(TaskKind::Link, text));
+        t.tasks.push(task(TaskKind::Unused, text));
     }
 }
 

@@ -14,7 +14,7 @@ pub fn handles(cx: &Cx, p: &[Rect]) -> View {
         return View::default();
     };
     let Some(e) =
-        (cx.level().planned_edges.iter()).find(|e| e.file == r.file && planned_key(e) == r.key)
+        (cx.level().unused_links.iter()).find(|e| e.file == r.file && unused_key(e) == r.key)
     else {
         return View::default();
     };
@@ -26,7 +26,7 @@ pub fn handles(cx: &Cx, p: &[Rect]) -> View {
             .filter(|&b| b != a && b < p.len())
         {
             let end = (cx
-                .planned_route(a, b, p)
+                .unused_route(a, b, p)
                 .and_then(|q| q.segs.last().map(|s| s[3])))
             .map_or((p[b].x, p[b].y + p[b].h / 2.0), |q| (q.x, q.y));
             out.push(handle(cx, &r, a, ty, end));

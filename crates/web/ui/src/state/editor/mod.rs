@@ -117,7 +117,7 @@ impl RuleRef {
 }
 
 /// The identity of a planned edge's rule.
-pub fn planned_key(e: &brickie_web_api::PlannedEdge) -> RuleKey {
+pub fn unused_key(e: &brickie_web_api::UnusedLink) -> RuleKey {
     let mut kinds = e.kinds.clone();
     kinds.sort();
     RuleKey {

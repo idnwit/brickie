@@ -15,7 +15,7 @@ const OUTBOUND: &str = "outbound";
 
 /// The (from, to) brick pairs the planned rules of `level` draw, each once, in rule order.
 /// A selector `*` draws nothing; ghosts and self pairs are skipped.
-pub fn planned_pairs(level: &LevelView) -> Vec<(usize, usize)> {
+pub fn unused_pairs(level: &LevelView) -> Vec<(usize, usize)> {
     let g = &level.graph;
     let ends = |sel: &str| -> Vec<usize> {
         (0..g.bricks.len())
@@ -24,7 +24,7 @@ pub fn planned_pairs(level: &LevelView) -> Vec<(usize, usize)> {
     };
     let mut seen = BTreeSet::new();
     let mut out = Vec::new();
-    for e in &level.planned_edges {
+    for e in &level.unused_links {
         for a in ends(&e.from) {
             for b in ends(&e.to) {
                 if a != b && seen.insert((a, b)) {
@@ -179,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn planned_routes_avoid_every_other_box() {
+    fn unused_routes_avoid_every_other_box() {
         let (g, plan) = hex();
         let l = layout::layout(&layout_input(&g, &plan));
         assert!(l.cross <= l.cross0);

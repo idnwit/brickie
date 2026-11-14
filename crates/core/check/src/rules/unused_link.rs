@@ -1,6 +1,6 @@
-//! `deps/unused`: an allow rule between two fully measured bricks that no edge uses.
+//! `deps/unused`: an allow rule between two named bricks that no measured edge uses.
 
-use super::links::{Link, LinkState};
+use super::links::Link;
 use crate::config::{Level, Scope, level_name};
 use crate::diag::{Finding, RuleRef, Span};
 use brickie_model::codes::DEPS_UNUSED;
@@ -87,7 +87,8 @@ impl Finding for UnusedLink {
 
 /// One `deps/unused` finding per unused link.
 pub(super) fn unused_links(links: &[Link]) -> Vec<Box<dyn Finding>> {
-    (links.iter().filter(|l| l.state == LinkState::Unused))
+    links
+        .iter()
         .map(|l| Box::new(UnusedLink(l.clone())) as Box<dyn Finding>)
         .collect()
 }

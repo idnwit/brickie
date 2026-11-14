@@ -6,12 +6,12 @@ use anyhow::Result;
 use std::path::{Path, PathBuf};
 
 pub use brickie_model::codes::{DEPS_CYCLE, DEPS_DEFAULT, DEPS_DENY, DEPS_PRIVATE, DEPS_UNUSED};
-pub use rules::{Link, LinkState, filter_text};
+pub use rules::{Link, filter_text};
 
 /// Every allow rule between two named bricks that no measured edge backs, with its state.
 /// The design todo list, `deps/unused` and the viewer all read this one list.
-pub fn link_states(l: &super::Loaded) -> Vec<Link> {
-    rules::link_states(&l.cache, &l.cfg, &l.resolved)
+pub fn unused_links(l: &super::Loaded) -> Vec<Link> {
+    rules::unused_links(&l.cache, &l.cfg, &l.resolved)
 }
 
 /// The subject of a dependency finding: `from->to:kind:scope` over module ids.

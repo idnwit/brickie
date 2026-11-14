@@ -40,7 +40,7 @@ Each module gets one leaf path. At each level the most specific selector wins:
 | Cycles | Per level: SCCs over lifted prod edges among children, all kinds. One error per SCC. |
 | Complexity | Limit is inclusive. Per function and metric the most specific rule applies; ancestor levels apply too, so the tightest limit wins and a nested file only tightens. Policy: [complexity.md](complexity.md). |
 | Interfaces | Off in the Architecture preset: unused surface is advice. `interface/unused` (warn) per declared item with no outside use. |
-| Links | `check::link_states` lists every unbacked allow rule between two named bricks (backing as in the `via`/`kinds`/`scope` rules above; deny and selector rules excluded): `planned` when an end or a descendant has no module, `unused` when both ends are fully measured. One list serves `deps/unused`, the design todo (`design/planned-edge` carries the state) and the viewer. |
+| Links | `check::unused_links` lists every unbacked allow rule between two named bricks (backing as in the `via`/`kinds`/`scope` rules above; deny and selector rules excluded): every one is `deps/unused`, whether or not the ends have code (the agent hides it while coding with `--skip`). One list serves `deps/unused`, the design todo (kind `unused`) and the viewer. |
 | Staleness | Candidates from `git diff` and `git status`, confirmed by sha256. Without git, hash everything. A dirty-tree cache also hashes everything. Config edits are never stale. |
 
 `via` (optional on a rule): exported children of the rule's `to` composite. The rule matches only
@@ -50,7 +50,7 @@ target never matches. `to` must be a composite brick and every name one of its `
 entered child (`` `ui` uses `application` via `ports-out` ``).
 
 Editing: `via` is a property of a rule, not part of its identity, and `rule set` keeps it unless
-given. A planned `via` rule is backed only by a measured edge entering `to` through one of its
+given. A `via` rule is backed only by a measured edge entering `to` through one of its
 `via` children. Design ops keep `via` valid: `rename_brick` of a child rewrites the `via` of the
 parent rules that target its composite; `remove_brick`, `move_brick`, unexporting via
 `set_exports` and `ungroup` fail with `design/invalid` naming the rule when a `via` would dangle.

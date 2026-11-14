@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// The design at its head version: history, tasks, the per-file sheets and what the canvas
-/// needs (layout hints, level files, selectors, planned edges).
+/// needs (layout hints, level files, selectors, unused links).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DesignState {
     /// The head version: the `base` of the next write.
@@ -45,10 +45,10 @@ pub struct LayoutHint {
     pub y: f64,
 }
 
-/// An allow rule between named bricks that no measured edge backs: the canvas draws it as a
-/// planned or unused link. Named by identity (`file`, `from`, `to`, `kinds`, `scope`).
+/// An allow rule between named bricks that no measured edge backs: the canvas draws it as an
+/// unused link (`deps/unused`). Named by identity (`file`, `from`, `to`, `kinds`, `scope`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PlannedEdge {
+pub struct UnusedLink {
     /// Level path the rule applies to (`root`, `root/web`).
     pub level: String,
     /// Physical file of the rule.
@@ -63,9 +63,6 @@ pub struct PlannedEdge {
     pub action: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
-    /// `planned` (an end is not fully measured yet) or `unused` (both ends are measured and no
-    /// edge matches), as `brickie-check` computed it.
-    pub state: String,
     /// What the rule still waits for, for example "no `uses` edge in test scope".
     pub filter: String,
 }

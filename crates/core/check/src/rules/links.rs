@@ -1,28 +1,10 @@
-//! The state of every allow rule between two named bricks: the design asks for an edge that no
-//! measured code has yet (`Planned`), or that nothing will have because both ends are fully
-//! measured (`Unused`, reported as `deps/unused`). Rules that are backed by a measured edge
-//! are not listed.
+//! The unused allow rules between two named bricks: no measured edge matches them, whether or not
+//! the ends have code yet (reported as `deps/unused`). Rules backed by a measured edge are not
+//! listed.
 
 use crate::config::{Action, Config, DepRule, Resolved, Scope, Sel};
 use brickie_facts::Cache;
 use std::collections::BTreeSet;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum LinkState {
-    /// An end, or a descendant of an end, has no measured module yet.
-    Planned,
-    /// Both ends are fully measured and no edge matches the rule.
-    Unused,
-}
-
-impl LinkState {
-    pub fn name(self) -> &'static str {
-        match self {
-            LinkState::Planned => "planned",
-            LinkState::Unused => "unused",
-        }
-    }
-}
 
 /// An allow rule between two named bricks that no measured edge backs.
 #[derive(Debug, Clone)]
@@ -35,7 +17,6 @@ pub struct Link {
     /// Empty means all kinds.
     pub kinds: Vec<String>,
     pub scope: Scope,
-    pub state: LinkState,
     /// The config file of the level and `file:line` of the rule.
     pub file: String,
     pub loc: String,
@@ -88,38 +69,15 @@ fn backed(lv: &Config, r: &DepRule, measured: &BTreeSet<Hop>) -> bool {
     })
 }
 
-/// Whether the brick `lv.path + name` has leaves, and every leaf below it has a module.
-fn measured(lv: &Config, name: &str, leaves: &BTreeSet<&Vec<String>>) -> bool {
-    let Some(b) = lv.brick(name) else {
-        return false;
-    };
-    match &b.sub {
-        None => {
-            let mut path = lv.path.clone();
-            path.push(name.to_string());
-            leaves.contains(&path)
-        }
-        Some(sub) => {
-            !sub.bricks.is_empty() && sub.bricks.iter().all(|c| measured(sub, &c.name, leaves))
-        }
-    }
-}
-
 /// Every unbacked allow rule between named bricks, in tree order, one per rule location.
-pub fn link_states(cache: &Cache, cfg: &Config, res: &Resolved) -> Vec<Link> {
+pub fn unused_links(cache: &Cache, cfg: &Config, res: &Resolved) -> Vec<Link> {
     let hops = lifted(cache, res);
-    let leaves: BTreeSet<&Vec<String>> = res.paths.values().collect();
     let mut out = Vec::new();
-    walk(cfg, &hops, &leaves, &mut out);
+    walk(cfg, &hops, &mut out);
     out
 }
 
-fn walk(
-    level: &Config,
-    hops: &BTreeSet<Hop>,
-    leaves: &BTreeSet<&Vec<String>>,
-    out: &mut Vec<Link>,
-) {
+fn walk(level: &Config, hops: &BTreeSet<Hop>, out: &mut Vec<Link>) {
     for r in &level.deps.rules {
         let (Sel::Brick(from), Sel::Brick(to)) = (&r.from, &r.to) else {
             continue;
@@ -128,7 +86,6 @@ fn walk(
         {
             continue;
         }
-        let full = measured(level, from, leaves) && measured(level, to, leaves);
         out.push(Link {
             level: level.path.clone(),
             from: from.clone(),
@@ -136,11 +93,6 @@ fn walk(
             via: r.via.clone(),
             kinds: r.kinds.clone(),
             scope: r.scope,
-            state: if full {
-                LinkState::Unused
-            } else {
-                LinkState::Planned
-            },
             file: level.file.clone(),
             loc: r.loc.clone(),
             reason: r.reason.clone(),
@@ -148,7 +100,7 @@ fn walk(
     }
     for b in &level.bricks {
         if let Some(sub) = &b.sub {
-            walk(sub, hops, leaves, out);
+            walk(sub, hops, out);
         }
     }
 }

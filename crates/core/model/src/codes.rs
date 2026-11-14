@@ -20,7 +20,6 @@ pub const CONFIG_UNKNOWN_VIA: &str = "config/unknown-via";
 // The design (`brickie design`): the message starts with the code.
 pub const DESIGN_PLANNED: &str = "design/planned";
 pub const DESIGN_INVALID: &str = "design/invalid";
-pub const DESIGN_PLANNED_EDGE: &str = "design/planned-edge";
 pub const DESIGN_NO_REASON: &str = "design/no-reason";
 /// A write based on an older version than the head (exit code 3).
 pub const DESIGN_STALE: &str = "design/stale";
@@ -57,7 +56,6 @@ pub fn all() -> Vec<String> {
         CONFIG_UNKNOWN_VIA,
         DESIGN_PLANNED,
         DESIGN_INVALID,
-        DESIGN_PLANNED_EDGE,
         DESIGN_NO_REASON,
         DESIGN_STALE,
         DESIGN_NO_MATCH,

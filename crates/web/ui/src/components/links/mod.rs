@@ -1,6 +1,5 @@
-//! Planned and unused links on the canvas, in view mode and in the editor: one line per (from,
-//! to) brick pair, dashed like the edge kind, 50% opaque when planned and in the warning colour
-//! with a `!` when unused. A yellow `?` marks a rule without a reason, `A` an agent's rule.
+//! Unused links on the canvas, in view mode and in the editor: one line per (from, to) brick
+//! pair, dashed like the edge kind, in the warning colour with a `!`. A yellow `?` marks a rule without a reason, `A` an agent's rule.
 //! The reason shows as a label on hover or selection only. In the editor a click selects the
 //! rule; in view mode it picks the link (a tap on touch).
 
@@ -11,7 +10,7 @@ pub use pair::ends;
 
 use crate::layout::{Pt, Rect, Route};
 use crate::state::*;
-use brickie_web_api::PlannedEdge;
+use brickie_web_api::UnusedLink;
 use brickie_web_api::design::Op as DOp;
 use pair::{Pair, pairs};
 use spot::mark_spot;
@@ -21,7 +20,7 @@ use sycamore::prelude::*;
 const SLOT: f64 = 18.0;
 
 /// Whether an agent's version since your last edit added rule `e`.
-fn by_agent(cx: &Cx, e: &PlannedEdge) -> bool {
+fn by_agent(cx: &Cx, e: &UnusedLink) -> bool {
     let Some(d) = cx.m.design.as_deref() else {
         return false;
     };
@@ -33,7 +32,7 @@ fn by_agent(cx: &Cx, e: &PlannedEdge) -> bool {
 /// The route of pair `a -> b`: the layout's (around the boxes, from side ports), or a plain
 /// cubic from the right to the left side when the pair is not routed.
 fn path_of(cx: &Cx, a: usize, b: usize, p: &[Rect]) -> Route {
-    if let Some(r) = cx.planned_route(a, b, p) {
+    if let Some(r) = cx.unused_route(a, b, p) {
         return r;
     }
     let (x1, y1) = (p[a].x + p[a].w, p[a].y + p[a].h / 2.0);
@@ -45,8 +44,8 @@ fn path_of(cx: &Cx, a: usize, b: usize, p: &[Rect]) -> Route {
     }
 }
 
-/// The dash of the pair's edge kind (`implements`, `reexports`); `None` keeps the planned dash.
-fn kind_dash(e: &PlannedEdge) -> Option<&'static str> {
+/// The dash of the pair's edge kind (`implements`, `reexports`); `None` keeps the default dash.
+fn kind_dash(e: &UnusedLink) -> Option<&'static str> {
     match e.kinds.as_slice() {
         [k] if k == "implements" || k == "reexports" => Some(crate::components::dash(k)),
         _ => None,
@@ -74,9 +73,7 @@ fn draw(
     let d = route.d();
     let at = mark_spot(&route, p, marks);
     let mut glyphs: Vec<&str> = Vec::new();
-    if pr.state() == "unused" {
-        glyphs.push("!");
-    }
+    glyphs.push("!");
     if pr.no_reason() {
         glyphs.push("?");
     }
@@ -104,11 +101,11 @@ fn draw(
         .iter()
         .map(|e| RuleRef {
             file: e.file.clone(),
-            key: planned_key(e),
+            key: unused_key(e),
         })
         .collect();
     let (ed, editing, key) = (cx.ed, cx.editing(), (pr.a, pr.b));
-    let (sel_refs, state, dash) = (refs.clone(), pr.state(), kind_dash(lead));
+    let (sel_refs, dash) = (refs.clone(), kind_dash(lead));
     let cls = move || -> String {
         let sel = editing
             && ed
@@ -120,7 +117,7 @@ fn draw(
             if sel { " sel" } else { "" },
             if pick { " picked" } else { "" },
         );
-        format!("pedge plink l-{} st-{state}{agent}{sel}{pick}", ty.name())
+        format!("pedge plink l-{}{agent}{sel}{pick}", ty.name())
     };
     let click = move |ev: Click| {
         ev.stop_propagation();

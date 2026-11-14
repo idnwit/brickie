@@ -19,7 +19,7 @@ pub struct LevelView {
     /// Edit mode: allow rules of this level that no measured edge uses yet (drawn dashed
     /// between the bricks their selectors name).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub planned_edges: Vec<crate::PlannedEdge>,
+    pub unused_links: Vec<crate::UnusedLink>,
 }
 
 impl LevelView {

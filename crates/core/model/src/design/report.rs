@@ -11,8 +11,8 @@ pub enum TaskKind {
     Planned,
     /// The design does not check (an unfinished partition, a cache problem).
     Config,
-    /// An allow rule between two named bricks that no measured edge uses yet.
-    Link,
+    /// An allow rule between two named bricks that no measured edge uses (`deps/unused`).
+    Unused,
     /// A rule without a `reason`.
     Reason,
 }

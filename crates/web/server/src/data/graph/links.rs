@@ -1,23 +1,23 @@
-//! The planned and unused links of a level: the allow rules between named bricks that no
-//! measured edge backs, with the state `brickie-check` computed (`link_states`). The viewer
+//! The unused links of a level: the allow rules between named bricks that no measured edge
+//! backs (`unused_links`). The viewer
 //! draws them in view mode and in the editor alike.
 
-use brickie_check::check::{Link, LinkState, Loaded, filter_text, link_states};
+use brickie_check::check::{Link, Loaded, filter_text, unused_links};
 use brickie_check::config::level_name;
-use brickie_web_api::PlannedEdge;
+use brickie_web_api::UnusedLink;
 use std::path::{Path, PathBuf};
 
-/// Every link of the design as a served edge, in tree order.
-pub fn planned_edges(l: &Loaded) -> Vec<(String, PlannedEdge)> {
+/// Every unused link of the design as a served edge, in tree order.
+pub fn served(l: &Loaded) -> Vec<(String, UnusedLink)> {
     let root = root_dir(&l.cfg.file);
-    link_states(l)
+    unused_links(l)
         .iter()
         .map(|k| (level_name(&k.level), edge(k, &root)))
         .collect()
 }
 
-fn edge(k: &Link, root: &Path) -> PlannedEdge {
-    PlannedEdge {
+fn edge(k: &Link, root: &Path) -> UnusedLink {
+    UnusedLink {
         level: level_name(&k.level),
         file: rel(root, &k.loc),
         from: k.from.clone(),
@@ -26,14 +26,8 @@ fn edge(k: &Link, root: &Path) -> PlannedEdge {
         scope: k.scope.name().to_string(),
         action: "allow".into(),
         reason: k.reason.clone().filter(|s| !s.trim().is_empty()),
-        state: state_name(k.state).into(),
         filter: filter_text(k),
     }
-}
-
-/// The served name of a link state (`planned`, `unused`).
-pub fn state_name(s: LinkState) -> &'static str {
-    s.name()
 }
 
 /// The directory of the root config file.
@@ -69,11 +63,5 @@ mod tests {
         let root = Path::new("/w/proj");
         assert_eq!(rel(root, "/w/proj/web/brickie.toml:12"), "web/brickie.toml");
         assert_eq!(rel(root, "/other/x.toml:3"), "/other/x.toml");
-    }
-
-    #[test]
-    fn states_are_served_by_name() {
-        assert_eq!(state_name(LinkState::Planned), "planned");
-        assert_eq!(state_name(LinkState::Unused), "unused");
     }
 }

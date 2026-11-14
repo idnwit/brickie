@@ -1,8 +1,8 @@
-//! Planned and unused links grouped per (from, to) brick pair: one line per pair, the worst
-//! state wins (unused over planned), and the tooltip lists every rule.
+//! Unused links grouped per (from, to) brick pair: one line per pair, and the tooltip lists
+//! every rule.
 
 use crate::state::*;
-use brickie_web_api::PlannedEdge;
+use brickie_web_api::UnusedLink;
 
 /// The longest reason a label shows (characters); the tooltip has the full text.
 pub const LABEL_MAX: usize = 40;
@@ -18,22 +18,13 @@ pub fn ends(cx: &Cx, sel: &str) -> Vec<usize> {
 pub struct Pair<'a> {
     pub a: usize,
     pub b: usize,
-    pub rules: Vec<&'a PlannedEdge>,
+    pub rules: Vec<&'a UnusedLink>,
 }
 
 impl Pair<'_> {
-    /// `unused` when any rule is unused, else `planned`.
-    pub fn state(&self) -> &'static str {
-        worst(self.rules.iter().map(|e| e.state.as_str()))
-    }
-
-    /// The rule that decides the line: the first one in the worst state.
-    pub fn lead(&self) -> &PlannedEdge {
-        let w = self.state();
-        self.rules
-            .iter()
-            .find(|e| e.state == w)
-            .unwrap_or(&self.rules[0])
+    /// The rule that decides the line: the first one.
+    pub fn lead(&self) -> &UnusedLink {
+        self.rules[0]
     }
 
     pub fn no_reason(&self) -> bool {
@@ -53,29 +44,17 @@ impl Pair<'_> {
         Some(format!("{}{tail}", cut(reason, LABEL_MAX)))
     }
 
-    /// Every rule with its state, reason and filter text, one per line.
+    /// Every rule with its reason and filter text, one per line.
     pub fn tip(&self) -> String {
-        let line = |e: &PlannedEdge| {
+        let line = |e: &UnusedLink| {
             let why = e.reason.as_deref().unwrap_or("no reason yet");
-            format!(
-                "{} \u{2192} {} [{}] {why} ({})",
-                e.from, e.to, e.state, e.filter
-            )
+            format!("{} \u{2192} {} {why} ({})", e.from, e.to, e.filter)
         };
         self.rules
             .iter()
             .map(|e| line(e))
             .collect::<Vec<_>>()
             .join("\n")
-    }
-}
-
-/// The worst of link states: `unused` beats `planned`.
-pub fn worst<'a>(states: impl IntoIterator<Item = &'a str>) -> &'static str {
-    if states.into_iter().any(|s| s == "unused") {
-        "unused"
-    } else {
-        "planned"
     }
 }
 
@@ -91,7 +70,7 @@ pub fn cut(s: &str, max: usize) -> String {
 /// The links of the current level grouped per pair, in rule order.
 pub fn pairs(cx: &Cx) -> Vec<Pair<'_>> {
     let mut out: Vec<Pair> = Vec::new();
-    for e in &cx.level().planned_edges {
+    for e in &cx.level().unused_links {
         for a in ends(cx, &e.from) {
             for b in ends(cx, &e.to).into_iter().filter(|&b| b != a) {
                 match out.iter_mut().find(|p| (p.a, p.b) == (a, b)) {
@@ -112,8 +91,8 @@ pub fn pairs(cx: &Cx) -> Vec<Pair<'_>> {
 mod tests {
     use super::*;
 
-    fn edge(state: &str, reason: Option<&str>) -> PlannedEdge {
-        PlannedEdge {
+    fn edge(reason: Option<&str>) -> UnusedLink {
+        UnusedLink {
             level: "root".into(),
             file: "brickie.toml".into(),
             from: "a".into(),
@@ -122,26 +101,21 @@ mod tests {
             scope: "prod".into(),
             action: "allow".into(),
             reason: reason.map(String::from),
-            state: state.into(),
             filter: "no edge in prod scope".into(),
         }
     }
 
     #[test]
-    fn the_worst_state_wins_per_pair() {
-        assert_eq!(worst(["planned", "planned"]), "planned");
-        assert_eq!(worst(["planned", "unused"]), "unused");
-        let (p, u) = (edge("planned", Some("x")), edge("unused", None));
+    fn the_tip_lists_every_rule_with_its_reason_or_none() {
+        let (p, u) = (edge(Some("x")), edge(None));
         let pair = Pair {
             a: 0,
             b: 1,
             rules: vec![&p, &u],
         };
-        assert_eq!(pair.state(), "unused");
-        assert!(std::ptr::eq(pair.lead(), &u));
         assert!(pair.no_reason());
         let tip = pair.tip();
-        assert!(tip.contains("[planned] x") && tip.contains("[unused] no reason yet"));
+        assert!(tip.contains("a \u{2192} b x (") && tip.contains("no reason yet"));
     }
 
     #[test]
@@ -151,7 +125,7 @@ mod tests {
         let c = cut(&long, LABEL_MAX);
         assert_eq!(c.chars().count(), LABEL_MAX);
         assert!(c.ends_with('\u{2026}'));
-        let (p, q) = (edge("planned", Some("why")), edge("planned", None));
+        let (p, q) = (edge(Some("why")), edge(None));
         let pair = Pair {
             a: 0,
             b: 1,
