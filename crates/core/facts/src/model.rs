@@ -14,6 +14,9 @@ pub struct Cache {
     pub schema_version: u32,
     pub tool_version: String,
     pub rust_analyzer: String,
+    /// How the index was made; `check` reports a cache whose settings differ from the config.
+    #[serde(default)]
+    pub measured: Measured,
     /// Absolute workspace root at measure time; all file paths are relative to it.
     pub workspace_root: String,
     /// `None` when the workspace is not a git repository.
@@ -21,6 +24,25 @@ pub struct Cache {
     pub crates: Vec<Crate>,
     pub modules: Vec<Module>,
     pub files: BTreeMap<String, FileData>,
+}
+
+/// The cargo settings of a measure run: the cache key besides the sources.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Measured {
+    /// `all` (every cargo feature); empty for a cache that predates the setting.
+    pub features: String,
+    /// Targets measured besides the host, sorted.
+    pub targets: Vec<String>,
+}
+
+impl Measured {
+    /// All cargo features plus `targets` (already sorted and deduplicated by config loading).
+    pub fn all(targets: Vec<String>) -> Measured {
+        Measured {
+            features: "all".into(),
+            targets,
+        }
+    }
 }
 
 impl Cache {

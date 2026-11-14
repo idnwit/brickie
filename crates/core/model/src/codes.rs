@@ -5,6 +5,7 @@ pub const DEPS_DENY: &str = "deps/deny";
 pub const DEPS_DEFAULT: &str = "deps/default";
 pub const DEPS_CYCLE: &str = "deps/cycle";
 pub const STALE_FILE: &str = "stale/file";
+pub const STALE_MEASURE: &str = "stale/measure";
 pub const DEPS_PRIVATE: &str = "deps/private";
 pub const BRICKS_UNMAPPED: &str = "bricks/unmapped";
 pub const INTERFACE_UNUSED: &str = "interface/unused";
@@ -44,6 +45,7 @@ pub fn all() -> Vec<String> {
         DEPS_CYCLE,
         DEPS_PRIVATE,
         STALE_FILE,
+        STALE_MEASURE,
         BRICKS_UNMAPPED,
         INTERFACE_UNUSED,
         DEPS_UNUSED,

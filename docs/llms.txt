@@ -44,6 +44,24 @@ Exit codes of `brickie check`: 0 clean (only warnings or accepted findings), 1 a
 unaccepted `error`, 2 configuration, review file or cache problem (for example no cache: run
 `brickie measure`).
 
+## Features and targets
+
+`measure` always indexes with all cargo features on, for the host target, plus one run per
+target in `[measure] additional_targets` of the root `brickie.toml`; edges of all runs are
+merged. Principles to follow when writing code:
+
+- P1: features are additive; the code builds with any combination (`--all-features` must work).
+- P2: a feature selects an optional capability; `cfg(target_*)` selects the platform.
+- P3: a feature adds an optional dependency or adapter; it does not change existing API.
+- P4: conditional code lives at the edges: adapters and the composition root.
+
+After `measure`, a line `hint: code under cfg(target_arch = "wasm32") is not measured; add
+"wasm32-unknown-unknown" to [measure] additional_targets` means that code has no edges in the
+cache, so a rule it uses may look unused. Do not add the target yourself; report the hint to the
+reviewer. If `measure` fails with "rust-analyzer scip failed for target ..." and "if features are
+mutually exclusive, make them additive", fix the code so a build with all features works, or
+report that the target is not installed (`rustup target add <target>`).
+
 ## Hard constraints
 
 - Never edit `brickie.toml` (or files it includes) or `brickie.review.toml` to make `check` pass;
@@ -282,6 +300,11 @@ functions are checked only when the rule's `scope` includes tests. Never raise a
 A `.rs` file was changed, added or deleted after `brickie measure` (the message says which), so
 its data is old. Run `brickie measure`, then `brickie check`.
 
+### stale/measure (warning)
+
+The cache was measured with other features or `additional_targets` than `[measure]` asks for now.
+Run `brickie measure`, then `brickie check`.
+
 ### bricks/unmapped (warning)
 
 A module belongs to no brick, so none of its edges or functions are checked (usually after adding
@@ -391,6 +414,11 @@ scope = "prod"                 # prod (default) | test | all
 action = "allow"               # allow | deny
 reason = "app calls into core" # shown in findings
 help = "optional fix hint"     # replaces the built-in hint
+
+[measure]                      # root file only
+additional_targets = ["wasm32-unknown-unknown"]
+                               # target triples measured besides the host (default none);
+                               # all cargo features are always on
 
 [[complexity]]
 bricks = "tag:core"            # selector; default *

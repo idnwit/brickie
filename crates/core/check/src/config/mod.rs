@@ -2,6 +2,7 @@
 //! dependency and complexity rules, and the resolution of modules to leaf paths.
 
 mod load;
+mod measure;
 mod member;
 mod resolve;
 mod schema;
@@ -12,7 +13,8 @@ mod validate;
 #[cfg(test)]
 pub(crate) mod tests;
 
-pub use load::{load, load_from};
+pub use load::{load, load_from, load_measure};
+pub use measure::MeasureCfg;
 pub use resolve::{Mode, Pending, Resolved, resolve};
 pub use schema::{
     Action, Brick, ComplexityRule, Config, DepRule, Export, KINDS, Level, Scope, level_name,

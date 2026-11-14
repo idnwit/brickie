@@ -51,6 +51,7 @@ fn load_mode(src: &dyn config::FileSource, config: &Path, mode: Mode) -> Result<
     let resolved = config::resolve(&cfg, &cache.crates, &cache.modules, &ws, mode)?;
     let mut found = rules::evaluate(&cache, &cfg, &resolved, root);
     found.extend(rules::evaluate_stale(&cache));
+    found.extend(rules::evaluate_stale_measure(&cache, &cfg.measure));
     found.extend(interface::unused(&cache, &cfg, &resolved));
     let mut diagnostics: Vec<Diagnostic> =
         found.iter().map(|f| diag::diagnostic(f.as_ref())).collect();

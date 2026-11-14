@@ -11,6 +11,19 @@ brick data.
   is taken over.
 - Stale cache: changed, added or deleted `.rs` files give `stale/file` warnings (see [check.md](check.md)).
 
+## Features and targets
+
+Proposal and phases: [../proposals/features.md](../proposals/features.md).
+
+| Decision | Reason |
+| --- | --- |
+| Always all cargo features (`cargo.features = "all"` in a rust-analyzer `--config-path` JSON); no setting | the design covers every code path; additive features (P1) make it buildable |
+| One `scip` run for the host, one per `[measure] additional_targets` entry (`cargo.target`); per-file edges and items are unioned and deduplicated | rule checks see every edge; a file compiled by any run counts as compiled |
+| The config JSON uses the nested form `{"cargo": {...}}`; flat `cargo.features` keys are silently ignored by rust-analyzer | verified on rust-analyzer's `scip` command |
+| A failed run reports its target and says exclusive features must be made additive | P1 enforced by construction |
+| `measure` prints one `hint:` line per `cfg(target_arch/os = ...)` family found by a text scan that neither the host (`rustc -vV`) nor an additional target covers | never add a target silently; its cost stays visible |
+| The cache records `measured { features, targets }`; `check` warns `stale/measure` when the config differs | the settings are part of the cache key; a cache without them is not judged |
+
 ## Facts
 
 - Units: crate, module (`crate::a::b`), file. A module maps to at most one leaf brick.
@@ -33,7 +46,7 @@ brick data.
 ## Cache layout (schema_version 6)
 
 `.brickie/cache.json` sits next to the config. Top level: `schema_version`, `tool_version`,
-`rust_analyzer`, `workspace_root`, `git`, `crates`, `modules`, `files`.
+`rust_analyzer`, `measured`, `workspace_root`, `git`, `crates`, `modules`, `files`.
 
 - Ids: a library crate is its package name, other targets `pkg/kind/target`, a module
   `<crate id>::a::b`. A crate records `dir` (package dir) for `path:` members.
