@@ -12,9 +12,13 @@ pub const EVENTS_PATH: &str = "/api/events";
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ServerEvent {
-    /// The open change's log moved (`head`: its last seq), or a change was opened, published
-    /// or discarded (`open`).
-    Change { open: bool, head: u64 },
+    /// The design's head version moved: a write by the page, the CLI (a coding agent) or a
+    /// hand edit of the files (recorded as an `external` version when the watcher sees it).
+    Design {
+        hash: String,
+        v: u64,
+        by: crate::design::By,
+    },
     /// `cache.json` was replaced: when (Unix seconds), and a stamp of its exact time and size.
     Cache { measured_at: u64, stamp: u64 },
     /// The server's measure job moved on.
@@ -27,7 +31,7 @@ impl ServerEvent {
     /// The SSE `event:` name.
     pub fn kind(&self) -> &'static str {
         match self {
-            ServerEvent::Change { .. } => "change",
+            ServerEvent::Design { .. } => "design",
             ServerEvent::Cache { .. } => "cache",
             ServerEvent::Measure { .. } => "measure",
             ServerEvent::Config { .. } => "config",

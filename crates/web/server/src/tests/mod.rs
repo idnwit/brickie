@@ -4,7 +4,6 @@
 mod api;
 mod code;
 mod editor;
-mod editor_reply;
 mod events;
 mod index;
 mod interface;

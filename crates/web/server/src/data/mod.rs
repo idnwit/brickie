@@ -1,17 +1,14 @@
 //! Builds the webview's data (`brickie_web_api::PageData`) from the loaded config and cache. The
 //! diagnostics are the very values `brickie check` prints, converted field by field.
 
+pub mod design;
 mod diagnostics;
-mod editor;
 mod functions;
-mod graph;
+pub mod graph;
 mod interface;
-mod reply;
 mod time;
 
-pub use editor::{change_view, mark};
 pub use interface::{edge_uses, interface};
-pub use reply::{levels, op_files, reply, seq_files};
 pub use time::utc;
 
 use brickie_check::check::Loaded;
@@ -45,6 +42,6 @@ pub fn page(l: &Loaded, cache_file: &Path) -> PageData {
             .collect(),
         levels: graph::levels(l),
         functions: functions::functions(l),
-        change: None,
+        design: None,
     }
 }

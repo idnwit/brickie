@@ -1,4 +1,4 @@
-//! In-place refresh after an op: the levels of a `ChangeReply` replace the ones on the page,
+//! In-place refresh after a write: the levels of an `EditReply` replace the ones on the page,
 //! and the canvas keeps its pan/zoom and the boxes where they were.
 
 use crate::layout::Rect;
@@ -15,8 +15,8 @@ pub struct Keep {
 }
 
 /// `old` with each level of `new` replacing the one of the same path (new paths appended);
-/// levels missing from `files` (the levels of the preview) are dropped, unless `files` is
-/// empty (the preview did not load).
+/// levels missing from `files` (the levels of the design) are dropped, unless `files` is
+/// empty (the design did not load).
 pub fn patch_levels(
     old: &[LevelView],
     new: Vec<LevelView>,

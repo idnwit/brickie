@@ -5,13 +5,19 @@
 use super::MoveTarget;
 use crate::layout::{Rect, RowOut};
 use brickie_web_api::BrickView;
-use brickie_web_api::change::{BrickKind, BrickSpec, Op};
+use brickie_web_api::design::{BrickKind, BrickSpec, Op};
 
 /// Label of the lane of bricks without tags.
 pub const UNTAGGED: &str = "(untagged)";
 
 /// Height (world units) of the "+ new tag lane" zone under the last lane.
 const NEW_LANE_H: f64 = 40.0;
+/// Room under the frame that fitting the view keeps visible in edit mode: the new-lane zone.
+pub const NEW_LANE_ROOM: f64 = 8.0 + NEW_LANE_H + 12.0;
+/// Space between the children and the level frame (narrow at the sides: the row captions sit
+/// there).
+pub const FRAME_PAD: f64 = 20.0;
+pub const FRAME_PADX: f64 = 10.0;
 
 /// What is being dragged: an existing brick of the level, a new tile from the toolbar, or a
 /// brick lifted from another level (it can only go into a brick, up, or onto this level).
@@ -58,6 +64,36 @@ pub fn lane_rect(rows: &[RowOut], frame: &Rect, lane: Option<&str>) -> Option<Re
         w: frame.w,
         h: r.h,
     })
+}
+
+/// The level frame around the boxes of the children (faded neighbours and `skip` left out;
+/// `None` when nothing is left). A drag aims with the dragged brick left out: the frame, and
+/// the new-lane zone under it, must not follow the brick it is dragged to.
+pub fn frame_of(bricks: &[BrickView], pos: &[Rect], skip: Option<usize>) -> Option<Rect> {
+    let inner: Vec<&Rect> = (0..bricks.len().min(pos.len()))
+        .filter(|&i| !bricks[i].ghost && Some(i) != skip)
+        .map(|i| &pos[i])
+        .collect();
+    let x0 = inner.iter().map(|r| r.x).reduce(f64::min)?;
+    let y0 = inner.iter().map(|r| r.y).reduce(f64::min)?;
+    let x1 = inner.iter().map(|r| r.x + r.w).reduce(f64::max)?;
+    let y1 = inner.iter().map(|r| r.y + r.h).reduce(f64::max)?;
+    Some(Rect {
+        x: x0 - FRAME_PADX,
+        y: y0 - FRAME_PAD,
+        w: x1 - x0 + 2.0 * FRAME_PADX,
+        h: y1 - y0 + 2.0 * FRAME_PAD,
+    })
+}
+
+/// The "+ new tag lane" zone of a drag (`skip`: the dragged brick), from the boxes.
+pub fn new_lane_zone(
+    rows: &[RowOut],
+    bricks: &[BrickView],
+    pos: &[Rect],
+    skip: Option<usize>,
+) -> Option<Rect> {
+    frame_of(bricks, pos, skip).map(|f| new_lane_rect(rows, &f))
 }
 
 /// The "+ new tag lane" zone: a band under the lowest row (or the frame), as wide as the frame.

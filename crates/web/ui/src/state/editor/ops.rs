@@ -1,7 +1,7 @@
 //! Ops the editor's gestures and fields build, and the paths and keys they name bricks by.
 
 use brickie_web_api::BrickView;
-use brickie_web_api::change::{BrickKind, BrickSpec, Op};
+use brickie_web_api::design::{BrickKind, BrickSpec, ComplexitySpec, Op};
 
 /// The brick path from the root (without `root`) of brick `name` at level `lv`.
 pub fn brick_path(lv: &str, name: &str) -> Vec<String> {
@@ -105,6 +105,47 @@ pub fn toggled(vec: &[String], item: &str, on: bool) -> Vec<String> {
     out
 }
 
+/// The ops that turn complexity rule `old` of `file` into `new`: a `set_complexity` patch of
+/// the fields that differ (a cleared metric is `0`, a cleared text `""`: removed), or, when the
+/// `bricks` selector (its identity) changes, remove and add.
+pub fn complexity_ops(file: &str, old: &ComplexitySpec, new: &ComplexitySpec) -> Vec<Op> {
+    if old == new {
+        return Vec::new();
+    }
+    if old.bricks != new.bricks {
+        return vec![
+            Op::RemoveComplexity {
+                file: file.to_string(),
+                bricks: old.bricks.clone(),
+            },
+            Op::AddComplexity {
+                file: file.to_string(),
+                rule: new.clone(),
+            },
+        ];
+    }
+    let n = |a: Option<u64>, b: Option<u64>| (a != b).then(|| b.unwrap_or(0));
+    let t =
+        |a: &Option<String>, b: &Option<String>| (a != b).then(|| b.clone().unwrap_or_default());
+    let set = ComplexitySpec {
+        bricks: None,
+        cognitive: n(old.cognitive, new.cognitive),
+        cyclomatic: n(old.cyclomatic, new.cyclomatic),
+        nesting: n(old.nesting, new.nesting),
+        paths: n(old.paths, new.paths),
+        params: n(old.params, new.params),
+        lines: n(old.lines, new.lines),
+        level: t(&old.level, &new.level),
+        scope: t(&old.scope, &new.scope),
+        help: t(&old.help, &new.help),
+    };
+    vec![Op::SetComplexity {
+        file: file.to_string(),
+        bricks: old.bricks.clone(),
+        set,
+    }]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,6 +157,42 @@ mod tests {
         assert!(level_brick_path("root").is_empty());
         assert_eq!(layout_key("root/web", "api"), "root/web/api");
         assert_eq!(split_list(" a, ,b "), vec!["a", "b"]);
+    }
+
+    #[test]
+    fn complexity_edits_patch_by_selector() {
+        let old = ComplexitySpec {
+            bricks: Some("core".into()),
+            cognitive: Some(25),
+            level: Some("warn".into()),
+            ..Default::default()
+        };
+        assert!(complexity_ops("b.toml", &old, &old).is_empty());
+        let new = ComplexitySpec {
+            cognitive: None,
+            lines: Some(80),
+            level: None,
+            ..old.clone()
+        };
+        let ops = complexity_ops("b.toml", &old, &new);
+        let [Op::SetComplexity { bricks, set, .. }] = ops.as_slice() else {
+            panic!("expected one set_complexity");
+        };
+        assert_eq!(bricks.as_deref(), Some("core"));
+        assert_eq!(
+            (set.cognitive, set.lines, set.level.as_deref()),
+            (Some(0), Some(80), Some(""))
+        );
+        assert_eq!(set.nesting, None);
+        let moved = ComplexitySpec {
+            bricks: Some("web".into()),
+            ..old.clone()
+        };
+        let ops = complexity_ops("b.toml", &old, &moved);
+        assert!(matches!(
+            ops.as_slice(),
+            [Op::RemoveComplexity { .. }, Op::AddComplexity { .. }]
+        ));
     }
 
     #[test]

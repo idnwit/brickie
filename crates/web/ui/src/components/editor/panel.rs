@@ -1,7 +1,7 @@
-//! The design panel (right column in edit mode): Inspector, Rules, Level, Files and Ops tabs,
-//! all scoped to the level on screen.
+//! The design panel (right column in edit mode): Inspector, Rules, Level, Files and History
+//! tabs, all scoped to the level on screen but History.
 
-use super::{complexity, files, inspector, level_tab, log, rules};
+use super::{complexity, files, history, inspector, level_tab, rules};
 use crate::state::*;
 use sycamore::prelude::*;
 
@@ -10,22 +10,15 @@ const TABS: [(&str, &str); 5] = [
     ("rules", "Rules"),
     ("level", "Level"),
     ("files", "Files"),
-    ("ops", "Ops"),
+    ("history", "History"),
 ];
 
 fn tabs(cx: &Cx) -> View {
     let ed = cx.ed;
-    let proposed =
-        cx.m.change
-            .as_ref()
-            .map_or(0, |c| c.log.iter().filter(|r| pending(r)).count());
     let items: Vec<View> = TABS
         .iter()
         .map(|&(id, name)| {
-            let label = match (id, proposed) {
-                ("ops", n) if n > 0 => format!("{name} ({n})"),
-                _ => name.to_string(),
-            };
+            let label = name.to_string();
             let cls = move || format!("tab{}", if ed.tab.get() == id { " on" } else { "" });
             view! { button(class=cls, "data-tab"=id, on:click=move |_: Click| ed.tab.set(id)) { (label) } }
         })
@@ -55,7 +48,7 @@ pub fn panel(cx: &Cx) -> View {
         }),
         "level" => untrack(|| level_tab::level_tab(&c)),
         "files" => untrack(|| files::files(&c)),
-        "ops" => log::log(&c),
+        "history" => history::history(&c),
         _ => inspector::inspector(&c),
     };
     view! {

@@ -1,9 +1,8 @@
-//! Server-Sent Events: the watcher's snapshots turn writes from anywhere (here the core API, as
-//! the CLI would) into events, and `/api/events` streams the current state first.
+//! Server-Sent Events: the watcher's snapshots turn writes from anywhere (here plain file
+//! writes, as `brickie measure`, `brickie design` and an editor would) into events, and `/api/events` streams the current state first.
 
 use super::*;
 use crate::events::snapshot;
-use brickie_change::{By, Change};
 use brickie_web_api::ServerEvent;
 
 #[test]
@@ -14,21 +13,6 @@ fn writes_from_anywhere_become_events() {
         st.events.update(snapshot(&st, 0)).is_empty(),
         "first look: no event"
     );
-    let c = Change::open(&s.config(), "events").unwrap();
-    let op = serde_json::from_value(json!({"op": "add_brick", "file": "brickie.toml",
-        "brick": {"name": "cache", "kind": "crate"}}))
-    .unwrap();
-    c.record(By::Agent, op, None).unwrap();
-    let ev = st.events.update(snapshot(&st, 0));
-    assert_eq!(
-        ev,
-        vec![ServerEvent::Change {
-            open: true,
-            head: 1
-        }]
-    );
-    // Nothing new: no event.
-    assert!(st.events.update(snapshot(&st, 0)).is_empty());
     // `cache.json` replaced (as `brickie measure` does) and a toml edited.
     std::thread::sleep(std::time::Duration::from_millis(20));
     let cache = st.cache_file();
@@ -38,6 +22,49 @@ fn writes_from_anywhere_become_events() {
     let ev = st.events.update(snapshot(&st, 7));
     assert!(matches!(ev[0], ServerEvent::Cache { .. }), "{ev:?}");
     assert_eq!(ev[1], ServerEvent::Config { stamp: 7 });
+}
+
+/// A version from the CLI (a coding agent) and a hand edit of the files each become a design
+/// event with the version and its author.
+#[test]
+fn a_design_version_from_anywhere_is_an_event() {
+    use brickie_change::{By, Design, Op};
+    let s = Site::new();
+    let st = AppState::new(s.config());
+    st.events.update(snapshot(&st, 1));
+    let d = Design::at(&s.config()).unwrap();
+    let op: Op = serde_json::from_value(json!({"op": "add_brick", "file": "brickie.toml",
+        "brick": {"name": "tel", "members": ["tel::x"]}}))
+    .unwrap();
+    d.apply(1, By::Agent, None, vec![op]).unwrap();
+    let ev = st.events.update(snapshot(&st, 2));
+    assert!(
+        ev.iter().any(|e| matches!(
+            e,
+            ServerEvent::Design {
+                v: 2,
+                by: By::Agent,
+                ..
+            }
+        )),
+        "{ev:?}"
+    );
+    // A hand edit is recorded as an `external` version when the watcher looks.
+    let mut text = std::fs::read_to_string(s.config()).unwrap();
+    text.push_str("\n# note\n");
+    std::fs::write(s.config(), text).unwrap();
+    let ev = st.events.update(snapshot(&st, 3));
+    assert!(
+        ev.iter().any(|e| matches!(
+            e,
+            ServerEvent::Design {
+                v: 3,
+                by: By::External,
+                ..
+            }
+        )),
+        "{ev:?}"
+    );
 }
 
 #[tokio::test]
@@ -54,8 +81,8 @@ async fn the_stream_starts_with_the_current_state() {
     let mut body = resp.into_body();
     let frame = body.frame().await.unwrap().unwrap().into_data().unwrap();
     let text = String::from_utf8_lossy(&frame).to_string();
-    assert!(text.contains("event: change"), "{text}");
-    assert!(text.contains(r#""open":false"#), "{text}");
+    assert!(text.contains("event: design"), "{text}");
+    assert!(text.contains(r#""v":1"#), "{text}");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -64,7 +91,7 @@ async fn the_watcher_pushes_what_changed() {
     let st = AppState::new(s.config());
     let mut rx = st.events.subscribe();
     crate::events::spawn(st.clone());
-    // Wait for the watcher's first look: a change opened before it would be the baseline.
+    // Wait for the watcher's first look: a write before it would be the baseline.
     for _ in 0..100 {
         if st.events.last().is_some() {
             break;
@@ -72,41 +99,15 @@ async fn the_watcher_pushes_what_changed() {
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
     assert!(st.events.last().is_some(), "the watcher looked");
-    Change::open(&s.config(), "watched").unwrap();
+    let cache = st.cache_file();
+    let mut text = std::fs::read_to_string(&cache).unwrap();
+    text.push('\n');
+    std::fs::write(&cache, text).unwrap();
     let ev = tokio::time::timeout(std::time::Duration::from_secs(3), rx.recv())
         .await
         .expect("an event within 3 s")
         .unwrap();
-    assert_eq!(
-        ev,
-        ServerEvent::Change {
-            open: true,
-            head: 0
-        }
-    );
-}
-
-/// `Change::open` writes `ops.json` before `intent` (the marker that a change exists): a look
-/// between the two must not be remembered as "no change" for that `ops.json`.
-#[test]
-fn a_look_between_the_open_writes_does_not_hide_the_change() {
-    let s = Site::new();
-    let st = AppState::new(s.config());
-    st.events.update(snapshot(&st, 0));
-    let dir = s.config().parent().unwrap().join(".brickie/change");
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("ops.json"), "[]\n").unwrap();
-    assert!(st.events.update(snapshot(&st, 0)).is_empty(), "half open");
-    std::fs::write(dir.join("readers.json"), "{}\n").unwrap();
-    std::fs::write(dir.join("intent"), "x").unwrap();
-    let ev = st.events.update(snapshot(&st, 0));
-    assert_eq!(
-        ev,
-        vec![ServerEvent::Change {
-            open: true,
-            head: 0
-        }]
-    );
+    assert!(matches!(ev, ServerEvent::Cache { .. }), "{ev:?}");
 }
 
 #[test]

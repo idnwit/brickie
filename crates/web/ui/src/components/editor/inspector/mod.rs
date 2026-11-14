@@ -4,9 +4,6 @@
 mod brick;
 mod edge;
 mod level;
-mod review;
-
-pub use review::review_bar;
 
 use crate::state::*;
 use sycamore::prelude::*;

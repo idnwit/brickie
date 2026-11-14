@@ -57,17 +57,31 @@ number of uses per item. The Code button opens the brick in the embedded code vi
 
 ## Design mode
 
-![Dialog that opens a design change](screenshots/design.png)
+`Design` (or `E`) switches to Design mode (`edit=1`): the canvas edits the live design. Every
+edit is written to the `brickie.toml` files at once as a new version (`v12`); there is nothing
+to review or publish. The bar under the header shows the version and who made it (agent violet,
+you, hand edit), task chips (planned bricks, rules without a reason) and Undo / Redo.
 
-Design (key `E`) asks for an intent and opens a change. While a change is open, nobody writes
-`brickie.toml`: you and the coding agent record operations on the canvas, review them against
-the rules, and Publish writes the file. Details: [design.md](design.md).
+- Toolbar (one row over the canvas): Select / Hand, brick tiles (Crate, Module, Group: drag one
+  onto the canvas, a brick, a tag lane or the "+ new tag lane" zone), link types (arm one, then
+  drag a port onto a sibling or a lane), the scope of new rules, Delete and `?` (shortcuts).
+- Drag a brick onto a brick to nest it, onto a lane to retag it, onto the "+ new tag lane" zone
+  under the level to give it a new tag, onto the frame edge or a breadcrumb to move it up.
+- The panel: Inspector (the selection), Rules (rules and complexity limits of the level), Level,
+  Files and History (every version with its author, diff lines and an Undo).
+- Undo (`Ctrl+Z`) reverts your latest edit as a new version; Redo (`Ctrl+Shift+Z`) reverts the
+  undo.
+- When a coding agent (`brickie design ...`) or a hand edit changes the design, the page updates
+  in place and a toast names the change with an Undo. An edit of yours based on an older version
+  is re-sent on the new one; when it no longer applies, a toast says why.
+- Bricks keep where you drop them (`.brickie/layout.json`, not part of the design). Auto layout
+  forgets the positions of the level on screen and lays it out again.
 
 ## URL state
 
 The view lives in the URL query, so back/forward and shared links show the same view. Some
 parameters: `lv=root/web` (level), `brick=web`, `p=viol|all` (preset), `vs=deps|cx|stale|iface`,
-`fn_sort=cyclomatic`, `change=1`.
+`fn_sort=cyclomatic`, `edit=1`.
 
 ## Regenerating the screenshots
 

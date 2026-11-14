@@ -1,23 +1,24 @@
-//! The design editor's data: the open change as the viewer shows it and the request bodies of
-//! the change endpoints. The op and record types are `brickie_model::change`, re-exported as
-//! [`change`](crate::change).
-
-pub use brickie_model::change;
+//! The design editor's data: the versioned design as the viewer edits it ([`DesignState`]),
+//! the request bodies of the design endpoints and the reply of a write. The op and version
+//! types are `brickie_model::design`, re-exported as [`design`](crate::design).
 
 use crate::LevelView;
-use change::{DiffEntry, FileSheet, LayoutHint, Op, OpRecord, PlannedEdge, Status, Task, Verdict};
+use crate::design::{By, FileSheet, Op, Task, Version};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-/// The open change: status, the op log (with review state and conflicts), the semantic diff,
-/// the open tasks and the canvas positions.
+/// The design at its head version: history, tasks, the per-file sheets and what the canvas
+/// needs (layout hints, level files, selectors, planned edges).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ChangeView {
-    pub status: Status,
-    pub log: Vec<OpRecord>,
-    pub diff: Vec<DiffEntry>,
+pub struct DesignState {
+    /// The head version: the `base` of the next write.
+    pub v: u64,
+    pub hash: String,
+    pub by: By,
+    /// The latest versions, oldest first (at most [`HISTORY`]).
+    pub history: Vec<Version>,
     pub todo: Vec<Task>,
-    /// Canvas positions by brick path (`root/web/api`); UI only, never ops.
+    /// Canvas positions by brick path (`root/web/api`); UI only, never versioned.
     pub layout: BTreeMap<String, LayoutHint>,
     /// Level path (`root`, `root/web`) -> its config file, relative to the root config's
     /// directory (the `file` of an op on that level).
@@ -25,68 +26,50 @@ pub struct ChangeView {
     /// Level path -> what a rule selector there may name (for client-side validation).
     #[serde(default)]
     pub levels: BTreeMap<String, LevelInfo>,
-    /// Rules the change adds that no measured edge backs yet (also on each [`LevelView`]).
+    /// Allow rules between named bricks that no measured edge uses yet (also on each
+    /// [`LevelView`]).
     #[serde(default)]
     pub planned_edges: Vec<PlannedEdge>,
-    /// Every config file of the preview (its own rules, complexity, deps, exports, includes),
-    /// by the same relative path as `files` values: the editor's Rules / Level / Files tabs.
+    /// Every config file of the design (its own rules, complexity, deps, exports, includes),
+    /// by the same relative path as `files` values.
     #[serde(default)]
     pub sheets: BTreeMap<String, FileSheet>,
-    /// The redo stack: human ops retracted since their last new op (top last).
-    #[serde(default)]
-    pub redo: Vec<u64>,
-    /// Why the preview does not load (the page then shows the current design). In a write's
-    /// reply, also why a preview that loads fails its checks (the reply then has no levels).
+    /// Why the design does not load or check (the page then shows what it can).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
 
+/// How many versions [`DesignState::history`] carries.
+pub const HISTORY: usize = 50;
+
+/// A canvas position drawn in the editor (UI only, never an op).
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct LayoutHint {
+    pub x: f64,
+    pub y: f64,
+}
+
+/// An allow rule between named bricks that no measured edge uses yet: the canvas draws it
+/// dashed. Named by identity (`file`, `from`, `to`, `kinds`, `scope`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ChangeOpenRequest {
-    pub intent: String,
+pub struct PlannedEdge {
+    /// Level path the rule applies to (`root`, `root/web`).
+    pub level: String,
+    /// Physical file of the rule.
+    pub file: String,
+    pub from: String,
+    pub to: String,
+    /// Empty: all kinds.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kinds: Vec<String>,
+    /// `prod`, `test` or `all`.
+    pub scope: String,
+    pub action: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
-/// A human op (accepted when recorded).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ChangeOpRequest {
-    pub op: Op,
-    #[serde(default)]
-    pub note: Option<String>,
-}
-
-/// Move the brick at `from` into the brick at `into` (`[]`: the root level). Paths are brick
-/// names from the root, without `root`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ChangeMoveRequest {
-    pub from: Vec<String>,
-    pub into: Vec<String>,
-    #[serde(default)]
-    pub note: Option<String>,
-}
-
-/// Accept or reject the op `seq` (a human review).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ChangeReviewRequest {
-    pub seq: u64,
-    pub verdict: Verdict,
-    #[serde(default)]
-    pub note: Option<String>,
-}
-
-/// The links the brick at `path` (names from the root, without `root`) may draw.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ChangeLinksRequest {
-    pub path: Vec<String>,
-}
-
-/// Set (`Some`) or clear the canvas position of the brick at level path `brick`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ChangeLayoutRequest {
-    pub brick: String,
-    pub hint: Option<LayoutHint>,
-}
-
-/// The names a level of the preview offers to rule selectors.
+/// The names a level offers to rule selectors.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LevelInfo {
     /// Child bricks, in config order.
@@ -97,39 +80,87 @@ pub struct LevelInfo {
     pub selectors: Vec<String>,
 }
 
-/// The answer of a change write: what it did (`done`), the change after it, and the preview
-/// levels it touched (the level of each file it edited, their parents and direct children),
-/// so the editor patches them in place. Levels that no longer exist are absent from
-/// `change.files`.
+/// Apply `ops` on top of version `base` as one human version.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EditRequest {
+    pub base: u64,
+    pub ops: Vec<Op>,
+}
+
+/// Move the brick at `from` into the brick at `into` (`[]`: the root level). Paths are brick
+/// names from the root, without `root`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MoveRequest {
+    pub base: u64,
+    pub from: Vec<String>,
+    pub into: Vec<String>,
+}
+
+/// Revert the file changes of version `v` (`None`: the head) as a new human version.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UndoRequest {
+    pub base: u64,
+    #[serde(default)]
+    pub v: Option<u64>,
+}
+
+/// A write request: based on a version, which a retry after `design/stale` moves to the head.
+pub trait Based {
+    fn rebase(&mut self, v: u64);
+}
+
+impl Based for EditRequest {
+    fn rebase(&mut self, v: u64) {
+        self.base = v;
+    }
+}
+
+impl Based for MoveRequest {
+    fn rebase(&mut self, v: u64) {
+        self.base = v;
+    }
+}
+
+impl Based for UndoRequest {
+    fn rebase(&mut self, v: u64) {
+        self.base = v;
+    }
+}
+
+/// The answer of a write: whether it made a version, the design after it and every level of
+/// the design (the page patches them in place).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ChangeReply<T> {
-    pub done: T,
-    pub change: ChangeView,
+pub struct EditReply {
+    /// `false`: the ops left every file as it was; no version was added.
+    pub changed: bool,
+    pub design: DesignState,
     pub levels: Vec<LevelView>,
 }
 
-/// Take back the human op `seq` (`None`: the latest accepted human op).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ChangeRetractRequest {
-    #[serde(default)]
-    pub seq: Option<u64>,
+/// The links the brick at `path` (names from the root, without `root`) may draw.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LinksRequest {
+    pub path: Vec<String>,
 }
 
-/// Restore the latest retracted human op (redo).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ChangeRedoRequest {}
+/// Set (`Some`) or clear the canvas position of the brick at level path `brick`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LayoutRequest {
+    pub brick: String,
+    pub hint: Option<LayoutHint>,
+}
 
-/// Re-record the conflicting op `seq` as a human op against the current design.
+/// Clear the canvas positions of every brick of `level` (`root`, `root/web`): auto layout.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ChangeReapplyRequest {
-    pub seq: u64,
+pub struct RelayoutRequest {
+    pub level: String,
 }
 
 /// Would rule `from -> to` at `level` (brick names from the root, `[]`: the root) change
 /// anything? `from` / `to` are selectors; `kinds` empty means all; `scope` is `prod`, `test`
 /// or `all`; `action` `allow` or `deny`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ChangeLinkCheckRequest {
+pub struct LinkCheckRequest {
     #[serde(default)]
     pub level: Vec<String>,
     pub from: String,
@@ -140,9 +171,9 @@ pub struct ChangeLinkCheckRequest {
     pub action: String,
 }
 
-/// Preview levels by path (`root`, `root/web`); empty: every level.
+/// Levels of the design by path (`root`, `root/web`); empty: every level.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ChangeLevelsRequest {
+pub struct LevelsRequest {
     #[serde(default)]
     pub paths: Vec<String>,
 }

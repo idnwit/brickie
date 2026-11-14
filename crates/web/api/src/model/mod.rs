@@ -35,7 +35,7 @@ pub struct PageData {
     /// Every level of the brick tree, the root first.
     pub levels: Vec<LevelView>,
     pub functions: Vec<FnRow>,
-    /// The open design change (`None`: none is open).
+    /// Edit mode: the design at its head (`None` outside edit mode).
     #[serde(default)]
-    pub change: Option<ChangeView>,
+    pub design: Option<DesignState>,
 }

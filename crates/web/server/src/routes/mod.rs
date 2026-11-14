@@ -1,5 +1,5 @@
 //! HTTP routes: the page, the code viewer, the JSON endpoints, review, the design editor's
-//! change endpoints and the measure job (writes behind `guard`) and the wasm assets.
+//! endpoints and the measure job (writes behind `guard`) and the wasm assets.
 
 mod api;
 mod assets;
@@ -32,21 +32,15 @@ pub fn router(state: AppState) -> Router {
         .route(Review::PATH, post(review::review))
         .route(Interface::PATH, post(interface::interface))
         .route(EdgeUses::PATH, post(interface::edge_uses))
-        .route(ChangeState::PATH, get(editor::state))
-        .route(ChangeOpen::PATH, post(editor::open_change))
-        .route(ChangeOp::PATH, post(editor::op))
-        .route(ChangeMove::PATH, post(editor::move_brick))
-        .route(ChangeReview::PATH, post(editor::review))
-        .route(ChangeRetract::PATH, post(editor::retract))
-        .route(ChangeRedo::PATH, post(editor::redo))
-        .route(ChangeReapply::PATH, post(editor::reapply))
-        .route(ChangeLinks::PATH, post(editor::links))
-        .route(ChangeLinkCheck::PATH, post(editor::link_check))
-        .route(ChangeLevels::PATH, post(editor::levels))
-        .route(ChangeLayout::PATH, post(editor::layout))
-        .route(ChangePublishPlan::PATH, get(editor::plan))
-        .route(ChangePublish::PATH, post(editor::publish))
-        .route(ChangeDiscard::PATH, post(editor::discard))
+        .route(DesignGet::PATH, get(editor::state))
+        .route(DesignEdit::PATH, post(editor::edit))
+        .route(DesignMove::PATH, post(editor::move_brick))
+        .route(DesignUndo::PATH, post(editor::undo))
+        .route(DesignLinks::PATH, post(editor::links))
+        .route(DesignLinkCheck::PATH, post(editor::link_check))
+        .route(DesignLevels::PATH, post(editor::levels))
+        .route(DesignLayout::PATH, post(editor::layout))
+        .route(DesignRelayout::PATH, post(editor::relayout))
         .route(MeasureStatus::PATH, get(measure::status))
         .route(EVENTS_PATH, get(events::events))
         .route(MeasureStart::PATH, post(measure::start))

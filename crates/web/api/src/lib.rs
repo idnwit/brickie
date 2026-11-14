@@ -2,6 +2,9 @@
 //! type that crosses it. Wasm-safe (serde only), so both sides compile
 //! against the same definitions and a contract change fails to build on either side.
 
+/// The design's op, version and sheet types (`brickie_model::design`).
+pub use brickie_model::design;
+
 mod endpoint;
 mod model;
 

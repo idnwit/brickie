@@ -1,113 +1,94 @@
-//! The design editor's endpoints (`/api/change/*`): the open change's state, recording human
-//! ops, reviews, retract and re-apply (answered with the touched preview levels), link options
-//! and checks, preview levels, canvas positions, publish and discard. Every write passes
-//! the [`Guard`]; a refused change operation is a 409 with the engine's message.
+//! The design editor's endpoints (`/api/design/*`): the design at its head, writes as human
+//! versions (edit, move, undo), link options and checks, levels, and canvas layout hints.
+//! Every write passes the [`Guard`]. A stale base answers 409 with the `design/stale` text and
+//! the head in the `x-brickie-head` header; any other refused write is a 409 with the engine's
+//! message.
 
 use super::guard::Guard;
-use super::view::fail;
+use super::view::{design, edit_levels, fail};
 use crate::{AppState, Failure, data};
 use axum::Json;
 use axum::extract::State;
-use brickie_change::{By, Change, Link};
+use axum::http::{HeaderValue, StatusCode};
+use axum::response::{IntoResponse, Response};
+use brickie_change::{By, Link, Outcome, Stale, brick_path};
 use brickie_web_api::*;
 
 type Res<E> = Result<Json<ResOf<E>>, Failure>;
 
-fn open(st: &AppState) -> Result<Change, Failure> {
-    Change::load(&st.config).map_err(fail)
-}
+/// A refused write: `design/stale` with the head in a header, or the engine's message.
+pub struct Refused(anyhow::Error);
 
-pub async fn state(State(st): State<AppState>) -> Res<ChangeState> {
-    if !Change::is_open(&st.config) {
-        return Ok(Json(None));
+impl IntoResponse for Refused {
+    fn into_response(self) -> Response {
+        let head = self.0.downcast_ref::<Stale>().map(|s| s.head);
+        let mut r = fail(self.0).into_response();
+        if let Some(v) = head.and_then(|h| HeaderValue::from_str(&h.to_string()).ok()) {
+            r.headers_mut().insert("x-brickie-head", v);
+        }
+        r
     }
-    let ch = open(&st)?;
-    Ok(Json(Some(data::change_view(&ch).map_err(fail)?)))
 }
 
-pub async fn open_change(
-    State(st): State<AppState>,
-    _: Guard,
-    Json(req): Json<ReqOf<ChangeOpen>>,
-) -> Res<ChangeOpen> {
-    let ch = Change::open(&st.config, req.intent.trim()).map_err(fail)?;
-    Ok(Json(data::change_view(&ch).map_err(fail)?))
+impl From<Failure> for Refused {
+    fn from(f: Failure) -> Refused {
+        Refused(anyhow::anyhow!(f.1))
+    }
 }
 
-pub async fn op(
+/// The reply to a write: the design after it and every level.
+fn reply(st: &AppState, out: Outcome) -> Result<Json<EditReply>, Refused> {
+    let (levels, design) = edit_levels(st)?;
+    Ok(Json(EditReply {
+        changed: out.changed,
+        design,
+        levels,
+    }))
+}
+
+pub async fn state(State(st): State<AppState>) -> Res<DesignGet> {
+    Ok(Json(data::design::state(&design(&st)?).map_err(fail)?))
+}
+
+pub async fn edit(
     State(st): State<AppState>,
     _: Guard,
-    Json(req): Json<ReqOf<ChangeOp>>,
-) -> Res<ChangeOp> {
-    let ch = open(&st)?;
-    let files = data::op_files(&req.op);
-    let rec = ch.record(By::Human, req.op, req.note).map_err(fail)?;
-    Ok(Json(data::reply(&ch, rec, &files).map_err(fail)?))
+    Json(req): Json<ReqOf<DesignEdit>>,
+) -> Result<Json<EditReply>, Refused> {
+    let out = design(&st)?
+        .apply(req.base, By::Human, None, req.ops)
+        .map_err(Refused)?;
+    reply(&st, out)
 }
 
 pub async fn move_brick(
     State(st): State<AppState>,
     _: Guard,
-    Json(req): Json<ReqOf<ChangeMove>>,
-) -> Res<ChangeMove> {
-    let ch = open(&st)?;
-    let op = ch.move_op(&req.from, &req.into).map_err(fail)?;
-    let files = data::op_files(&op);
-    let rec = ch.record(By::Human, op, req.note).map_err(fail)?;
-    Ok(Json(data::reply(&ch, rec, &files).map_err(fail)?))
+    Json(req): Json<ReqOf<DesignMove>>,
+) -> Result<Json<EditReply>, Refused> {
+    let d = design(&st)?;
+    let op = d.move_op(&req.from, &req.into).map_err(Refused)?;
+    let out = d
+        .apply(req.base, By::Human, None, vec![op])
+        .map_err(Refused)?;
+    reply(&st, out)
 }
 
-pub async fn review(
+pub async fn undo(
     State(st): State<AppState>,
     _: Guard,
-    Json(req): Json<ReqOf<ChangeReview>>,
-) -> Res<ChangeReview> {
-    let note = req.note.filter(|n| !n.trim().is_empty());
-    let ch = open(&st)?;
-    let entry = ch
-        .review(By::Human, req.seq, req.verdict, note)
-        .map_err(fail)?;
-    let files = data::seq_files(&ch, entry.target).map_err(fail)?;
-    Ok(Json(data::reply(&ch, entry, &files).map_err(fail)?))
-}
-
-pub async fn retract(
-    State(st): State<AppState>,
-    _: Guard,
-    Json(req): Json<ReqOf<ChangeRetract>>,
-) -> Res<ChangeRetract> {
-    let ch = open(&st)?;
-    let entry = ch.retract(req.seq).map_err(fail)?;
-    let files = data::seq_files(&ch, entry.target).map_err(fail)?;
-    Ok(Json(data::reply(&ch, entry, &files).map_err(fail)?))
-}
-
-pub async fn redo(
-    State(st): State<AppState>,
-    _: Guard,
-    Json(_): Json<ReqOf<ChangeRedo>>,
-) -> Res<ChangeRedo> {
-    let ch = open(&st)?;
-    let entry = ch.redo().map_err(fail)?;
-    let files = data::seq_files(&ch, entry.target).map_err(fail)?;
-    Ok(Json(data::reply(&ch, entry, &files).map_err(fail)?))
-}
-
-pub async fn reapply(
-    State(st): State<AppState>,
-    _: Guard,
-    Json(req): Json<ReqOf<ChangeReapply>>,
-) -> Res<ChangeReapply> {
-    let ch = open(&st)?;
-    let rec = ch.reapply(req.seq).map_err(fail)?;
-    let files = data::op_files(&rec.op);
-    Ok(Json(data::reply(&ch, rec, &files).map_err(fail)?))
+    Json(req): Json<ReqOf<DesignUndo>>,
+) -> Result<Json<EditReply>, Refused> {
+    let out = design(&st)?
+        .undo(req.base, By::Human, req.v)
+        .map_err(Refused)?;
+    reply(&st, out)
 }
 
 pub async fn link_check(
     State(st): State<AppState>,
-    Json(req): Json<ReqOf<ChangeLinkCheck>>,
-) -> Res<ChangeLinkCheck> {
+    Json(req): Json<ReqOf<DesignLinkCheck>>,
+) -> Res<DesignLinkCheck> {
     let link = Link {
         from: &req.from,
         to: &req.to,
@@ -116,42 +97,48 @@ pub async fn link_check(
         action: &req.action,
     };
     Ok(Json(
-        open(&st)?.link_check(&req.level, &link).map_err(fail)?,
+        design(&st)?.link_check(&req.level, &link).map_err(fail)?,
     ))
-}
-
-pub async fn levels(
-    State(st): State<AppState>,
-    Json(req): Json<ReqOf<ChangeLevels>>,
-) -> Res<ChangeLevels> {
-    Ok(Json(data::levels(&open(&st)?, &req.paths).map_err(fail)?))
 }
 
 pub async fn links(
     State(st): State<AppState>,
-    Json(req): Json<ReqOf<ChangeLinks>>,
-) -> Res<ChangeLinks> {
-    Ok(Json(open(&st)?.link_options(&req.path).map_err(fail)?))
+    Json(req): Json<ReqOf<DesignLinks>>,
+) -> Res<DesignLinks> {
+    Ok(Json(design(&st)?.link_options(&req.path).map_err(fail)?))
+}
+
+pub async fn levels(
+    State(st): State<AppState>,
+    Json(req): Json<ReqOf<DesignLevels>>,
+) -> Res<DesignLevels> {
+    let (mut out, _) = edit_levels(&st)?;
+    if !req.paths.is_empty() {
+        out.retain(|lv| req.paths.contains(&lv.path));
+    }
+    Ok(Json(out))
 }
 
 pub async fn layout(
     State(st): State<AppState>,
     _: Guard,
-    Json(req): Json<ReqOf<ChangeLayout>>,
-) -> Res<ChangeLayout> {
-    open(&st)?.set_layout(&req.brick, req.hint).map_err(fail)?;
+    Json(req): Json<ReqOf<DesignLayout>>,
+) -> Res<DesignLayout> {
+    let path = brick_path(&req.brick);
+    if path.is_empty() {
+        return Err(Failure(StatusCode::BAD_REQUEST, "name a brick".into()));
+    }
+    let root = design(&st)?.root().to_path_buf();
+    data::design::set_hint(&root, &req.brick, req.hint).map_err(fail)?;
     Ok(Json(()))
 }
 
-pub async fn plan(State(st): State<AppState>) -> Res<ChangePublishPlan> {
-    Ok(Json(open(&st)?.publish_plan().map_err(fail)?))
-}
-
-pub async fn publish(State(st): State<AppState>, _: Guard) -> Res<ChangePublish> {
-    Ok(Json(open(&st)?.publish().map_err(fail)?))
-}
-
-pub async fn discard(State(st): State<AppState>, _: Guard) -> Res<ChangeDiscard> {
-    open(&st)?.discard().map_err(fail)?;
+pub async fn relayout(
+    State(st): State<AppState>,
+    _: Guard,
+    Json(req): Json<ReqOf<DesignRelayout>>,
+) -> Res<DesignRelayout> {
+    let root = design(&st)?.root().to_path_buf();
+    data::design::clear_level(&root, &req.level).map_err(fail)?;
     Ok(Json(()))
 }

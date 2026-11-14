@@ -4,17 +4,16 @@
 
 use super::super::op;
 use super::super::widgets::{chips_field, text_field};
-use super::review_bar;
 use crate::components::call::call;
 use crate::state::*;
-use brickie_web_api::change::Op;
-use brickie_web_api::{BrickView, ChangeLinks, ChangeLinksRequest};
+use brickie_web_api::design::Op;
+use brickie_web_api::{BrickView, DesignLinks, LinksRequest};
 use sycamore::prelude::*;
 
 /// Fetch the link options of the brick at `path` into `ed.links`.
 fn fetch_links(ed: Edit, path: Vec<String>) {
     ed.links.set(Vec::new());
-    call::<ChangeLinks>(&ChangeLinksRequest { path }, move |r| match r {
+    call::<DesignLinks>(&LinksRequest { path }, move |r| match r {
         Ok(v) => ed.links.set(v),
         Err(e) => ed.msg.set(e),
     });
@@ -64,13 +63,13 @@ fn fields(cx: &Cx, file: String, b: &BrickView) -> View {
     view! { div(class="form") { (name) (desc) (tags) (members) (path) } }
 }
 
-/// A composite, or a group the change just added (its level exists, still empty).
+/// A composite, or a group just added (its level exists, still empty).
 fn is_group(cx: &Cx, b: &BrickView) -> bool {
     let key = layout_key(&cx.level().path, &b.name);
     b.composite()
         || cx
             .m
-            .change
+            .design
             .as_deref()
             .is_some_and(|ch| ch.files.contains_key(&key))
 }
@@ -138,22 +137,11 @@ pub fn brick_view(cx: &Cx, b: usize) -> View {
     let lv = cx.level().path.clone();
     fetch_links(cx.ed, brick_path(&lv, &brick.name));
     let Some(file) = cx.level_file() else {
-        return view! { p(class="err-text") { "This level is not in the preview." } };
+        return view! { p(class="err-text") { "This level is not in the design." } };
     };
-    let seqs: Vec<u64> =
-        cx.m.change
-            .as_deref()
-            .map(|ch| {
-                proposals_on(ch, &lv, &brick.name)
-                    .iter()
-                    .map(|r| r.seq)
-                    .collect()
-            })
-            .unwrap_or_default();
-    let state = match (brick.planned, brick.proposed) {
-        (_, true) => "proposed by the agent",
-        (true, _) => "planned: no code yet (publish scaffolds it)",
-        _ => "built",
+    let state = match brick.planned {
+        true => "planned: no measured code yet (measure after writing it)",
+        false => "built",
     };
     let zoom = is_group(cx, &brick).then(|| {
         let (c, target) = (cx.clone(), layout_key(&lv, &brick.name));
@@ -161,14 +149,9 @@ pub fn brick_view(cx: &Cx, b: usize) -> View {
     });
     let sub = format!("{state} \u{00B7} in {file}");
     let title = brick.name.clone();
-    let (rv, f, a) = (
-        review_bar(cx, &seqs),
-        fields(cx, file.clone(), &brick),
-        actions(cx, file, &brick),
-    );
+    let (f, a) = (fields(cx, file.clone(), &brick), actions(cx, file, &brick));
     let now = now_lines(cx.ed);
     view! {
-        (rv)
         h2 { (title) }
         p(class="muted") { (sub) }
         (zoom)

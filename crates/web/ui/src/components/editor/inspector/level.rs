@@ -6,7 +6,7 @@ use sycamore::prelude::*;
 
 pub fn level_view(cx: &Cx) -> View {
     let lv = cx.level().clone();
-    let ch = cx.m.change.clone();
+    let ch = cx.m.design.clone();
     let file = cx.level_file().unwrap_or_else(|| lv.file.clone());
     let sheet = ch
         .as_deref()

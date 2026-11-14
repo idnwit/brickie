@@ -2,9 +2,9 @@
 //! preset with `create_file` + `add_include`; `x` removes) and which files are shared by
 //! several levels.
 
-use super::{op, op_then};
+use super::{op, ops_then};
 use crate::state::*;
-use brickie_web_api::change::Op;
+use brickie_web_api::design::Op;
 use sycamore::prelude::*;
 
 /// `path` (workspace-relative) as written from `file`'s directory.
@@ -19,7 +19,7 @@ pub fn rel_from(file: &str, path: &str) -> String {
 }
 
 fn include_row(cx: &Cx, file: &str, inc: String, target: String) -> View {
-    let n = cx.m.change.as_deref().map_or(0, |ch| sharers(ch, &target));
+    let n = cx.m.design.as_deref().map_or(0, |ch| sharers(ch, &target));
     let warn =
         (n > 1).then(|| view! { span(class="warn-text") { (format!(" shared by {n} levels")) } });
     let (c, f, p) = (cx.clone(), file.to_string(), inc.clone());
@@ -68,7 +68,7 @@ fn add_form(cx: &Cx, file: String, others: Vec<String>) -> View {
         }
         let path = rel_from(&f, &p);
         let f2 = f.clone();
-        op_then(&c, Op::CreateFile { file: p }, move |now, _| {
+        ops_then(&c, vec![Op::CreateFile { file: p }], move |now, _| {
             op(
                 now,
                 Op::AddInclude {
@@ -85,7 +85,7 @@ fn add_form(cx: &Cx, file: String, others: Vec<String>) -> View {
 }
 
 pub fn files(cx: &Cx) -> View {
-    let (Some(ch), Some(file)) = (cx.m.change.clone(), cx.level_file()) else {
+    let (Some(ch), Some(file)) = (cx.m.design.clone(), cx.level_file()) else {
         return View::default();
     };
     let sheet = ch.sheets.get(&file).cloned().unwrap_or_default();

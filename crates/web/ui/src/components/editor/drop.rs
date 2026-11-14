@@ -8,7 +8,6 @@ use super::aim::{aim, carried, clear};
 use super::{connect, op, send, write};
 use crate::platform;
 use crate::state::*;
-use brickie_web_api::change::LayoutHint;
 use brickie_web_api::*;
 
 /// Client point -> canvas (world) point, when inside the stage.
@@ -75,7 +74,7 @@ fn hover(cx: &Cx, x: f64, y: f64) {
 }
 
 /// Open the inline name box of a new `kind` brick at client `(x, y)`, going to `dest`.
-fn draft_at(cx: &Cx, kind: brickie_web_api::change::BrickKind, x: f64, y: f64, dest: Dest) {
+fn draft_at(cx: &Cx, kind: brickie_web_api::design::BrickKind, x: f64, y: f64, dest: Dest) {
     if let Some((wx, wy)) = world(cx, x, y) {
         cx.ed.draft.set(Some(Draft {
             kind,
@@ -91,7 +90,7 @@ fn draft_at(cx: &Cx, kind: brickie_web_api::change::BrickKind, x: f64, y: f64, d
 }
 
 /// A tile released where it was aimed.
-fn drop_tile(cx: &Cx, kind: brickie_web_api::change::BrickKind, x: f64, y: f64) {
+fn drop_tile(cx: &Cx, kind: brickie_web_api::design::BrickKind, x: f64, y: f64) {
     let target = cx.ed.target.get_clone();
     clear(cx.ed);
     let dest = match target {
@@ -106,28 +105,27 @@ fn drop_tile(cx: &Cx, kind: brickie_web_api::change::BrickKind, x: f64, y: f64) 
 
 /// Move brick `name` of level `from` into the brick at path `into` (`place` words the toast).
 pub(super) fn move_brick(cx: &Cx, from: &str, name: String, into: Vec<String>, place: String) {
-    let req = ChangeMoveRequest {
+    let req = MoveRequest {
+        base: 0,
         from: brick_path(from, &name),
         into,
-        note: None,
     };
-    let toast =
-        format!("Moved {name} {place} \u{00B7} Ctrl+Z undoes; code is not moved on publish");
-    write::<ChangeMove, _>(cx, req, toast, |_, _| {});
+    let toast = format!("Moved {name} {place} (its code is not moved)");
+    write::<DesignMove>(cx, req, toast, |_, _| {});
 }
 
 /// Store brick `b`'s position (`keep`: where it was dropped; else drop the stored one, so the
 /// layout places it in its new lane), then `then`.
 fn store_position(cx: &Cx, b: usize, keep: bool, then: impl FnOnce() + 'static) {
     let pos = positions(&cx.m.layout, &cx.drag.get_clone());
-    let req = ChangeLayoutRequest {
+    let req = LayoutRequest {
         brick: layout_key(&cx.level().path, &cx.m.g.bricks[b].name),
         hint: keep.then_some(LayoutHint {
             x: pos[b].x,
             y: pos[b].y,
         }),
     };
-    send::<ChangeLayout>(cx.ed, req, move |_| then());
+    send::<DesignLayout>(cx.ed, req, move |_| then());
 }
 
 /// The end of a brick drag: into a brick, up, to another lane, refused, or repositioned.

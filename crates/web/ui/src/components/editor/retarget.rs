@@ -1,6 +1,6 @@
 //! Retargeting a rule: the selected rule edge shows a handle on its arrowhead; dragging it
 //! draws the rubber band from the rule's source brick, and dropping on another sibling or tag
-//! lane changes the rule's `to` (`set_rule`, one undo step). Kinds, scope, action, reason and
+//! lane changes the rule's `to` (the rule is replaced: one version, one undo step). Kinds, scope, action, reason and
 //! help stay as they were.
 
 use super::layer::ends;
@@ -13,7 +13,8 @@ pub fn handles(cx: &Cx, p: &[Rect]) -> View {
     let Some(r) = cx.ed.rule.get_clone() else {
         return View::default();
     };
-    let Some(e) = (cx.level().planned_edges.iter()).find(|e| e.file == r.file && e.rule == r.index)
+    let Some(e) =
+        (cx.level().planned_edges.iter()).find(|e| e.file == r.file && planned_key(e) == r.key)
     else {
         return View::default();
     };
@@ -24,7 +25,11 @@ pub fn handles(cx: &Cx, p: &[Rect]) -> View {
             .into_iter()
             .filter(|&b| b != a && b < p.len())
         {
-            out.push(handle(cx, &r, a, ty, (p[b].x, p[b].y + p[b].h / 2.0)));
+            let end = (cx
+                .planned_route(a, b, p)
+                .and_then(|q| q.segs.last().map(|s| s[3])))
+            .map_or((p[b].x, p[b].y + p[b].h / 2.0), |q| (q.x, q.y));
+            out.push(handle(cx, &r, a, ty, end));
         }
     }
     View::from(out)

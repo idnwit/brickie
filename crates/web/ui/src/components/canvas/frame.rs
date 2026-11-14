@@ -7,26 +7,9 @@ use crate::state::*;
 use brickie_web_api::GraphView;
 use sycamore::prelude::*;
 
-/// Space between the children and the frame (narrow at the sides: the row captions sit there).
-const FPAD: f64 = 20.0;
-const FPADX: f64 = 10.0;
-
 /// The frame around the children of the level (`None` when the level has no children).
 pub fn frame_rect(g: &GraphView, pos: &[Rect]) -> Option<Rect> {
-    let inner: Vec<&Rect> = (0..g.bricks.len().min(pos.len()))
-        .filter(|&i| !g.bricks[i].ghost)
-        .map(|i| &pos[i])
-        .collect();
-    let x0 = inner.iter().map(|r| r.x).reduce(f64::min)?;
-    let y0 = inner.iter().map(|r| r.y).reduce(f64::min)?;
-    let x1 = inner.iter().map(|r| r.x + r.w).reduce(f64::max)?;
-    let y1 = inner.iter().map(|r| r.y + r.h).reduce(f64::max)?;
-    Some(Rect {
-        x: x0 - FPADX,
-        y: y0 - FPAD,
-        w: x1 - x0 + 2.0 * FPADX,
-        h: y1 - y0 + 2.0 * FPAD,
-    })
+    frame_of(&g.bricks, pos, None)
 }
 
 fn inside(f: &Rect, p: &Pt) -> bool {

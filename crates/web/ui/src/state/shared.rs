@@ -34,7 +34,7 @@ pub struct Shared {
     pub diags: Vec<DiagView>,
     pub cards: Rc<Vec<Card>>,
     pub fns: Vec<FnRow>,
-    /// The levels and the open design change (patched in place by the editor).
+    /// The levels and the design (patched in place by the editor).
     pub live: Live,
     pub ed: Edit,
     /// Back / Forward history of the view.
@@ -73,7 +73,7 @@ impl Shared {
             diags: data.diags,
             cards: Rc::new(cards),
             fns: data.functions,
-            live: Live::new(data.levels, data.change),
+            live: Live::new(data.levels, data.design),
             ed: Edit::new(),
         }
     }

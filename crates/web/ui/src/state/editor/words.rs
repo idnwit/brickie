@@ -1,8 +1,7 @@
-//! Ops in plain words (the Ops tab and the review bar), the brick an op is about, and the
-//! agent proposals waiting for review.
+//! Ops and versions in plain words (toasts, the History tab, undo tooltips) and the brick an
+//! op is about.
 
-use brickie_web_api::ChangeView;
-use brickie_web_api::change::{By, Op, OpRecord, RuleSpec, State};
+use brickie_web_api::design::{By, Op, RuleKey, RuleSpec, Version};
 
 fn rule_words(r: &RuleSpec) -> String {
     let kinds = if r.kinds.is_empty() {
@@ -16,7 +15,15 @@ fn rule_words(r: &RuleSpec) -> String {
         "Allowed"
     };
     let scope = r.scope.as_deref().unwrap_or("prod");
-    format!("{verb} {} \u{2192} {} ({kinds}, {scope})", r.from, r.to)
+    let via = if r.via.is_empty() {
+        String::new()
+    } else {
+        format!(" via {}", r.via.join("+"))
+    };
+    format!(
+        "{verb} {} \u{2192} {}{via} ({kinds}, {scope})",
+        r.from, r.to
+    )
 }
 
 fn brick_words(op: &Op) -> Option<String> {
@@ -39,6 +46,11 @@ fn brick_words(op: &Op) -> Option<String> {
     })
 }
 
+/// `a \u{2192} b`.
+fn key_words(k: &RuleKey) -> String {
+    format!("{} \u{2192} {}", k.from, k.to)
+}
+
 /// The op in plain words: "Added brick telemetry", "Allowed a -> b (uses, prod)".
 pub fn describe(op: &Op) -> String {
     if let Some(w) = brick_words(op) {
@@ -46,12 +58,16 @@ pub fn describe(op: &Op) -> String {
     }
     match op {
         Op::AddRule { rule, .. } => rule_words(rule),
-        Op::SetRule { rule, index, .. } => format!("Changed rule #{index}: {}", rule_words(rule)),
-        Op::RemoveRule { index, .. } => format!("Removed rule #{index}"),
+        Op::SetRule { key, .. } => format!("Changed rule {}", key_words(key)),
+        Op::RemoveRule { key, .. } => format!("Removed rule {}", key_words(key)),
         Op::SetExports { exports, .. } => format!("Set exports ({} bricks)", exports.len()),
         Op::AddComplexity { .. } => "Added a complexity rule".into(),
-        Op::SetComplexity { index, .. } => format!("Changed complexity rule #{index}"),
-        Op::RemoveComplexity { index, .. } => format!("Removed complexity rule #{index}"),
+        Op::SetComplexity { bricks, .. } => {
+            format!("Changed complexity of {}", bricks.as_deref().unwrap_or("*"))
+        }
+        Op::RemoveComplexity { bricks, .. } => {
+            format!("Removed complexity of {}", bricks.as_deref().unwrap_or("*"))
+        }
         Op::SetDeps { .. } => "Changed deps defaults".into(),
         Op::AddInclude { path, .. } => format!("Included {path}"),
         Op::RemoveInclude { path, .. } => format!("Dropped include {path}"),
@@ -74,66 +90,47 @@ pub fn op_brick(op: &Op) -> Option<&str> {
     }
 }
 
-/// An agent op still waiting for review.
-pub fn pending(r: &OpRecord) -> bool {
-    r.by == By::Agent && r.state == State::Proposed
-}
-
-/// The level whose own file the op edits.
-pub fn op_level(ch: &ChangeView, r: &OpRecord) -> Option<String> {
-    ch.files
+/// The ops of the agent's versions since the human's last version (what the canvas marks as
+/// the agent's).
+pub fn agent_ops(history: &[Version]) -> Vec<&Op> {
+    let after = history
         .iter()
-        .find(|(_, f)| **f == r.file)
-        .map(|(l, _)| l.clone())
-}
-
-/// Pending agent ops about brick `name` of level `lv`.
-pub fn proposals_on<'a>(ch: &'a ChangeView, lv: &str, name: &str) -> Vec<&'a OpRecord> {
-    let file = ch.files.get(lv);
-    ch.log
-        .iter()
-        .filter(|r| pending(r) && Some(&r.file) == file && op_brick(&r.op) == Some(name))
+        .rposition(|v| v.by == By::Human)
+        .map_or(0, |i| i + 1);
+    (history[after..].iter())
+        .filter(|v| v.by == By::Agent)
+        .flat_map(|v| &v.ops)
         .collect()
 }
 
-/// The first pending agent op after `seq` (wrapping around).
-pub fn next_proposal(ch: &ChangeView, seq: u64) -> Option<&OpRecord> {
-    let open: Vec<&OpRecord> = ch.log.iter().filter(|r| pending(r)).collect();
-    open.iter().find(|r| r.seq > seq).or(open.first()).copied()
+/// Who made a version, as the History tab and toasts name it.
+pub fn by_word(by: By) -> &'static str {
+    match by {
+        By::Human => "you",
+        By::Agent => "agent",
+        By::External => "hand edit",
+    }
 }
 
-/// Whether the Ops tab filter keeps record `r`.
-pub fn keep_op(filter: &str, r: &OpRecord) -> bool {
-    match filter {
-        "agent" => r.by == By::Agent,
-        "human" => r.by == By::Human,
-        "proposed" => r.state == State::Proposed,
-        "conflict" => r.conflict.is_some(),
-        _ => true,
+/// What a version did, in one line: its first op, else its note, else its first diff line
+/// (`+N more` when there is more).
+pub fn version_words(v: &Version) -> String {
+    let (first, n) = match (v.ops.first(), v.note.as_deref(), v.diff.first()) {
+        (Some(op), _, _) => (describe(op), v.ops.len()),
+        (None, Some(note), _) => (note.to_string(), 1),
+        (None, None, Some(d)) => (d.clone(), v.diff.len()),
+        _ => ("no change".into(), 1),
+    };
+    match n {
+        1 => first,
+        n => format!("{first} (+{} more)", n - 1),
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use brickie_web_api::change::BrickSpec;
-
-    fn rec(seq: u64, by: By, state: State, op: Op) -> OpRecord {
-        OpRecord {
-            seq,
-            by,
-            at: 0,
-            file: op.file().to_string(),
-            op,
-            key: String::new(),
-            before: None,
-            after: None,
-            note: None,
-            state,
-            review: None,
-            conflict: None,
-        }
-    }
+    use brickie_web_api::design::BrickSpec;
 
     fn add(name: &str) -> Op {
         Op::AddBrick {
@@ -160,24 +157,48 @@ mod tests {
             },
         };
         assert_eq!(describe(&r), "Allowed a \u{2192} b (uses, prod)");
+        let v = Op::AddRule {
+            file: "x".into(),
+            rule: RuleSpec {
+                from: "ui".into(),
+                to: "application".into(),
+                via: vec!["ports-in".into()],
+                action: "allow".into(),
+                ..Default::default()
+            },
+        };
+        assert_eq!(
+            describe(&v),
+            "Allowed ui \u{2192} application via ports-in (all kinds, prod)"
+        );
         assert_eq!(op_brick(&add("t")), Some("t"));
         assert_eq!(op_brick(&r), None);
     }
 
     #[test]
-    fn proposals_cycle_and_filter() {
-        let log = [
-            rec(1, By::Agent, State::Proposed, add("a")),
-            rec(2, By::Human, State::Accepted, add("b")),
-            rec(3, By::Agent, State::Proposed, add("c")),
-        ];
-        let ch = ChangeView {
-            log: log.to_vec(),
-            ..super::super::sheet::tests::change()
+    fn versions_read_as_one_line() {
+        let mut v = Version {
+            v: 3,
+            hash: "ab".into(),
+            prev: None,
+            by: By::Agent,
+            at: 0,
+            note: None,
+            ops: vec![add("a"), add("b")],
+            diff: vec![],
+            files: vec![],
+            removed: vec![],
+            full: false,
         };
-        assert_eq!(next_proposal(&ch, 1).map(|r| r.seq), Some(3));
-        assert_eq!(next_proposal(&ch, 3).map(|r| r.seq), Some(1));
-        assert_eq!(proposals_on(&ch, "root", "c").len(), 1);
-        assert!(keep_op("human", &log[1]) && !keep_op("agent", &log[1]));
+        assert_eq!(version_words(&v), "Added brick a (+1 more)");
+        v.ops.clear();
+        v.note = Some("undo v2".into());
+        assert_eq!(version_words(&v), "undo v2");
+        assert_eq!(by_word(By::External), "hand edit");
+        let mut human = v.clone();
+        human.by = By::Human;
+        v.ops = vec![add("c")];
+        assert_eq!(agent_ops(&[human.clone(), v.clone()]).len(), 1);
+        assert!(agent_ops(&[v, human]).is_empty());
     }
 }

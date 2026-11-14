@@ -7,6 +7,7 @@ mod hit;
 mod link;
 mod ops;
 mod patch;
+mod retry;
 mod sheet;
 mod undo;
 mod words;
@@ -16,12 +17,13 @@ pub use hit::*;
 pub use link::*;
 pub use ops::*;
 pub use patch::*;
+pub use retry::*;
 pub use sheet::*;
 pub use undo::*;
 pub use words::*;
 
-use brickie_web_api::ChangeView;
-use brickie_web_api::change::{BrickKind, LinkCheck, LinkOption, Plan};
+use brickie_web_api::DesignState;
+use brickie_web_api::design::{BrickKind, LinkCheck, LinkOption, RuleKey, RuleSpec};
 use sycamore::prelude::*;
 
 /// A brick being added: its kind, canvas (world) position and where it goes; the name (and
@@ -76,19 +78,6 @@ pub struct Clip {
     pub name: String,
 }
 
-/// The modal dialog of the change bar.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub enum Dialog {
-    #[default]
-    None,
-    Open,
-    /// The publish plan (`None` while it loads).
-    Publish(Option<Plan>),
-    /// Published: offer to measure now (the cache predates the new bricks).
-    Published,
-    Discard,
-}
-
 /// Pointer tool of the floating toolbar.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tool {
@@ -107,11 +96,46 @@ pub struct Connect {
     pub y: f64,
 }
 
-/// A rule selected on the canvas or in the Rules tab: its physical file and index there.
+/// A rule selected on the canvas or in the Rules tab: its physical file and its identity
+/// there (never its position, which another writer may change).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuleRef {
     pub file: String,
-    pub index: usize,
+    pub key: RuleKey,
+}
+
+impl RuleRef {
+    /// The reference of rule `r` written in `file`.
+    pub fn of(file: &str, r: &RuleSpec) -> RuleRef {
+        RuleRef {
+            file: file.to_string(),
+            key: rule_key(r),
+        }
+    }
+}
+
+/// The identity of a planned edge's rule.
+pub fn planned_key(e: &brickie_web_api::PlannedEdge) -> RuleKey {
+    let mut kinds = e.kinds.clone();
+    kinds.sort();
+    RuleKey {
+        from: e.from.clone(),
+        to: e.to.clone(),
+        kinds: Some(kinds),
+        scope: Some(e.scope.clone()),
+    }
+}
+
+/// The identity of a rule: from, to, kinds (as a set) and scope (`prod` when absent).
+pub fn rule_key(r: &RuleSpec) -> RuleKey {
+    let mut kinds = r.kinds.clone();
+    kinds.sort();
+    RuleKey {
+        from: r.from.clone(),
+        to: r.to.clone(),
+        kinds: Some(kinds),
+        scope: Some(r.scope.clone().unwrap_or_else(|| "prod".into())),
+    }
 }
 
 /// Where a dragged brick would go on release.
@@ -159,29 +183,23 @@ pub struct Edit {
     pub over: Signal<Option<usize>>,
     /// The ghost's result label while dragging (empty: not dragging).
     pub aim_label: Signal<String>,
-    /// Gestures that recorded several ops, `(first seq, last seq)`: undo and redo take each
-    /// back or restore it whole.
-    pub groups: Signal<Vec<(u64, u64)>>,
     /// A brick dropped on the new-lane zone: its name and where the tag box shows (world).
     pub lane_ask: Signal<Option<(String, f64, f64)>>,
     pub target: Signal<Option<MoveTarget>>,
     pub rule: Signal<Option<RuleRef>>,
     /// Link options of the selected brick (the inspector's "now" lines).
     pub links: Signal<Vec<LinkOption>>,
-    pub dialog: Signal<Dialog>,
-    /// Design panel tab: `inspect`, `rules`, `level`, `files` or `ops`.
+    /// Design panel tab: `inspect`, `rules`, `level`, `files` or `history`.
     pub tab: Signal<&'static str>,
-    /// Ops tab filter: `all`, `agent`, `human`, `proposed` or `conflict`.
-    pub ops_filter: Signal<&'static str>,
     /// The delete confirmation popover is open.
     pub confirm: Signal<bool>,
     pub toolbar_open: Signal<bool>,
-    /// Diff view: the semantic diff over the preview.
-    pub diff: Signal<bool>,
-    /// The last error of a change request (empty: none).
+    /// The last error of a design request (empty: none).
     pub msg: Signal<String>,
-    /// The last op done, shown briefly.
+    /// The last write done, or what another writer changed, shown briefly.
     pub toast: Signal<String>,
+    /// The version the toast offers to undo (another writer's version).
+    pub toast_undo: Signal<Option<u64>>,
     pub busy: Signal<bool>,
 }
 
@@ -203,19 +221,16 @@ impl Edit {
             hot: create_signal(None),
             over: create_signal(None),
             aim_label: create_signal(String::new()),
-            groups: create_signal(Vec::new()),
             lane_ask: create_signal(None),
             target: create_signal(None),
             rule: create_signal(None),
             links: create_signal(Vec::new()),
-            dialog: create_signal(Dialog::None),
             tab: create_signal("inspect"),
-            ops_filter: create_signal("all"),
             confirm: create_signal(false),
             toolbar_open: create_signal(true),
-            diff: create_signal(false),
             msg: create_signal(String::new()),
             toast: create_signal(String::new()),
+            toast_undo: create_signal(None),
             busy: create_signal(false),
         }
     }
@@ -249,7 +264,11 @@ impl Edit {
     }
 }
 
-/// The editor is on: the preview is shown and a change is open.
-pub(super) fn editing(change: Option<&ChangeView>, p: &brickie_web_api::Params) -> bool {
-    change.is_some() && p.editing()
+/// The editor is on: edit mode, and the design loaded.
+pub(super) fn editing(design: Option<&DesignState>, p: &brickie_web_api::Params) -> bool {
+    design.is_some() && p.editing()
 }
+
+/// A small design for tests: two levels, a shared include, rules and exports.
+#[cfg(test)]
+pub(crate) use sheet::tests::change as tests_design;

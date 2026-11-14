@@ -1,10 +1,10 @@
 //! The complexity table of the Rules tab: one row per `[[complexity]]` rule of the level (its
 //! file and includes); a cell applies on blur (`set_complexity`), `+` adds a rule, `x` removes.
 
-use super::op;
 use super::widgets::num;
+use super::{op, ops};
 use crate::state::*;
-use brickie_web_api::change::{ComplexitySpec, Op};
+use brickie_web_api::design::{ComplexitySpec, Op};
 use std::rc::Rc;
 use sycamore::prelude::*;
 
@@ -50,7 +50,7 @@ fn value(s: &ComplexitySpec, col: &str) -> String {
 fn cell(cx: &Cx, r: &Row<ComplexitySpec>, col: &'static str, set: Set) -> View {
     let init = value(&r.item, col);
     let v = create_signal(init.clone());
-    let (c, file, index, base) = (cx.clone(), r.file.clone(), r.index, r.item.clone());
+    let (c, file, base) = (cx.clone(), r.file.clone(), r.item.clone());
     let blur = move |_: web_sys::FocusEvent| {
         if !v.is_alive() {
             return;
@@ -59,14 +59,7 @@ fn cell(cx: &Cx, r: &Row<ComplexitySpec>, col: &'static str, set: Set) -> View {
         if now != init {
             let mut rule = base.clone();
             set(&mut rule, now);
-            op(
-                &c,
-                Op::SetComplexity {
-                    file: file.clone(),
-                    index,
-                    rule,
-                },
-            );
+            ops(&c, complexity_ops(&file, &base, &rule));
         }
     };
     view! { td { input(r#type="text", class="cell", title=col, bind:value=v, on:blur=blur) } }
@@ -77,23 +70,23 @@ fn row(cx: &Cx, r: Row<ComplexitySpec>) -> View {
         .into_iter()
         .map(|(col, set)| cell(cx, &r, col, set))
         .collect();
-    let (c, file, index) = (cx.clone(), r.file.clone(), r.index);
+    let (c, file, bricks) = (cx.clone(), r.file.clone(), r.item.bricks.clone());
     let rm = move |_: Click| {
         op(
             &c,
             Op::RemoveComplexity {
                 file: file.clone(),
-                index,
+                bricks: bricks.clone(),
             },
         )
     };
-    let at = format!("{}#{}", r.file, r.index);
+    let at = r.file.clone();
     let cells = View::from(cells);
     view! { tr(title=at) { (cells) td { button(class="px", title="remove", on:click=rm) { "\u{00D7}" } } } }
 }
 
 pub fn complexity(cx: &Cx) -> View {
-    let (Some(ch), Some(file)) = (cx.m.change.clone(), cx.level_file()) else {
+    let (Some(ch), Some(file)) = (cx.m.design.clone(), cx.level_file()) else {
         return View::default();
     };
     let rows: Vec<View> = level_complexity(&ch, &cx.level().path)

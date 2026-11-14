@@ -11,10 +11,10 @@ concern, files about 300 lines or fewer (tests aside), no flat `src/`.
 | --- | --- |
 | `crates/lib/algo/{layout,graph,rustscan,metrics}` | pure algorithms: layout and routing, SCC, Rust tokenizer, complexity metrics |
 | `crates/lib/codeview/{port,app,host}` | the code viewer, independent of brickie |
-| `crates/core/model` | light wasm-safe types, every diagnostic code, change types |
+| `crates/core/model` | light wasm-safe types, every diagnostic code, design ops and versions |
 | `crates/core/facts` | the cache schema and `cache.lock` |
 | `crates/core/measure` | `workspace/`, `scip/`, `run/`: code to cache |
-| `crates/core/change` | change sessions: store, edit, preview, publish |
+| `crates/core/change` | the versioned design: history, lock, edit, preview, report, scaffold |
 | `crates/core/check` | config, rules, interfaces, review, diagnostics (shared by check and serve) |
 | `crates/web/{api,server,ui}` | wasm-safe port, axum server, hydrated sycamore UI |
 | `crates/cli` | the binary and integration tests |

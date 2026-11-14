@@ -31,7 +31,7 @@ fn failed(error: String) -> MeasureJob {
 }
 
 /// Start the measure job; `then` gets the job state (or the error) once the server answered.
-pub fn start_measure(then: impl FnOnce(Result<MeasureJob, String>) + 'static) {
+fn start_measure(then: impl FnOnce(Result<MeasureJob, String>) + 'static) {
     call::<MeasureStart>(&(), then);
 }
 

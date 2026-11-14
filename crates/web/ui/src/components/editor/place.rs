@@ -1,36 +1,19 @@
 //! Committing a drop: the inline name box of a new brick (here, in a lane, in a new lane or
-//! inside a brick), the tag box of a brick dropped on the new-lane zone, and recording the ops
-//! of one gesture in order (several ops form one `Ctrl+Z` group).
+//! inside a brick), the tag box of a brick dropped on the new-lane zone, and applying the ops
+//! of one gesture as one version (one `Ctrl+Z`).
 
 use super::overlay::{at, stop};
 use super::toolbar::kind_name;
-use super::{op_then, select_brick, send};
+use super::{ops_then, select_brick, send};
 use crate::state::*;
-use brickie_web_api::change::{BrickKind, LayoutHint, Op};
+use brickie_web_api::LayoutHint;
+use brickie_web_api::design::{BrickKind, Op};
 use brickie_web_api::*;
-use std::collections::VecDeque;
 use sycamore::prelude::*;
 
-/// Record `ops` one after the other (each reply patches the page), then `then`. When more than
-/// one op was recorded, `Ctrl+Z` takes them back together.
+/// Apply the ops of one gesture as one version (one `Ctrl+Z`), then `then`.
 pub fn record(cx: &Cx, ops: Vec<Op>, then: impl FnOnce(&Cx) + 'static) {
-    chain(cx, ops.into(), None, Box::new(then));
-}
-
-fn chain(cx: &Cx, mut ops: VecDeque<Op>, first: Option<u64>, then: Box<dyn FnOnce(&Cx)>) {
-    let Some(o) = ops.pop_front() else {
-        return then(cx);
-    };
-    op_then(cx, o, move |now, rec| {
-        let first = first.unwrap_or(rec.seq);
-        if !ops.is_empty() {
-            return chain(now, ops, Some(first), then);
-        }
-        if first != rec.seq {
-            now.ed.groups.update(|g| g.push((first, rec.seq)));
-        }
-        then(now);
-    });
+    ops_then(cx, ops, move |now, _| then(now));
 }
 
 /// Add the drafted brick `name`: where it goes decides its file, tags and ops.
@@ -53,13 +36,13 @@ fn commit(cx: &Cx, d: Draft, name: String, members: String, tag: String) {
     // A lane drop lets the layout place the brick in its lane.
     let lane = !matches!(&d.dest, Dest::Here(t) if t.is_empty());
     let hint = (!lane).then_some(LayoutHint { x: d.x, y: d.y });
-    let req = ChangeLayoutRequest {
+    let req = LayoutRequest {
         brick: layout_key(&lv, &name),
         hint,
     };
     let c = cx.clone();
     let o = Op::AddBrick { file, brick: spec };
-    send::<ChangeLayout>(cx.ed, req, move |_| {
+    send::<DesignLayout>(cx.ed, req, move |_| {
         record(&c, vec![o], move |now| select_brick(now, &name));
     });
 }

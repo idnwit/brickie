@@ -1,15 +1,16 @@
 //! Connecting, type first: dragging a typed port of a brick draws a rubber band; the sibling or
-//! tag lane under the pointer is checked (`/api/change/link-check`) and a redundant target is
+//! tag lane under the pointer is checked (`/api/design/link-check`) and a redundant target is
 //! refused ("already allowed"). Dropping adds the rule at once (`add_rule`), selects it and
 //! focuses its reason in the inspector. Dragging the arrowhead of the selected rule
 //! (`retarget`) draws the same band and changes that rule's target instead.
 
-use super::{op_then, send};
+use super::{ops_then, send};
 use crate::components::call::call;
 use crate::components::canvas::frame_rect;
 use crate::platform;
 use crate::state::*;
-use brickie_web_api::{ChangeLinkCheck, ChangeLinkCheckRequest};
+use brickie_web_api::design::{Op, RuleSpec};
+use brickie_web_api::{DesignLinkCheck, LinkCheckRequest};
 
 /// Start dragging port `ty` of brick `from` at world point `(x, y)`.
 pub fn start(ed: Edit, from: String, ty: LinkType, x: f64, y: f64) {
@@ -35,7 +36,7 @@ pub fn target_at(cx: &Cx, from: &str, at: (f64, f64)) -> Option<String> {
     }
     let inside = frame_rect(&cx.m.g, &pos).is_some_and(|f| at.0 >= f.x - 60.0 && at.0 <= f.x + f.w);
     let tags =
-        cx.m.change
+        cx.m.design
             .as_deref()
             .and_then(|c| c.levels.get(&cx.level().path))
             .map(|l| l.tags.clone())?;
@@ -45,8 +46,8 @@ pub fn target_at(cx: &Cx, from: &str, at: (f64, f64)) -> Option<String> {
         .map(|t| format!("tag:{t}"))
 }
 
-fn check_req(cx: &Cx, c: &Connect, to: &str) -> ChangeLinkCheckRequest {
-    ChangeLinkCheckRequest {
+fn check_req(cx: &Cx, c: &Connect, to: &str) -> LinkCheckRequest {
+    LinkCheckRequest {
         level: level_brick_path(&cx.level().path),
         from: c.from.clone(),
         to: to.to_string(),
@@ -77,7 +78,7 @@ pub fn moved(cx: &Cx, at: (f64, f64)) {
         return;
     };
     let req = check_req(cx, &c, &to);
-    call::<ChangeLinkCheck>(&req, move |r| {
+    call::<DesignLinkCheck>(&req, move |r| {
         let still = ed.connect.with(|k| k.is_some());
         if let (Ok(v), true) = (r, still) {
             ed.check.set(Some((to, v)));
@@ -101,36 +102,42 @@ pub fn finish(cx: &Cx, at: Option<(f64, f64)>) {
     let Some(file) = cx.level_file() else { return };
     let req = check_req(cx, &c, &to);
     let cx2 = cx.clone();
-    send::<ChangeLinkCheck>(ed, req, move |chk| {
+    send::<DesignLinkCheck>(ed, req, move |chk| {
         if chk.redundant {
             let link = format!("{} \u{2192} {to}", c.from);
             ed.msg.set(format!("No rule added for {link}: {}", chk.why));
             return;
         }
-        let op = link_op(&file, &c.from, &to, c.ty, cx2.ed.scope.get());
-        op_then(&cx2, op, move |now, _| select_new_rule(now, &file));
+        let rule = link_rule(&c.from, &to, c.ty, cx2.ed.scope.get());
+        let r = RuleRef::of(&file, &rule);
+        let op = Op::AddRule { file, rule };
+        ops_then(&cx2, vec![op], move |now, _| select_rule(now, r));
     });
 }
 
 /// Point rule `r` at `to` (its arrowhead was dropped there), keeping it selected.
 fn retarget(cx: &Cx, r: &RuleRef, to: &str) {
     let rule =
-        cx.m.change
+        cx.m.design
             .as_deref()
             .and_then(|ch| rule_at(ch, r))
             .cloned();
-    let Some(op) = rule.and_then(|rule| retarget_op(r, &rule, to)) else {
+    let Some(rule) = rule else { return };
+    let Some(ops) = retarget_ops(r, &rule, to) else {
         return;
     };
-    let r = r.clone();
-    op_then(cx, op, move |now, _| now.ed.rule.set(Some(r)));
+    let next = RuleRef::of(
+        &r.file,
+        &RuleSpec {
+            to: to.to_string(),
+            ..rule
+        },
+    );
+    ops_then(cx, ops, move |now, _| now.ed.rule.set(Some(next)));
 }
 
-/// Select the rule just added to `file` and focus its reason.
-fn select_new_rule(cx: &Cx, file: &str) {
-    let Some(r) = cx.m.change.as_deref().and_then(|ch| last_rule(ch, file)) else {
-        return;
-    };
+/// Select rule `r` (just added) and focus its reason.
+fn select_rule(cx: &Cx, r: RuleRef) {
     let p = cx.params.with(|p| {
         p.with(|p| {
             p.brick.clear();
