@@ -36,6 +36,8 @@ cycles = "deny"                    # cycles between bricks (prod edges)
 [[deps.rule]]
 from = "tag:core"                  # brick name | tag:<tag> | *
 to = "tag:adapter"
+# via = ["ports-in"]               # optional: `to` is a composite brick; only edges entering it
+                                   # through these exported children match (+1 specificity)
 kinds = ["uses", "implements"]     # default: all kinds
 scope = "prod"                     # prod (default) | test | all
 action = "deny"

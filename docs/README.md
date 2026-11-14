@@ -6,7 +6,7 @@
   - [design/check.md](design/check.md): config tree, rules, interfaces, findings.
   - [design/serve.md](design/serve.md): webview decisions, layout port, code viewer.
   - [design/levels.md](design/levels.md): nested bricks and zoom.
-  - [design/editor.md](design/editor.md): design editor and change sessions.
+  - [design/editor.md](design/editor.md): versioned design editing (CLI and viewer).
   - [design/layout.md](design/layout.md): code layout and crate boundaries.
   - [design/complexity.md](design/complexity.md): complexity policy and limits.
   - [design/roadmap.md](design/roadmap.md): distribution, steps, open items.

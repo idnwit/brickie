@@ -31,7 +31,8 @@ brickie measure --> .brickie/cache.json --> brickie check  --> findings (text/js
   outsiders may use.
 - One `Diagnostic` model for `check` and the webview. Review decisions survive re-runs.
 - Crates exist only at real boundaries; complexity limits only tighten down the tree.
-- One engine for preview and publish in the editor; `brickie.toml` stays the source of truth.
+- The `brickie.toml` tree is the design: every edit is written at once as a new version of the
+  whole tree, based on the version the writer read ([design/editor.md](design/editor.md)).
 - Development stage: one current API and model path, no backward compatibility.
 
 ## Detail docs
@@ -42,7 +43,7 @@ brickie measure --> .brickie/cache.json --> brickie check  --> findings (text/js
 | [design/check.md](design/check.md) | config tree, member selectors, rules, interfaces, findings, exit codes, `llms.txt` |
 | [design/serve.md](design/serve.md) | webview decisions, brick score, layout port, embedded code viewer |
 | [design/levels.md](design/levels.md) | nested bricks, exports, map-style zoom |
-| [design/editor.md](design/editor.md) | design editor, change sessions, UX principles |
+| [design/editor.md](design/editor.md) | versioned design editing (`brickie design` and the viewer's Design mode) |
 | [design/layout.md](design/layout.md) | crates, folders, crate boundaries |
 | [design/complexity.md](design/complexity.md) | lib vs wiring flow, test placement, limits per tag |
 | [design/roadmap.md](design/roadmap.md) | distribution, steps with status, open items, accepted behaviours |

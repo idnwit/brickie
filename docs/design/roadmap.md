@@ -21,9 +21,9 @@ to the default branch builds Linux x86-64 and macOS binaries into a rolling `dev
    is still needed); PR mode reports only findings new or in files changed against a base.
 7. Nested bricks: per-level checks, `exports`, zoom. Done. ([levels.md](levels.md))
 8. Brick interfaces. Done.
-9. Design editor and change sessions. Done, except step 11. ([editor.md](editor.md))
+9. Versioned design editing. CLI and viewer done. ([editor.md](editor.md))
 10. Code viewer. Done, except hover.
-11. Open: an MCP server with notifications, so the agent need not poll `brickie change`.
+11. Open: an MCP server with notifications, so the agent need not poll `brickie design show`.
 12. Open, optional: an id tie-break for `smart_route` top/bottom ports. Output is stable today;
     the tie-break would change golden offsets for equal keys.
 
