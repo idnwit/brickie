@@ -2,7 +2,6 @@
 //! prints it, the todo list and the per-file sheets.
 
 pub mod diff;
-mod edges;
 mod sheets;
 mod todo;
 mod view;

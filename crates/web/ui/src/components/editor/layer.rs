@@ -1,110 +1,13 @@
-//! The editor's layer of the canvas (inside the pan/zoom group): planned rule edges (dashed per
-//! type, deny red, agent violet, "?" without a reason), agent badges (what an agent changed
+//! The editor's layer of the canvas (inside the pan/zoom group): agent badges (what an agent changed
 //! since your last edit), typed ports on the hot
 //! brick, the rubber band of a port drag with its valid and refused targets, and the target
 //! of a brick being moved.
 
 use super::connect;
 use super::marks::{drag_label, move_mark, new_lane_hint};
-use super::spot::mark_spot;
-use crate::layout::{Pt, Rect, Route};
+use crate::layout::{Pt, Rect};
 use crate::state::*;
-use brickie_web_api::PlannedEdge;
-use brickie_web_api::design::Op as DOp;
 use sycamore::prelude::*;
-
-pub(super) fn ends(cx: &Cx, sel: &str) -> Vec<usize> {
-    (0..cx.m.g.bricks.len())
-        .filter(|&i| !cx.m.g.bricks[i].ghost && sel != "*" && names(sel, &cx.m.g.bricks[i]))
-        .collect()
-}
-
-/// Whether an agent's version since your last edit added rule `e`.
-fn by_agent(cx: &Cx, e: &PlannedEdge) -> bool {
-    let Some(d) = cx.m.design.as_deref() else {
-        return false;
-    };
-    agent_ops(&d.history).into_iter().any(|o| {
-        matches!(o, DOp::AddRule { file, rule } if *file == e.file && rule.from == e.from && rule.to == e.to)
-    })
-}
-
-fn edge_class(cx: &Cx, e: &PlannedEdge) -> String {
-    let ty = LinkType::of_rule(&e.kinds, &e.action);
-    let agent = by_agent(cx, e);
-    format!("pedge l-{}{}", ty.name(), if agent { " agent" } else { "" })
-}
-
-/// The route of planned pair `a -> b`: the layout's (around the boxes, from side ports), or a
-/// plain cubic from the right to the left side when the pair is not routed.
-pub(super) fn planned_path(cx: &Cx, a: usize, b: usize, p: &[Rect]) -> Route {
-    if let Some(r) = cx.planned_route(a, b, p) {
-        return r;
-    }
-    let (x1, y1) = (p[a].x + p[a].w, p[a].y + p[a].h / 2.0);
-    let (x2, y2) = (p[b].x, p[b].y + p[b].h / 2.0);
-    let mx = (x1 + x2) / 2.0;
-    let at = |x, y| Pt { x, y };
-    Route {
-        segs: vec![[at(x1, y1), at(mx, y1), at(mx, y2), at(x2, y2)]],
-    }
-}
-
-/// One planned rule: a dashed line per (from, to) pair of bricks its selectors name.
-fn planned(cx: &Cx, e: &PlannedEdge, p: &[Rect], marks: &mut Vec<Pt>) -> View {
-    let r = RuleRef {
-        file: e.file.clone(),
-        key: planned_key(e),
-    };
-    let ed = cx.ed;
-    let sel = ed.rule.with(|x| x.as_ref() == Some(&r));
-    let cls = format!("{}{}", edge_class(cx, e), if sel { " sel" } else { "" });
-    let agent = by_agent(cx, e);
-    let mut out = Vec::new();
-    for a in ends(cx, &e.from) {
-        for b in ends(cx, &e.to).into_iter().filter(|&b| b != a) {
-            let route = planned_path(cx, a, b, p);
-            let d = route.d();
-            let (mx, my) = match e.reason.is_none() || agent {
-                true => {
-                    let m = mark_spot(&route, p, marks);
-                    (m.x, m.y)
-                }
-                false => (0.0, 0.0),
-            };
-            let r = r.clone();
-            let click = move |ev: Click| {
-                ev.stop_propagation();
-                ed.rule.set(Some(r.clone()));
-                ed.tab.set("inspect");
-            };
-            let tip = format!(
-                "{} \u{2192} {} ({}) {}",
-                e.from,
-                e.to,
-                e.action,
-                e.reason.clone().unwrap_or_else(|| "no reason yet".into())
-            );
-            let q = e.reason.is_none().then(|| view! { g(class="qmark") { circle(cx=mx.to_string(), cy=my.to_string(), r="8") text(x=mx.to_string(), y=(my + 4.0).to_string(), "text-anchor"="middle") { "?" } } });
-            // Beside the "?" when both show, else on the anchor.
-            let (ax, ay) = match e.reason.is_none() {
-                true => (mx + 10.0, my - 8.0),
-                false => (mx, my + 4.0),
-            };
-            let a_badge = agent.then(|| view! { text(class="abadge", x=ax.to_string(), y=ay.to_string(), "text-anchor"="middle") { "A" } });
-            let (cls, d2) = (cls.clone(), d.clone());
-            out.push(view! {
-                g(class=cls, on:click=click) {
-                    svg_title { (tip) }
-                    path(class="hit", d=d2)
-                    path(class="line", d=d)
-                    (q) (a_badge)
-                }
-            });
-        }
-    }
-    View::from(out)
-}
 
 /// The agent badge anchors: the top-left corner of each brick an agent changed since your
 /// last edit.
@@ -239,12 +142,7 @@ pub fn layer(cx: &Cx, pos: ReadSignal<Vec<Rect>>) -> View {
     });
     let body = move || {
         let p = pos.get_clone();
-        // Marks keep clear of the agent badges on the box corners and of each other.
         let spots = badge_spots(&c, &p);
-        let mut marks = spots.clone();
-        let edges: Vec<View> = (c.level().planned_edges.iter())
-            .map(|e| planned(&c, e, &p, &mut marks))
-            .collect();
         let ports: Vec<View> = ported(&c)
             .into_iter()
             .filter(|&b| b < p.len() && c.ed.connect.with(Option::is_none))
@@ -256,9 +154,9 @@ pub fn layer(cx: &Cx, pos: ReadSignal<Vec<Rect>>) -> View {
         let d = dragged.get();
         let mv = c.ed.target.get_clone().map(|t| move_mark(&c, &t, &p, d));
         let (zone, lbl) = (new_lane_hint(&c, &p, d), drag_label(&c, d, &p));
-        let (edges, ports, badges) = (View::from(edges), View::from(ports), badges(&spots));
+        let (ports, badges) = (View::from(ports), badges(&spots));
         view! {
-            g(class="edlayer") { (edges) (badges) (ports) (heads) (band) (zone) (mv) (lbl) }
+            g(class="edlayer") { (badges) (ports) (heads) (band) (zone) (mv) (lbl) }
         }
     };
     view! { (body) }

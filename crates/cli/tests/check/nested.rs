@@ -4,7 +4,7 @@
 use super::support::*;
 use serde_json::{Value, json};
 
-const ROOT: &str = r#"
+pub(super) const ROOT: &str = r#"
 [[brick]]
 name = "web"
 path = "ws/crates/web"
@@ -25,7 +25,7 @@ to = "tag:core"
 action = "allow"
 "#;
 
-const WEB: &str = r#"
+pub(super) const WEB: &str = r#"
 exports = ["api", { brick = "ui", scope = "test" }]
 
 [[brick]]
@@ -59,7 +59,7 @@ cognitive = 10
 "#;
 
 /// (package, dir under ws/, edges from its module `<package>::m`, functions).
-fn tree() -> World {
+pub(super) fn tree() -> World {
     let crates: [(&str, &str, Vec<Value>, Vec<Value>); 4] = [
         (
             "core",

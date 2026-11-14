@@ -14,6 +14,8 @@ pub(super) struct Private {
     pub(super) hidden: String,
     /// The siblings at the common ancestor.
     pub(super) from: String,
+    /// Full level path of the source brick (`root/web/ui`).
+    pub(super) owner: String,
     pub(super) to: String,
     pub(super) from_module: String,
     pub(super) to_module: String,
@@ -70,6 +72,9 @@ impl Finding for Private {
     /// Names are local to the finding's level (the composite): the hidden child.
     fn bricks(&self) -> Vec<String> {
         vec![self.hidden.clone()]
+    }
+    fn owners(&self) -> Vec<String> {
+        vec![self.owner.clone()]
     }
     fn brick_level(&self) -> Option<String> {
         Some(self.level.clone())

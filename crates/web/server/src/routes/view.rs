@@ -1,6 +1,5 @@
 //! The page data of a request: the design as checked. In edit mode (`edit=1`) the design is
-//! loaded as a draft (bricks without code yet do not fail it), marked with planned bricks and
-//! edges, and the page carries the [`DesignState`](brickie_web_api::DesignState).
+//! loaded as a draft (bricks without code yet do not fail it), marked with planned bricks, and the page carries the [`DesignState`](brickie_web_api::DesignState).
 
 use crate::{AppState, Failure, data};
 use axum::http::StatusCode;
@@ -28,7 +27,7 @@ fn draft(st: &AppState) -> Result<(Loaded, DesignState), Failure> {
 pub fn edit_levels(st: &AppState) -> Result<(Vec<LevelView>, DesignState), Failure> {
     let (l, state) = draft(st)?;
     let mut levels = data::graph::levels(&l);
-    data::design::mark(&mut levels, &l, &state);
+    data::design::mark(&mut levels, &l);
     Ok((levels, state))
 }
 
@@ -39,7 +38,7 @@ pub fn page(st: &AppState, p: &Params) -> Result<PageData, Failure> {
     }
     let (l, state) = draft(st)?;
     let mut data = data::page(&l, &st.cache_file());
-    data::design::mark(&mut data.levels, &l, &state);
+    data::design::mark(&mut data.levels, &l);
     data.design = Some(state);
     Ok(data)
 }

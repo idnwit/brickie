@@ -1,6 +1,5 @@
 //! The versioned design as the editor shows it ([`DesignState`]) and the edit-mode marks of
-//! the levels: planned bricks (no measured module yet) and planned edges (allow rules no
-//! measured edge uses yet).
+//! the levels: planned bricks (no measured module yet).
 
 mod conflict;
 mod layout;
@@ -13,7 +12,7 @@ use brickie_change::{Design, DesignView};
 use brickie_check::check::Loaded;
 use brickie_check::config::level_name;
 use brickie_web_api::design::LevelView as DesignLevel;
-use brickie_web_api::{DesignState, HISTORY, LevelInfo, LevelView, PlannedEdge};
+use brickie_web_api::{DesignState, HISTORY, LevelInfo, LevelView};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The design at its head. `error` says why the tree does not show (`files` is then empty).
@@ -33,7 +32,6 @@ pub fn state(d: &Design) -> Result<DesignState> {
         layout: read_layout(d.root()),
         files: BTreeMap::new(),
         levels: BTreeMap::new(),
-        planned_edges: Vec::new(),
         sheets: d.sheets()?,
         error: None,
     };
@@ -50,17 +48,6 @@ fn fill(out: &mut DesignState, view: &DesignView) {
     while let Some(lv) = stack.pop() {
         out.files.insert(lv.path.clone(), lv.file.clone());
         out.levels.insert(lv.path.clone(), level_info(lv));
-        out.planned_edges
-            .extend(lv.rules.iter().filter(|r| r.todo).map(|r| PlannedEdge {
-                level: lv.path.clone(),
-                file: r.file.clone(),
-                from: r.from.clone(),
-                to: r.to.clone(),
-                kinds: r.kinds.clone(),
-                scope: r.scope.clone(),
-                action: r.action.clone(),
-                reason: r.reason.clone(),
-            }));
         stack.extend(lv.bricks.iter().filter_map(|b| b.children.as_deref()));
     }
 }
@@ -84,18 +71,12 @@ fn level_info(lv: &DesignLevel) -> LevelInfo {
     }
 }
 
-/// Mark planned bricks and planned edges on the levels.
-pub fn mark(levels: &mut [LevelView], l: &Loaded, st: &DesignState) {
+/// Mark planned bricks on the levels.
+pub fn mark(levels: &mut [LevelView], l: &Loaded) {
     let planned: BTreeSet<String> = brickie_change::planned(&l.cfg, &l.resolved)
         .iter()
         .map(|p| level_name(p))
         .collect();
-    for lv in levels.iter_mut() {
-        lv.planned_edges = (st.planned_edges.iter())
-            .filter(|e| e.level == lv.path)
-            .cloned()
-            .collect();
-    }
     for b in levels.iter_mut().flat_map(|lv| lv.graph.bricks.iter_mut()) {
         b.planned = !b.ghost && planned.contains(&b.path);
     }

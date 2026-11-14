@@ -5,7 +5,9 @@
 mod config;
 mod cycles_complexity;
 mod deps;
+mod links;
 mod nested;
+mod scope;
 mod stale;
 mod support;
 mod text;

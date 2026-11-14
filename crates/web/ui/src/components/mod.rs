@@ -6,6 +6,7 @@ mod canvas;
 mod controls;
 mod editor;
 mod keys;
+mod links;
 mod panels;
 mod popup;
 

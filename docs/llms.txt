@@ -19,6 +19,18 @@
 - `brickie check --format json` prints `{summary, diagnostics}`; each finding has `id`, `code`,
   `level`, `brick_level`, `message`, `span`, `spans`, `rule`, `help`, `notes`. Read the text form,
   loop over the JSON.
+- `brickie check --brick PATH` (repeatable; path from the root such as `web/api`, includes
+  descendants) shows only findings owned by that brick: the source brick of `deps/*` edges, all
+  members of a `deps/cycle`, both ends of `deps/unused`, the defining brick of `interface/*`, the
+  function's brick of `complexity/*`. Findings with no owner always show. The whole workspace is
+  still checked; the footer `outside scope: N errors, M warnings` counts what is hidden, and the
+  exit code uses the shown findings only.
+- `brickie check --skip CODE` (repeatable or comma separated) hides warnings with that code; an
+  error with the same code still shows. The footer `skipped: N warnings (codes)` counts them. JSON
+  adds `outside_scope` and `skipped` objects when the options are used.
+- While coding brick X: `brickie check --brick X --skip interface/unused,deps/unused` (unused
+  surface and planned links are expected mid-work). Before reporting done, run a full
+  `brickie check` with no options.
 - `brickie interface <brick-path> [--json]` (for example `root/web/api`) prints the brick's
   declared interface: every item outside code can name, with signature, first doc paragraph,
   definition, and uses (grouped by using brick, file:line:col per site; `[test]` marks test code);
@@ -281,9 +293,18 @@ from the surrounding code; otherwise ask the reviewer. No re-measure is needed.
 A leaf brick declares an item (reachable from outside: public API of its crate, or a `pub` /
 `pub(crate)` item whose module is visible to another brick) that no code outside the brick and no
 test uses (tests anywhere count, including the brick's own). The location is the definition. Fix:
-if only the brick needs it, narrow its visibility (private, `pub(super)`, or a private module); if
-dead, delete it; if real public API, add a test that exercises it. Methods, fields and variants
-count as uses of their type; `pub use` re-exports are not uses.
+if only the brick needs it, make it private, or remove it if nothing uses it; or add a test that
+exercises it. Methods, fields and variants count as uses of their type; `pub use` re-exports are
+not uses.
+
+### deps/unused (warning)
+
+An `allow` rule between two named bricks that no measured edge uses, while both bricks are fully
+measured (every brick below them has code). The message names what the rule looks for (for
+example "no `uses` edge in test scope"); the location is the rule. A rule whose bricks are not
+all written yet is not reported: it is planned. Fix: write the code that uses the other brick, or,
+if the rule's `kinds` or `scope` are wrong, report it; the maintainers change or remove the rule
+(`brickie design rule set` / `rule rm`). Do not edit the rule yourself to silence it.
 
 ### config/missing, config/overlap, config/unassigned, config/member-outside-parent, config/unknown-export, config/unknown-via
 

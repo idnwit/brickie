@@ -31,6 +31,13 @@ pub enum Command {
         format: Format,
         #[arg(long, value_enum, default_value_t = ColorArg::Auto)]
         color: ColorArg,
+        /// Show only findings owned by this brick (path from the root, such as `web/api`) or
+        /// its descendants; findings without an owner always show. Repeatable.
+        #[arg(long = "brick", value_name = "PATH")]
+        bricks: Vec<String>,
+        /// Hide warnings with this code (repeatable or comma separated); errors still show.
+        #[arg(long, value_name = "CODE", value_delimiter = ',')]
+        skip: Vec<String>,
     },
     /// Print a brick's declared interface: each item's signature, doc and uses (by brick, with
     /// locations); unused items are marked. With `--from A`, every reference site from brick A

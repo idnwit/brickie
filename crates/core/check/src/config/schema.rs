@@ -88,6 +88,14 @@ pub enum Scope {
 }
 
 impl Scope {
+    pub fn name(self) -> &'static str {
+        match self {
+            Scope::Prod => "prod",
+            Scope::Test => "test",
+            Scope::All => "all",
+        }
+    }
+
     pub fn matches(self, scope: &str) -> bool {
         match self {
             Scope::All => true,

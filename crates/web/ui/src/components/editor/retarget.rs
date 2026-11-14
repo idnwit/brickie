@@ -3,7 +3,7 @@
 //! lane changes the rule's `to` (the rule is replaced: one version, one undo step). Kinds, scope, action, reason and
 //! help stay as they were.
 
-use super::layer::ends;
+use crate::components::links::ends;
 use crate::layout::Rect;
 use crate::state::*;
 use sycamore::prelude::*;

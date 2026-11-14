@@ -20,7 +20,9 @@
 .l-uses{--lc:var(--l-uses)}.l-implements{--lc:var(--l-implements)}.l-reexports{--lc:var(--l-reexports)}.l-deny{--lc:var(--l-deny)}
 .pedge{cursor:pointer}.pedge .line{fill:none;stroke:var(--lc);stroke-width:2;stroke-dasharray:7 5}.pedge .hit{fill:none;stroke:transparent;stroke-width:12}
 .pedge.agent .line{stroke:var(--agent)}.pedge.sel .line{stroke-width:3.5}.pedge.l-deny .line{stroke-dasharray:3 4}
-.qmark circle{fill:var(--warn);stroke:var(--panel)}.qmark text{fill:#fff;font-size:11px;font-weight:700;pointer-events:none}
+.qmark circle{fill:var(--warn);stroke:var(--panel)}.qmark text{fill:var(--panel);font-size:11px;font-weight:700;pointer-events:none}
+.pedge.st-planned .line{opacity:.5}.pedge.st-unused .line{stroke:var(--warn)}
+.rlabel{display:none;fill:var(--ink);font-size:12px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:4px;pointer-events:none}.plink:hover .rlabel,.plink.picked .rlabel,.plink.sel .rlabel{display:block}
 .abadge{fill:var(--agent);font-weight:700;font-size:12px}
 .ebadge circle{stroke:var(--panel);stroke-width:2}.ebadge text{fill:#fff;font-size:11px;font-weight:700;pointer-events:none}.ebadge.agent circle{fill:var(--agent)}.ebadge.conflict circle{fill:var(--err)}
 .band{fill:none;stroke:var(--lc);stroke-width:2.5;stroke-dasharray:6 4;pointer-events:none}
