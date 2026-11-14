@@ -2,7 +2,7 @@
 
 use super::{Config, KINDS, Sel};
 use anyhow::{Result, bail};
-use brickie_model::codes::CONFIG_UNKNOWN_EXPORT;
+use brickie_model::codes::{CONFIG_UNKNOWN_EXPORT, CONFIG_UNKNOWN_VIA};
 use std::collections::BTreeSet;
 
 pub fn validate(cfg: &Config) -> Result<()> {
@@ -36,6 +36,35 @@ pub fn validate(cfg: &Config) -> Result<()> {
                 cfg.file,
                 e.brick
             );
+        }
+    }
+    Ok(())
+}
+
+/// `via` names exported children of a composite `to` brick. Runs once the composites below
+/// `cfg` are loaded, because it reads their `exports`.
+pub fn validate_via(cfg: &Config) -> Result<()> {
+    for r in &cfg.deps.rules {
+        let Some(via) = &r.via else { continue };
+        let bad = |why: String| bail!("{CONFIG_UNKNOWN_VIA}: {}: {why}", r.loc);
+        let target = match &r.to {
+            Sel::Brick(n) => cfg.brick(n),
+            _ => None,
+        };
+        let Some(sub) = target.and_then(|b| b.sub.as_deref()) else {
+            return bad(format!(
+                "`via` needs `to` to name a composite brick, not '{}'",
+                r.to
+            ));
+        };
+        if via.is_empty() {
+            return bad("`via` is an empty list".into());
+        }
+        if let Some(v) = via
+            .iter()
+            .find(|v| !sub.exports.iter().any(|e| &e.brick == *v))
+        {
+            return bad(format!("'{v}' is not exported by '{}'", r.to));
         }
     }
     Ok(())

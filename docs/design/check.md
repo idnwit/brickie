@@ -36,11 +36,23 @@ Each module gets one leaf path. At each level the most specific selector wins:
 | --- | --- |
 | Levels | An edge between leaves lifts to their lowest common ancestor `L`. Siblings under `L` are checked against `L`'s rules. Cost is O(depth) per edge. |
 | Visibility (`deps/private`) | Each composite on the target path below `L` must export the next brick for the edge's scope. One error per module edge. Tests have no exemption. |
-| Deps | Specificity brick 3, tag 2, `*` 1 per side. Highest sum wins; deny wins a tie. No match: `deps.default`. Edges inside one brick or touching unmapped modules are ignored. |
+| Deps | Specificity brick 3, tag 2, `*` 1 per side; `via` adds 1 on the `to` side. Highest sum wins; deny wins a tie. No match: `deps.default`. Edges inside one brick or touching unmapped modules are ignored. |
 | Cycles | Per level: SCCs over lifted prod edges among children, all kinds. One error per SCC. |
 | Complexity | Limit is inclusive. Per function and metric the most specific rule applies; ancestor levels apply too, so the tightest limit wins and a nested file only tightens. Policy: [complexity.md](complexity.md). |
 | Interfaces | Off in the Architecture preset: unused surface is advice. `interface/unused` (warn) per declared item with no outside use. |
 | Staleness | Candidates from `git diff` and `git status`, confirmed by sha256. Without git, hash everything. A dirty-tree cache also hashes everything. Config edits are never stale. |
+
+`via` (optional on a rule): exported children of the rule's `to` composite. The rule matches only
+an edge that enters `to` through one of them (child `p2[k+1]` of the lifted target path); a leaf
+target never matches. `to` must be a composite brick and every name one of its `exports`, else
+`config/unknown-via`. `deps/private` runs first, so exports stay the ceiling. Messages name the
+entered child (`` `ui` uses `application` via `ports-out` ``).
+
+Editing: `via` is a property of a rule, not part of its identity, and `rule set` keeps it unless
+given. A planned `via` rule is backed only by a measured edge entering `to` through one of its
+`via` children. Design ops keep `via` valid: `rename_brick` of a child rewrites the `via` of the
+parent rules that target its composite; `remove_brick`, `move_brick`, unexporting via
+`set_exports` and `ungroup` fail with `design/invalid` naming the rule when a `via` would dangle.
 
 ## Interfaces
 
@@ -65,5 +77,5 @@ Each module gets one leaf path. At each level the most specific selector wins:
 
 Prints [../llms.txt](../llms.txt) (embedded, reads no project): the one guide for coding agents. It
 holds the `measure -> check -> fix -> re-check` workflow, every diagnostic code with its fix,
-the config schema and "Change sessions". An agent never edits rules or `brickie.review.toml` to
+the config schema and "Editing the design". An agent never edits rules or `brickie.review.toml` to
 pass. The test `guide_documents_every_diagnostic_code` fails when a code is missing.

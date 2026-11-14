@@ -51,6 +51,8 @@ mod unmapped;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod via_tests;
 
 pub use complexity::limits as complexity_limits;
 pub use deps::dep_subject;

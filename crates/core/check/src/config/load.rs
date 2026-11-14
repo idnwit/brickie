@@ -2,7 +2,7 @@
 //! brick with `path = "<dir>"` loads `<dir>/brickie.toml` as the level below it.
 
 use super::source::{Disk, FileSource};
-use super::validate::validate;
+use super::validate::{validate, validate_via};
 use super::{Action, Brick, ComplexityRule, Config, DepRule, Export};
 use anyhow::{Context, Result, bail};
 use brickie_model::codes::CONFIG_MISSING;
@@ -101,6 +101,7 @@ fn load_level(
         b.sub = Some(Box::new(sub));
     }
     ancestors.pop();
+    validate_via(&cfg)?;
     Ok(cfg)
 }
 
