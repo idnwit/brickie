@@ -7,7 +7,6 @@ mod measure;
 
 pub use boundary::boundary;
 pub use crumbs::crumbs;
-pub use measure::start_measure;
 mod presets;
 mod toggles;
 
@@ -59,19 +58,21 @@ pub fn header(cx: &Cx) -> View {
     let c = cx.clone();
     let fit = move |_: Click| {
         if let Some(s) = c.stage.get() {
-            c.view.set(fit_view(&c.m.layout, s));
+            c.view.set(c.fit(s));
         }
     };
-    // Bricks stay where they are dragged; this puts them back where the layout placed them.
+    // Bricks stay where they are dragged; this puts them back where the layout placed them (in
+    // edit mode also forgetting the level's stored positions).
     let c = cx.clone();
     let relayout = move |_: Click| {
+        if c.editing() {
+            return crate::components::editor::relayout(&c);
+        }
         c.drag.set(Default::default());
         if let Some(s) = c.stage.get() {
-            c.view.set(fit_view(&c.m.layout, s));
+            c.view.set(c.fit(s));
         }
     };
-    let c = cx.clone();
-    let dragged = move || !c.drag.with(|d| d.is_empty());
     let counts = counts(cx);
     let design = crate::components::editor::design_button(cx);
     let measure = measure::measure(&cx.m.cache, cx.bus.job);
@@ -83,7 +84,7 @@ pub fn header(cx: &Cx) -> View {
             (vscope)
             (menu)
             button(id="fit", title="Fit the graph in the stage", on:click=fit) { "Fit" }
-            button(id="relayout", title="Put dragged bricks back where the automatic layout placed them", disabled=move || !dragged(), on:click=relayout) { "Auto layout" }
+            button(id="relayout", title="Lay the level out again: moved bricks go back where the automatic layout places them", on:click=relayout) { "Auto layout" }
             button(id="reload", on:click=move |_: Click| platform::reload()) { "Reload" }
             (design)
             (measure)

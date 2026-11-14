@@ -1,8 +1,8 @@
-//! What the watcher looks at: a [`Snapshot`] of the change log, the cache, the measure job and
-//! the config tree, and the events between two snapshots.
+//! What the watcher looks at: a [`Snapshot`] of the design's head version, the cache, the
+//! measure job and the config tree, and the events between two snapshots.
 
 use crate::AppState;
-use brickie_change::Change;
+use brickie_change::{By, Design};
 use brickie_web_api::{MeasureJob, ServerEvent};
 use std::path::Path;
 use std::time::UNIX_EPOCH;
@@ -10,9 +10,10 @@ use std::time::UNIX_EPOCH;
 /// The state the events report, with the file stamps they were read from.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Snapshot {
-    /// `(open, head)` of the change and the stamp of its log.
-    pub(crate) change: (bool, u64),
-    change_stamp: (u64, u64),
+    /// `(hash, v, by)` of the design's head (`None`: not readable).
+    pub(crate) design: Option<(String, u64, By)>,
+    /// The stamps the head was read at: the history log and the config tree.
+    design_stamp: ((u64, u64), u64),
     /// `(written at in seconds, stamp of time and size)` of `cache.json`.
     pub(crate) cache: (u64, u64),
     pub(crate) measure: MeasureJob,
@@ -57,29 +58,28 @@ pub(crate) fn tree_stamp(root: &Path) -> u64 {
     acc
 }
 
-/// Read the current state (`tree`: the last [`tree_stamp`]); the change log is parsed only
-/// when its file changed since `prev`.
+/// The design's head. Reading it records a hand edit of the files as an `external` version,
+/// so a hand edit reaches the page as a design event too.
+fn head(st: &AppState) -> Option<(String, u64, By)> {
+    let v = Design::at(&st.config()).and_then(|d| d.head()).ok()?;
+    Some((v.hash, v.v, v.by))
+}
+
+/// Read the current state (`tree`: the last [`tree_stamp`]); the head is read again only when
+/// the history log or the config tree changed since the last look.
 pub(crate) fn snapshot(st: &AppState, tree: u64) -> Snapshot {
-    let config = st.config();
-    let ops = st.root().join(".brickie/change/ops.json");
-    let mut change_stamp = stamp(&ops);
-    let prev = st.events.last();
-    let change = match prev {
-        Some(p) if p.change_stamp == change_stamp => p.change,
-        _ => match Change::load(&config).and_then(|c| c.status()) {
-            Ok(s) => (true, s.head),
-            Err(_) => {
-                // Not readable (none open, or `Change::open` is between writing `ops.json`
-                // and `intent`): never remember this stamp, so the next look reads again.
-                change_stamp = (u64::MAX, u64::MAX);
-                (Change::is_open(&config), 0)
-            }
-        },
+    let log = st.root().join(".brickie/history/log.jsonl");
+    let mut design_stamp = (stamp(&log), tree);
+    let design = match st.events.last() {
+        Some(p) if p.design_stamp == design_stamp && p.design.is_some() => p.design,
+        _ => head(st),
     };
+    // Reading the head may append a version: stamp the log as it is now.
+    design_stamp.0 = stamp(&log);
     let (t, len) = stamp(&st.cache_file());
     Snapshot {
-        change,
-        change_stamp,
+        design,
+        design_stamp,
         cache: (t / 1_000_000_000, len ^ t),
         measure: st.measure.status(),
         config: tree,
@@ -90,8 +90,10 @@ impl Snapshot {
     /// One event per part that differs in `now`.
     pub(crate) fn diff(&self, now: &Snapshot) -> Vec<ServerEvent> {
         let mut out = Vec::new();
-        if self.change != now.change {
-            out.push(now.change_event());
+        if self.design != now.design
+            && let Some(e) = now.design_event()
+        {
+            out.push(e);
         }
         if self.cache != now.cache {
             out.push(now.cache_event());
@@ -109,21 +111,20 @@ impl Snapshot {
 
     /// The current state as one event of each kind (sent first on every connection).
     pub(crate) fn events(&self) -> Vec<ServerEvent> {
-        vec![
-            self.change_event(),
+        let mut out: Vec<ServerEvent> = self.design_event().into_iter().collect();
+        out.extend([
             self.cache_event(),
             ServerEvent::Measure {
                 job: self.measure.clone(),
             },
             ServerEvent::Config { stamp: self.config },
-        ]
+        ]);
+        out
     }
 
-    fn change_event(&self) -> ServerEvent {
-        ServerEvent::Change {
-            open: self.change.0,
-            head: self.change.1,
-        }
+    fn design_event(&self) -> Option<ServerEvent> {
+        let (hash, v, by) = self.design.clone()?;
+        Some(ServerEvent::Design { hash, v, by })
     }
 
     fn cache_event(&self) -> ServerEvent {

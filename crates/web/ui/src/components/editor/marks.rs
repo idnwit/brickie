@@ -15,7 +15,7 @@ pub(super) fn mark(r: Rect, cls: &'static str, label: String) -> View {
 
 /// The drop target of a drag: the folder brick, the lane band, the new-lane zone or the frame
 /// (move up), each with what the drop does; a refused brick in red.
-pub(super) fn move_mark(cx: &Cx, t: &MoveTarget, p: &[Rect]) -> View {
+pub(super) fn move_mark(cx: &Cx, t: &MoveTarget, p: &[Rect], dragged: Option<usize>) -> View {
     let n = p.len().min(cx.m.g.bricks.len());
     let frame = crate::components::canvas::frame_rect(&cx.m.g, p).unwrap_or_default();
     let rows = &cx.m.layout.rows;
@@ -58,11 +58,10 @@ pub(super) fn move_mark(cx: &Cx, t: &MoveTarget, p: &[Rect]) -> View {
             ),
             None => View::default(),
         },
-        MoveTarget::NewLane => mark(
-            new_lane_rect(rows, &frame),
-            "mtarget lane new",
-            "+ new tag lane".into(),
-        ),
+        MoveTarget::NewLane => match new_lane_zone(rows, &cx.m.g.bricks, p, dragged) {
+            Some(r) => mark(r, "mtarget lane new", "+ new tag lane".into()),
+            None => View::default(),
+        },
         MoveTarget::Up(l) => mark(frame, "mtarget up", format!("\u{2191} move to {l}")),
         MoveTarget::No(why) => match cx.ed.over.get() {
             Some(i) if i < n => mark(p[i], "mtarget no", format!("\u{2715} {why}")),
@@ -73,12 +72,12 @@ pub(super) fn move_mark(cx: &Cx, t: &MoveTarget, p: &[Rect]) -> View {
 }
 
 /// While a drag is on: the "+ new tag lane" zone, faint, so it can be found.
-pub(super) fn new_lane_hint(cx: &Cx, p: &[Rect]) -> View {
+pub(super) fn new_lane_hint(cx: &Cx, p: &[Rect], dragged: Option<usize>) -> View {
     let dragging = cx.ed.carry.with(Option::is_some) || !cx.ed.aim_label.with(String::is_empty);
-    let Some(f) = crate::components::canvas::frame_rect(&cx.m.g, p).filter(|_| dragging) else {
+    let zone = new_lane_zone(&cx.m.layout.rows, &cx.m.g.bricks, p, dragged);
+    let Some(r) = zone.filter(|_| dragging) else {
         return View::default();
     };
-    let r = new_lane_rect(&cx.m.layout.rows, &f);
     view! {
         rect(class="newlane", x=r.x.to_string(), y=r.y.to_string(), width=r.w.to_string(), height=r.h.to_string(), rx="8")
         text(class="newlanet", x=(r.x + r.w / 2.0).to_string(), y=(r.y + r.h / 2.0 + 4.0).to_string()) { "+ new tag lane" }

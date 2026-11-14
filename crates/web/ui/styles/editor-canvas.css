@@ -1,18 +1,21 @@
 /* Design editor on the canvas: floating toolbar, typed ports and link colours, planned rule
-   edges, agent badges, drop targets, inline name boxes, toast, diff panel. */
+   edges, agent badges, drop targets, inline name boxes, toast. */
 :root{--l-uses:#2f7dd1;--l-implements:#2e9e6b;--l-reexports:#d18a2f;--l-deny:#d23c3c}
 #stage{user-select:none}
-#toolbar{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:40;display:flex;flex-wrap:wrap;gap:6px;align-items:center;max-width:calc(100% - 24px);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 6px;box-shadow:0 4px 14px rgba(0,0,0,.15);cursor:default}
-#toolbar .tgrp{display:inline-flex;gap:2px;padding-right:6px;border-right:1px solid var(--line)}
+/* One row, never wrapping: groups split by divider lines; labels hide when narrow, the rest
+   scrolls sideways. */
+#toolbar{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:40;display:flex;flex-wrap:nowrap;white-space:nowrap;overflow-x:auto;scrollbar-width:thin;gap:6px;align-items:center;max-width:calc(100% - 24px);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 6px;box-shadow:0 4px 14px rgba(0,0,0,.15);cursor:default}
+#toolbar .tgrp{display:inline-flex;flex:none;gap:2px;padding-right:6px;border-right:1px solid var(--line)}
+#toolbar .tb{flex:none}#toolbar .tl{margin-left:4px}
+@media (max-width:1280px){#toolbar .tl{display:none}}
 .tb{padding:3px 8px;font-size:12px;border-radius:6px;background:var(--panel)}.tb.tile{cursor:grab;border-style:dashed}
 .tb.lt{color:var(--lc);border-color:var(--lc)}.tb.lt.on{background:var(--lc);color:#fff}.tb.fold{border:0}
 .tghost{position:fixed;z-index:80;pointer-events:none;width:100px;height:36px;border:2px dashed var(--sel);border-radius:6px;background:color-mix(in srgb,var(--sel) 15%,var(--panel));display:flex;align-items:center;justify-content:center;font-weight:600;opacity:.85}
 .inbox{position:absolute;z-index:35;display:grid;gap:4px;background:var(--panel);border:2px solid var(--sel);border-radius:6px;padding:6px;min-width:170px;box-shadow:0 4px 14px rgba(0,0,0,.2)}
 .inbox input{font-weight:600}.inbox .inmem{font:12px ui-monospace,monospace;font-weight:400}
-.toast{position:absolute;left:14px;bottom:14px;z-index:45;background:var(--ink);color:var(--panel);border-radius:6px;padding:4px 10px;font-size:12px}
+.toast{position:absolute;left:14px;bottom:14px;z-index:45;background:var(--ink);color:var(--panel);border-radius:6px;padding:4px 10px;font-size:12px;display:flex;gap:8px;align-items:center}
+.toast .mini{font-size:11px;padding:1px 8px}
 .emptyhint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--muted);border:2px dashed var(--line);border-radius:10px;padding:24px 30px;pointer-events:none}
-.diffp{position:absolute;right:10px;top:56px;bottom:10px;width:min(460px,60%);overflow:auto;z-index:38;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;box-shadow:0 4px 14px rgba(0,0,0,.2);cursor:default}
-.diffp .dcols{display:grid;grid-template-columns:1fr 1fr;gap:4px}.diffp pre.before{background:color-mix(in srgb,var(--err) 10%,var(--band))}.diffp pre.after{background:color-mix(in srgb,var(--ok) 12%,var(--band))}
 .lport{cursor:crosshair}.lport circle{fill:var(--panel);stroke:var(--lc);stroke-width:2}.lport text{fill:var(--lc);font-size:9px;pointer-events:none}.lport:hover circle{fill:var(--lc)}.lport:hover text{fill:#fff}
 .l-uses{--lc:var(--l-uses)}.l-implements{--lc:var(--l-implements)}.l-reexports{--lc:var(--l-reexports)}.l-deny{--lc:var(--l-deny)}
 .pedge{cursor:pointer}.pedge .line{fill:none;stroke:var(--lc);stroke-width:2;stroke-dasharray:7 5}.pedge .hit{fill:none;stroke:transparent;stroke-width:12}

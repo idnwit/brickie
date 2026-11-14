@@ -3,7 +3,7 @@
 
 use super::op;
 use crate::state::*;
-use brickie_web_api::change::{ExportSpec, Op};
+use brickie_web_api::design::{ExportSpec, Op};
 use sycamore::prelude::*;
 
 /// The next scope of an export pill (`None` is `all`).
@@ -41,7 +41,7 @@ fn pill(cx: &Cx, file: &str, list: &[ExportSpec], i: usize) -> View {
 }
 
 pub fn level_tab(cx: &Cx) -> View {
-    let (Some(ch), Some(file)) = (cx.m.change.clone(), cx.level_file()) else {
+    let (Some(ch), Some(file)) = (cx.m.design.clone(), cx.level_file()) else {
         return View::default();
     };
     let lv = cx.level().path.clone();

@@ -3,8 +3,8 @@
 //! same `E::PATH` and decodes the same `E::Res`.
 //!
 //! `Req` is the input: the JSON body of a POST endpoint, or the query string of a GET endpoint
-//! (the viewer [`Params`]). With `change=1` the GET endpoints answer for the open change's
-//! preview. `()` means the endpoint takes no input.
+//! (the viewer [`Params`]). With `edit=1` the GET endpoints answer for the design loaded as
+//! a draft (bricks without code allowed), marked for the editor. `()` means the endpoint takes no input.
 
 mod editor;
 mod measure;
@@ -38,8 +38,8 @@ impl Endpoint for Review {
     type Res = ReviewReply;
 }
 
-/// `GET /api/graph?<params>`: every level of the brick tree (of the change preview with
-/// `change=1`).
+/// `GET /api/graph?<params>`: every level of the brick tree (marked for the editor with
+/// `edit=1`).
 pub struct Graph;
 impl Endpoint for Graph {
     const PATH: &'static str = "/api/graph";

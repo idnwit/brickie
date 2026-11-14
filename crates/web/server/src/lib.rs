@@ -121,7 +121,11 @@ pub fn run(opts: &Options) -> Result<()> {
         events::spawn(state.clone());
         let listener = tokio::net::TcpListener::bind(&addr)
             .await
-            .with_context(|| format!("bind {addr}"))?;
+            .with_context(|| {
+                format!(
+                    "bind {addr} (is it in use? pick another port with `brickie serve --port <N>`)"
+                )
+            })?;
         eprintln!(
             "brickie: serving http://{addr}/ ({})",
             if routes::wasm_embedded() {

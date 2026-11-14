@@ -1,20 +1,26 @@
-//! Reading the change's file sheets for a level: the files that make it up (its own file and
+//! Reading the design's file sheets for a level: the files that make it up (its own file and
 //! what it includes), their rule and complexity rows, who shares a file, and what names a brick.
 
-use super::{RuleRef, names};
-use brickie_web_api::change::{ComplexitySpec, RuleSpec};
-use brickie_web_api::{BrickView, ChangeView};
+use super::{RuleRef, names, rule_key};
+use brickie_web_api::design::{ComplexitySpec, FileSheet, RuleSpec};
+use brickie_web_api::{BrickView, DesignState};
 
-/// A row of a level's table: the physical file, the index in it, the row.
+/// A row of a level's table: the physical file and the row.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Row<T> {
     pub file: String,
-    pub index: usize,
     pub item: T,
 }
 
+impl Row<RuleSpec> {
+    /// The rule's reference (file and identity).
+    pub fn rule_ref(&self) -> RuleRef {
+        RuleRef::of(&self.file, &self.item)
+    }
+}
+
 /// The level's own file, then every file it includes (transitively, each once).
-pub fn level_files(ch: &ChangeView, lv: &str) -> Vec<String> {
+pub fn level_files(ch: &DesignState, lv: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     let mut todo: Vec<String> = ch.files.get(lv).cloned().into_iter().collect();
     while let Some(f) = todo.pop() {
@@ -29,18 +35,13 @@ pub fn level_files(ch: &ChangeView, lv: &str) -> Vec<String> {
     out
 }
 
-fn rows<T: Clone>(
-    ch: &ChangeView,
-    lv: &str,
-    pick: impl Fn(&brickie_web_api::change::FileSheet) -> &Vec<T>,
-) -> Vec<Row<T>> {
+fn rows<T: Clone>(ch: &DesignState, lv: &str, pick: impl Fn(&FileSheet) -> &Vec<T>) -> Vec<Row<T>> {
     let mut out = Vec::new();
     for f in level_files(ch, lv) {
         let Some(s) = ch.sheets.get(&f) else { continue };
-        for (index, item) in pick(s).iter().enumerate() {
+        for item in pick(s) {
             out.push(Row {
                 file: f.clone(),
-                index,
                 item: item.clone(),
             });
         }
@@ -49,31 +50,23 @@ fn rows<T: Clone>(
 }
 
 /// The `[[deps.rule]]` rows that apply at level `lv`.
-pub fn level_rules(ch: &ChangeView, lv: &str) -> Vec<Row<RuleSpec>> {
+pub fn level_rules(ch: &DesignState, lv: &str) -> Vec<Row<RuleSpec>> {
     rows(ch, lv, |s| &s.rules)
 }
 
 /// The `[[complexity]]` rows that apply at level `lv`.
-pub fn level_complexity(ch: &ChangeView, lv: &str) -> Vec<Row<ComplexitySpec>> {
+pub fn level_complexity(ch: &DesignState, lv: &str) -> Vec<Row<ComplexitySpec>> {
     rows(ch, lv, |s| &s.complexity)
 }
 
-/// The rule at `r`.
-pub fn rule_at<'a>(ch: &'a ChangeView, r: &RuleRef) -> Option<&'a RuleSpec> {
-    ch.sheets.get(&r.file)?.rules.get(r.index)
-}
-
-/// The last rule of `file` (the one an `add_rule` just appended).
-pub fn last_rule(ch: &ChangeView, file: &str) -> Option<RuleRef> {
-    let n = ch.sheets.get(file)?.rules.len();
-    (n > 0).then(|| RuleRef {
-        file: file.to_string(),
-        index: n - 1,
-    })
+/// The rule `r` names (`None`: no longer in the design).
+pub fn rule_at<'a>(ch: &'a DesignState, r: &RuleRef) -> Option<&'a RuleSpec> {
+    let rules = &ch.sheets.get(&r.file)?.rules;
+    rules.iter().find(|x| rule_key(x) == r.key)
 }
 
 /// How many levels read `file` (their own file or an include).
-pub fn sharers(ch: &ChangeView, file: &str) -> usize {
+pub fn sharers(ch: &DesignState, file: &str) -> usize {
     ch.files
         .keys()
         .filter(|lv| level_files(ch, lv).iter().any(|f| f == file))
@@ -96,16 +89,11 @@ pub fn deciding(
 }
 
 /// What refers to brick `name` at level `lv`: rules naming it and the level's exports.
-pub fn references(ch: &ChangeView, lv: &str, name: &str) -> Vec<String> {
+pub fn references(ch: &DesignState, lv: &str, name: &str) -> Vec<String> {
     let mut out: Vec<String> = level_rules(ch, lv)
         .into_iter()
         .filter(|r| r.item.from == name || r.item.to == name)
-        .map(|r| {
-            format!(
-                "rule {} \u{2192} {} ({}#{})",
-                r.item.from, r.item.to, r.file, r.index
-            )
-        })
+        .map(|r| format!("rule {} \u{2192} {} ({})", r.item.from, r.item.to, r.file))
         .collect();
     let own = ch.files.get(lv).and_then(|f| ch.sheets.get(f));
     if own.is_some_and(|s| s.exports.iter().any(|e| e.brick == name)) {
@@ -115,9 +103,9 @@ pub fn references(ch: &ChangeView, lv: &str, name: &str) -> Vec<String> {
 }
 
 #[cfg(test)]
-pub(super) mod tests {
+pub(crate) mod tests {
     use super::*;
-    use brickie_web_api::change::{ExportSpec, FileSheet, Status};
+    use brickie_web_api::design::{By, ExportSpec};
     use std::collections::BTreeMap;
 
     fn rule(from: &str, to: &str, kinds: &[&str]) -> RuleSpec {
@@ -130,7 +118,7 @@ pub(super) mod tests {
         }
     }
 
-    pub fn change() -> ChangeView {
+    pub fn change() -> DesignState {
         let own = FileSheet {
             rules: vec![rule("api", "ui", &["uses"])],
             exports: vec![ExportSpec {
@@ -144,19 +132,11 @@ pub(super) mod tests {
             rules: vec![rule("*", "tag:io", &[])],
             ..Default::default()
         };
-        ChangeView {
-            status: Status {
-                intent: String::new(),
-                head: 0,
-                proposed: 0,
-                accepted: 0,
-                rejected: 0,
-                conflicts: 0,
-                cache_age_secs: None,
-            },
-            log: vec![],
-            redo: vec![],
-            diff: vec![],
+        DesignState {
+            v: 1,
+            hash: String::new(),
+            by: By::External,
+            history: vec![],
             todo: vec![],
             layout: BTreeMap::new(),
             files: BTreeMap::from([
@@ -188,18 +168,15 @@ pub(super) mod tests {
             vec!["web/brickie.toml", "shared.toml"]
         );
         let rules = level_rules(&ch, "root/web");
-        assert_eq!(
-            (rules.len(), rules[1].file.as_str(), rules[1].index),
-            (2, "shared.toml", 0)
-        );
+        assert_eq!((rules.len(), rules[1].file.as_str()), (2, "shared.toml"));
         assert_eq!(sharers(&ch, "shared.toml"), 2);
-        assert_eq!(
-            last_rule(&ch, "web/brickie.toml"),
-            Some(RuleRef {
-                file: "web/brickie.toml".into(),
-                index: 0
-            })
-        );
+        let r = rules[0].rule_ref();
+        assert_eq!(rule_at(&ch, &r).map(|x| x.to.as_str()), Some("ui"));
+        let gone = RuleRef {
+            file: r.file.clone(),
+            key: rule_key(&rule("api", "ui", &["implements"])),
+        };
+        assert_eq!(rule_at(&ch, &gone), None);
         assert_eq!(references(&ch, "root/web", "api").len(), 2);
     }
 

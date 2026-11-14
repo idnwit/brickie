@@ -190,3 +190,50 @@ fn unassigned_placeholder_only_goes_into_a_brick() {
     };
     assert_eq!(members, Some(vec!["x".to_string(), "m".to_string()]));
 }
+
+fn rect(x: f64, y: f64) -> Rect {
+    Rect {
+        x,
+        y,
+        w: 100.0,
+        h: 50.0,
+    }
+}
+
+/// Dragging a brick down onto the "+ new tag lane" zone: the zone stays under the level as
+/// laid out (it must not follow the dragged brick down), so the pointer reaches it, and both a
+/// brick and a toolbar tile dropped there ask for a new lane.
+#[test]
+fn the_new_lane_zone_holds_still_under_a_dragged_brick() {
+    let bricks = vec![brick("a", &["lib"]), brick("b", &[])];
+    let rows = vec![row("lib", 0.0), row(UNTAGGED, 100.0)];
+    let laid_out = vec![rect(0.0, 20.0), rect(0.0, 120.0)];
+    let zone = new_lane_zone(&rows, &bricks, &laid_out, Some(1)).unwrap();
+    // The brick under the pointer, dragged into the zone (its box follows the pointer).
+    let at = (50.0, zone.y + zone.h / 2.0);
+    let mut dragged = laid_out.clone();
+    dragged[1] = rect(0.0, at.1 - 25.0);
+    let inside = |z: &Rect| at.0 >= z.x && at.0 <= z.x + z.w && at.1 >= z.y && at.1 <= z.y + z.h;
+    assert!(inside(
+        &new_lane_zone(&rows, &bricks, &dragged, Some(1)).unwrap()
+    ));
+    // The zone of a frame that grows with the dragged brick slides away from the pointer: the
+    // cause of "cannot drop on + new tag lane".
+    assert!(!inside(
+        &new_lane_zone(&rows, &bricks, &dragged, None).unwrap()
+    ));
+    let u = Under {
+        new_lane: true,
+        lane: Some(None),
+        ..Default::default()
+    };
+    assert_eq!(
+        drop_target(&bricks, Carried::Brick(1), &u),
+        Some(MoveTarget::NewLane)
+    );
+    assert_eq!(
+        drop_target(&bricks, Carried::Tile, &u),
+        Some(MoveTarget::NewLane)
+    );
+    assert_eq!(drop_target(&bricks, Carried::Lifted, &u), None);
+}

@@ -1,25 +1,20 @@
 //! Editor keys and the actions they share with buttons: `E` design mode, `V`/`H` tools, `B`
 //! brick tool (`Tab` cycles the kind), `L` link tool, `1`/`2`/`3` scope, `F2` rename, `Del`
-//! delete, `Ctrl+Z` undo (retract), `Ctrl+Shift+Z` / `Ctrl+Y` redo,
-//! `Ctrl+X`/`Ctrl+V` cut and paste a brick across levels, `?` shortcuts, `A`/`R`/`N` review proposals, `P`/`C`/`D` preview / current /
-//! diff, `+`/`-`/`0` zoom.
+//! delete, `Ctrl+Z` undo, `Ctrl+Shift+Z` / `Ctrl+Y` redo, `Ctrl+X`/`Ctrl+V` cut and paste a
+//! brick across levels, `?` shortcuts, `+`/`-`/`0` zoom.
 
 use super::{op, write};
 use crate::platform;
 use crate::state::*;
-use brickie_web_api::change::{BrickKind, Op, OpRecord, Verdict};
+use brickie_web_api::design::{BrickKind, Op};
 use brickie_web_api::*;
 
-/// Design on/off: opens a change first when none is open.
+/// Design (edit) mode on/off (a page load: edit mode reads the design as a draft).
 pub fn toggle_design(cx: &Cx) {
-    if cx.m.change.is_none() {
-        cx.ed.dialog.set(Dialog::Open);
-        return;
-    }
-    let on = cx.editing();
+    let on = cx.params.with(|p| p.editing());
     let p = cx
         .params
-        .with(|p| p.with(|p| p.change = if on { String::new() } else { "1".into() }));
+        .with(|p| p.with(|p| p.edit = if on { String::new() } else { "1".into() }));
     platform::goto(&p.url());
 }
 
@@ -32,7 +27,7 @@ pub fn delete_selection(cx: &Cx) {
             cx,
             Op::RemoveRule {
                 file: r.file,
-                index: r.index,
+                key: r.key,
             },
         );
         return;
@@ -48,110 +43,40 @@ pub fn delete_selection(cx: &Cx) {
     }
 }
 
-/// Take back the latest human op (`Ctrl+Z`); a gesture that recorded several ops (a tile
-/// dropped into a leaf brick) is taken back whole, its ops one after the other.
-pub fn retract(cx: &Cx) {
-    let req = ChangeRetractRequest { seq: None };
-    let toast = op_toast("Undid", cx, undo_target);
-    write::<ChangeRetract, _>(cx, req, toast, |now, r| {
-        if undo_more(&now.ed.groups.get_clone(), r.target) {
-            retract(now);
-        }
-    });
-}
-
-/// Restore the latest retracted human op (`Ctrl+Shift+Z` / `Ctrl+Y`), a gesture whole.
-pub fn redo(cx: &Cx) {
-    let toast = op_toast("Redid", cx, redo_target);
-    write::<ChangeRedo, _>(cx, ChangeRedoRequest {}, toast, |now, r| {
-        if redo_more(&now.ed.groups.get_clone(), r.target) {
-            redo(now);
-        }
-    });
-}
-
-/// `Undid: Added brick tel`, naming the op `pick` finds in the open change.
-fn op_toast(word: &str, cx: &Cx, pick: impl Fn(&ChangeView) -> Option<&OpRecord>) -> String {
-    let what =
-        cx.m.change
+/// Revert version `v` (`None`: nothing to revert), toast `word: what it did`.
+fn revert(cx: &Cx, v: Option<u64>, word: &'static str) {
+    let Some(v) = v else {
+        cx.ed
+            .msg
+            .set(format!("Nothing to {}.", word.to_lowercase()));
+        return;
+    };
+    let tip =
+        cx.m.design
             .as_deref()
-            .and_then(pick)
-            .map(|o| describe(&o.op));
-    format!("{word}: {}", what.unwrap_or_default())
+            .map(|d| undo_tip(word, &d.history, Some(v)));
+    let req = UndoRequest {
+        base: 0,
+        v: Some(v),
+    };
+    write::<DesignUndo>(cx, req, tip.unwrap_or_default(), |_, _| {});
 }
 
-/// Accept or reject op `seq`.
-pub fn review(cx: &Cx, seq: u64, verdict: Verdict, note: Option<String>) {
-    let toast = format!("{verdict:?} #{seq}").to_lowercase();
-    let req = ChangeReviewRequest { seq, verdict, note };
-    write::<ChangeReview, _>(cx, req, toast, |_, _| {});
+/// Undo the human's latest edit (`Ctrl+Z`): a new version reverting it.
+pub fn undo(cx: &Cx) {
+    let v = cx.m.design.as_deref().and_then(|d| undo_target(&d.history));
+    revert(cx, v, "Undo");
 }
 
-/// The pending agent op of the selection (a brick or a planned rule).
-pub fn selected_proposal(cx: &Cx) -> Option<u64> {
-    let ch = cx.m.change.as_deref()?;
-    if let Some(r) = cx.ed.rule.get_clone() {
-        let e = ch
-            .planned_edges
-            .iter()
-            .find(|e| e.file == r.file && e.rule == r.index)?;
-        return e
-            .seq
-            .filter(|s| ch.log.iter().any(|o| o.seq == *s && pending(o)));
-    }
-    let Sel::Brick(b) = cx.eval.with(|ev| ev.sel.clone()) else {
-        return None;
-    };
-    let name = &cx.m.g.bricks[b].name;
-    proposals_on(ch, &cx.level().path, name)
-        .first()
-        .map(|r| r.seq)
+/// Redo (`Ctrl+Shift+Z` / `Ctrl+Y`): revert the latest undo.
+pub fn redo(cx: &Cx) {
+    let v = cx.m.design.as_deref().and_then(|d| redo_target(&d.history));
+    revert(cx, v, "Redo");
 }
 
-/// Jump to the next pending agent op: its level, its brick or planned rule.
-pub fn next(cx: &Cx) {
-    let Some(ch) = cx.m.change.as_deref() else {
-        return;
-    };
-    let after = selected_proposal(cx).unwrap_or(0);
-    let Some(r) = next_proposal(ch, after) else {
-        cx.ed.msg.set("No proposals to review.".into());
-        return;
-    };
-    let level = op_level(ch, r).unwrap_or_else(|| "root".into());
-    let edge = ch.planned_edges.iter().find(|e| e.seq == Some(r.seq));
-    cx.ed.rule.set(edge.map(|e| RuleRef {
-        file: e.file.clone(),
-        index: e.rule,
-    }));
-    let brick = op_brick(&r.op).unwrap_or_default().to_string();
-    let p = cx.params.with(|p| p.at_level(&level)).with(|p| {
-        p.brick = if edge.is_some() {
-            String::new()
-        } else {
-            brick.clone()
-        };
-    });
-    let here = level == cx.level().path;
-    cx.go(p);
-    cx.ed.tab.set("inspect");
-    if let Some(b) = cx.brick(&brick).filter(|_| here) {
-        center_on(cx, b);
-    }
-}
-
-/// Pan so brick `b` is in the middle of the stage (zoom kept).
-fn center_on(cx: &Cx, b: usize) {
-    let Some((sw, sh)) = cx.stage.get() else {
-        return;
-    };
-    let r = positions(&cx.m.layout, &cx.drag.get_clone())[b];
-    let k = cx.view.get().k;
-    cx.view.set(Vw {
-        x: sw / 2.0 - (r.x + r.w / 2.0) * k,
-        y: sh / 2.0 - (r.y + r.h / 2.0) * k,
-        k,
-    });
+/// Revert version `v` made by another writer (the toast's Undo).
+pub fn undo_version(cx: &Cx, v: u64) {
+    revert(cx, Some(v), "Undo");
 }
 
 fn zoom(cx: &Cx, f: f64) {
@@ -166,13 +91,6 @@ fn zoom(cx: &Cx, f: f64) {
         y: my - (my - v.y) * (k / v.k),
         k,
     });
-}
-
-fn show(cx: &Cx, preview: bool, diff: bool) {
-    cx.ed.diff.set(diff);
-    if preview != cx.editing() {
-        toggle_design(cx);
-    }
 }
 
 fn brick_tool(ed: Edit, tab: bool) {
@@ -204,7 +122,7 @@ fn tools(cx: &Cx, key: &str) -> bool {
             .stage
             .get()
             .into_iter()
-            .for_each(|s| cx.view.set(fit_view(&cx.m.layout, s))),
+            .for_each(|s| cx.view.set(cx.fit(s))),
         k => match scope_key(k) {
             Some(s) => ed.scope.set(s),
             None => return false,
@@ -223,22 +141,13 @@ fn rename_selected(cx: &Cx) {
     }
 }
 
-fn reviews(cx: &Cx, key: &str) -> bool {
+fn edits(cx: &Cx, key: &str) -> bool {
     match key {
-        "a" => match selected_proposal(cx) {
-            Some(seq) => review(cx, seq, Verdict::Accept, None),
-            None => return false,
-        },
-        "r" => platform::focus("review-note"),
-        "n" => next(cx),
-        "Ctrl+z" => retract(cx),
+        "Ctrl+z" => undo(cx),
         "Ctrl+x" => super::clip::cut(cx),
         "Ctrl+v" => super::clip::paste(cx),
         "?" => cx.ed.help.set(!cx.ed.help.get()),
         "Ctrl+Shift+z" | "Ctrl+y" => redo(cx),
-        "p" => show(cx, true, false),
-        "c" => show(cx, false, false),
-        "d" => show(cx, true, true),
         _ => return false,
     }
     true
@@ -251,8 +160,7 @@ pub fn key(cx: &Cx, key: &str) -> Option<bool> {
         return Some(true);
     }
     if !cx.editing() {
-        let open = cx.m.change.is_some() && matches!(key, "p" | "d");
-        return open.then(|| show(cx, true, key == "d")).map(|_| true);
+        return None;
     }
-    (tools(cx, key) || reviews(cx, key)).then_some(true)
+    (tools(cx, key) || edits(cx, key)).then_some(true)
 }

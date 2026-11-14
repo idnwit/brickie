@@ -9,13 +9,6 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 use sycamore::prelude::*;
 
-pub type Click = web_sys::MouseEvent;
-
-/// Plain left click (no new-tab or download modifiers).
-pub fn plain(e: &Click) -> bool {
-    e.button() == 0 && !(e.ctrl_key() || e.meta_key() || e.shift_key() || e.alt_key())
-}
-
 /// Immutable data of the current level plus its layout (computed once from its full edge set).
 pub struct Model {
     pub cache: CacheInfo,
@@ -27,16 +20,12 @@ pub struct Model {
     pub diags: Vec<DiagView>,
     pub cards: Rc<Vec<Card>>,
     pub fns: Vec<FnRow>,
-    /// The open design change.
-    pub change: Option<Rc<ChangeView>>,
-}
-
-/// `S.view`: pan and zoom of the canvas, in stage pixels.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Vw {
-    pub x: f64,
-    pub y: f64,
-    pub k: f64,
+    /// Edit mode: the planned rule pairs routed by the layout, as layout edges
+    /// `plan0 + i` (empty outside edit mode).
+    pub planned: Vec<(usize, usize)>,
+    pub plan0: usize,
+    /// Edit mode: the design at its head.
+    pub design: Option<Rc<DesignState>>,
 }
 
 /// The pointer operation in progress on the canvas.
@@ -94,40 +83,23 @@ pub struct Cx {
     pub bus: Bus,
 }
 
-/// The layout input of a page: bricks with their row, and one edge per (from, to, kind).
-pub fn layout_input(g: &GraphView) -> layout::Input {
-    layout::Input {
-        bricks: g
-            .bricks
-            .iter()
-            .map(|b| layout::InBrick {
-                id: b.name.clone(),
-                row: b.row,
-            })
-            .collect(),
-        rows: g.rows.clone(),
-        edges: (0..g.edges.len())
-            .map(|i| layout::InEdge {
-                id: edge_key(g, i),
-                a: g.edges[i].from,
-                b: g.edges[i].to,
-            })
-            .collect(),
-    }
-}
-
 /// The layout of `level`: automatic from its full edge set (without the frame edges, which are
-/// appended after the original ones), then the editor's stored positions, then the positions a
+/// appended after the original ones; in edit mode with the planned rule pairs after them), then the editor's stored positions, then the positions a
 /// patch keeps on screen.
 fn level_layout(
     level: &LevelView,
-    change: Option<&ChangeView>,
+    design: Option<&DesignState>,
     editing: bool,
     keep: Option<&Keep>,
 ) -> Layout {
-    let mut layout = layout::layout(&layout_input(&level.graph));
+    let extra = if editing {
+        planned_pairs(level)
+    } else {
+        Vec::new()
+    };
+    let mut layout = layout::layout(&layout_input(&level.graph, &extra));
     // The editor's stored positions win over the automatic layout.
-    if let Some(ch) = change.filter(|_| editing) {
+    if let Some(ch) = design.filter(|_| editing) {
         apply_hints(
             &mut layout.pos,
             &level.graph.bricks,
@@ -161,7 +133,7 @@ impl Cx {
     pub fn new(sh: &Shared, lv: usize, stage: Option<(f64, f64)>) -> Cx {
         let params = sh.params;
         let levels = sh.live.levels.get_clone_untracked();
-        let change = sh.live.change.get_clone_untracked();
+        let design = sh.live.design.get_clone_untracked();
         let level = &levels[lv];
         // After a patch, boxes that were on screen stay where they were.
         let keep = sh
@@ -170,7 +142,13 @@ impl Cx {
             .get_clone_untracked()
             .filter(|k| k.level == level.path);
         let editing = params.with_untracked(|p| p.editing());
-        let layout = level_layout(level, change.as_deref(), editing, keep.as_ref());
+        let layout = level_layout(level, design.as_deref(), editing, keep.as_ref());
+        let planned = if editing {
+            planned_pairs(level)
+        } else {
+            Vec::new()
+        };
+        let plan0 = level.graph.edges.len();
         let m = Rc::new(Model {
             cache: sh.cache.clone(),
             g: with_frame_edges(&level.graph),
@@ -180,12 +158,14 @@ impl Cx {
             diags: sh.diags.clone(),
             cards: sh.cards.clone(),
             fns: sh.fns.clone(),
-            change,
+            planned,
+            plan0,
+            design,
         });
         let stage = create_signal(stage);
         let view = create_signal(match (&keep, stage.get()) {
             (Some(k), _) => k.view,
-            (None, Some(s)) => fit_view(&m.layout, s),
+            (None, Some(s)) => fit_view(&m.layout, s, fit_room(editing)),
             (None, None) => Vw {
                 x: 0.0,
                 y: 0.0,
@@ -221,20 +201,32 @@ impl Cx {
         self.params.set(p);
     }
 
-    /// The editor is on (a change is open and its preview shown).
+    /// The editor is on (edit mode, the design loaded).
     pub fn editing(&self) -> bool {
-        self.params.with(|p| editing(self.m.change.as_deref(), p))
+        self.params.with(|p| editing(self.m.design.as_deref(), p))
     }
 
     /// The config file of the current level, relative to the root config's directory.
     pub fn level_file(&self) -> Option<String> {
-        let ch = self.m.change.as_deref()?;
+        let ch = self.m.design.as_deref()?;
         ch.files.get(&self.level().path).cloned()
+    }
+
+    /// The view that fits the level into a stage of size `s`.
+    pub fn fit(&self, s: (f64, f64)) -> Vw {
+        fit_view(&self.m.layout, s, fit_room(self.editing()))
     }
 
     /// The current level.
     pub fn level(&self) -> &LevelView {
         &self.m.levels[self.m.lv]
+    }
+
+    /// The routed path of planned pair `a -> b` for box positions `p` (`None` when the pair is
+    /// not routed, outside edit mode).
+    pub fn planned_route(&self, a: usize, b: usize, p: &[Rect]) -> Option<layout::Route> {
+        let i = self.m.planned.iter().position(|&x| x == (a, b))?;
+        self.m.layout.path(self.m.plan0 + i, p)
     }
 
     /// Brick index by name.
@@ -246,75 +238,5 @@ impl Cx {
     pub fn select(&self, s: Sel) {
         let p = s.apply(&self.params.get_clone(), &self.m.g);
         self.go(p);
-    }
-}
-
-/// `fitView`: the whole layout inside the stage, zoom between 0.15 and 1.4.
-pub fn fit_view(l: &Layout, (sw, sh): (f64, f64)) -> Vw {
-    let k = ((sw - 20.0) / l.w).min((sh - 20.0) / l.h).clamp(0.15, 1.4);
-    Vw {
-        x: (sw - l.w * k) / 2.0,
-        y: ((sh - l.h * k) / 2.0).max(10.0),
-        k,
-    }
-}
-
-/// Box positions with the dragged offsets applied (`layoutFor`'s `P`).
-pub fn positions(l: &Layout, drag: &BTreeMap<usize, (f64, f64)>) -> Vec<Rect> {
-    let mut p = l.pos.clone();
-    for (b, (dx, dy)) in drag {
-        if let Some(r) = p.get_mut(*b) {
-            r.x += dx;
-            r.y += dy;
-        }
-    }
-    p
-}
-
-/// A link that changes the params: a real `href` for no-JS, a signal update when hydrated.
-pub fn nav_link(
-    cx: &Cx,
-    label: String,
-    class: &'static str,
-    active: impl Fn(&Params) -> bool + 'static,
-    change: impl Fn(&Params) -> Params + Clone + 'static,
-) -> View {
-    let on_click = change.clone();
-    let (c1, c2, c3) = (cx.clone(), cx.clone(), cx.clone());
-    let href = move || change(&c1.params.get_clone()).url();
-    let cls = move || {
-        if active(&c2.params.get_clone()) {
-            format!("{class} on")
-        } else {
-            class.to_string()
-        }
-    };
-    view! {
-        a(href=href, class=cls, on:click=move |e: Click| {
-            if plain(&e) {
-                e.prevent_default();
-                let p = on_click(&c3.params.get_clone());
-                c3.go(p);
-            }
-        }) { (label) }
-    }
-}
-
-/// A link to a source location: opens the code viewer popup when hydrated, the code viewer in a
-/// tab otherwise.
-pub fn src_link(
-    modal: Signal<Option<String>>,
-    href: String,
-    text: String,
-    class: &'static str,
-) -> View {
-    let target = href.clone();
-    view! {
-        a(href=href, class=class, target="_blank", on:click=move |e: Click| {
-            if plain(&e) {
-                e.prevent_default();
-                modal.set(Some(target.clone()));
-            }
-        }) { (text) }
     }
 }

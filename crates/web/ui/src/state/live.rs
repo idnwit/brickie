@@ -1,8 +1,8 @@
-//! The page data an op can change without a reload: the levels and the open change. A
-//! `ChangeReply` patches them in place; [`Keep`] carries the canvas over the re-render.
+//! The page data a write can change without a reload: the levels and the design. An
+//! `EditReply` patches them in place; [`Keep`] carries the canvas over the re-render.
 
 use super::{Cx, Keep, patch_levels};
-use brickie_web_api::{ChangeView, LevelView};
+use brickie_web_api::{DesignState, LevelView};
 use std::cell::RefCell;
 use std::rc::Rc;
 use sycamore::prelude::*;
@@ -10,7 +10,7 @@ use sycamore::prelude::*;
 #[derive(Clone, Copy)]
 pub struct Live {
     pub levels: Signal<Rc<Vec<LevelView>>>,
-    pub change: Signal<Option<Rc<ChangeView>>>,
+    pub design: Signal<Option<Rc<DesignState>>>,
     /// Bumped after a patch: the page re-renders the level on screen.
     pub rev: Signal<u64>,
     /// The canvas state the next render restores (taken once).
@@ -18,22 +18,23 @@ pub struct Live {
 }
 
 impl Live {
-    pub(super) fn new(levels: Vec<LevelView>, change: Option<ChangeView>) -> Live {
+    pub(super) fn new(levels: Vec<LevelView>, design: Option<DesignState>) -> Live {
         Live {
             levels: create_signal(Rc::new(levels)),
-            change: create_signal(change.map(Rc::new)),
+            design: create_signal(design.map(Rc::new)),
             rev: create_signal(0),
             keep: create_signal(None),
         }
     }
 
-    /// Replace the change and patch `levels` in, keeping the canvas as `keep` says.
-    pub fn apply(&self, change: ChangeView, levels: Vec<LevelView>, keep: Option<Keep>) {
+    /// Replace the design and patch `levels` in, keeping the canvas as `keep` says (`None`:
+    /// fit the view).
+    pub fn apply(&self, design: DesignState, levels: Vec<LevelView>, keep: Option<Keep>) {
         let now = self
             .levels
-            .with_untracked(|l| patch_levels(l, levels, &change.files));
+            .with_untracked(|l| patch_levels(l, levels, &design.files));
         self.levels.set_silent(Rc::new(now));
-        self.change.set_silent(Some(Rc::new(change)));
+        self.design.set_silent(Some(Rc::new(design)));
         self.keep.set_silent(keep);
         self.rev.update(|r| *r += 1);
     }

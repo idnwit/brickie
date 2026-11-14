@@ -5,7 +5,7 @@
 use super::op;
 use super::widgets::seg;
 use crate::state::*;
-use brickie_web_api::change::{FileSheet, Op};
+use brickie_web_api::design::{FileSheet, Op};
 use sycamore::prelude::*;
 
 fn deps(cx: &Cx, file: &str, sheet: &FileSheet) -> View {
@@ -45,12 +45,9 @@ fn deps(cx: &Cx, file: &str, sheet: &FileSheet) -> View {
     }
 }
 
-fn row(cx: &Cx, own: &str, r: Row<brickie_web_api::change::RuleSpec>) -> View {
+fn row(cx: &Cx, own: &str, r: Row<brickie_web_api::design::RuleSpec>) -> View {
     let ed = cx.ed;
-    let rr = RuleRef {
-        file: r.file.clone(),
-        index: r.index,
-    };
+    let rr = r.rule_ref();
     let on = ed.rule.with(|x| x.as_ref() == Some(&rr));
     let cls = format!(
         "rrow{}{}",
@@ -63,14 +60,14 @@ fn row(cx: &Cx, own: &str, r: Row<brickie_web_api::change::RuleSpec>) -> View {
         r.item.kinds.join("+")
     };
     let reason = r.item.reason.clone().unwrap_or_else(|| "?".into());
-    let (c, file, index) = (cx.clone(), r.file.clone(), r.index);
+    let (c, file, key) = (cx.clone(), r.file.clone(), rr.key.clone());
     let rm = move |e: Click| {
         e.stop_propagation();
         op(
             &c,
             Op::RemoveRule {
                 file: file.clone(),
-                index,
+                key: key.clone(),
             },
         );
     };
@@ -78,10 +75,14 @@ fn row(cx: &Cx, own: &str, r: Row<brickie_web_api::change::RuleSpec>) -> View {
         ed.rule.set(Some(rr.clone()));
         ed.tab.set("inspect");
     };
-    let at = format!("{}#{}", r.file, r.index);
+    let at = r.file.clone();
     let (from, to, scope, action) = (
         r.item.from,
-        r.item.to,
+        if r.item.via.is_empty() {
+            r.item.to
+        } else {
+            format!("{} via {}", r.item.to, r.item.via.join("+"))
+        },
         r.item.scope.unwrap_or_else(|| "prod".into()),
         r.item.action,
     );
@@ -136,7 +137,7 @@ fn add_row(cx: &Cx, file: String, selectors: Vec<String>) -> View {
 }
 
 pub fn rules(cx: &Cx) -> View {
-    let (Some(ch), Some(file)) = (cx.m.change.clone(), cx.level_file()) else {
+    let (Some(ch), Some(file)) = (cx.m.design.clone(), cx.level_file()) else {
         return View::default();
     };
     let lv = cx.level().path.clone();

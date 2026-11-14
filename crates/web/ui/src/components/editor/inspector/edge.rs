@@ -1,24 +1,24 @@
 //! The edge inspector: a rule (kinds, scope, action, reason, help; its file and who shares
-//! it; `set_rule` per change, `remove_rule`), and a measured edge with the rules deciding it.
+//! it; each change one version, the rule named by identity), and a measured edge with the
+//! rules deciding it.
 
 use super::super::widgets::{seg, text_field};
-use super::super::{keys::delete_selection, op};
-use super::review_bar;
+use super::super::{keys::delete_selection, ops_then};
 use crate::state::*;
-use brickie_web_api::change::{Op, RuleSpec};
+use brickie_web_api::design::RuleSpec;
 use sycamore::prelude::*;
 
 const KINDS: [&str; 3] = ["uses", "implements", "reexports"];
 
+/// Change rule `r` into `rule` and keep it selected (its identity may change).
 fn set_rule(cx: &Cx, r: &RuleRef, rule: RuleSpec) {
-    op(
-        cx,
-        Op::SetRule {
-            file: r.file.clone(),
-            index: r.index,
-            rule,
-        },
-    );
+    let Some(old) = cx.m.design.as_deref().and_then(|d| rule_at(d, r)).cloned() else {
+        return;
+    };
+    let next = RuleRef::of(&r.file, &rule);
+    ops_then(cx, rule_ops(r, &old, &rule), move |now, _| {
+        now.ed.rule.set(Some(next));
+    });
 }
 
 /// Kind toggles (none on = every kind).
@@ -83,6 +83,29 @@ fn texts(cx: &Cx, r: &RuleRef, rule: &RuleSpec) -> View {
         },
     );
     let (c, rr, base) = (cx.clone(), r.clone(), rule.clone());
+    let via = text_field(
+        "rule-via",
+        "via (exported children of `to`, comma separated; empty: any entry)",
+        rule.via.join(", "),
+        false,
+        move |s| {
+            let via = s
+                .split(',')
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .map(String::from)
+                .collect();
+            set_rule(
+                &c,
+                &rr,
+                RuleSpec {
+                    via,
+                    ..base.clone()
+                },
+            )
+        },
+    );
+    let (c, rr, base) = (cx.clone(), r.clone(), rule.clone());
     let help = text_field(
         "rule-help",
         "help (shown with findings)",
@@ -99,37 +122,33 @@ fn texts(cx: &Cx, r: &RuleRef, rule: &RuleSpec) -> View {
             )
         },
     );
-    view! { (reason) (help) }
+    view! { (reason) (via) (help) }
 }
 
 pub fn rule_view(cx: &Cx, r: RuleRef) -> View {
-    let Some(ch) = cx.m.change.clone() else {
+    let Some(ch) = cx.m.design.clone() else {
         return View::default();
     };
     let Some(rule) = rule_at(&ch, &r).cloned() else {
         return view! { p(class="muted") { "This rule is gone." } };
     };
-    let pending_seq: Vec<u64> = ch
-        .planned_edges
-        .iter()
-        .filter(|e| e.file == r.file && e.rule == r.index)
-        .filter_map(|e| e.seq)
-        .filter(|s| ch.log.iter().any(|o| o.seq == *s && pending(o)))
-        .collect();
     let n = sharers(&ch, &r.file);
     let shared = (n > 1).then(|| view! { p(class="warn-text") { (format!("Shared by {n} levels: editing it changes all of them.")) } });
-    let missing = rule.reason.is_none().then(|| view! { p(class="muted") { "? No reason yet: optional now, listed in the change's todo." } });
-    let title = format!("{} \u{2192} {}", rule.from, rule.to);
-    let sub = format!("{} rule #{} in {}", rule.action, r.index, r.file);
+    let missing = rule.reason.is_none().then(|| view! { p(class="muted") { "? No reason yet: optional now, listed in the design's todo." } });
+    let via = if rule.via.is_empty() {
+        String::new()
+    } else {
+        format!(" via {}", rule.via.join("+"))
+    };
+    let title = format!("{} \u{2192} {}{via}", rule.from, rule.to);
+    let sub = format!("{} rule in {}", rule.action, r.file);
     let c = cx.clone();
-    let (rv, k, ch2, t) = (
-        review_bar(cx, &pending_seq),
+    let (k, ch2, t) = (
         kinds(cx, &r, &rule),
         choices(cx, &r, &rule),
         texts(cx, &r, &rule),
     );
     view! {
-        (rv)
         h2 { (title) }
         p(class="muted mono") { (sub) }
         (shared)
@@ -150,7 +169,7 @@ pub fn measured_view(cx: &Cx, e: usize) -> View {
         if x.test { ", test" } else { "" }
     );
     let rules =
-        cx.m.change
+        cx.m.design
             .as_deref()
             .map(|ch| level_rules(ch, &cx.level().path))
             .unwrap_or_default();
@@ -158,8 +177,9 @@ pub fn measured_view(cx: &Cx, e: usize) -> View {
     let rows: Vec<View> = deciding(&rules, from, to, &x.kind)
         .into_iter()
         .map(|r| {
-            let t = format!("{} {} \u{2192} {} ({}#{})", r.item.action, r.item.from, r.item.to, r.file, r.index);
-            let rr = RuleRef { file: r.file, index: r.index };
+            let via = if r.item.via.is_empty() { String::new() } else { format!(" via {}", r.item.via.join("+")) };
+            let t = format!("{} {} \u{2192} {}{via} ({})", r.item.action, r.item.from, r.item.to, r.file);
+            let rr = r.rule_ref();
             view! { li { a(href="#", on:click=move |ev: Click| { ev.prevent_default(); ed.rule.set(Some(rr.clone())); }) { (t) } } }
         })
         .collect();

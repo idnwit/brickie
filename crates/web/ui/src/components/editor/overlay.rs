@@ -1,6 +1,7 @@
 //! The editor's HTML overlay on the stage: the floating toolbar, the ghost of a carried brick
 //! tile, the inline name box of a new or renamed brick, the delete confirmation, the tool hint,
-//! the op toast and error line, the empty-level hint, the Diff panel and the shortcuts sheet.
+//! the toast (with Undo for another writer's version) and error line, the empty-level hint and
+//! the shortcuts sheet.
 
 use super::op;
 use super::place::{draft_box, lane_box};
@@ -53,7 +54,7 @@ fn confirm_delete(cx: &Cx) -> View {
     };
     let name = cx.m.g.bricks[b].name.clone();
     let refs =
-        cx.m.change
+        cx.m.design
             .as_deref()
             .map(|ch| references(ch, &cx.level().path, &name))
             .unwrap_or_default();
@@ -68,7 +69,7 @@ fn confirm_delete(cx: &Cx) -> View {
         c.select(Sel::None);
         op(
             &c,
-            brickie_web_api::change::Op::RemoveBrick {
+            brickie_web_api::design::Op::RemoveBrick {
                 file: file.clone(),
                 name: n2.clone(),
             },
@@ -126,19 +127,6 @@ fn hint(ed: Edit) -> String {
     }
 }
 
-fn diff_panel(cx: &Cx) -> View {
-    let Some(ch) = cx.m.change.clone() else {
-        return View::default();
-    };
-    let rows: Vec<View> = ch.diff.iter().map(|d| {
-        let t = format!("{} \u{00B7} {}", d.file, d.key);
-        let (b, a) = (d.before.clone().unwrap_or_default(), d.after.clone().unwrap_or_default());
-        view! { div(class="drow") { b(class="mono") { (t) } div(class="dcols") { pre(class="before") { (b) } pre(class="after") { (a) } } } }
-    }).collect();
-    let rows = View::from(rows);
-    view! { div(class="diffp", on:mousedown=stop, on:click=stop, on:wheel=|e: web_sys::WheelEvent| e.stop_propagation()) { h4 { "Diff (before | after)" } (rows) } }
-}
-
 /// The overlay inside `#stage` (empty outside edit mode).
 pub fn overlay(cx: &Cx) -> View {
     if !cx.editing() {
@@ -155,9 +143,8 @@ pub fn overlay(cx: &Cx) -> View {
             .map(|(n, x, y)| untrack(|| lane_box(&c, n, x, y)));
         let rename = ed.rename.get_clone().map(|n| untrack(|| rename_box(&c, n)));
         let del = ed.confirm.get().then(|| untrack(|| confirm_delete(&c)));
-        let diff = ed.diff.get().then(|| untrack(|| diff_panel(&c)));
         let help = super::help::sheet(ed);
-        view! { (draft) (lane) (rename) (del) (diff) (help) }
+        view! { (draft) (lane) (rename) (del) (help) }
     };
     let ghost = move || match ed.carry.get_clone() {
         Some((k, x, y)) => {
@@ -178,13 +165,26 @@ pub fn overlay(cx: &Cx) -> View {
     };
     let empty = cx.m.g.bricks.iter().all(|b| b.ghost).then(|| view! { div(class="emptyhint") { "Drag a Crate, Module or Group here from the toolbar" } });
     let tb = toolbar(cx);
+    let c = cx.clone();
+    let toast_undo = move || match ed.toast_undo.get() {
+        Some(v) => {
+            let c = c.clone();
+            let undo = move |_: Click| {
+                ed.toast.set(String::new());
+                ed.toast_undo.set(None);
+                super::keys::undo_version(&c, v);
+            };
+            view! { button(class="mini", on:click=undo) { "Undo" } }
+        }
+        None => View::default(),
+    };
     view! {
         (tb)
         (empty)
         (floating)
         (ghost)
         div(class="edhint", style=move || if hint(ed).is_empty() { "display:none" } else { "" }) { (move || hint(ed)) }
-        div(class="toast", style=move || if ed.toast.with(String::is_empty) { "display:none" } else { "" }) { (move || ed.toast.get_clone()) }
+        div(class="toast", style=move || if ed.toast.with(String::is_empty) { "display:none" } else { "" }) { (move || ed.toast.get_clone()) (toast_undo) }
         div(class="edmsg err-text") { (move || ed.msg.get_clone()) }
     }
 }

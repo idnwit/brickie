@@ -34,7 +34,7 @@ use sycamore::prelude::*;
 fn first_fit(c: &Cx, s: (f64, f64)) {
     c.stage.set(Some(s));
     if c.fit {
-        c.view.set(fit_view(&c.m.layout, s));
+        c.view.set(c.fit(s));
     }
 }
 

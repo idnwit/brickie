@@ -132,8 +132,7 @@ fn node_flags(cx: &Cx, b: usize) -> NodeFlags {
     })
 }
 
-/// The box classes of a brick's kind, with the change preview marks: planned (no code yet)
-/// and agent-proposed bricks.
+/// The box classes of a brick's kind, with the edit-mode mark: planned (no code yet).
 fn kind_class(b: &BrickView) -> String {
     let kind = match (b.ghost, b.composite()) {
         (true, _) => " ghost",
@@ -141,9 +140,8 @@ fn kind_class(b: &BrickView) -> String {
         _ => "",
     };
     let planned = if b.planned { " planned" } else { "" };
-    let proposed = if b.proposed { " proposed" } else { "" };
     let unassigned = if b.unassigned { " unassigned" } else { "" };
-    format!("{kind}{planned}{proposed}{unassigned}")
+    format!("{kind}{planned}{unassigned}")
 }
 
 /// A press on brick `b` starts a drag when it grabs the brick.

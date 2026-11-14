@@ -3,7 +3,6 @@
 //! highlight and the ghost's result label.
 
 use super::drop::world;
-use crate::components::canvas::frame_rect;
 use crate::layout::Rect;
 use crate::platform;
 use crate::state::*;
@@ -19,7 +18,7 @@ fn crumb_level(x: f64, y: f64) -> Option<String> {
 
 /// Tags a rule selector of the level on screen may name (its lanes).
 pub fn level_tags(cx: &Cx) -> Vec<String> {
-    cx.m.change
+    cx.m.design
         .as_deref()
         .and_then(|c| c.levels.get(&cx.level().path))
         .map(|l| l.tags.clone())
@@ -40,7 +39,7 @@ fn under(cx: &Cx, x: f64, y: f64, skip: Option<usize>) -> Under {
             ..Default::default()
         };
     };
-    let frame = frame_rect(&cx.m.g, &pos);
+    let frame = frame_of(&cx.m.g.bricks, &pos, skip);
     let rows = &cx.m.layout.rows;
     let edge = frame.is_some_and(|f| on_frame_edge(&f, at));
     let up = crumb_level(x, y)
@@ -49,7 +48,7 @@ fn under(cx: &Cx, x: f64, y: f64, skip: Option<usize>) -> Under {
     let in_frame = frame.is_some_and(|f| inside(&f, at));
     Under {
         brick: hit_any(&pos, at, skip),
-        new_lane: frame.is_some_and(|f| inside(&new_lane_rect(rows, &f), at)),
+        new_lane: new_lane_zone(rows, &cx.m.g.bricks, &pos, skip).is_some_and(|z| inside(&z, at)),
         up,
         lane: in_frame
             .then(|| lane_hit(rows, &level_tags(cx), at.1))

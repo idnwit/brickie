@@ -36,6 +36,13 @@ JavaScript. Deviations: rows are tags, no areas, side columns or families; exact
 the annealer; one layout candidate; routes are cubic segments. Data remap: layers -> tags; edge
 kinds -> `uses`, `implements`, `reexports`; statuses -> `ok`, violating, accepted.
 
+| Decision | Reason |
+| --- | --- |
+| In edit mode the planned rule pairs are layout edges (after the graph edges) and drawn on their routes | lanes and bricks are ordered for the rules too; rule lines leave from side ports and go around boxes instead of cutting through them |
+| The untagged lane goes where the edges' summed lane span is least (last on ties), inside the inbound/outbound lanes | it has no tag order to keep; in the middle it blocks the lanes it does not link |
+| A row gap that no edge crosses is `GAPY_FREE` (36), not `GAPY` (72) | an empty gap needs room for the interface labels only |
+| Planned edge marks ("?", "A") take the route point nearest the middle clear of boxes and other marks | marks where edges cross piled up on each other and on brick text |
+
 ## Code viewer
 
 `/code/`: a generic read-only code browser (explorer, Monaco, marks, go to definition and

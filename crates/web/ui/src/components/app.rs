@@ -47,9 +47,9 @@ fn banner(cache: &CacheInfo) -> View {
 /// The shell of one level.
 fn page(cx: &Cx) -> View {
     let hdr = header(cx);
-    // While a change is open its bar takes the banner's place.
-    let ban = match cx.m.change {
-        Some(_) => editor::change_bar(cx),
+    // In edit mode the design bar takes the banner's place.
+    let ban = match cx.m.design {
+        Some(_) => editor::design_bar(cx),
         None => banner(&cx.m.cache),
     };
     let nav = left(cx);
@@ -89,7 +89,7 @@ pub fn app(data: PageData, initial: Params) -> View {
         platform::on_resize(move || {
             if let (Some(c), Some(r)) = (current(&c), platform::stage_rect()) {
                 c.stage.set(Some((r.2, r.3)));
-                c.view.set(fit_view(&c.m.layout, (r.2, r.3)));
+                c.view.set(c.fit((r.2, r.3)));
             }
         });
         keys(&cur);

@@ -1,101 +1,221 @@
-//! The design editor's endpoints: open, record, preview (planned bricks), links, layout,
-//! review, publish plan, discard, and the write guard.
+//! The design editor's endpoints: the design at its head, writes as human versions (edit,
+//! move, undo) based on a version, `design/stale` as 409 with the head, link checks, layout
+//! hints, and the write guard first.
 
 use super::*;
-use brickie_change::Change;
+use brickie_change::{By, Design, Op};
 
-async fn json(s: &Site, path: &str, body: Value) -> Value {
-    let (st, text) = s.post(path, body).await;
-    assert_eq!(st, StatusCode::OK, "{path}: {text}");
-    serde_json::from_str(&text).unwrap()
+fn add(name: &str) -> Value {
+    json!({"op": "add_brick", "file": "brickie.toml", "brick": {"name": name, "members": [format!("{name}::x")]}})
+}
+
+/// `(status, x-brickie-head, body)` of a POST from the page.
+async fn post_head(s: &Site, path: &str, body: Value) -> (StatusCode, Option<String>, String) {
+    let req = Request::post(path)
+        .header("content-type", "application/json")
+        .header("host", "127.0.0.1:3000")
+        .header("origin", "http://127.0.0.1:3000")
+        .body(Body::from(body.to_string()))
+        .unwrap();
+    let resp = router(AppState::new(s.config()))
+        .oneshot(req)
+        .await
+        .unwrap();
+    let st = resp.status();
+    let head = resp
+        .headers()
+        .get("x-brickie-head")
+        .map(|v| v.to_str().unwrap().to_string());
+    let body = resp.into_body().collect().await.unwrap().to_bytes();
+    (st, head, String::from_utf8_lossy(&body).into_owned())
 }
 
 #[tokio::test]
-async fn change_round_trip_through_the_endpoints() {
+async fn an_edit_is_a_version_and_a_stale_base_is_refused() {
     let s = Site::new();
-    assert_eq!(s.get("/api/change").await.1, "null");
-    let v = json(&s, "/api/change/open", json!({"intent": "add a cache"})).await;
-    assert_eq!(v["status"]["intent"], "add a cache");
-    assert_eq!(v["files"]["root"], "brickie.toml");
-
-    let op = json!({"op": {"op": "add_brick", "file": "brickie.toml",
-        "brick": {"name": "cache", "kind": "crate"}}, "note": "from the palette"});
-    let rec = json(&s, "/api/change/op", op).await["done"].clone();
+    let (st, text) = s.get("/api/design").await;
+    assert_eq!(st, StatusCode::OK, "{text}");
+    let d: Value = serde_json::from_str(&text).unwrap();
     assert_eq!(
-        (rec["seq"].clone(), rec["state"].clone()),
-        (json!(1), json!("accepted"))
+        (d["v"].as_u64(), d["files"]["root"].as_str()),
+        (Some(1), Some("brickie.toml"))
     );
-    // The config file is untouched until publish.
+
+    let (st, text) = s
+        .post(
+            "/api/design/edit",
+            json!({"base": 1, "ops": [add("cache")]}),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "{text}");
+    let r: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(
+        (r["changed"].as_bool(), r["design"]["v"].as_u64()),
+        (Some(true), Some(2))
+    );
+    assert_eq!(r["design"]["by"], "human");
+    let root = &r["levels"][0]["graph"]["bricks"];
+    let cache = root
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["name"] == "cache")
+        .unwrap();
+    assert_eq!(cache["planned"], true, "no code yet: planned");
+    assert!(
+        std::fs::read_to_string(s.config())
+            .unwrap()
+            .contains("cache")
+    );
+
+    // Based on v1 while the head is v2: nothing written, 409 with the stale text and the head.
+    let (st, head, text) = post_head(
+        &s,
+        "/api/design/edit",
+        json!({"base": 1, "ops": [add("other")]}),
+    )
+    .await;
+    assert_eq!(st, StatusCode::CONFLICT);
+    assert_eq!(head.as_deref(), Some("2"));
+    assert!(
+        text.contains("design/stale") && text.contains("v2"),
+        "{text}"
+    );
+    assert!(
+        !std::fs::read_to_string(s.config())
+            .unwrap()
+            .contains("other")
+    );
+
+    // An op that does not apply is a 409 without a head.
+    let gone = json!({"op": "remove_brick", "file": "brickie.toml", "name": "nope"});
+    let (st, head, _) = post_head(&s, "/api/design/edit", json!({"base": 2, "ops": [gone]})).await;
+    assert_eq!((st, head), (StatusCode::CONFLICT, None));
+}
+
+#[tokio::test]
+async fn undo_reverts_a_version_as_a_new_one() {
+    let s = Site::new();
+    s.get("/api/design").await;
+    s.post(
+        "/api/design/edit",
+        json!({"base": 1, "ops": [add("cache")]}),
+    )
+    .await;
+    let (st, text) = s.post("/api/design/undo", json!({"base": 2})).await;
+    assert_eq!(st, StatusCode::OK, "{text}");
+    let r: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(r["design"]["v"].as_u64(), Some(3));
+    let last = r["design"]["history"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap()
+        .clone();
+    assert_eq!(
+        (last["note"].as_str(), last["by"].as_str()),
+        (Some("undo v2"), Some("human"))
+    );
     assert!(
         !std::fs::read_to_string(s.config())
             .unwrap()
             .contains("cache")
     );
+}
 
-    // The preview shows the new brick as planned; the current design does not have it.
-    let lv: Value = serde_json::from_str(&s.get("/api/graph?change=1").await.1).unwrap();
-    let cache = lv[0]["graph"]["bricks"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|b| b["name"] == "cache")
-        .cloned()
-        .expect("planned brick in the preview");
-    assert_eq!(cache["planned"], json!(true));
-    let cur = s.get("/api/graph").await.1;
-    assert!(!cur.contains("\"cache\""));
-    let page = s.get("/?change=1").await.1;
-    assert!(page.contains("cache"));
-
-    let links = json(&s, "/api/change/links", json!({"path": ["cache"]})).await;
-    let first = &links.as_array().unwrap()[0];
-    // No `[deps]`: the default allows.
+#[tokio::test]
+async fn an_agent_version_shows_up_and_the_page_edits_on_top() {
+    let s = Site::new();
+    let d = Design::at(&s.config()).unwrap();
+    let head = d.head().unwrap().v;
+    let ops = vec![serde_json::from_value::<Op>(add("tel")).unwrap()];
+    d.apply(head, By::Agent, None, ops).unwrap();
+    let (_, text) = s.get("/api/design").await;
+    let st: Value = serde_json::from_str(&text).unwrap();
     assert_eq!(
-        (first["to"].clone(), first["action"].clone()),
-        (json!("engine"), json!("allow"))
+        (st["v"].as_u64(), st["by"].as_str()),
+        (Some(2), Some("agent"))
     );
-    let rule = json!({"op": {"op": "add_rule", "file": "brickie.toml", "rule":
-        {"from": "cache", "to": "engine", "action": "allow", "reason": "reads facts"}}});
-    json(&s, "/api/change/op", rule).await;
+    let (code, _) = s
+        .post(
+            "/api/design/edit",
+            json!({"base": 2, "ops": [add("cache")]}),
+        )
+        .await;
+    assert_eq!(code, StatusCode::OK);
+}
 
-    let hint = json!({"brick": "root/cache", "hint": {"x": 10.0, "y": 20.0}});
-    json(&s, "/api/change/layout", hint).await;
-    let state: Value = serde_json::from_str(&s.get("/api/change").await.1).unwrap();
-    assert_eq!(state["layout"]["root/cache"]["x"], json!(10.0));
-    assert_eq!(state["status"]["accepted"], json!(2));
+#[tokio::test]
+async fn links_and_link_checks_read_the_live_design() {
+    let s = Site::new();
+    s.post(
+        "/api/design/edit",
+        json!({"base": 1, "ops": [add("cache")]}),
+    )
+    .await;
+    let (st, text) = s
+        .post("/api/design/links", json!({"path": ["cache"]}))
+        .await;
+    assert_eq!(st, StatusCode::OK, "{text}");
+    let opts: Value = serde_json::from_str(&text).unwrap();
+    assert!(
+        opts.as_array().unwrap().iter().any(|o| o["to"] == "engine"),
+        "{text}"
+    );
+    let chk = json!({"from": "cache", "to": "engine", "scope": "prod", "action": "allow"});
+    let (st, text) = s.post("/api/design/link-check", chk).await;
+    assert_eq!(st, StatusCode::OK, "{text}");
+    let c: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(c["redundant"], true, "the default allows it: {text}");
+}
 
-    let rejected = json!({"seq": 2, "verdict": "reject", "note": "not yet"});
-    json(&s, "/api/change/review", rejected).await;
-    let plan: Value = serde_json::from_str(&s.get("/api/change/plan").await.1).unwrap();
-    assert!(plan["files"].as_array().is_some());
-
-    // An op that does not apply is refused and not recorded.
-    let bad = json!({"op": {"op": "remove_brick", "file": "brickie.toml", "name": "nope"}});
-    assert_eq!(s.post("/api/change/op", bad).await.0, StatusCode::CONFLICT);
-
-    json(&s, "/api/change/discard", json!(null)).await;
-    assert_eq!(s.get("/api/change").await.1, "null");
+#[tokio::test]
+async fn layout_hints_live_beside_the_history_and_auto_layout_clears_a_level() {
+    let s = Site::new();
+    let hint = json!({"brick": "root/engine", "hint": {"x": 10.0, "y": 20.0}});
+    assert_eq!(s.post("/api/design/layout", hint).await.0, StatusCode::OK);
+    let file = s.config().parent().unwrap().join(".brickie/layout.json");
+    assert!(
+        std::fs::read_to_string(&file)
+            .unwrap()
+            .contains("root/engine")
+    );
+    let (_, text) = s.get("/api/design").await;
+    let d: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(d["layout"]["root/engine"]["x"], 10.0);
+    // No version: a position is not a design change.
+    assert_eq!(d["v"].as_u64(), Some(1));
+    let (st, _) = s
+        .post("/api/design/relayout", json!({"level": "root"}))
+        .await;
+    assert_eq!(st, StatusCode::OK);
+    let (_, text) = s.get("/api/design").await;
+    assert!(!text.contains("root/engine"), "{text}");
 }
 
 #[tokio::test]
 async fn writes_need_the_same_origin() {
     let s = Site::new();
-    let open = json!({"intent": "x"});
     let evil = [("origin", "http://evil.test")];
-    let (st, _) = s.post_with("/api/change/open", open.clone(), &evil).await;
-    assert_eq!(st, StatusCode::FORBIDDEN);
     let (st, _) = s
         .post_with("/review", json!({"id": "deadbeef", "reason": null}), &evil)
         .await;
     assert_eq!(st, StatusCode::FORBIDDEN);
+    let (st, _) = s
+        .post_with(
+            "/api/design/edit",
+            json!({"base": 1, "ops": [add("x")]}),
+            &evil,
+        )
+        .await;
+    assert_eq!(st, StatusCode::FORBIDDEN);
     // Not bound to loopback: every write is refused.
     let wide = AppState::new(s.config()).bound("0.0.0.0", 3000);
-    let req = Request::post("/api/change/open")
+    let req = Request::post("/review")
         .header("content-type", "application/json")
         .header("host", "127.0.0.1:3000")
-        .body(Body::from(open.to_string()))
+        .body(Body::from(json!({"id": "x", "reason": null}).to_string()))
         .unwrap();
     let resp = router(wide).oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);
-    assert!(!Change::is_open(&s.config()));
 }

@@ -1,5 +1,5 @@
 //! JSON endpoints that take the same params as the page. Typed by the `brickie-web-api`
-//! contract: `Diagnostics`, `Functions` and `Graph` (of the change preview with `change=1`).
+//! contract: `Diagnostics`, `Functions` and `Graph` (the design as a draft, marked, with `edit=1`).
 
 use super::view;
 use crate::{AppState, Failure};

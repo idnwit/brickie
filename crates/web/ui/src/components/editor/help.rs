@@ -5,7 +5,7 @@ use super::overlay::stop;
 use crate::state::*;
 use sycamore::prelude::*;
 
-const KEYS: [(&str, &str); 18] = [
+const KEYS: [(&str, &str); 16] = [
     ("V / H", "select tool / hand (pan) tool"),
     ("B, Tab", "brick tool, next kind (crate, module, group)"),
     ("L", "link tool: ports on every brick"),
@@ -16,15 +16,13 @@ const KEYS: [(&str, &str); 18] = [
         "Ctrl+X, Ctrl+V",
         "cut a brick, paste it on another level (or into the selected brick)",
     ),
-    ("Ctrl+Z", "undo (whole gesture)"),
+    ("Ctrl+Z", "undo your last edit (a new version)"),
     ("Ctrl+Shift+Z / Ctrl+Y", "redo"),
     (
         "Alt+\u{2190} / Alt+\u{2192}",
         "back / forward through levels",
     ),
     ("Backspace", "out to the parent level"),
-    ("A / R / N", "accept / reject / next agent proposal"),
-    ("P / C / D", "preview / current / diff"),
     ("+ - 0", "zoom in, out, fit"),
     ("Esc", "cancel the drag, tool, cut or form"),
     (

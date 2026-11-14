@@ -1,135 +1,84 @@
-//! The design editor's endpoints (`/api/change/*`). Every POST but `links`, `link-check` and
-//! `levels` writes and passes the server's write guard (loopback bind, same-origin request).
-//! Writes that change the design answer a [`ChangeReply`] so the editor patches in place.
+//! The design editor's endpoints (`/api/design/*`). Writes (`edit`, `move`, `undo`, `layout`,
+//! `relayout`) pass the server's write guard (loopback bind, same-origin request). A write based
+//! on another version than the head answers 409 with the `design/stale` text (header
+//! `x-brickie-head`: the head version); the page reloads the design and retries.
 
 use super::Endpoint;
-use crate::change::{LinkCheck, LinkOption, OpRecord, Plan, ReviewEntry};
+use crate::design::{LinkCheck, LinkOption};
 use crate::{
-    ChangeLayoutRequest, ChangeLevelsRequest, ChangeLinkCheckRequest, ChangeLinksRequest,
-    ChangeMoveRequest, ChangeOpRequest, ChangeOpenRequest, ChangeReapplyRequest, ChangeRedoRequest,
-    ChangeReply, ChangeRetractRequest, ChangeReviewRequest, ChangeView, LevelView,
+    DesignState, EditReply, EditRequest, LayoutRequest, LevelView, LevelsRequest, LinkCheckRequest,
+    LinksRequest, MoveRequest, RelayoutRequest, UndoRequest,
 };
 
-/// `GET /api/change`: the open change (`null`: none is open).
-pub struct ChangeState;
-impl Endpoint for ChangeState {
-    const PATH: &'static str = "/api/change";
+/// `GET /api/design`: the design at its head.
+pub struct DesignGet;
+impl Endpoint for DesignGet {
+    const PATH: &'static str = "/api/design";
     type Req = ();
-    type Res = Option<ChangeView>;
+    type Res = DesignState;
 }
 
-/// `POST /api/change/open`: open a change with its intent.
-pub struct ChangeOpen;
-impl Endpoint for ChangeOpen {
-    const PATH: &'static str = "/api/change/open";
-    type Req = ChangeOpenRequest;
-    type Res = ChangeView;
+/// `POST /api/design/edit`: apply ops as one human version.
+pub struct DesignEdit;
+impl Endpoint for DesignEdit {
+    const PATH: &'static str = "/api/design/edit";
+    type Req = EditRequest;
+    type Res = EditReply;
 }
 
-/// `POST /api/change/op`: record a human op.
-pub struct ChangeOp;
-impl Endpoint for ChangeOp {
-    const PATH: &'static str = "/api/change/op";
-    type Req = ChangeOpRequest;
-    type Res = ChangeReply<OpRecord>;
+/// `POST /api/design/move`: `move_brick` built from brick paths, as one human version.
+pub struct DesignMove;
+impl Endpoint for DesignMove {
+    const PATH: &'static str = "/api/design/move";
+    type Req = MoveRequest;
+    type Res = EditReply;
 }
 
-/// `POST /api/change/move`: record `move_brick` built from brick paths.
-pub struct ChangeMove;
-impl Endpoint for ChangeMove {
-    const PATH: &'static str = "/api/change/move";
-    type Req = ChangeMoveRequest;
-    type Res = ChangeReply<OpRecord>;
+/// `POST /api/design/undo`: revert a version as a new human version.
+pub struct DesignUndo;
+impl Endpoint for DesignUndo {
+    const PATH: &'static str = "/api/design/undo";
+    type Req = UndoRequest;
+    type Res = EditReply;
 }
 
-/// `POST /api/change/review`: accept or reject an op.
-pub struct ChangeReview;
-impl Endpoint for ChangeReview {
-    const PATH: &'static str = "/api/change/review";
-    type Req = ChangeReviewRequest;
-    type Res = ChangeReply<ReviewEntry>;
-}
-
-/// `POST /api/change/retract`: take back a human op (undo); the log keeps it, rejected.
-pub struct ChangeRetract;
-impl Endpoint for ChangeRetract {
-    const PATH: &'static str = "/api/change/retract";
-    type Req = ChangeRetractRequest;
-    type Res = ChangeReply<ReviewEntry>;
-}
-
-/// `POST /api/change/redo`: restore the latest retracted human op (409 when it no longer
-/// applies or nothing is retracted).
-pub struct ChangeRedo;
-impl Endpoint for ChangeRedo {
-    const PATH: &'static str = "/api/change/redo";
-    type Req = ChangeRedoRequest;
-    type Res = ChangeReply<ReviewEntry>;
-}
-
-/// `POST /api/change/reapply`: re-record a conflicting op as a human op against the current
-/// design and reject the original; `done` is the new op.
-pub struct ChangeReapply;
-impl Endpoint for ChangeReapply {
-    const PATH: &'static str = "/api/change/reapply";
-    type Req = ChangeReapplyRequest;
-    type Res = ChangeReply<OpRecord>;
-}
-
-/// `POST /api/change/link-check`: whether a rule would change what its level decides (read
+/// `POST /api/design/link-check`: whether a rule would change what its level decides (read
 /// only); the editor refuses a redundant drop.
-pub struct ChangeLinkCheck;
-impl Endpoint for ChangeLinkCheck {
-    const PATH: &'static str = "/api/change/link-check";
-    type Req = ChangeLinkCheckRequest;
+pub struct DesignLinkCheck;
+impl Endpoint for DesignLinkCheck {
+    const PATH: &'static str = "/api/design/link-check";
+    type Req = LinkCheckRequest;
     type Res = LinkCheck;
 }
 
-/// `POST /api/change/levels`: preview levels by path, marked like `/api/graph?change=1` (read
-/// only).
-pub struct ChangeLevels;
-impl Endpoint for ChangeLevels {
-    const PATH: &'static str = "/api/change/levels";
-    type Req = ChangeLevelsRequest;
-    type Res = Vec<LevelView>;
-}
-
-/// `POST /api/change/links`: the links a brick may draw to its siblings (read only).
-pub struct ChangeLinks;
-impl Endpoint for ChangeLinks {
-    const PATH: &'static str = "/api/change/links";
-    type Req = ChangeLinksRequest;
+/// `POST /api/design/links`: the links a brick may draw to its siblings (read only).
+pub struct DesignLinks;
+impl Endpoint for DesignLinks {
+    const PATH: &'static str = "/api/design/links";
+    type Req = LinksRequest;
     type Res = Vec<LinkOption>;
 }
 
-/// `POST /api/change/layout`: set or clear a brick's canvas position.
-pub struct ChangeLayout;
-impl Endpoint for ChangeLayout {
-    const PATH: &'static str = "/api/change/layout";
-    type Req = ChangeLayoutRequest;
+/// `POST /api/design/levels`: levels by path, marked as in edit mode (read only).
+pub struct DesignLevels;
+impl Endpoint for DesignLevels {
+    const PATH: &'static str = "/api/design/levels";
+    type Req = LevelsRequest;
+    type Res = Vec<LevelView>;
+}
+
+/// `POST /api/design/layout`: set or clear a brick's canvas position.
+pub struct DesignLayout;
+impl Endpoint for DesignLayout {
+    const PATH: &'static str = "/api/design/layout";
+    type Req = LayoutRequest;
     type Res = ();
 }
 
-/// `GET /api/change/plan`: what publish would write, and why it would refuse.
-pub struct ChangePublishPlan;
-impl Endpoint for ChangePublishPlan {
-    const PATH: &'static str = "/api/change/plan";
-    type Req = ();
-    type Res = Plan;
-}
-
-/// `POST /api/change/publish`: write the config files, scaffold, close the change.
-pub struct ChangePublish;
-impl Endpoint for ChangePublish {
-    const PATH: &'static str = "/api/change/publish";
-    type Req = ();
-    type Res = Plan;
-}
-
-/// `POST /api/change/discard`: delete the change (the config files are untouched).
-pub struct ChangeDiscard;
-impl Endpoint for ChangeDiscard {
-    const PATH: &'static str = "/api/change/discard";
-    type Req = ();
+/// `POST /api/design/relayout`: clear every canvas position of a level (auto layout).
+pub struct DesignRelayout;
+impl Endpoint for DesignRelayout {
+    const PATH: &'static str = "/api/design/relayout";
+    type Req = RelayoutRequest;
     type Res = ();
 }

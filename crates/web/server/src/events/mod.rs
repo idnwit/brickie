@@ -1,11 +1,11 @@
 //! Server-Sent Events (`GET /api/events`): one watcher per server notices what changed on disk
-//! (the change log, `cache.json`, the `brickie*.toml` tree) or in the measure job, whoever wrote
+//! (the design history, `cache.json`, the `brickie*.toml` tree) or in the measure job, whoever wrote
 //! it, and fans it out to every page over a `tokio::sync::broadcast` channel.
 //!
 //! Decision: a cheap mtime watcher (a stat of a few files every 200 ms, the toml tree every 2 s)
 //! instead of the `notify` crate: no new dependency, no inotify limits, the same behaviour on
 //! every platform and filesystem (network mounts, containers), and atomic renames (how
-//! `cache.json` and `ops.json` are written) are seen as a new mtime.
+//! `cache.json` and the history log are written) are seen as a new mtime.
 
 pub(crate) mod scan;
 
