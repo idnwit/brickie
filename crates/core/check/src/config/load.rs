@@ -1,6 +1,7 @@
 //! Loading the config tree: each `brickie.toml` with its `include`s merged is one level; a
 //! brick with `path = "<dir>"` loads `<dir>/brickie.toml` as the level below it.
 
+use super::MeasureCfg;
 use super::source::{Disk, FileSource};
 use super::validate::{validate, validate_via};
 use super::{Action, Brick, ComplexityRule, Config, DepRule, Export};
@@ -32,6 +33,8 @@ struct Raw {
     deps: RawDeps,
     #[serde(default)]
     complexity: Vec<ComplexityRule>,
+    #[serde(default)]
+    measure: Option<MeasureCfg>,
 }
 
 /// Line numbers (1-based) of the `[[header]]` table starts, in file order.
@@ -50,7 +53,17 @@ pub fn load(path: &Path) -> Result<Config> {
 
 /// `load` over another file source (a change's preview).
 pub fn load_from(src: &dyn FileSource, path: &Path) -> Result<Config> {
-    load_level(src, path, Vec::new(), &mut Vec::new())
+    load_level(src, path, Vec::new(), &mut Vec::new(), false)
+}
+
+/// Only the `[measure]` table of the root config (and its includes): `measure` needs it even
+/// when the brick tree is incomplete, so bricks are not resolved or validated. A missing file
+/// gives the defaults.
+pub fn load_measure(path: &Path) -> Result<MeasureCfg> {
+    if !path.exists() {
+        return Ok(MeasureCfg::default());
+    }
+    Ok(load_level(&Disk, path, Vec::new(), &mut Vec::new(), true)?.measure)
 }
 
 /// One level: the file and its includes, validated, then the levels of its composites.
@@ -60,6 +73,7 @@ fn load_level(
     path: &Path,
     level: Vec<String>,
     ancestors: &mut Vec<PathBuf>,
+    measure_only: bool,
 ) -> Result<Config> {
     let mut cfg = Config {
         path: level,
@@ -77,6 +91,16 @@ fn load_level(
         );
     }
     load_file(src, path, &mut cfg, &mut Vec::new(), &mut BTreeSet::new())?;
+    if !cfg.path.is_empty() && cfg.measure != MeasureCfg::default() {
+        bail!(
+            "{}: [measure] is only allowed in the root brickie.toml",
+            cfg.file
+        );
+    }
+    cfg.measure.normalise()?;
+    if measure_only {
+        return Ok(cfg);
+    }
     validate(&cfg)?;
     ancestors.push(canon);
     for b in &mut cfg.bricks {
@@ -96,7 +120,7 @@ fn load_level(
         }
         let mut below = cfg.path.clone();
         below.push(b.name.clone());
-        let sub = load_level(src, &file, below, ancestors)
+        let sub = load_level(src, &file, below, ancestors, false)
             .with_context(|| format!("brick '{}' in {}", b.name, cfg.file))?;
         b.sub = Some(Box::new(sub));
     }
@@ -145,6 +169,9 @@ fn load_file(
         }
         b.base = base.clone();
         cfg.bricks.push(b);
+    }
+    if let Some(m) = raw.measure {
+        cfg.measure.additional_targets.extend(m.additional_targets);
     }
     cfg.exports.extend(raw.exports);
     if let Some(d) = raw.deps.default {

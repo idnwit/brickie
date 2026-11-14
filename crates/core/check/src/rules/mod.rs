@@ -64,5 +64,5 @@ pub use deps::dep_subject;
 pub use links::{Link, LinkState, link_states};
 use unmapped::Unmapped;
 mod stale;
-pub use stale::evaluate as evaluate_stale;
+pub use stale::{evaluate as evaluate_stale, evaluate_measure as evaluate_stale_measure};
 pub use unused_link::filter_text;

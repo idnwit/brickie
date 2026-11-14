@@ -7,11 +7,11 @@
 //! dirty tree also hashes every cached file: a file edited before measure and reverted to HEAD
 //! afterwards is invisible to git. `check` never re-measures.
 
-use crate::config::Level;
+use crate::config::{Level, MeasureCfg};
 use crate::diag::{Finding, RuleRef, Span};
-use brickie_facts::Cache;
 use brickie_facts::sha256_hex;
-use brickie_model::codes::STALE_FILE;
+use brickie_facts::{Cache, Measured};
+use brickie_model::codes::{STALE_FILE, STALE_MEASURE};
 use std::collections::BTreeSet;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -153,5 +153,77 @@ impl Finding for Stale {
     }
     fn help(&self) -> Option<String> {
         Some(HELP.into())
+    }
+}
+
+/// The settings `measure` runs with for `cfg`: all features plus the additional targets.
+pub fn measured_for(cfg: &MeasureCfg) -> Measured {
+    Measured::all(cfg.additional_targets.clone())
+}
+
+/// A cache measured with other cargo settings than the config asks for. A cache that does not
+/// record its settings (empty `features`) is not judged.
+pub fn evaluate_measure(cache: &Cache, cfg: &MeasureCfg) -> Vec<Box<dyn Finding>> {
+    let want = measured_for(cfg);
+    if cache.measured.features.is_empty() || cache.measured == want {
+        return Vec::new();
+    }
+    vec![Box::new(StaleMeasure {
+        have: cache.measured.clone(),
+        want,
+    })]
+}
+
+struct StaleMeasure {
+    have: Measured,
+    want: Measured,
+}
+
+impl Finding for StaleMeasure {
+    fn code(&self) -> String {
+        STALE_MEASURE.into()
+    }
+    fn level(&self) -> Level {
+        Level::Warn
+    }
+    fn subject(&self) -> String {
+        "measure".into()
+    }
+    fn message(&self) -> String {
+        format!(
+            "the cache was measured with features `{}` and additional targets {:?}; the config asks for features `{}` and targets {:?}",
+            self.have.features, self.have.targets, self.want.features, self.want.targets
+        )
+    }
+    fn spans(&self) -> Vec<Span> {
+        vec![]
+    }
+    fn rule(&self) -> Option<RuleRef> {
+        None
+    }
+    fn help(&self) -> Option<String> {
+        Some(HELP.into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn measure_settings_mismatch_is_stale() {
+        let mut cache = crate::config::tests::cache(Path::new("."), &[]);
+        let mut cfg = MeasureCfg::default();
+        // A cache without recorded settings is not judged.
+        assert!(evaluate_measure(&cache, &cfg).is_empty());
+        cache.measured = measured_for(&cfg);
+        assert!(evaluate_measure(&cache, &cfg).is_empty());
+        cfg.additional_targets = vec!["wasm32-unknown-unknown".into()];
+        let f = evaluate_measure(&cache, &cfg);
+        assert_eq!(f.len(), 1);
+        assert_eq!(f[0].code(), STALE_MEASURE);
+        assert!(f[0].message().contains("wasm32-unknown-unknown"));
+        cache.measured = measured_for(&cfg);
+        assert!(evaluate_measure(&cache, &cfg).is_empty());
     }
 }

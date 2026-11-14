@@ -197,6 +197,8 @@ pub struct Config {
     pub exports: Vec<Export>,
     pub deps: Deps,
     pub complexity: Vec<ComplexityRule>,
+    /// `[measure]`; only the root level may set it.
+    pub measure: super::MeasureCfg,
 }
 
 impl Config {

@@ -35,6 +35,7 @@ pub(crate) fn measure_runner() -> Runner {
             config: config.to_path_buf(),
             scip: None,
             workspace: None,
+            additional_targets: brickie_check::config::load_measure(config)?.additional_targets,
         };
         brickie_measure::run_with(&opts, progress).map(|_| ())
     })
