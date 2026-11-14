@@ -1,51 +1,72 @@
-# Design editor
+# Design editing
 
-Scope: edit mode of the viewer, change sessions, `brickie change`. Back to [../design.md](../design.md).
+Scope: how the design is edited and versioned (`brickie design` and the viewer's Design mode). Back to
+[../design.md](../design.md).
 
-Edit mode of the viewer over a **change**: a pending, ordered log of ops over the `brickie.toml`
-tree. One human and one coding agent share it.
+The `brickie.toml` tree is the design. Every edit is applied and written to the files at once, as
+one new version of the whole tree. A human (viewer) and a coding agent (CLI) co-edit it directly;
+there is no change session, review or publish step.
 
 ## Decisions
 
-- The `brickie.toml` tree stays the source of truth. Nobody writes it while a change is open.
-  Files change only on publish.
-- Change tracking is independent of git. One change, one human, one agent.
-- Code edits are out of scope. The agent edits code as usual and only proposes config ops.
-- **One engine**: the loader takes a file-source trait. Preview replays ops over the stored
-  `base/` documents in memory and runs the normal loader and `check`. Publish writes the same
-  documents, keeps comments, and scaffolds folders or crate files. It never moves or deletes code.
-- Storage `.brickie/change/` (git-ignored): `base/`, append-only `ops.json`, `intent`,
-  `readers.json`, `lock`, `layout.json` (canvas positions, not ops).
-- An op records `{seq, by, at, op, file, key, before, after, note, state, review}`. `before`
-  must match the file; otherwise the op is a `conflict`, derived on every read. Human ops are
-  accepted when recorded; agent ops are `proposed` until a human reviews. Reviews append
-  entries; nothing is rewritten.
-- Publish refuses on a proposed or conflicting op, a touched file edited outside brickie, or a
-  result that fails `load`.
-- **Planned / drift**: planned = a brick or allowed edge with no measured code; drift = `deps/*`
-  findings on preview edges. A change is built when neither exists and there are no errors.
-- **Draft preview**: partition errors are collected instead of aborting, so the canvas updates
-  mid-design. Each is a todo task and a `change/invalid` publish blocker. `check` stays strict.
-- A write whose preview fails hard is still recorded; the reply carries `change.error`.
-- Every write answers `ChangeReply {done, change, levels}`; the page patches in place and keeps
-  pan, zoom and selection.
-- CLI: `brickie change` (see `--help` and the "Change sessions" section of [../llms.txt](../llms.txt)).
+| Topic | Decision | Reason |
+| --- | --- | --- |
+| Source of truth | the files; no pending op log | one truth that `check`, git and editors all see |
+| Version | one integer `N` for the whole tree (`v15`); internally a hash (FNV-1a 64) of every config file, sorted path and bytes | simple to quote in prompts and errors; the hash detects any edit |
+| History | `.brickie/history/` (git-ignored): `log.jsonl` with `{v, hash, prev, by, at, note, ops, diff, files, removed, full}`, `v<N>/` with the files version N wrote; last 200 kept, the oldest then rewritten as a full snapshot | undo and diff without git; bounded size |
+| Author | `by` follows the writer: CLI `agent`, viewer `human`, a hand edit `external`; no flag or env | an agent cannot pose as the human |
+| Hand edits | on every read or write, a tree hash different from the head's is first recorded as an `external` version | hand edits stay visible and make old bases stale |
+| Concurrency | every write takes `--base N` (env `BRICKIE_BASE`); `N` not the head: nothing written, exit 3, `design/stale` with the changes since `N` per author | optimistic and explicit; no hidden reader cursor |
+| Atomic write | one function `Design::apply(base, by, note, ops)` under `.brickie/design.lock`: sync hand edits, check base, apply ops in memory (`toml_edit`, comments kept), load and validate the whole design, write each changed file by temp file and rename, append the version | an invalid design is never written; CLI and server share it |
+| Identity | brick by name; rule by `(file, from, to, kinds, scope)`; complexity rule by `(file, bricks)`; never by index | a stale index silently edited another rule before |
+| Missing or ambiguous key | `design/no-match` listing candidates; ambiguous asks for `--kind` / `--scope`; adding an existing identity is `design/exists` | an edit must name exactly one element |
+| `set_rule`, `set_complexity` | patches: only given fields change | concurrent edits of different fields do not clobber |
+| Undo | `undo [V]` restores the bytes the version replaced (comments included) as a new version; refused when a file it changed is no longer as V left it (a later version changed it and was not reverted); an agent may not undo a human or external version | history stays append-only; no lost human work; step-by-step undo works once the later versions are reverted |
+| Scaffold | `add_brick` scaffolds missing code (crate, module file, workspace member); never overwrites; undo does not remove code | design and code start together; code is the agent's |
+| Ungroup | the child file leaves the tree but stays on disk | never delete hand-written files |
+| Codes | removed `change/*`; `design/planned`, `planned-edge`, `no-reason`, `invalid`, `stale`, `no-match`, `exists` | no change sessions remain |
+
+Reviewed by two independent reviewers before implementation; both preferred direct versioned
+editing over the propose/accept/publish session (fewer states, no publish conflicts, hand edits
+handled).
+
+## CLI
+
+`brickie design show | log | diff | undo | brick | rule | export | limit | deps | include`; see
+`brickie design --help` and "Editing the design" in [../llms.txt](../llms.txt). Code:
+`crates/core/change` (`design/` versions, history, lock, writes; `edit/` ops; `report/` diff,
+show, todo) and `crates/cli/src/cli/design/`.
+
+## Viewer (Design mode)
+
+Code: `crates/web/server/src/routes/editor.rs`, `data/design/`, `events/scan.rs`;
+`crates/web/api/src/{model,endpoint}/editor.rs`; `crates/web/ui/src/{state,components}/editor/`.
+User guide: [../webui.md](../webui.md#design-mode).
 
 | Topic | Decision | Reason |
 | --- | --- | --- |
-| Rename / move vs accepted review ids | not rewritten; old acceptance stops matching | an id hashes the finding, which changes with the name |
-| Rules without `reason` | `change/no-reason` todo and publish warning, not a blocker | drawing a link must not block |
-| Retract and redo | review entries (`retract`, `restore`); redo fails if the op conflicts a later one | the log stays append-only |
-| Ungroup | refused when the child file has `include` or `[deps] default/cycles` | cannot merge safely |
-| Ops from the UI | recorded as the human only; the agent uses the CLI | one writer per role |
-| Not offered | reordering (no semantics); removing a measured code edge | that is a code change |
+| Endpoints | `GET /api/design` (`DesignState`: head `v`, `by`, last 50 versions, todo, level files and selectors, planned edges, per-file sheets, layout hints); `POST /api/design/{edit, move, undo}` (one human version each, `base` required); `links`, `link-check`, `levels` (read only); `layout`, `relayout` (hints) | one current path over `brickie_change::Design`, shared with the CLI |
+| Author | every viewer write is `human`; no field in the request | the surface decides, as in the CLI |
+| Stale base | 409 with the `design/stale` text and header `x-brickie-head`; the page reloads the design and re-sends the same request once on the new head, else shows one line `Not applied: <reason>` | edits by identity usually still apply after another writer's version |
+| Identity in the UI | a selected rule is `(file, RuleKey)`; editing kinds, scope or target is `remove_rule` + `add_rule` in one version, other fields a `set_rule` patch; complexity rows by `bricks` | no index can point at another rule after a concurrent edit |
+| Gestures | the ops of one gesture (a tile into a leaf brick: `make_composite` + `add_brick`) are one version | one `Ctrl+Z` per gesture |
+| Undo / Redo | undo reverts the human's latest edit (`undo vN`); redo reverts that undo; both stacks are read from the history | survives reloads; skips other writers' versions |
+| Live updates | the watcher reads the head when `.brickie/history/log.jsonl` or the toml tree changes (a hand edit is then recorded as `external`) and sends `design {hash, v, by}`; a page whose `v` differs fetches the design and levels and patches in place; another writer's version shows a toast "agent changed: <diff line>" with Undo | agent and hand edits are visible at once and reversible |
+| Layout hints | `.brickie/layout.json` (`{"root/web/api": {x, y}}`), beside the history, not versioned, not in `brickie.toml` | a position is a view preference: no version, never stale, not undone |
+| Auto layout | always enabled; in Design mode it clears the hints of the level on screen, lays it out again and fits; a brick without a hint that would overlap a placed one goes right of the boxes | the button did nothing while hints won over the layout |
+| New tag lane | the drop zone and the frame of a drag leave the dragged brick out; fitting in Design mode keeps room for the zone under the frame | the zone used to follow the dragged brick down and could not be reached |
+| Toolbar | one row of groups with dividers, `nowrap`; labels hide below 1280 px (glyph and tooltip stay), then it scrolls sideways | it wrapped into three rows over the canvas |
 
-## UX principles
+## Status
+
+Phase 1 (engine and CLI) and phase 2 (viewer on the versioned design) are implemented and tested
+(server tests for edit, undo, stale 409, layout and events; UI unit tests for the retry, undo
+stacks, hit tests, new-lane zone, layout hints and op building). Not checked in a browser by
+automated tests: the toolbar's look at narrow widths and drag gestures end to end.
+
+## UX principles (viewer)
 
 Canvas first (create, connect, move, delete, rename are gestures); one selection, one inspector;
-every edit is visibly an op with Undo; never lose place; design vs reality stays legible (planned
-dashed, drift amber, agent proposal violet with `A`, conflict red with `!`). Connecting is type
-first: one port per link type, nothing to fill in after the drop. A brick is a folder: dropping a
-brick on a brick nests it. A tag lane drop retags the first tag.
-
-Known gaps: draggable toolbar, drag-a-box brick sizing, autocomplete for members, overlay diff.
+every edit is a version with Undo; never lose place; design vs reality stays legible (planned
+dashed, drift amber, agent versions marked). Connecting is type first: one port per link type,
+nothing to fill in after the drop. A brick is a folder: dropping a brick on a brick nests it.

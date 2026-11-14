@@ -1,17 +1,15 @@
-//! The preview: the change's documents as a virtual file set over the disk, readable by the
-//! normal loader and `check`.
+//! The preview: documents in memory as a virtual file set over the disk, readable by the
+//! normal loader, so a write is validated before any file is written.
 
 mod planned;
-mod sheets;
 
 pub use planned::{cache_mismatch, planned};
 
 use crate::edit::Docs;
 use crate::paths::{normalize, to_rel};
 use anyhow::Result;
-use brickie_check::check::{self, Loaded};
 use brickie_check::config::{self, Config, FileSource};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -19,7 +17,6 @@ pub struct Preview {
     root: PathBuf,
     config: PathBuf,
     files: BTreeMap<String, String>,
-    created: BTreeSet<String>,
 }
 
 impl Preview {
@@ -28,40 +25,12 @@ impl Preview {
             root: root.to_path_buf(),
             config: root.join(config),
             files: docs.texts(),
-            created: docs.created().clone(),
         }
-    }
-
-    /// Every config file of the change (workspace-relative path -> text).
-    pub fn files(&self) -> &BTreeMap<String, String> {
-        &self.files
-    }
-
-    /// Files the change creates.
-    pub fn created(&self) -> &BTreeSet<String> {
-        &self.created
-    }
-
-    /// Absolute path of the root config.
-    pub fn config_path(&self) -> &Path {
-        &self.config
     }
 
     /// Load and validate the previewed config tree.
     pub fn load_config(&self) -> Result<Config> {
         config::load_from(self, &self.config)
-    }
-
-    /// `check` over the previewed config tree and the measured cache, as a draft: partition
-    /// errors of a design in progress (`config/unassigned`, ...) are in `resolved.pending`
-    /// instead of failing. Publish refuses while any is left.
-    pub fn check(&self) -> Result<Loaded> {
-        check::load_draft_from(self, &self.config)
-    }
-
-    /// A message when the measured cache does not belong to this workspace.
-    pub fn cache_mismatch(&self, loaded: &Loaded) -> Option<String> {
-        cache_mismatch(&self.root, loaded)
     }
 
     fn get(&self, path: &Path) -> Option<&String> {

@@ -2,7 +2,7 @@
 
 use super::table::{aot_mut, find_named, set_list, set_opt};
 use anyhow::{Context, Result, bail};
-use brickie_model::change::BrickSpec;
+use brickie_model::design::BrickSpec;
 use toml_edit::{DocumentMut, Item, Table, Value, value};
 
 fn index(doc: &mut DocumentMut, name: &str) -> Result<usize> {
@@ -36,6 +36,20 @@ pub fn insert(doc: &mut DocumentMut, t: Table) -> Result<()> {
     }
     bricks.push(t);
     Ok(())
+}
+
+/// The brick names in `exports`.
+pub fn exported(doc: &DocumentMut) -> Vec<String> {
+    let Some(a) = doc.get("exports").and_then(Item::as_array) else {
+        return Vec::new();
+    };
+    a.iter()
+        .filter_map(|v| {
+            v.as_str()
+                .or_else(|| v.as_inline_table()?.get("brick")?.as_str())
+        })
+        .map(String::from)
+        .collect()
 }
 
 /// Drop `name` from `exports`.

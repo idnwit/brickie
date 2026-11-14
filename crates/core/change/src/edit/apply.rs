@@ -1,15 +1,16 @@
-//! Apply one op to the documents.
+//! Apply one op to the documents in memory.
 
 use super::Docs;
 use super::brick::{self, Fields};
-use super::rules::{complexity_table, edit_include, edit_list, rule_table, set_deps, set_exports};
+use super::rules::{
+    COMPLEXITY, RULES, complexity_table, edit_include, edit_list, patch_complexity, patch_rule,
+    rule_table, set_deps, set_exports,
+};
+use super::{find, via};
 use crate::paths::join_rel;
 use anyhow::{Result, bail};
-use brickie_model::change::Op;
+use brickie_model::design::Op;
 use toml_edit::value;
-
-const RULES: &[&str] = &["deps", "rule"];
-const COMPLEXITY: &[&str] = &["complexity"];
 
 pub fn apply(docs: &mut Docs, op: &Op) -> Result<()> {
     if let Op::CreateFile { file } = op {
@@ -21,11 +22,30 @@ pub fn apply(docs: &mut Docs, op: &Op) -> Result<()> {
         Op::AddBrick { file, brick } => return super::moves::add_brick(docs, file, brick),
         Op::MoveBrick { .. } => return super::moves::move_brick(docs, op),
         Op::Ungroup { file, name } => return super::ungroup::ungroup(docs, file, name),
+        Op::RemoveBrick { file, name } => {
+            via::guard_child(docs, file, name, "removing it")?;
+            return brick::remove(docs.get_mut(file)?, name);
+        }
+        Op::RenameBrick { file, from, to } => {
+            brick::rename(docs.get_mut(file)?, from, to)?;
+            return via::rename(docs, file, from, to);
+        }
+        Op::SetExports { file, exports } => {
+            let doc = docs.get_mut(file)?;
+            let old = brick::exported(doc);
+            for n in old
+                .iter()
+                .filter(|n| !exports.iter().any(|e| &e.brick == *n))
+            {
+                via::guard_child(docs, file, n, "unexporting it")?;
+            }
+            set_exports(docs.get_mut(file)?, exports);
+            return Ok(());
+        }
         _ => {}
     }
     let doc = docs.get_mut(op.file())?;
     match op {
-        Op::RemoveBrick { name, .. } => brick::remove(doc, name),
         Op::SetBrick {
             name,
             desc,
@@ -43,22 +63,29 @@ pub fn apply(docs: &mut Docs, op: &Op) -> Result<()> {
                 path: path.as_deref(),
             },
         ),
-        Op::RenameBrick { from, to, .. } => brick::rename(doc, from, to),
-        Op::SetExports { exports, .. } => {
-            set_exports(doc, exports);
-            Ok(())
+        Op::AddRule { file, rule } => {
+            find::new_rule(doc, file, rule)?;
+            edit_list(doc, RULES, None, Some(rule_table(rule)))
         }
-        Op::AddRule { rule, .. } => edit_list(doc, RULES, None, Some(rule_table(rule))),
-        Op::RemoveRule { index, .. } => edit_list(doc, RULES, Some(*index), None),
-        Op::SetRule { index, rule, .. } => {
-            edit_list(doc, RULES, Some(*index), Some(rule_table(rule)))
+        Op::RemoveRule { file, key } => {
+            let i = find::rule(doc, file, key)?;
+            edit_list(doc, RULES, Some(i), None)
         }
-        Op::AddComplexity { rule, .. } => {
+        Op::SetRule { file, key, set } => {
+            let i = find::rule(doc, file, key)?;
+            patch_rule(doc, i, set)
+        }
+        Op::AddComplexity { file, rule } => {
+            find::new_limit(doc, file, rule.bricks.as_deref())?;
             edit_list(doc, COMPLEXITY, None, Some(complexity_table(rule)))
         }
-        Op::RemoveComplexity { index, .. } => edit_list(doc, COMPLEXITY, Some(*index), None),
-        Op::SetComplexity { index, rule, .. } => {
-            edit_list(doc, COMPLEXITY, Some(*index), Some(complexity_table(rule)))
+        Op::RemoveComplexity { file, bricks } => {
+            let i = find::limit(doc, file, bricks.as_deref())?;
+            edit_list(doc, COMPLEXITY, Some(i), None)
+        }
+        Op::SetComplexity { file, bricks, set } => {
+            let i = find::limit(doc, file, bricks.as_deref())?;
+            patch_complexity(doc, i, set)
         }
         Op::SetDeps {
             default, cycles, ..
@@ -66,6 +93,9 @@ pub fn apply(docs: &mut Docs, op: &Op) -> Result<()> {
         Op::AddInclude { path, .. } => edit_include(doc, path, true),
         Op::RemoveInclude { path, .. } => edit_include(doc, path, false),
         Op::CreateFile { .. }
+        | Op::RemoveBrick { .. }
+        | Op::RenameBrick { .. }
+        | Op::SetExports { .. }
         | Op::MakeComposite { .. }
         | Op::AddBrick { .. }
         | Op::MoveBrick { .. }

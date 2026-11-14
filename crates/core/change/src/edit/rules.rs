@@ -2,13 +2,17 @@
 
 use super::table::{aot_mut, set_list, set_opt, str_array};
 use anyhow::{Context, Result, bail};
-use brickie_model::change::{ComplexitySpec, ExportSpec, RuleSpec};
+use brickie_model::design::{ComplexitySpec, ExportSpec, RulePatch, RuleSpec};
+
+pub const RULES: &[&str] = &["deps", "rule"];
+pub const COMPLEXITY: &[&str] = &["complexity"];
 use toml_edit::{Array, DocumentMut, InlineTable, Item, Table, Value, value};
 
 pub fn rule_table(r: &RuleSpec) -> Table {
     let mut t = Table::new();
     t["from"] = value(r.from.as_str());
     t["to"] = value(r.to.as_str());
+    set_list(&mut t, "via", &r.via);
     set_list(&mut t, "kinds", &r.kinds);
     set_opt(&mut t, "scope", r.scope.as_deref());
     t["action"] = value(r.action.as_str());
@@ -63,6 +67,60 @@ pub fn edit_list(
         }
     }
     super::brick::prune_empty(doc);
+    Ok(())
+}
+
+/// Change the fields of rule `i` that the patch names, keeping the others and their comments.
+pub fn patch_rule(doc: &mut DocumentMut, i: usize, p: &RulePatch) -> Result<()> {
+    if let Some(a) = p.action.as_deref()
+        && a != "allow"
+        && a != "deny"
+    {
+        bail!("action must be allow or deny, not '{a}'");
+    }
+    let t = aot_mut(doc, RULES)?.get_mut(i).context("no such rule")?;
+    if let Some(a) = &p.action {
+        t["action"] = value(a.as_str());
+    }
+    if let Some(v) = &p.via {
+        set_list(t, "via", v);
+    }
+    if let Some(r) = &p.reason {
+        set_opt(t, "reason", Some(r));
+    }
+    if let Some(h) = &p.help {
+        set_opt(t, "help", Some(h));
+    }
+    Ok(())
+}
+
+/// Change the fields of complexity rule `i` that the patch names (`0` / `""` removes one).
+pub fn patch_complexity(doc: &mut DocumentMut, i: usize, p: &ComplexitySpec) -> Result<()> {
+    let t = aot_mut(doc, COMPLEXITY)?
+        .get_mut(i)
+        .context("no such complexity rule")?;
+    let metrics = [
+        ("cognitive", p.cognitive),
+        ("cyclomatic", p.cyclomatic),
+        ("nesting", p.nesting),
+        ("paths", p.paths),
+        ("params", p.params),
+        ("lines", p.lines),
+    ];
+    for (k, v) in metrics {
+        match v {
+            Some(0) => {
+                t.remove(k);
+            }
+            Some(v) => t[k] = value(v as i64),
+            None => {}
+        }
+    }
+    for (k, v) in [("level", &p.level), ("scope", &p.scope), ("help", &p.help)] {
+        if let Some(v) = v {
+            set_opt(t, k, Some(v));
+        }
+    }
     Ok(())
 }
 
@@ -131,4 +189,24 @@ pub fn edit_include(doc: &mut DocumentMut, path: &str, add: bool) -> Result<()> 
         doc["include"] = Item::Value(str_array(&list));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn via_is_written_only_when_set() {
+        let mut r = RuleSpec {
+            from: "ui".into(),
+            to: "application".into(),
+            via: vec!["ports-in".into()],
+            action: "allow".into(),
+            ..RuleSpec::default()
+        };
+        let text = rule_table(&r).to_string();
+        assert!(text.contains("via = [\"ports-in\"]"), "{text}");
+        r.via.clear();
+        assert!(!rule_table(&r).to_string().contains("via"));
+    }
 }

@@ -34,10 +34,10 @@ unaccepted `error`, 2 configuration, review file or cache problem (for example n
 ## Hard constraints
 
 - Never edit `brickie.toml` (or files it includes) or `brickie.review.toml` to make `check` pass;
-  they are the project's decisions. While a change is open (`brickie change` does not say
-  `change/none`), never edit them at all: propose ops (see "Change sessions").
-- Accepting a finding (`[[accept]]` in `brickie.review.toml`, or Accept in the viewer) and
-  accepting or rejecting a change op are for a human reviewer. If a finding looks wrong or a rule
+  they are the project's decisions. Change the design only with `brickie design` (see "Editing
+  the design"), never by hand.
+- Accepting a finding (`[[accept]]` in `brickie.review.toml`, or Accept in the viewer) is for a
+  human reviewer. If a finding looks wrong or a rule
   too strict, stop and report it with the finding id.
 - Do not split a function mechanically to get under a complexity limit (forwarding helpers, one
   statement per function). Reduce real complexity: early returns, a table instead of a branch
@@ -45,100 +45,90 @@ unaccepted `error`, 2 configuration, review file or cache problem (for example n
 - Do not move code or add re-exports to hide a dependency from the checker; the edge is measured
   where the code references the other module.
 
-## Change sessions
+## Editing the design
 
-A human designs in the viewer's editor; you work on the same design through a **change**: an
-ordered log of operations (ops) over the `brickie.toml` tree, kept in `.brickie/change/`. One
-change is open at a time. Config files are not written while it is open, only when the human
-publishes.
+The `brickie.toml` tree is the design. A human edits it in the viewer and you edit it with
+`brickie design`; every edit is written to the files at once. The design has one version number
+for the whole tree (`v15`); `.brickie/history/` keeps the last 200 versions (who, when, note,
+ops, semantic diff). Your edits are recorded as `agent`, the viewer's as `human`, and a hand edit
+of the files as `external` (found on the next read or write). Never edit the config files by
+hand; use `brickie design`.
 
-- Run `brickie change` at the start and before each step. It prints the intent, the status
-  (accepted / proposed / rejected / conflicts, cache age), the semantic diff against the config as
-  opened (by element, with author, notes and review notes; the human's notes are your
-  instructions), and entries new since your last read (it then moves your cursor). `--since <seq>`
-  shows entries after `seq` without moving the cursor; `--as human|agent` picks the reader
-  (default `agent`).
-- `brickie change --todo` lists tasks:
-  - `planned`: bricks to create code for (with their members).
-  - `drift`: findings the change introduces (`check` over the design minus the findings of the
-    design as opened; id, location, help).
-  - `link` (`change/planned-edge`): an allow rule the change adds that no measured edge uses yet.
-  - `reason` (`change/no-reason`): a rule the change adds without a `reason`.
-  - ops `proposed`, `rejected` (with the reason) or in `conflict`.
-  - `config`: errors of the design. A cache measured in another workspace gives one `config` task
-    (`cache does not match this workspace; run brickie measure`) instead of every brick planned.
-- Propose an op: `echo '<op JSON>' | brickie change propose --json [--note "why"]`. It stays
-  `proposed` until the human accepts or rejects it; each review is a new entry with its own `seq`
-  and note. Never accept or reject ops yourself.
-- After code changes run `brickie measure`, then `brickie check --change`: it checks the design
-  (accepted and proposed ops) against the code and lists `change/planned` notes.
-- When an op of yours is rejected or in conflict, stop and ask the human; do not re-propose it.
-  The human may take back their own ops (`brickie change retract [seq]`; the op counts as
-  rejected), restore the latest retracted one (`brickie change redo`; refused when it no longer
-  applies; a new human op clears what can be redone), or re-record a conflicting op against the
-  current design (`brickie change reapply <seq>`: a new human op, the original rejected with note
-  `re-applied as op N`).
-- `brickie change publish --dry-run` shows what publishing would write and why it would refuse.
-  Publishing and `brickie change discard` are the human's decision.
-- `--format json` on every `brickie change` command: `brickie change` prints
-  `{status, diff, new: {from, head, entries}}`, `--todo` a list of `{kind, text, seq?, id?, help?}`,
-  `propose` the op record, `publish --dry-run`
-  `{files: [{path, action, note, content?}], blockers, warnings}` (warnings do not block).
+- Read first: `brickie design show` prints `design v15 <hash>` and the tree: each level with its
+  file, bricks (kind, members, tags, children), rules `from -> to [via] (scope) allow|deny
+  "reason"`, limits and deps, then a `todo` list. `--since N` prints only the versions after N,
+  each with its author, note and diff lines.
+- Every write takes `--base N`: the version you read (or set `BRICKIE_BASE`). When the design has
+  moved on, nothing is written and the command exits 3:
 
-An op record is `{seq, by: human|agent, at, op, file, key, before, after, note, state:
-proposed|accepted|rejected, review: {seq, by, note}, conflict}`; `file` is the config file it edits
-(relative to the root config's directory), `key` the element (`brick:<name>`, `rule:<i>`,
-`complexity:<i>`, `exports`, `deps`, `include`, `file`), `before` / `after` its canonical TOML. A
-review entry is `{entry: "review", seq, by, at, target, verdict: accept|reject|retract|restore,
-note}`.
+  ```
+  error[design/stale]: design is at v15 (by human, 12s ago), your edit was based on v13. Nothing was written.
+  Changes since v13:
+    v14 by agent:
+      + brickie.toml: brick store
+  Re-read with `brickie design show`, then retry with --base 15.
+  ```
 
-Ops (`file` is required on each; fields mirror the `brickie.toml` reference below):
+  Re-read once, check the changes still allow your edit, and retry on the new base. If it is stale
+  again, or a human's version changed what you were editing, stop and ask the human.
+- A write prints `ok: v16` (`ok: v15 (no change)` when nothing changed) and lists code it
+  scaffolded. A write that would leave the design invalid writes nothing (`design/invalid`).
+- Bricks are named by path from the root (`web/api`, `root/web/api` is the same); a level by the
+  composite brick that owns it (`--in web`; default: the root level). Never use indices.
+- `--note "why"` on any write; the human reads it in the log.
 
-```json
-{"op": "add_brick", "file": "brickie.toml", "brick": {"name": "store", "members": ["path:crates/store/"], "tags": ["core"], "desc": "..."}}
-{"op": "remove_brick", "file": "brickie.toml", "name": "store"}
-{"op": "set_brick", "file": "brickie.toml", "name": "store", "desc": "...", "tags": [], "members": [], "path": ""}
-{"op": "add_brick", "file": "brickie.toml", "brick": {"name": "ui", "kind": "group"}}
-{"op": "rename_brick", "file": "brickie.toml", "from": "store", "to": "db"}
-{"op": "move_brick", "file": "brickie.toml", "name": "db", "into_file": "brickie.toml", "into": "core"}
-{"op": "make_composite", "file": "brickie.toml", "name": "db", "path": "crates/db"}
-{"op": "ungroup", "file": "brickie.toml", "name": "db"}
-{"op": "set_exports", "file": "crates/db/brickie.toml", "exports": [{"brick": "api"}, {"brick": "x", "scope": "test"}]}
-{"op": "add_rule", "file": "brickie.toml", "rule": {"from": "app", "to": "db", "action": "allow", "reason": "..."}}
-{"op": "set_rule", "file": "brickie.toml", "index": 0, "rule": {"from": "app", "to": "db", "action": "deny"}}
-{"op": "remove_rule", "file": "brickie.toml", "index": 0}
-{"op": "add_complexity", "file": "brickie.toml", "rule": {"bricks": "tag:core", "cognitive": 15}}
-{"op": "set_complexity", "file": "brickie.toml", "index": 0, "rule": {"cognitive": 12}}
-{"op": "remove_complexity", "file": "brickie.toml", "index": 0}
-{"op": "set_deps", "file": "brickie.toml", "default": "deny", "cycles": "deny"}
-{"op": "create_file", "file": "presets/layers.toml"}
-{"op": "add_include", "file": "brickie.toml", "path": "presets/layers.toml"}
-{"op": "remove_include", "file": "brickie.toml", "path": "presets/layers.toml"}
+Commands (each write also takes `--base N` and `--note`):
+
+```
+brickie design show [--since N] [--format json]
+brickie design log | diff A [B] | undo [V]
+brickie design brick add NAME [--in P] [--kind crate|module|group] [--members a,b] [--tags a,b] [--desc D] [--path DIR]
+brickie design brick set PATH [--members] [--tags] [--desc] [--path]   (empty --desc/--path removes)
+brickie design brick rename PATH NEW | move PATH --into P|root | rm PATH
+brickie design brick group NAME CHILD... | ungroup PATH
+brickie design rule add FROM TO allow|deny [--kind K]... [--scope S] [--via a,b] [--reason R] [--fix F] [--in P]
+brickie design rule set FROM TO [--kind K]... [--scope S] [--action A] [--reason R] [--via a,b] [--fix F] [--in P]
+brickie design rule rm FROM TO [--kind K]... [--scope S] [--in P]
+brickie design export set PATH [--scope prod|test] | rm PATH
+brickie design limit add|set [BRICKS] [--cognitive N] [--cyclomatic N] [--nesting N] [--paths N] [--params N] [--lines N] [--level error|warn] [--scope S] [--in P]
+brickie design limit rm [BRICKS] [--in P]
+brickie design deps set [--default allow|deny] [--cycles allow|deny] [--in P]
+brickie design include add|rm FILE [--in P]
 ```
 
-- `kind` (`crate`, `module`, `group`) is optional and kept in the op only. `crate` with no members
-  defaults them to `path:crates/<name>/` (`path:<name>/` in a nested file); `group` defaults `path`
-  to the name and creates its `brickie.toml`; a `module` needs members (`<crate>::<module>`).
-- `move_brick` moves a brick into the children of brick `into` of `into_file` (made a composite
-  when it is a leaf) or, without `into`, into the level file `into_file`. `path:` members are
-  rebased; moving into a sibling makes the source file's rules on the brick name the sibling.
-  Publishing moves no code: the plan lists a moved brick as a manual step.
-- `set_brick` changes only the fields given (an empty `desc` or `path` removes it).
-- `rename_brick` also renames the brick in the rules, complexity selectors and `exports` of the
-  same file.
-- `make_composite` sets `path` and creates `<path>/brickie.toml`.
-- `ungroup` undoes a composite: its children (`path:` members rebased), `[[deps.rule]]` and
-  `[[complexity]]` move into `file`, its `exports` are dropped, and the brick stays a leaf without
-  `path`. It refuses when the child file has `include` or `[deps] default`/`cycles`. The child file
-  leaves the design; publish never deletes it and lists it as a manual step.
-- Rule and complexity `index` count the `[[deps.rule]]` / `[[complexity]]` tables of that one file,
-  from 0.
+- A rule is named by `from`, `to`, its kinds and scope (scope `prod` when not written). `rule set`
+  and `rule rm` search the level file and the files it includes; with several rules `FROM -> TO`
+  add `--kind` / `--scope` to pick one. `rule set` changes only the fields given (an empty value
+  removes `reason`, `via` or `fix`); to change kinds or scope, remove the rule and add a new one.
+- A limit is named by its `bricks` selector (default `*`); in `limit set` a metric of `0` removes
+  it.
+- `brick add --kind crate` with no members defaults them to `path:crates/<name>/`
+  (`path:<name>/` in a nested file); `--kind group` makes a composite in its own folder with a new
+  `brickie.toml`. Missing code of a new brick is scaffolded (folder, crate `Cargo.toml` and
+  `src/lib.rs` plus a workspace member, or a module file); existing files are never overwritten.
+- `brick group NAME CHILD...` makes composite NAME next to the children and moves them in;
+  `ungroup` lifts the children, their rules and limits back up (the child file stays on disk).
+  `brick move` rebases `path:` members; it moves no code.
+- `brick rename` also renames the brick in the rules, limit selectors and exports of its file, and
+  in the `via` entries of the parent rules when it is a composite's child. Removing, moving or
+  unexporting a child that a parent rule names in `via` fails with `design/invalid`: change the
+  rule first.
+- `undo [V]` reverts the file changes of version V (default: the head) as a new version, comments
+  included. It refuses when a later version changed the same file and was not undone. Never undo a human's or an
+  external version (the CLI refuses); ask the human.
+- Stop and report instead of editing when your edit contradicts a human's note or a version the
+  human just made.
+- After code changes run `brickie measure`, then `brickie design show` (the todo list) and
+  `brickie check`.
+- `--format json`: `show` prints `{v, hash, by, at, root: {path, file, bricks: [{name, kind,
+  members, tags, desc, todo, children}], exports, default, cycles, rules: [{file, from, to, via,
+  kinds, scope, action, reason, todo}], limits: [{file, bricks, metrics, level, scope}]}, todo:
+  [{kind, text}]}`; `log` a list of versions `{v, hash, prev, by, at, note, ops, diff, files,
+  removed}`; a write prints its version.
 
-Publishing writes the config files (comments and order kept) and scaffolds the code of added
-bricks: the folder of a composite, a crate (`Cargo.toml`, `src/lib.rs`, a workspace member) for a
-`path:` or unknown package member, or a module (`<module>/mod.rs` and a `pub mod` line in its
-parent) for a module member. Existing files are never overwritten. A scaffolded brick stays
-planned until the next `brickie measure`.
+The todo list (`kind`): `planned` a brick with no measured module (`design/planned`), `link` an
+allow rule between named bricks no measured edge uses (`design/planned-edge`), `reason` a rule
+without a reason (`design/no-reason`), `config` an unfinished partition or a cache problem.
 
 ## Reading a diagnostic
 
@@ -258,7 +248,7 @@ if only the brick needs it, narrow its visibility (private, `pub(super)`, or a p
 dead, delete it; if real public API, add a test that exercises it. Methods, fields and variants
 count as uses of their type; `pub use` re-exports are not uses.
 
-### config/missing, config/overlap, config/unassigned, config/member-outside-parent, config/unknown-export
+### config/missing, config/overlap, config/unassigned, config/member-outside-parent, config/unknown-export, config/unknown-via
 
 Configuration errors (exit 2, printed on stderr with the code first; no findings are reported):
 
@@ -268,37 +258,42 @@ Configuration errors (exit 2, printed on stderr with the code first; no findings
   partition the composite).
 - `config/member-outside-parent`: a child's member matches a module outside its composite.
 - `config/unknown-export`: `exports` names something that is not a brick of that file.
+- `config/unknown-via`: a rule's `via` is an empty list, `to` is not a composite brick name (a tag,
+  `*` or a leaf), or `via` names a child the `to` composite does not export. Fix `via` to list only
+  names in that composite's `exports`.
 
 These are brick-structure decisions: report them rather than editing the config to silence them.
 
-In an open change the preview is a draft: `config/unassigned`, `config/overlap` and
-`config/member-outside-parent` do not stop it. They appear as `[config]` items of
-`brickie change --todo` and `pending:` lines of `brickie check --change`, and publish refuses
-(`change/invalid: config/...`) until fixed: give each unassigned module to one of the composite's
-bricks (`set_brick` members), make overlapping members distinct, keep child members inside their
+While a design is being built these can come from unfinished work: `config/unassigned`,
+`config/overlap` and `config/member-outside-parent` then show as `config` items of the
+`brickie design show` todo list. Give each unassigned module to one of the composite's bricks
+(`brick set --members`), make overlapping members distinct, keep child members inside their
 composite.
 
-### change/planned, change/planned-edge, change/no-reason, change/conflict, change/proposed, change/outside-edit, change/invalid, change/open, change/none
+### design/planned, design/planned-edge, design/no-reason, design/invalid, design/stale, design/no-match, design/exists
 
-Change sessions (see "Change sessions"):
+The design (see "Editing the design"):
 
-- `change/planned` (a `check --change` note and a `--todo` task): a brick of the design has no
-  measured module. Create its code as its members say (or let publish scaffold it), then
-  `brickie measure`.
-- `change/planned-edge` (`--todo` `link` task): an allow rule the change adds has no measured code
+- `design/planned` (todo `planned`): a brick has no measured module. Create its code as its
+  members say, then `brickie measure`.
+- `design/planned-edge` (todo `link`): an allow rule between named bricks has no measured code
   edge yet. Write the code using the target if intended, then `brickie measure`; otherwise leave
   it (allowing is not requiring).
-- `change/no-reason` (`--todo` `reason` task and a publish warning, not a blocker): a rule the
-  change adds has no `reason`. Propose a `set_rule` with a one-line reason at that `index`.
-- `change/conflict`: an op no longer replays because the element it edits changed (usually an
-  earlier op was rejected). Publish refuses. Stop and ask the human.
-- `change/proposed`: publish refuses while an op awaits review; the human reviews it.
-- `change/outside-edit`: a config file was edited by hand while the change was open; publish
-  refuses. Report it; the human restores the file or discards the change.
-- `change/invalid`: the published design would not load (for example a rule naming an unknown
-  brick). Propose a fixing op or ask the human.
-- `change/open`: `brickie change open` while a change is open. `change/none`: a `brickie change`
-  command with no change open; then work as in "Workflow".
+- `design/no-reason` (todo `reason`): a rule has no `reason`. Add a one-line reason with
+  `brickie design rule set FROM TO --reason "..."`.
+- `design/invalid`: the edit would leave a design that does not load (for example a rule naming
+  an unknown brick, or a `via` child removed). Nothing was written. Fix the edit, or make the
+  related change in the same order the message suggests (for example change the rule first).
+- `design/stale` (exit code 3): your `--base` is not the head; nothing was written. Re-read with
+  `brickie design show` (or `--since <your base>`), then retry once with `--base <head>`. If it is
+  stale again or a human changed the same thing, stop and ask the human. An unknown base (newer
+  than the head, or older than the kept history) also gives this code: run `show` and use its
+  version.
+- `design/no-match`: no rule or limit matches what you named, or several rules `FROM -> TO` match.
+  The message lists the candidates; name an existing one, or add `--kind` and `--scope` to pick
+  one. For bricks, check the path with `brickie design show`.
+- `design/exists`: `rule add` or `limit add` for an identity that is already there. Change it with
+  `rule set` / `limit set`, or remove it first.
 
 ## brickie.toml reference
 
@@ -331,6 +326,11 @@ cycles = "deny"                # allow | deny: cycles between bricks (prod edges
 [[deps.rule]]
 from = "tag:app"               # selector: brick name | tag:<tag> | *
 to = "tag:core"
+via = ["ports-in"]             # optional; `to` must then name a composite brick (not a tag or *):
+                               # the rule matches only edges entering it through these exported
+                               # children, and scores +1 on the `to` side (brick + via beats a
+                               # plain brick rule). Default: any entry. Names must be in the
+                               # composite's `exports` (else config/unknown-via)
 kinds = ["uses", "implements"] # uses | implements | reexports; default all
 scope = "prod"                 # prod (default) | test | all
 action = "allow"               # allow | deny

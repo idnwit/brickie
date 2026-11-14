@@ -14,16 +14,16 @@ pub const CONFIG_MEMBER_OUTSIDE_PARENT: &str = "config/member-outside-parent";
 pub const CONFIG_OVERLAP: &str = "config/overlap";
 pub const CONFIG_UNASSIGNED: &str = "config/unassigned";
 pub const CONFIG_UNKNOWN_EXPORT: &str = "config/unknown-export";
-// Change sessions (`brickie change`, `check --change`).
-pub const CHANGE_PLANNED: &str = "change/planned";
-pub const CHANGE_CONFLICT: &str = "change/conflict";
-pub const CHANGE_PROPOSED: &str = "change/proposed";
-pub const CHANGE_OUTSIDE_EDIT: &str = "change/outside-edit";
-pub const CHANGE_INVALID: &str = "change/invalid";
-pub const CHANGE_OPEN: &str = "change/open";
-pub const CHANGE_NONE: &str = "change/none";
-pub const CHANGE_PLANNED_EDGE: &str = "change/planned-edge";
-pub const CHANGE_NO_REASON: &str = "change/no-reason";
+pub const CONFIG_UNKNOWN_VIA: &str = "config/unknown-via";
+// The design (`brickie design`): the message starts with the code.
+pub const DESIGN_PLANNED: &str = "design/planned";
+pub const DESIGN_INVALID: &str = "design/invalid";
+pub const DESIGN_PLANNED_EDGE: &str = "design/planned-edge";
+pub const DESIGN_NO_REASON: &str = "design/no-reason";
+/// A write based on an older version than the head (exit code 3).
+pub const DESIGN_STALE: &str = "design/stale";
+pub const DESIGN_NO_MATCH: &str = "design/no-match";
+pub const DESIGN_EXISTS: &str = "design/exists";
 
 /// Complexity metrics; the code of a finding is `complexity/<metric>`.
 pub const METRICS: [&str; 6] = [
@@ -50,15 +50,14 @@ pub fn all() -> Vec<String> {
         CONFIG_OVERLAP,
         CONFIG_UNASSIGNED,
         CONFIG_UNKNOWN_EXPORT,
-        CHANGE_PLANNED,
-        CHANGE_CONFLICT,
-        CHANGE_PROPOSED,
-        CHANGE_OUTSIDE_EDIT,
-        CHANGE_INVALID,
-        CHANGE_OPEN,
-        CHANGE_NONE,
-        CHANGE_PLANNED_EDGE,
-        CHANGE_NO_REASON,
+        CONFIG_UNKNOWN_VIA,
+        DESIGN_PLANNED,
+        DESIGN_INVALID,
+        DESIGN_PLANNED_EDGE,
+        DESIGN_NO_REASON,
+        DESIGN_STALE,
+        DESIGN_NO_MATCH,
+        DESIGN_EXISTS,
     ]
     .iter()
     .map(|c| c.to_string())

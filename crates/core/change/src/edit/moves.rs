@@ -3,8 +3,8 @@
 use super::Docs;
 use super::brick::{self, brick_mut, insert, rename_refs, take, unexport};
 use crate::paths::{dir_of, join_dir, join_rel, relative};
-use anyhow::{Result, bail};
-use brickie_model::change::{BrickKind, BrickSpec, Op};
+use anyhow::{Context, Result, bail};
+use brickie_model::design::{BrickKind, BrickSpec, Op};
 use toml_edit::{Item, Table, value};
 
 /// `add_brick`: `kind` fills in `members` (crate) or `path` (group, whose file is created).
@@ -66,6 +66,7 @@ pub fn move_brick(docs: &mut Docs, op: &Op) -> Result<()> {
     if into.as_deref() == Some(name.as_str()) && into_file == file {
         bail!("cannot move brick '{name}' into itself");
     }
+    super::via::guard_child(docs, file, name, "moving it")?;
     if let Some(parent) = into {
         let t = brick_mut(docs.get_mut(into_file)?, parent)?;
         if !t.contains_key("path") {
@@ -86,11 +87,31 @@ pub fn move_brick(docs: &mut Docs, op: &Op) -> Result<()> {
     let src = docs.get_mut(file)?;
     let mut t = take(src, name)?;
     match into {
-        Some(parent) if into_file == file => rename_refs(src, name, parent)?,
+        Some(parent) if into_file == file => {
+            rename_refs(src, name, parent)?;
+            drop_self_rules(src, parent)?;
+        }
         _ => unexport(src, name),
     }
     rebase(&mut t, &dir_of(file), &dir_of(&to));
     insert(docs.get_mut(&to)?, t)
+}
+
+/// Rules between two children of one composite become `parent -> parent` once renamed: drop them.
+fn drop_self_rules(doc: &mut toml_edit::DocumentMut, parent: &str) -> Result<()> {
+    let rules = super::table::aot_mut(doc, &["deps", "rule"])?;
+    let is_str = |t: &Table, k: &str| t.get(k).and_then(Item::as_str) == Some(parent);
+    let mut i = 0;
+    while i < rules.len() {
+        let t = rules.get(i).context("rule index")?;
+        if is_str(t, "from") && is_str(t, "to") {
+            rules.remove(i);
+        } else {
+            i += 1;
+        }
+    }
+    brick::prune_empty(doc);
+    Ok(())
 }
 
 /// Keep `path` and `path:` members pointing at the same folders from the new directory.

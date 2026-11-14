@@ -13,6 +13,7 @@ use anyhow::{Context, Result, bail};
 use toml_edit::{Item, Table};
 
 pub fn ungroup(docs: &mut Docs, file: &str, name: &str) -> Result<()> {
+    super::via::guard_composite(docs, file, name, "ungrouping it")?;
     let t = brick_mut(docs.get_mut(file)?, name)?;
     let path = t
         .get("path")

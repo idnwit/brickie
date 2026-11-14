@@ -1,102 +1,79 @@
-//! Tasks for the coding agent (and the human): what the design asks that the code lacks.
+//! Tasks for the coding agent (and the human): what the design asks that the code lacks,
+//! computed against the live design and the measured cache.
 
-use crate::preview::{Preview, planned};
+use super::edges;
+use crate::preview::{cache_mismatch, planned};
+use brickie_check::check::Loaded;
 use brickie_check::config::{Config, Pending, level_name};
-use brickie_model::Level;
-use brickie_model::change::{OpRecord, PlannedEdge, State, Task, TaskKind};
-use brickie_model::codes::{CHANGE_PLANNED, CONFIG_UNASSIGNED};
-use std::collections::BTreeSet;
+use brickie_model::codes::{CONFIG_UNASSIGNED, DESIGN_NO_REASON, DESIGN_PLANNED};
+use brickie_model::design::{Task, TaskKind};
+use std::path::Path;
 
 fn task(kind: TaskKind, text: String) -> Task {
-    Task {
-        kind,
-        text,
-        seq: None,
-        id: None,
-        help: None,
-    }
+    Task { kind, text }
 }
 
-/// A task about a rule the change adds (`seq`: the op that wrote it).
-pub fn edge_task(kind: TaskKind, text: String, e: &PlannedEdge) -> Task {
-    Task {
-        seq: e.seq,
-        ..task(kind, text)
-    }
+/// Everything to do, plus the planned brick paths and unbacked rule locations for marking the
+/// tree. `loaded` is the draft check of the design (`Err`: why it does not check).
+pub struct Todo {
+    pub tasks: Vec<Task>,
+    pub planned: Vec<Vec<String>>,
+    pub unbacked: Vec<String>,
 }
 
-/// Ops waiting for review, rejected (with the reason) or in conflict.
-pub fn from_ops(ops: &[OpRecord]) -> Vec<Task> {
-    let mut out = Vec::new();
-    for o in ops {
-        let what = format!("op {} {} {} {}", o.seq, o.op.name(), o.file, o.key);
-        let (kind, text) = if let Some(c) = &o.conflict {
-            (TaskKind::Conflict, format!("{what} is in conflict: {c}"))
-        } else {
-            match o.state {
-                State::Proposed => (TaskKind::Proposed, format!("{what} waits for review")),
-                State::Rejected => {
-                    let note = o.review.as_ref().and_then(|r| r.note.as_deref());
-                    let why = note.unwrap_or("no note");
-                    (TaskKind::Rejected, format!("{what} was rejected: {why}"))
-                }
-                State::Accepted => continue,
-            }
-        };
-        out.push(Task {
-            seq: Some(o.seq),
-            ..task(kind, text)
-        });
-    }
-    out
-}
-
-/// Planned bricks and the unaccepted findings of `check` over the preview that the change
-/// introduces: findings of `base` (the design as opened, same cache) are not drift.
-pub fn from_preview(preview: &Preview, base: &Preview) -> Vec<Task> {
-    let loaded = match preview.check() {
-        Ok(l) => l,
-        Err(e) => return vec![task(TaskKind::Config, format!("{e:#}"))],
+pub fn todo(root: &Path, cfg: &Config, loaded: Result<&Loaded, String>) -> Todo {
+    let mut t = Todo {
+        tasks: Vec::new(),
+        planned: Vec::new(),
+        unbacked: Vec::new(),
     };
-    if let Some(m) = preview.cache_mismatch(&loaded) {
-        return vec![task(TaskKind::Config, m)];
+    match loaded {
+        Err(e) => t.tasks.push(task(TaskKind::Config, e)),
+        Ok(l) => match cache_mismatch(root, l) {
+            Some(m) => t.tasks.push(task(TaskKind::Config, m)),
+            None => measured(l, &mut t),
+        },
     }
-    let known: BTreeSet<String> = base
-        .check()
-        .map(|b| b.diagnostics.into_iter().map(|d| d.id).collect())
-        .unwrap_or_default();
-    let mut out: Vec<Task> = (loaded.resolved.pending.iter())
-        .map(|p| task(TaskKind::Config, pending_text(p)))
-        .collect();
-    out.extend(planned(&loaded.cfg, &loaded.resolved).iter().map(|p| {
-        let text = format!("{CHANGE_PLANNED}: {}", planned_text(&loaded.cfg, p));
-        task(TaskKind::Planned, text)
-    }));
-    for d in loaded
-        .diagnostics
-        .iter()
-        .filter(|d| !d.accepted && !known.contains(&d.id))
-    {
-        let at = d
-            .span
-            .as_ref()
-            .map(|s| format!(" at {}:{}", s.file, s.line))
-            .unwrap_or_default();
-        let level = if d.level == Level::Error {
-            "error"
-        } else {
-            "warning"
-        };
-        out.push(Task {
-            id: Some(d.id.clone()),
-            help: d.help.clone(),
-            ..task(
-                TaskKind::Drift,
-                format!("{level}[{}] {}{at}", d.code, d.message),
-            )
-        });
+    reasonless(cfg, &mut t.tasks);
+    t
+}
+
+fn measured(l: &Loaded, t: &mut Todo) {
+    let pending = l.resolved.pending.iter();
+    t.tasks
+        .extend(pending.map(|p| task(TaskKind::Config, pending_text(p))));
+    t.planned = planned(&l.cfg, &l.resolved);
+    for p in &t.planned {
+        let text = format!("{DESIGN_PLANNED}: {}", planned_text(&l.cfg, p));
+        t.tasks.push(task(TaskKind::Planned, text));
     }
-    out
+    for (loc, text) in edges::unbacked(l) {
+        t.unbacked.push(loc);
+        t.tasks.push(task(TaskKind::Link, text));
+    }
+}
+
+/// One task per rule without a reason (a preset's rule once).
+fn reasonless(level: &Config, out: &mut Vec<Task>) {
+    for r in &level.deps.rules {
+        if r.reason.as_deref().is_some_and(|s| !s.trim().is_empty()) {
+            continue;
+        }
+        let text = format!(
+            "{DESIGN_NO_REASON}: rule {} -> {} in {} has no reason; say why with `brickie design rule set`",
+            r.from,
+            r.to,
+            level.level()
+        );
+        if !out.iter().any(|t| t.text == text) {
+            out.push(task(TaskKind::Reason, text));
+        }
+    }
+    for b in &level.bricks {
+        if let Some(sub) = &b.sub {
+            reasonless(sub, out);
+        }
+    }
 }
 
 /// A tolerated partition error of the draft, with how to finish it.

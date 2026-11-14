@@ -1,66 +1,51 @@
-//! The element an op edits (`key`) and its canonical TOML in a document.
+//! The elements of a config file by identity, as canonical TOML: what the semantic diff
+//! compares.
 
-use super::Docs;
-use super::table::{aot, canon, find_named};
-use brickie_model::change::Op;
-use toml_edit::DocumentMut;
+use super::find::rule_label;
+use super::rules::{COMPLEXITY, RULES};
+use super::table::{aot, canon};
+use toml_edit::{DocumentMut, Item};
 
-/// The element key of an op within its file, given the documents before the op (an added rule
-/// gets the next index).
-pub fn key(docs: &Docs, op: &Op) -> String {
-    let len = |path: &[&str]| {
-        docs.get(op.file())
-            .and_then(|d| aot(d, path))
-            .map_or(0, |a| a.len())
+/// `(label, canonical TOML)` of every element of `doc`: `brick <name>`, `rule <from> -> <to>
+/// [kinds] (scope)`, `limit <bricks>`, `exports`, `deps`, `include`. A repeated label gets
+/// `#2`, `#3`.
+pub fn elements(doc: &DocumentMut) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut push = |label: String, c: String| {
+        let n = out
+            .iter()
+            .filter(|(l, _)| l.split(" #").next() == Some(&label))
+            .count();
+        let label = match n {
+            0 => label,
+            n => format!("{label} #{}", n + 1),
+        };
+        out.push((label, c));
     };
-    match op {
-        Op::AddBrick { brick, .. } => format!("brick:{}", brick.name),
-        Op::RemoveBrick { name, .. }
-        | Op::SetBrick { name, .. }
-        | Op::MakeComposite { name, .. }
-        | Op::Ungroup { name, .. }
-        | Op::MoveBrick { name, .. } => format!("brick:{name}"),
-        Op::RenameBrick { from, .. } => format!("brick:{from}"),
-        Op::SetExports { .. } => "exports".into(),
-        Op::AddRule { .. } => format!("rule:{}", len(&["deps", "rule"])),
-        Op::RemoveRule { index, .. } | Op::SetRule { index, .. } => format!("rule:{index}"),
-        Op::AddComplexity { .. } => format!("complexity:{}", len(&["complexity"])),
-        Op::RemoveComplexity { index, .. } | Op::SetComplexity { index, .. } => {
-            format!("complexity:{index}")
-        }
-        Op::SetDeps { .. } => "deps".into(),
-        Op::AddInclude { .. } | Op::RemoveInclude { .. } => "include".into(),
-        Op::CreateFile { .. } => "file".into(),
+    for t in aot(doc, &["brick"]).into_iter().flat_map(|a| a.iter()) {
+        let name = t.get("name").and_then(Item::as_str).unwrap_or_default();
+        push(format!("brick {name}"), canon(t.iter()));
     }
-}
-
-/// Canonical TOML of element `key` of `file`; `None` when the element (or file) is absent.
-pub fn canonical(docs: &Docs, file: &str, key: &str) -> Option<String> {
-    let doc = docs.get(file)?;
-    if key == "file" {
-        return Some(String::new());
+    for t in aot(doc, RULES).into_iter().flat_map(|a| a.iter()) {
+        push(rule_label(t), canon(t.iter()));
     }
-    let (kind, arg) = key.split_once(':').unwrap_or((key, ""));
-    match kind {
-        "brick" => {
-            let bricks = aot(doc, &["brick"])?;
-            let t = bricks.get(find_named(bricks, arg)?)?;
-            Some(canon(t.iter()))
-        }
-        "rule" => indexed(doc, &["deps", "rule"], arg),
-        "complexity" => indexed(doc, &["complexity"], arg),
-        "deps" => {
-            let deps = doc.get("deps")?.as_table()?;
-            let items = deps
-                .iter()
-                .filter(|(k, i)| *k != "rule" && !i.is_array_of_tables());
-            Some(canon(items))
-        }
-        _ => doc.get(kind).map(|i| canon(std::iter::once((kind, i)))),
+    for t in aot(doc, COMPLEXITY).into_iter().flat_map(|a| a.iter()) {
+        let sel = t.get("bricks").and_then(Item::as_str).unwrap_or("*");
+        push(format!("limit {sel}"), canon(t.iter()));
     }
-}
-
-fn indexed(doc: &DocumentMut, path: &[&str], arg: &str) -> Option<String> {
-    let list = aot(doc, path)?;
-    list.get(arg.parse().ok()?).map(|t| canon(t.iter()))
+    if let Some(deps) = doc.get("deps").and_then(Item::as_table) {
+        let items = deps
+            .iter()
+            .filter(|(k, i)| *k != "rule" && !i.is_array_of_tables());
+        let c = canon(items);
+        if !c.is_empty() {
+            push("deps".into(), c);
+        }
+    }
+    for k in ["exports", "include"] {
+        if let Some(i) = doc.get(k) {
+            push(k.into(), canon(std::iter::once((k, i))));
+        }
+    }
+    out
 }

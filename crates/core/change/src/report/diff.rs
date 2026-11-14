@@ -1,61 +1,60 @@
-//! The semantic diff: ops grouped by the element they edit, first `before` to last `after`.
+//! The semantic diff between two states of the config tree: one line per element added
+//! (`+`), removed (`-`) or changed (`~`, with the fields that changed).
 
-use brickie_model::change::{DiffEntry, DiffOp, OpRecord, State};
+use crate::edit::elements;
+use std::collections::{BTreeMap, BTreeSet};
+use toml_edit::DocumentMut;
 
-/// Group ops by `(file, key)` in first-seen order. `before` / `after` come from the first and
-/// last op that is applied (not rejected, not in conflict); a rename moves the element, so
-/// later ops on the new name join the same entry.
-pub(super) fn diff(ops: &[OpRecord]) -> Vec<DiffEntry> {
-    let mut out: Vec<(String, DiffEntry, bool)> = Vec::new();
-    for o in ops {
-        let i = match out
-            .iter()
-            .position(|(alias, e, _)| e.file == o.file && (e.key == o.key || *alias == o.key))
-        {
-            Some(i) => i,
-            None => {
-                out.push((o.key.clone(), new_entry(o), false));
-                out.len() - 1
-            }
-        };
-        let (alias, e, started) = &mut out[i];
-        e.ops.push(DiffOp {
-            seq: o.seq,
-            by: o.by,
-            op: o.op.name().to_string(),
-            state: o.state,
-            note: o.note.clone(),
-            review_note: o.review.as_ref().and_then(|r| r.note.clone()),
-            conflict: o.conflict.clone(),
-        });
-        if o.state == State::Rejected || o.conflict.is_some() {
-            continue;
-        }
-        if !*started {
-            e.before = o.before.clone();
-            *started = true;
-        }
-        e.after = o.after.clone();
-        if let brickie_model::change::Op::RenameBrick { to, .. } = &o.op {
-            *alias = format!("brick:{to}");
-        }
-    }
-    out.into_iter()
-        .map(|(_, mut e, started)| {
-            if !started {
-                e.after = e.before.clone();
-            }
-            e
-        })
-        .collect()
+pub type Files = BTreeMap<String, Vec<u8>>;
+
+fn parse(bytes: Option<&Vec<u8>>) -> Vec<(String, String)> {
+    let text = bytes.map(|b| String::from_utf8_lossy(b).into_owned());
+    text.and_then(|t| t.parse::<DocumentMut>().ok())
+        .map(|d| elements(&d))
+        .unwrap_or_default()
 }
 
-fn new_entry(o: &OpRecord) -> DiffEntry {
-    DiffEntry {
-        file: o.file.clone(),
-        key: o.key.clone(),
-        before: o.before.clone(),
-        after: o.before.clone(),
-        ops: Vec::new(),
+/// `key: old -> new` for each top-level key that differs between two canonical tables.
+fn fields(old: &str, new: &str) -> String {
+    let a: toml::Table = toml::from_str(old).unwrap_or_default();
+    let b: toml::Table = toml::from_str(new).unwrap_or_default();
+    let keys: BTreeSet<&String> = a.keys().chain(b.keys()).collect();
+    let show = |v: Option<&toml::Value>| v.map_or("(none)".to_string(), |v| v.to_string());
+    let parts: Vec<String> = keys
+        .into_iter()
+        .filter(|k| a.get(*k) != b.get(*k))
+        .map(|k| format!("{k}: {} -> {}", show(a.get(k)), show(b.get(k))))
+        .collect();
+    parts.join(", ")
+}
+
+/// Lines from `a` to `b`, file by file in path order.
+pub fn diff(a: &Files, b: &Files) -> Vec<String> {
+    let mut out = Vec::new();
+    let paths: BTreeSet<&String> = a.keys().chain(b.keys()).collect();
+    for p in paths {
+        match (a.get(p), b.get(p)) {
+            (None, Some(_)) => out.push(format!("+ {p}: new file")),
+            (Some(_), None) => out.push(format!("- {p}: left the design")),
+            (Some(x), Some(y)) if x == y => continue,
+            _ => {}
+        }
+        let old = parse(a.get(p));
+        let new = parse(b.get(p));
+        for (label, c) in &new {
+            match old.iter().find(|(l, _)| l == label) {
+                None => out.push(format!("+ {p}: {label}")),
+                Some((_, o)) if o != c => out.push(format!("~ {p}: {label}: {}", fields(o, c))),
+                Some(_) => {}
+            }
+        }
+        for (label, _) in old.iter().filter(|(l, _)| !new.iter().any(|(n, _)| n == l)) {
+            out.push(format!("- {p}: {label}"));
+        }
+        let same_elements = old == new;
+        if same_elements && a.contains_key(p) && b.contains_key(p) {
+            out.push(format!("~ {p}: comments or layout"));
+        }
     }
+    out
 }
