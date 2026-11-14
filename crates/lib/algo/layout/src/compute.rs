@@ -60,11 +60,18 @@ pub fn compute_layout(inp: &Input) -> Layout {
     };
 
     // Rows (y). The original starts at 72 for the zone panel labels; no zones here.
+    // A gap no edge crosses needs room for the interface labels under the boxes only.
+    let spans: Vec<(usize, usize)> = (inp.edges.iter())
+        .map(|e| (ns[e.a].li, ns[e.b].li))
+        .map(|(p, q)| (p.min(q), p.max(q)))
+        .collect();
+    let busy = |l: usize| spans.iter().any(|&(p, q)| p < l && l <= q);
     let mut rows: Vec<RowOut> = Vec::new();
     let mut y = 40.0;
     for (l, row) in layers.iter().enumerate() {
         if l > 0 {
-            y += H + GAPY + 12.0 * (max_l(l - 1, false) + max_l(l, true));
+            let gap = if busy(l) { GAPY } else { GAPY_FREE };
+            y += H + gap + 12.0 * (max_l(l - 1, false) + max_l(l, true));
         } else {
             y += 12.0 * max_l(0, true);
         }

@@ -31,6 +31,8 @@ use std::collections::HashMap;
 /// `LAY` of the original.
 pub const H: f64 = 54.0;
 pub const GAPY: f64 = 72.0;
+/// Row gap that no edge crosses (labels under the boxes only).
+pub const GAPY_FREE: f64 = 36.0;
 pub const GAP: f64 = 10.0;
 pub const DUM: f64 = 28.0;
 pub const PADL: f64 = 40.0;
