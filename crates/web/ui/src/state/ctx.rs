@@ -20,9 +20,9 @@ pub struct Model {
     pub diags: Vec<DiagView>,
     pub cards: Rc<Vec<Card>>,
     pub fns: Vec<FnRow>,
-    /// The planned rule pairs routed by the layout, as layout edges
+    /// The unused rule pairs routed by the layout, as layout edges
     /// `plan0 + i` (empty outside edit mode).
-    pub planned: Vec<(usize, usize)>,
+    pub unused: Vec<(usize, usize)>,
     pub plan0: usize,
     /// Edit mode: the design at its head.
     pub design: Option<Rc<DesignState>>,
@@ -92,7 +92,7 @@ fn level_layout(
     editing: bool,
     keep: Option<&Keep>,
 ) -> Layout {
-    let extra = planned_pairs(level);
+    let extra = unused_pairs(level);
     let mut layout = layout::layout(&layout_input(&level.graph, &extra));
     // The editor's stored positions win over the automatic layout.
     if let Some(ch) = design.filter(|_| editing) {
@@ -139,7 +139,7 @@ impl Cx {
             .filter(|k| k.level == level.path);
         let editing = params.with_untracked(|p| p.editing());
         let layout = level_layout(level, design.as_deref(), editing, keep.as_ref());
-        let planned = planned_pairs(level);
+        let unused = unused_pairs(level);
         let plan0 = level.graph.edges.len();
         let m = Rc::new(Model {
             cache: sh.cache.clone(),
@@ -150,7 +150,7 @@ impl Cx {
             diags: sh.diags.clone(),
             cards: sh.cards.clone(),
             fns: sh.fns.clone(),
-            planned,
+            unused,
             plan0,
             design,
         });
@@ -216,8 +216,8 @@ impl Cx {
 
     /// The routed path of planned pair `a -> b` for box positions `p` (`None` when the pair is
     /// not routed).
-    pub fn planned_route(&self, a: usize, b: usize, p: &[Rect]) -> Option<layout::Route> {
-        let i = self.m.planned.iter().position(|&x| x == (a, b))?;
+    pub fn unused_route(&self, a: usize, b: usize, p: &[Rect]) -> Option<layout::Route> {
+        let i = self.m.unused.iter().position(|&x| x == (a, b))?;
         self.m.layout.path(self.m.plan0 + i, p)
     }
 

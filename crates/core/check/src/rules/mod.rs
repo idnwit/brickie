@@ -30,7 +30,7 @@ pub fn evaluate(cache: &Cache, cfg: &Config, res: &Resolved, root: &Path) -> Vec
     deps::deps(cache, cfg, res, &mut out);
     cycles::cycles(cache, cfg, res, &mut out);
     complexity::complexity(cache, cfg, res, root, &mut out);
-    out.extend(unused_link::unused_links(&links::link_states(
+    out.extend(unused_link::unused_links(&links::unused_links(
         cache, cfg, res,
     )));
     for m in &cache.modules {
@@ -61,7 +61,7 @@ mod via_tests;
 
 pub use complexity::limits as complexity_limits;
 pub use deps::dep_subject;
-pub use links::{Link, LinkState, link_states};
+pub use links::{Link, unused_links};
 use unmapped::Unmapped;
 mod stale;
 pub use stale::{evaluate as evaluate_stale, evaluate_measure as evaluate_stale_measure};

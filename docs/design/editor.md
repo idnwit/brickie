@@ -28,7 +28,7 @@ there is no change session, review or publish step.
 | Smaller show | `design show --in P` prints the level owned by composite P and its subtree | cheaper reads of a large design |
 | Scaffold | `brick set --path` creates a missing `<path>/brickie.toml`; a write lists each new nested folder (`created dom/ (group)`); `add_brick` scaffolds missing code (crate, module file, workspace member); never overwrites; undo does not remove code | design and code start together; code is the agent's |
 | Ungroup | the child file leaves the tree but stays on disk | never delete hand-written files |
-| Codes | removed `change/*`; `design/planned`, `planned-edge`, `no-reason`, `invalid`, `stale`, `no-match`, `exists` | no change sessions remain |
+| Codes | removed `change/*`; `design/planned`, `no-reason`, `invalid`, `stale`, `no-match`, `exists` | no change sessions remain |
 
 Reviewed by two independent reviewers before implementation; both preferred direct versioned
 editing over the propose/accept/publish session (fewer states, no publish conflicts, hand edits
@@ -72,6 +72,6 @@ automated tests: the toolbar's look at narrow widths and drag gestures end to en
 ## UX principles (viewer)
 
 Canvas first (create, connect, move, delete, rename are gestures); one selection, one inspector;
-every edit is a version with Undo; never lose place; design vs reality stays legible (planned
-half-opaque, unused and drift amber, agent versions marked). Connecting is type first: one port per link type,
+every edit is a version with Undo; never lose place; design vs reality stays legible (planned bricks
+dashed, unused links and drift amber, agent versions marked). Connecting is type first: one port per link type,
 nothing to fill in after the drop. A brick is a folder: dropping a brick on a brick nests it.

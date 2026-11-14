@@ -38,7 +38,7 @@ kinds -> `uses`, `implements`, `reexports`; statuses -> `ok`, violating, accepte
 
 | Decision | Reason |
 | --- | --- |
-| The planned and unused rule pairs (served per level from `link_states`, with `state` and `filter`) are layout edges in every mode (after the graph edges) and drawn on their routes, one line per pair with the worst state | lanes and bricks are ordered for the rules too; rule lines leave from side ports and go around boxes instead of cutting through them |
+| The unused rule pairs (served per level as `unused_links` from `unused_links`, with `filter`) are layout edges in every mode (after the graph edges) and drawn on their routes, one line per pair | lanes and bricks are ordered for the rules too; rule lines leave from side ports and go around boxes instead of cutting through them |
 | The untagged lane goes where the edges' summed lane span is least (last on ties), inside the inbound/outbound lanes | it has no tag order to keep; in the middle it blocks the lanes it does not link |
 | A row gap that no edge crosses is `GAPY_FREE` (36), not `GAPY` (72) | an empty gap needs room for the interface labels only |
 | Link marks ("!", "?", "A") and the hover reason label take the route point nearest the middle clear of boxes and other marks | marks where edges cross piled up on each other and on brick text |

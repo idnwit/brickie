@@ -31,7 +31,7 @@ pub struct Ctx<'a> {
     edges: Vec<ModEdge>,
     heat: BTreeMap<String, (f64, Vec<HotFn>)>,
     diags: BTreeMap<&'a str, &'a Diagnostic>,
-    links: Vec<(String, PlannedEdge)>,
+    links: Vec<(String, UnusedLink)>,
 }
 
 #[derive(Default)]
@@ -94,7 +94,7 @@ impl<'a> Ctx<'a> {
             edges: mod_edges(l),
             heat: heat(l),
             diags: l.diagnostics.iter().map(|d| (d.id.as_str(), d)).collect(),
-            links: super::links::planned_edges(l),
+            links: super::links::served(l),
         }
     }
 
@@ -114,7 +114,7 @@ impl<'a> Ctx<'a> {
         let edges = (agg.0.into_iter())
             .map(|(key, acc)| self.edge_view(key, acc, &index, &hops, &name))
             .collect();
-        let planned_edges = (self.links.iter())
+        let unused_links = (self.links.iter())
             .filter(|(lv, _)| *lv == name)
             .map(|(_, e)| e.clone())
             .collect();
@@ -127,7 +127,7 @@ impl<'a> Ctx<'a> {
                 bricks,
                 edges,
             },
-            planned_edges,
+            unused_links,
         }
     }
 

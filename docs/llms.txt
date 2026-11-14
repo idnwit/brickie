@@ -29,7 +29,7 @@
   error with the same code still shows. The footer `skipped: N warnings (codes)` counts them. JSON
   adds `outside_scope` and `skipped` objects when the options are used.
 - While coding brick X: `brickie check --brick X --skip interface/unused,deps/unused` (unused
-  surface and planned links are expected mid-work). Before reporting done, run a full
+  surface and links to code not written yet are expected mid-work). Before reporting done, run a full
   `brickie check` with no options.
 - `brickie interface <brick-path> [--json]` (for example `root/web/api`) prints the brick's
   declared interface: every item outside code can name, with signature, first doc paragraph,
@@ -193,8 +193,8 @@ brickie design include add|rm FILE [--in P]
   [{kind, text}]}`; `log` a list of versions `{v, hash, prev, by, at, note, ops, diff, files,
   removed}`; a write prints its version.
 
-The todo list (`kind`): `planned` a brick with no measured module (`design/planned`), `link` an
-allow rule between named bricks no measured edge uses (`design/planned-edge`), `reason` a rule
+The todo list (`kind`): `planned` a brick with no measured module (`design/planned`), `unused` an
+allow rule between named bricks no measured edge uses (`deps/unused`), `reason` a rule
 without a reason (`design/no-reason`), `config` an unfinished partition or a cache problem.
 
 ## Reading a diagnostic
@@ -322,10 +322,10 @@ not uses.
 
 ### deps/unused (warning)
 
-An `allow` rule between two named bricks that no measured edge uses, while both bricks are fully
-measured (every brick below them has code). The message names what the rule looks for (for
-example "no `uses` edge in test scope"); the location is the rule. A rule whose bricks are not
-all written yet is not reported: it is planned. Fix: write the code that uses the other brick, or,
+An `allow` rule between two named bricks that no measured edge uses, also when a brick has no
+code yet. The message names what the rule looks for (for
+example "no `uses` edge in test scope"); the location is the rule. While writing the code, hide it with
+`--skip deps/unused`. Fix: write the code that uses the other brick, or,
 if the rule's `kinds` or `scope` are wrong, report it; the maintainers change or remove the rule
 (`brickie design rule set` / `rule rm`). Do not edit the rule yourself to silence it.
 
@@ -351,15 +351,12 @@ While a design is being built these can come from unfinished work: `config/unass
 (`brick set --members`), make overlapping members distinct, keep child members inside their
 composite.
 
-### design/planned, design/planned-edge, design/no-reason, design/invalid, design/stale, design/no-match, design/exists
+### design/planned, design/no-reason, design/invalid, design/stale, design/no-match, design/exists
 
 The design (see "Editing the design"):
 
 - `design/planned` (todo `planned`): a brick has no measured module. Create its code as its
   members say, then `brickie measure`.
-- `design/planned-edge` (todo `link`): an allow rule between named bricks has no measured code
-  edge yet. Write the code using the target if intended, then `brickie measure`; otherwise leave
-  it (allowing is not requiring).
 - `design/no-reason` (todo `reason`): a rule has no `reason`. Add a one-line reason with
   `brickie design rule set FROM TO --reason "..."`.
 - `design/invalid`: the edit would leave a design that does not load (for example a rule naming
