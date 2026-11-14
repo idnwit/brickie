@@ -1,0 +1,62 @@
+{
+  "at": 0,
+  "by": "agent",
+  "hash": "ac2302d2eca8cdd7",
+  "root": {
+    "bricks": [
+      {
+        "kind": "module",
+        "members": [
+          "pa"
+        ],
+        "name": "a"
+      },
+      {
+        "kind": "module",
+        "members": [
+          "pb"
+        ],
+        "name": "b"
+      },
+      {
+        "kind": "crate",
+        "members": [
+          "path:crates/store/"
+        ],
+        "name": "store"
+      }
+    ],
+    "cycles": "allow",
+    "default": "deny",
+    "file": "brickie.toml",
+    "limits": [
+      {
+        "bricks": "*",
+        "file": "brickie.toml",
+        "level": "warn",
+        "metrics": {
+          "cognitive": 20
+        },
+        "scope": "prod"
+      }
+    ],
+    "path": "root",
+    "rules": [
+      {
+        "action": "allow",
+        "file": "brickie.toml",
+        "from": "a",
+        "reason": "a reads b",
+        "scope": "prod",
+        "to": "b"
+      }
+    ]
+  },
+  "todo": [
+    {
+      "kind": "config",
+      "text": "no measurements yet: run `brickie measure` to list what the code lacks"
+    }
+  ],
+  "v": 3
+}

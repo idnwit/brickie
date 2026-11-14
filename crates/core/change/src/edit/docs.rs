@@ -8,7 +8,7 @@ use toml_edit::DocumentMut;
 pub struct Docs {
     files: BTreeMap<String, DocumentMut>,
     created: BTreeSet<String>,
-    /// Base files an op dropped from the design (`ungroup`); publish never deletes them.
+    /// Base files an op dropped from the design (`ungroup`); never deleted from disk.
     removed: BTreeSet<String>,
     /// The root config's directory: a file that exists there cannot be created by an op.
     root: Option<PathBuf>,
@@ -28,6 +28,11 @@ impl Docs {
             removed: BTreeSet::new(),
             root,
         })
+    }
+
+    /// The paths of every file of the design.
+    pub fn files(&self) -> Vec<String> {
+        self.files.keys().cloned().collect()
     }
 
     pub fn get(&self, file: &str) -> Option<&DocumentMut> {
@@ -60,16 +65,6 @@ impl Docs {
         if !self.created.remove(file) {
             self.removed.insert(file.to_string());
         }
-    }
-
-    /// Base files dropped from the design.
-    pub fn removed(&self) -> &BTreeSet<String> {
-        &self.removed
-    }
-
-    /// Files created by ops (not in the base).
-    pub fn created(&self) -> &BTreeSet<String> {
-        &self.created
     }
 
     /// Every file as text.

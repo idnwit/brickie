@@ -1,85 +1,84 @@
-//! Retract (the human's undo) and re-applying a conflicting op.
+//! `undo`: a version's file changes reverted as a new version, bytes and comments included.
 
 use super::*;
-use crate::{State, Verdict};
 
 #[test]
-fn retract_takes_back_the_last_human_op() {
+fn undo_restores_bytes_and_comments() {
     let ws = Ws::new();
-    let c = ws.open();
-    c.record(H, desc("a", "undo me"), None).unwrap();
-    let agent = c.record(A, desc("b", "theirs"), None).unwrap();
-    let r = c.retract(None).unwrap();
-    assert_eq!((r.target, r.verdict), (1, Verdict::Retract));
-    let log = c.log().unwrap();
-    assert_eq!(log.ops[0].state, State::Rejected);
-    assert!(!c.preview(true).unwrap().files()["brickie.toml"].contains("undo me"));
-    // Nothing human is left; agent ops are rejected, not retracted.
-    assert!(c.retract(None).is_err());
-    assert!(c.retract(Some(1)).is_err());
-    let e = c.retract(Some(agent.seq)).unwrap_err().to_string();
-    assert!(e.contains("agent op"), "{e}");
-    assert!(c.review(H, agent.seq, Verdict::Retract, None).is_err());
+    let before = ws.read("brickie.toml");
+    ws.apply(
+        A,
+        vec![
+            Op::RemoveBrick {
+                file: "brickie.toml".into(),
+                name: "b".into(),
+            },
+            Op::RemoveRule {
+                file: "brickie.toml".into(),
+                key: crate::RuleKey {
+                    from: "a".into(),
+                    to: "b".into(),
+                    ..Default::default()
+                },
+            },
+        ],
+    )
+    .unwrap();
+    assert_ne!(ws.read("brickie.toml"), before);
+    let d = ws.design();
+    let out = d.undo(2, A, None).unwrap();
+    assert_eq!(out.version.v, 3);
+    assert_eq!(out.version.note.as_deref(), Some("undo v2"));
+    assert_eq!(ws.read("brickie.toml"), before);
 }
 
 #[test]
-fn reapply_records_a_conflicting_op_against_the_current_design() {
+fn undo_removes_a_created_file() {
     let ws = Ws::new();
-    let c = ws.open();
-    c.record(H, desc("a", "x"), None).unwrap();
-    let theirs = c.record(A, desc("a", "y"), None).unwrap();
-    c.retract(Some(1)).unwrap();
-    assert!(c.log().unwrap().ops[1].conflict.is_some());
-    assert!(c.reapply(1).is_err(), "op 1 is not in conflict");
-    let new = c.reapply(theirs.seq).unwrap();
-    assert_eq!((new.by, new.state), (H, State::Accepted));
-    let log = c.log().unwrap();
-    let old = log.ops.iter().find(|o| o.seq == theirs.seq).unwrap();
-    assert_eq!(old.state, State::Rejected);
-    let note = old.review.as_ref().unwrap().note.clone().unwrap();
-    assert_eq!(note, format!("re-applied as op {}", new.seq));
-    assert_eq!(c.status().unwrap().conflicts, 0);
-    assert!(c.preview(false).unwrap().files()["brickie.toml"].contains("desc = \"y\""));
+    let group = Op::MakeComposite {
+        file: "brickie.toml".into(),
+        name: "a".into(),
+        path: "g".into(),
+    };
+    ws.apply(A, vec![group]).unwrap();
+    assert!(ws.path("g/brickie.toml").exists());
+    ws.design().undo(2, A, None).unwrap();
+    assert!(!ws.path("g/brickie.toml").exists());
 }
 
 #[test]
-fn redo_restores_retracted_ops_last_first() {
+fn an_agent_never_undoes_a_human_version() {
     let ws = Ws::new();
-    let c = ws.open();
-    c.record(H, desc("a", "one"), None).unwrap();
-    c.record(H, desc("b", "two"), None).unwrap();
-    c.retract(None).unwrap();
-    c.retract(None).unwrap();
-    assert_eq!(crate::redo_stack(&c.log().unwrap().entries), vec![2, 1]);
-    let r = c.redo().unwrap();
-    assert_eq!((r.target, r.verdict), (1, Verdict::Restore));
-    assert_eq!(c.log().unwrap().ops[0].state, State::Accepted);
-    assert!(c.preview(false).unwrap().files()["brickie.toml"].contains("one"));
-    assert_eq!(c.redo().unwrap().target, 2);
-    assert!(c.redo().is_err(), "nothing left to redo");
-    assert!(c.review(H, 1, Verdict::Restore, None).is_err());
+    ws.apply(H, vec![desc("a", "x")]).unwrap();
+    let e = ws.design().undo(2, A, None).unwrap_err().to_string();
+    assert!(e.contains("made by human"), "{e}");
+    ws.design().undo(2, H, None).unwrap();
 }
 
 #[test]
-fn a_new_human_op_clears_the_redo_stack() {
+fn undo_of_an_older_version_refuses_when_a_later_one_touched_its_files() {
     let ws = Ws::new();
-    let c = ws.open();
-    c.record(H, desc("a", "one"), None).unwrap();
-    c.retract(None).unwrap();
-    c.record(H, desc("b", "two"), None).unwrap();
-    assert!(crate::redo_stack(&c.log().unwrap().entries).is_empty());
-    assert!(c.redo().is_err());
+    ws.apply(A, vec![desc("a", "x")]).unwrap();
+    ws.apply(A, vec![desc("b", "y")]).unwrap();
+    let e = ws.design().undo(3, A, Some(2)).unwrap_err().to_string();
+    assert!(e.contains("v3 changed brickie.toml after v2"), "{e}");
+    let first = ws.design().undo(3, A, Some(1)).unwrap_err().to_string();
+    assert!(first.contains("oldest kept version"), "{first}");
 }
 
 #[test]
-fn redo_refuses_an_op_that_no_longer_applies() {
+fn undo_goes_back_step_by_step_once_the_later_versions_are_reverted() {
     let ws = Ws::new();
-    let c = ws.open();
-    c.record(H, desc("a", "mine"), None).unwrap();
-    c.retract(None).unwrap();
-    let theirs = c.record(A, desc("a", "theirs"), None).unwrap();
-    c.review(H, theirs.seq, Verdict::Accept, None).unwrap();
-    let e = c.redo().unwrap_err().to_string();
-    assert!(e.contains("cannot redo op 1"), "{e}");
-    assert_eq!(c.log().unwrap().ops[0].state, State::Rejected);
+    ws.apply(H, vec![desc("a", "x")]).unwrap();
+    ws.apply(H, vec![desc("b", "y")]).unwrap();
+    let before = std::fs::read_to_string(ws.path("brickie.toml")).unwrap();
+    ws.design().undo(3, H, Some(3)).unwrap();
+    // v3 is reverted by v4: the file is as v2 left it, so v2 can be undone too.
+    ws.design().undo(4, H, Some(2)).unwrap();
+    let now = std::fs::read_to_string(ws.path("brickie.toml")).unwrap();
+    assert!(
+        !now.contains("desc = \"x\"") && !now.contains("desc = \"y\""),
+        "{now}"
+    );
+    assert_ne!(now, before);
 }

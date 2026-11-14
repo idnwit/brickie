@@ -1,16 +1,13 @@
 //! Engine tests on a temporary workspace (no cache: config-level behaviour only).
 
-mod design;
-mod draft;
-mod drift;
-mod edges;
-mod publish;
-mod replay;
+mod keys;
 mod undo;
 mod ungroup;
+mod versions;
+mod via;
 
-use crate::{BrickSpec, By, Change, Op};
-use std::path::{Path, PathBuf};
+use crate::{BrickSpec, By, Design, Op, Outcome};
+use std::path::PathBuf;
 
 pub const ROOT: &str = r#"# the design
 exports = []
@@ -65,8 +62,20 @@ impl Ws {
         std::fs::read_to_string(self.path(rel)).unwrap()
     }
 
-    pub fn open(&self) -> Change {
-        Change::open(&self.config(), "test change").unwrap()
+    pub fn design(&self) -> Design {
+        Design::at(&self.config()).unwrap()
+    }
+
+    /// The head version number.
+    pub fn head(&self) -> u64 {
+        self.design().head().unwrap().v
+    }
+
+    /// Apply `ops` on the head.
+    pub fn apply(&self, by: By, ops: Vec<Op>) -> anyhow::Result<Outcome> {
+        let d = self.design();
+        let base = d.head()?.v;
+        d.apply(base, by, None, ops)
     }
 }
 
@@ -92,15 +101,5 @@ pub fn desc(name: &str, d: &str) -> Op {
     }
 }
 
-pub fn exists(p: &Path) -> bool {
-    p.exists()
-}
-
 pub const H: By = By::Human;
 pub const A: By = By::Agent;
-
-impl Ws {
-    pub fn open_existing(&self) -> Change {
-        Change::load(&self.config()).unwrap()
-    }
-}

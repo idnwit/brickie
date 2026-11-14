@@ -3,7 +3,7 @@ name = "brickie-change"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
-description = "brickie change sessions: an op log over the brickie.toml tree, preview, review and publish"
+description = "brickie's versioned design: direct edits of the brickie.toml tree with history, undo and stale-base checks"
 license = "MIT"
 publish = false
 

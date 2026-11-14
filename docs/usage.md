@@ -27,6 +27,8 @@ brickie measure                  # slow: runs rust-analyzer, writes .brickie/cac
 brickie check                    # fast: applies the rules to the cache, exits 1 on errors
 brickie serve                    # viewer on http://127.0.0.1:7881
 brickie interface root/web/api   # a brick's declared interface and its uses
+brickie design show              # the design (brickie.toml tree) at its current version
+brickie design rule add api store allow --reason "reads data" --base 15   # edit, versioned
 brickie llms.txt                 # guide for coding agents
 ```
 
@@ -36,6 +38,9 @@ brickie llms.txt                 # guide for coding agents
 - `measure --scip index.scip --workspace DIR`.
 - `check --format text|json --color auto|always|never`.
 - `serve --port 7881 --bind 127.0.0.1`.
+- `design`: every write needs `--base N` (or `BRICKIE_BASE`), the version it was based on; a
+  stale base writes nothing and exits 3. History is in `.brickie/history/` (git-ignore
+  `.brickie/`). See `brickie design --help`.
 
 ## Accept a finding
 

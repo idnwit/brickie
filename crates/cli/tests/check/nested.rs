@@ -219,3 +219,73 @@ fn partition_and_missing_config_exit_2() {
         assert!(o.stderr.contains(needle), "{needle} not in {}", o.stderr);
     }
 }
+
+/// Hexagonal shape: root `core` plays the ui, composite `web` is `application` with `api` as
+/// ports-in, `ui` as ports-out (both exported) and `shared` as a hidden usecase.
+#[test]
+fn via_limits_entry_into_a_composite() {
+    let w = tree();
+    let web = WEB.replace(", { brick = \"ui\", scope = \"test\" }", ", \"ui\"");
+    w.write("ws/crates/web/brickie.toml", &web);
+    let rule = |via: &str, action: &str| {
+        format!(
+            "[[deps.rule]]\nfrom = \"core\"\nto = \"web\"\nscope = \"all\"\n{via}action = \"{action}\"\n"
+        )
+    };
+    let codes = |o: &Out| -> Vec<(String, String)> {
+        let mut v: Vec<_> = o.json["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|d| {
+                (
+                    d["code"].as_str().unwrap().to_string(),
+                    d["message"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect();
+        v.sort();
+        v
+    };
+    let base = "[[brick]]\nname = \"web\"\npath = \"ws/crates/web\"\n[[brick]]\nname = \"core\"\nmembers = [\"core\"]\n";
+    let allow_api = format!(
+        "{base}[deps]\ndefault = \"deny\"\n{}",
+        rule("via = [\"api\"]\n", "allow")
+    );
+    let o = check(&w, &allow_api);
+    let f = codes(&o);
+    assert_eq!(o.code, 1, "{f:?}");
+    assert!(
+        f.iter()
+            .any(|(c, m)| c == "deps/default" && m.contains("via `ui`")),
+        "{f:?}"
+    );
+    assert!(!f.iter().any(|(_, m)| m.contains("via `api`")), "{f:?}");
+    let deny_ui = format!(
+        "{base}[deps]\ndefault = \"allow\"\n{}",
+        rule("via = [\"ui\"]\n", "deny")
+    );
+    let f = codes(&check(&w, &deny_ui));
+    assert!(
+        f.iter()
+            .any(|(c, m)| c == "deps/deny" && m.contains("via `ui`")),
+        "{f:?}"
+    );
+    assert!(
+        f.iter()
+            .any(|(c, m)| c == "deps/private" && m.contains("`shared`")),
+        "{f:?}"
+    );
+    assert!(
+        !f.iter()
+            .any(|(c, m)| c == "deps/deny" && m.contains("via `api`")),
+        "{f:?}"
+    );
+    let bad = format!(
+        "{base}[deps]\ndefault = \"allow\"\n{}",
+        rule("via = [\"shared\"]\n", "allow")
+    );
+    let o = check(&w, &bad);
+    assert_eq!(o.code, 2);
+    assert!(o.stderr.contains("config/unknown-via"), "{}", o.stderr);
+}
