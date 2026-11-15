@@ -6,13 +6,14 @@
   - [design/check.md](design/check.md): config tree, rules, interfaces, findings.
   - [design/serve.md](design/serve.md): webview decisions, layout port, code viewer.
   - [design/levels.md](design/levels.md): nested bricks and zoom.
+  - [design/ux.md](design/ux.md): UX principles P1..P19 for every surface.
   - [design/editor.md](design/editor.md): versioned design editing (CLI and viewer).
   - [design/layout.md](design/layout.md): code layout and crate boundaries.
   - [design/complexity.md](design/complexity.md): complexity policy and limits.
   - [design/roadmap.md](design/roadmap.md): distribution, steps, open items.
 - [metrics/README.md](metrics/README.md): plain explanation of each metric, with scored examples.
   - [cognitive](metrics/cognitive.md), [cyclomatic](metrics/cyclomatic.md), [nesting](metrics/nesting.md), [paths](metrics/npath.md), [params](metrics/params.md), [lines](metrics/lines.md), [dependencies](metrics/dependencies.md).
-- [webui.md](webui.md): the reviewer webview, with screenshots in [screenshots/](screenshots/).
+- [webui.md](webui.md): the reviewer webview realising the UX principles, with screenshots in [screenshots/](screenshots/).
 - [llms.txt](llms.txt): the guide for coding agents that `brickie llms.txt` prints (workflow, diagnostic codes and fixes, config schema, constraints).
 - [examples/brickie.toml](examples/brickie.toml): an annotated example configuration.
 

@@ -28,8 +28,8 @@ wheel-driven semantic zoom.
 
 ## Viewer
 
-- The view shows one level at a time inside a frame. A private edge stops at the frame wall with
-  a cross. The level lives in the query (`lv=`), so the server renders the same level.
+- The view shows one level at a time inside a frame. A private edge stops at the frame wall (no
+  cross glyph); its tooltip says "private: stops at the wall". The level lives in the query (`lv=`), so the server renders the same level.
 - The server builds one `LevelView` per level. Edges are lifted per level and aggregated by
   (from, to, kind). Outside neighbours are faded rows. Code: `crates/web/server/src/data/graph/`.
 - Outside edges (`bnd`): `children` draws each to the child it reaches; `frame` aggregates to
