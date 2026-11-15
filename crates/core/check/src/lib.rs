@@ -9,4 +9,6 @@ pub mod config;
 pub mod diag;
 pub mod interface;
 mod review;
+/// Reads `brickie.review.toml` next to a config; used by the docs test to load examples.
+pub use review::read as read_review;
 mod rules;

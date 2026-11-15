@@ -47,3 +47,17 @@ brickie measure --> .brickie/cache.json --> brickie check  --> findings (text/js
 | [design/layout.md](design/layout.md) | crates, folders, crate boundaries |
 | [design/complexity.md](design/complexity.md) | lib vs wiring flow, test placement, limits per tag |
 | [design/roadmap.md](design/roadmap.md) | distribution, steps with status, open items, accepted behaviours |
+
+## Documentation
+
+Decision (two independent reviews): no separate spec and no requirement IDs. Each fact has one home,
+and tests in `crates/cli/tests/docs.rs` compare the docs with the code.
+
+| Fact | Home |
+| --- | --- |
+| Config keys, defaults, diagnostic codes with severity and fix | [llms.txt](llms.txt) (keys and codes are test-checked) |
+| Rule semantics: reasons and edge cases | [design/check.md](design/check.md) |
+| UX method (principles P1..Pn, no widgets, colours or keys) | [design/ux.md](design/ux.md) |
+| UI realisation (each section names the principles it serves) | [webui.md](webui.md) |
+
+Reason: `llms.txt` must be complete and standalone anyway; a second normative copy only drifts.
