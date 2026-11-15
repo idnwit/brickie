@@ -1,0 +1,15 @@
+exports = ["memory", "storage"]
+
+[[brick]]
+name = "memory"
+members = ["path:memory/"]
+desc = "In-memory repositories and SequentialIds"
+
+[[brick]]
+name = "storage"
+members = ["path:storage/"]
+desc = "JSON local-storage repositories (file backend on native, localStorage on wasm32)"
+
+[deps]
+default = "deny"
+cycles = "deny"

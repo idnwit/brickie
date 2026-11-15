@@ -1,0 +1,67 @@
+exports = ["board-service", "board-storage", "usecases"]
+
+[[brick]]
+name = "board-service"
+members = ["todo-application::ports::inbound"]
+tags = ["port"]
+desc = "BoardService trait, drafts and views"
+
+[[brick]]
+name = "board-storage"
+members = ["todo-application::ports::outbound"]
+tags = ["port"]
+desc = "Repositories and IdGenerator"
+
+[[brick]]
+name = "usecases"
+members = ["todo-application"]
+desc = "BoardInteractor: implements BoardService, delegates to feature functions"
+
+[[brick]]
+name = "usecases-columns"
+members = ["todo-application::usecases::columns"]
+desc = "Column use cases"
+
+[[brick]]
+name = "usecases-notes"
+members = ["todo-application::usecases::notes"]
+desc = "Note use cases"
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "usecases"
+to = "*"
+scope = "all"
+action = "allow"
+reason = "the interactor wires feature use cases to ports"
+
+[[deps.rule]]
+from = "usecases-columns"
+to = "board-service"
+scope = "all"
+action = "allow"
+reason = "drafts and errors"
+
+[[deps.rule]]
+from = "usecases-columns"
+to = "board-storage"
+scope = "all"
+action = "allow"
+reason = "load and save through ports"
+
+[[deps.rule]]
+from = "usecases-notes"
+to = "board-service"
+scope = "all"
+action = "allow"
+reason = "drafts and errors"
+
+[[deps.rule]]
+from = "usecases-notes"
+to = "board-storage"
+scope = "all"
+action = "allow"
+reason = "load and save through ports"
