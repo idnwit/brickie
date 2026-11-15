@@ -1,5 +1,5 @@
 //! The Level tab: the level's file, its parent, and its `exports` (child + scope): add a child,
-//! cycle a pill's scope `all -> prod -> test`, `x` removes; each change is one `set_exports`.
+//! cycle a pill's scope `all -> prod -> test`, `x` removes; each change is one `add_export` or `remove_export`.
 
 use super::op;
 use crate::state::*;
@@ -15,27 +15,27 @@ pub fn next_scope(s: Option<&str>) -> Option<String> {
     }
 }
 
-fn set(cx: &Cx, file: &str, exports: Vec<ExportSpec>) {
-    op(
-        cx,
-        Op::SetExports {
-            file: file.to_string(),
-            exports,
-        },
-    );
+fn add(cx: &Cx, file: &str, brick: &str, scope: Option<String>) {
+    let (file, brick) = (file.to_string(), brick.to_string());
+    op(cx, Op::AddExport { file, brick, scope });
 }
 
 fn pill(cx: &Cx, file: &str, list: &[ExportSpec], i: usize) -> View {
     let e = &list[i];
     let label = format!("{} ({})", e.brick, e.scope.as_deref().unwrap_or("all"));
-    let (c, f, mut cyc) = (cx.clone(), file.to_string(), list.to_vec());
-    cyc[i].scope = next_scope(e.scope.as_deref());
-    let cycle = move |_: Click| set(&c, &f, cyc.clone());
-    let (c, f, mut rm) = (cx.clone(), file.to_string(), list.to_vec());
-    rm.remove(i);
+    let next = next_scope(e.scope.as_deref());
+    let (c, f, b) = (cx.clone(), file.to_string(), e.brick.clone());
+    let cycle = move |_: Click| add(&c, &f, &b, next.clone());
+    let (c, f, b) = (cx.clone(), file.to_string(), e.brick.clone());
     let remove = move |e: Click| {
         e.stop_propagation();
-        set(&c, &f, rm.clone());
+        op(
+            &c,
+            Op::RemoveExport {
+                file: f.clone(),
+                brick: b.clone(),
+            },
+        );
     };
     view! { span(class="pill exp", title="click: next scope", on:click=cycle) { (label) button(class="px", on:click=remove) { "\u{00D7}" } } }
 }
@@ -66,16 +66,11 @@ pub fn level_tab(cx: &Cx) -> View {
             })
             .collect::<Vec<_>>(),
     );
-    let (c, f, l2) = (cx.clone(), file.clone(), list.clone());
-    let add = move |_: Click| {
+    let (c, f) = (cx.clone(), file.clone());
+    let add_one = move |_: Click| {
         let b = pick.get_clone();
         if !b.is_empty() {
-            let mut next = l2.clone();
-            next.push(ExportSpec {
-                brick: b,
-                scope: None,
-            });
-            set(&c, &f, next);
+            add(&c, &f, &b, None);
         }
     };
     let parent = parent_level(&lv).map(|p| {
@@ -91,7 +86,7 @@ pub fn level_tab(cx: &Cx) -> View {
         (root)
         label { "exports (children visible from outside)" }
         div(class="pills") { (pills) }
-        div(class="row") { select(bind:value=pick) { option(value="") { "child\u{2026}" } (opts) } button(on:click=add) { "+ export" } }
+        div(class="row") { select(bind:value=pick) { option(value="") { "child\u{2026}" } (opts) } button(on:click=add_one) { "+ export" } }
     }
 }
 

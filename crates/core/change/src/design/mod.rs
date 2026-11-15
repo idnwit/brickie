@@ -5,6 +5,7 @@
 
 mod history;
 mod links;
+mod notes;
 mod resolve;
 pub use resolve::brick_path;
 mod stale;

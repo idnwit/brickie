@@ -4,12 +4,12 @@ use super::Docs;
 use super::brick::{self, Fields};
 use super::rules::{
     COMPLEXITY, RULES, complexity_table, edit_include, edit_list, patch_complexity, patch_rule,
-    rule_table, set_deps, set_exports,
+    read_exports, rule_table, set_deps, set_exports,
 };
 use super::{find, via};
 use crate::paths::join_rel;
 use anyhow::{Result, bail};
-use brickie_model::design::Op;
+use brickie_model::design::{ExportSpec, Op};
 use toml_edit::{DocumentMut, value};
 
 pub fn apply(docs: &mut Docs, op: &Op) -> Result<()> {
@@ -22,7 +22,7 @@ pub fn apply(docs: &mut Docs, op: &Op) -> Result<()> {
     } = op
     {
         let p = p.trim_end_matches('/');
-        docs.ensure(&join_rel(file, &format!("{p}/brickie.toml")))?;
+        docs.ensure_level(&join_rel(file, &format!("{p}/brickie.toml")), file)?;
     }
     Ok(())
 }
@@ -45,16 +45,29 @@ fn apply_one(docs: &mut Docs, op: &Op) -> Result<()> {
             brick::rename(docs.get_mut(file)?, from, to)?;
             return via::rename(docs, file, from, to);
         }
-        Op::SetExports { file, exports } => {
+        Op::AddExport { file, brick, scope } => {
             let doc = docs.get_mut(file)?;
-            let old = brick::exported(doc);
-            for n in old
-                .iter()
-                .filter(|n| !exports.iter().any(|e| &e.brick == *n))
-            {
-                via::guard_child(docs, file, n, "unexporting it")?;
+            let mut list = read_exports(doc);
+            let spec = ExportSpec {
+                brick: brick.clone(),
+                scope: scope.clone(),
+            };
+            // An entry that is already there keeps its place.
+            match list.iter_mut().find(|e| &e.brick == brick) {
+                Some(e) => *e = spec,
+                None => list.push(spec),
             }
-            set_exports(docs.get_mut(file)?, exports);
+            set_exports(doc, &list);
+            return Ok(());
+        }
+        Op::RemoveExport { file, brick } => {
+            if brick::exported(docs.get_mut(file)?).contains(brick) {
+                via::guard_child(docs, file, brick, "unexporting it")?;
+            }
+            let doc = docs.get_mut(file)?;
+            let mut list = read_exports(doc);
+            list.retain(|e| &e.brick != brick);
+            set_exports(doc, &list);
             return Ok(());
         }
         _ => {}
@@ -114,7 +127,8 @@ fn apply_to_doc(doc: &mut DocumentMut, op: &Op) -> Result<()> {
         Op::CreateFile { .. }
         | Op::RemoveBrick { .. }
         | Op::RenameBrick { .. }
-        | Op::SetExports { .. }
+        | Op::AddExport { .. }
+        | Op::RemoveExport { .. }
         | Op::MakeComposite { .. }
         | Op::AddBrick { .. }
         | Op::MoveBrick { .. }
@@ -134,6 +148,6 @@ fn make_composite(docs: &mut Docs, file: &str, name: &str, path: &str) -> Result
         bail!("brick '{name}' is already a composite");
     }
     t["path"] = value(path);
-    docs.create(&join_rel(file, &format!("{path}/brickie.toml")))?;
+    docs.create_level(&join_rel(file, &format!("{path}/brickie.toml")), file)?;
     Ok(())
 }

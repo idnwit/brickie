@@ -18,7 +18,24 @@ pub fn outcome(o: &Outcome) -> String {
         };
         let _ = writeln!(s, "  {what} {}", entry(f));
     }
+    notes(&mut s, &o.notes);
     s
+}
+
+/// The version of a write as JSON, plus `notes` when there are any.
+pub fn outcome_json(o: &Outcome) -> serde_json::Value {
+    let mut v = serde_json::to_value(&o.version).unwrap_or_default();
+    if !o.notes.is_empty() {
+        v["notes"] = serde_json::json!(o.notes);
+    }
+    v
+}
+
+/// One `note:` line per message.
+fn notes(s: &mut String, notes: &[String]) {
+    for n in notes {
+        let _ = writeln!(s, "note: {n}");
+    }
 }
 
 /// `path: note`, or `path (note)` when the note is a parenthesised tag.
@@ -94,6 +111,7 @@ pub fn plan(head: u64, p: &Plan) -> String {
     for f in &p.scaffold {
         let _ = writeln!(s, "  would scaffold {}", entry(f));
     }
+    notes(&mut s, &p.notes);
     s
 }
 
@@ -104,6 +122,7 @@ pub fn plan_json(head: u64, p: &Plan) -> serde_json::Value {
         "diff": p.diff,
         "new_todo": p.new_todo,
         "scaffold": p.scaffold,
+        "notes": p.notes,
     })
 }
 

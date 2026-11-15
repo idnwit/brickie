@@ -133,6 +133,15 @@ impl Design {
         }
     }
 
+    /// Where a decision comes from, as a note names it.
+    fn decider_name(&self, cfg: &Config, level: &[String], loc: Option<&str>) -> Result<String> {
+        Ok(match loc {
+            None => "several rules".into(),
+            Some("deps.default") => format!("deps.default of {}", self.file_of(cfg, level)?),
+            Some(l) => self.short_loc(l),
+        })
+    }
+
     /// Whether adding `link` at `level` (brick names from the root; `[]`: the root) would
     /// change what the level decides. Redundant when an equal rule exists, or when every edge
     /// it covers (each matching pair, kind and scope) is already decided as `link.action`.
@@ -191,9 +200,7 @@ impl Design {
         let one = (deciders.len() == 1)
             .then(|| deciders.pop_first())
             .flatten();
-        let by = one
-            .as_deref()
-            .map_or_else(|| "several rules".into(), |l| self.short_loc(l));
+        let by = self.decider_name(&cfg, level, one.as_deref())?;
         Ok(LinkCheck {
             redundant: true,
             why: format!("already {} by {by}", past(link.action)),

@@ -73,10 +73,10 @@ fn dispatch(a: DesignArgs) -> Result<()> {
             let out = d.undo(base, By::Agent, v)?;
             return print(json, &out.version, || render::outcome(&out));
         }
-        Cmd::Apply { w } => {
+        Cmd::Apply { scaffold, w } => {
             let mut script = String::new();
             std::io::stdin().read_to_string(&mut script)?;
-            (batch::ops(&d, &script)?, w)
+            (batch::ops(&d, &script)?, args::Write { scaffold, ..w })
         }
         Cmd::Edit(e) => ops::edit(&d, e)?,
     };
@@ -124,12 +124,18 @@ fn within(root: LevelView, path: &[String]) -> Result<LevelView> {
 
 fn write(d: &Design, json: bool, w: args::Write, ops: Vec<Op>) -> Result<()> {
     if w.dry_run {
-        let plan = d.dry_run(w.base, ops)?;
+        let plan = match w.scaffold {
+            true => d.dry_run_scaffold(w.base, ops)?,
+            false => d.dry_run(w.base, ops)?,
+        };
         let head = d.head()?.v;
         return print(json, &render::plan_json(head, &plan), || {
             render::plan(head, &plan)
         });
     }
-    let out = d.apply(w.base, By::Agent, w.note, ops)?;
-    print(json, &out.version, || render::outcome(&out))
+    let out = match w.scaffold {
+        true => d.apply_scaffold(w.base, By::Agent, w.note, ops)?,
+        false => d.apply(w.base, By::Agent, w.note, ops)?,
+    };
+    print(json, &render::outcome_json(&out), || render::outcome(&out))
 }

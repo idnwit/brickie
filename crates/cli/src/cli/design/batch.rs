@@ -77,8 +77,10 @@ fn parse(d: &Design, line: &str) -> Result<Vec<Op>> {
         anyhow::anyhow!("{}", first.trim_start_matches("error: "))
     })?;
     let (ops, w) = ops::edit(d, l.edit)?;
-    if w.base != 0 || w.note.is_some() || w.dry_run {
-        bail!("--base, --note and --dry-run belong to the `apply` command, not to a line");
+    if w.base != 0 || w.note.is_some() || w.dry_run || w.scaffold {
+        bail!(
+            "--base, --note, --dry-run and --scaffold belong to the `apply` command, not to a line"
+        );
     }
     Ok(ops)
 }

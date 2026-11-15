@@ -41,6 +41,11 @@ Each module gets one leaf path. At each level the most specific selector wins:
   when the root `deps.default` is `deny`, since it would escape every rule; else a warning);
   it takes part in no rule, cycle or complexity check, but its references still count as uses
   for `interface/unused`.
+- A composite owns the modules under its path. When a brick of an outer level wins a module that
+  a member of the composite brick also matches (a more specific member), the child's member then
+  reaches outside and the error names that brick, its level and the fix: make the module a child
+  brick of the composite and export it if outside code uses it. Letting outer levels take such
+  modules would bypass `exports`.
 - `check` fails on the first partition error. Draft resolution (design preview) collects them as
   todo items instead: an overlap goes to the first brick, an unassigned module stays unmapped,
   an outside member is ignored.
@@ -68,7 +73,7 @@ Editing: `via` is a property of a rule, not part of its identity, and `rule set`
 given. A `via` rule is backed only by a measured edge entering `to` through one of its
 `via` children. Design ops keep `via` valid: `rename_brick` of a child rewrites the `via` of the
 parent rules that target its composite; `remove_brick`, `move_brick`, unexporting via
-`set_exports` and `ungroup` fail with `design/invalid` naming the rule when a `via` would dangle.
+`remove_export` and `ungroup` fail with `design/invalid` naming the rule when a `via` would dangle.
 
 ## Interfaces
 

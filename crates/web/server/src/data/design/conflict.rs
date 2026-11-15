@@ -112,7 +112,8 @@ fn touched(op: &Op) -> Vec<Ident> {
         Op::RemoveComplexity { file, bricks } | Op::SetComplexity { file, bricks, .. } => {
             vec![limit(file, bricks)]
         }
-        Op::SetExports { file, .. }
+        Op::AddExport { file, .. }
+        | Op::RemoveExport { file, .. }
         | Op::SetDeps { file, .. }
         | Op::AddInclude { file, .. }
         | Op::RemoveInclude { file, .. }

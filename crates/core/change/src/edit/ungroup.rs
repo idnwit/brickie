@@ -30,9 +30,20 @@ pub fn ungroup(docs: &mut Docs, file: &str, name: &str) -> Result<()> {
     if doc.contains_key("include") {
         bail!("{child} has `include`: remove it before ungrouping '{name}'");
     }
-    let deps = doc.get("deps").and_then(Item::as_table);
-    if deps.is_some_and(|d| d.contains_key("default") || d.contains_key("cycles")) {
-        bail!("{child} sets [deps] default/cycles: remove them before ungrouping '{name}'");
+    // The lifted bricks fall under the parent's `deps`: only a value that differs from it
+    // would be lost (a level copied from its parent at creation loses nothing).
+    let dep = |d: &toml_edit::DocumentMut, k: &str| -> Option<String> {
+        let v = d.get("deps").and_then(|t| t.get(k)).and_then(Item::as_str);
+        v.map(String::from)
+    };
+    let parent_doc = docs.get(file).context("level file is not in the change")?;
+    if ["default", "cycles"]
+        .iter()
+        .any(|k| dep(&doc, k).is_some_and(|v| v != dep(parent_doc, k).unwrap_or("allow".into())))
+    {
+        bail!(
+            "{child} sets [deps] default/cycles differently from {file}: align or remove them before ungrouping '{name}'"
+        );
     }
     let (from, to) = (dir_of(&child), dir_of(file));
     let lifted = |path: &[&str]| -> Vec<Table> {

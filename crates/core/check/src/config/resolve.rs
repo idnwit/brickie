@@ -63,6 +63,9 @@ impl Resolved {
 struct Ctx<'r> {
     mode: Mode,
     out: &'r mut Resolved,
+    /// (composite level path, module id) -> (claiming brick, its level) for modules a brick of
+    /// an outer level took although a member of the composite brick matched them.
+    claimed: BTreeMap<(Vec<String>, String), (String, String)>,
 }
 
 impl Ctx<'_> {
@@ -116,6 +119,7 @@ pub fn resolve(
         &mut Ctx {
             mode,
             out: &mut out,
+            claimed: BTreeMap::new(),
         },
     )?;
     Ok(out)
@@ -154,7 +158,10 @@ fn assign(cfg: &Config, all: &[&Subject], mods: &[&Subject], cx: &mut Ctx) -> Re
     let mut groups: BTreeMap<&str, Vec<&Subject>> = BTreeMap::new();
     for s in mods {
         match best(cfg, s, cx)? {
-            Some(n) => groups.entry(n).or_default().push(s),
+            Some(n) => {
+                note_claims(cfg, s, n, cx);
+                groups.entry(n).or_default().push(s);
+            }
             None if root => {}
             None => {
                 let msg = format!(
@@ -182,6 +189,23 @@ fn assign(cfg: &Config, all: &[&Subject], mods: &[&Subject], cx: &mut Ctx) -> Re
     Ok(())
 }
 
+/// Records that brick `winner` of `cfg` took `s` from every other composite brick of `cfg`
+/// whose own members match `s`.
+fn note_claims(cfg: &Config, s: &Subject, winner: &str, cx: &mut Ctx) {
+    for b in cfg
+        .bricks
+        .iter()
+        .filter(|b| b.sub.is_some() && b.name != winner)
+    {
+        if b.members.iter().any(|m| matches(m, &b.base, s).is_some()) {
+            let mut at = cfg.path.clone();
+            at.push(b.name.clone());
+            cx.claimed
+                .insert((at, s.module.id.clone()), (winner.to_string(), cfg.level()));
+        }
+    }
+}
+
 /// A child member that matches a module outside this composite.
 fn outside_parent(cfg: &Config, all: &[&Subject], mods: &[&Subject], cx: &mut Ctx) -> Result<()> {
     let inside: std::collections::BTreeSet<&str> =
@@ -191,12 +215,21 @@ fn outside_parent(cfg: &Config, all: &[&Subject], mods: &[&Subject], cx: &mut Ct
             if let Some(s) = all.iter().find(|s| {
                 !inside.contains(s.module.id.as_str()) && matches(member, &b.base, s).is_some()
             }) {
-                let msg = format!(
+                let mut msg = format!(
                     "member '{member}' of brick '{}' matches module {}, which is outside composite '{}'",
                     b.name,
                     s.module.id,
                     cfg.path.join("/")
                 );
+                if let Some((brick, level)) =
+                    cx.claimed.get(&(cfg.path.clone(), s.module.id.clone()))
+                {
+                    msg.push_str(&format!(
+                        ": brick '{brick}' of level {level} took it from inside the composite. \
+                         Remove that member from '{brick}' and make it a child brick of '{}' (add it to the composite's exports if outside code uses it), or narrow member '{member}'",
+                        cfg.path.join("/")
+                    ));
+                }
                 cx.fail(CONFIG_MEMBER_OUTSIDE_PARENT, cfg, None, msg)?;
             }
         }

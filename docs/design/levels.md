@@ -13,6 +13,7 @@ resolution: [check.md](check.md).
 | Composite discovery | `path = "<dir>"` with a required file | like a Rust module path; no scanning |
 | Test edges | no exemption; write a scoped export `{ brick = "x", scope = "test" }` | exceptions are explicit |
 | Modules left in a composite | partition error | their edges would escape every check |
+| Outer brick taking a module from inside a composite | `config/member-outside-parent`, naming the outer brick | it would bypass `exports`; fix: make it a child and export it |
 | Re-exports | grant no access; move the item into an exported child | `exports` is not derived from `pub` |
 | Brick mapping | not in the cache | editing config never needs a re-measure |
 | Cycles | per composite | names are local to a level |

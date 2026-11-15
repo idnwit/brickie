@@ -172,9 +172,17 @@ pub enum Op {
         file: String,
         name: String,
     },
-    SetExports {
+    /// Export `brick` from the composite level in `file`, or replace its scope when already
+    /// exported. `None` scope means all.
+    AddExport {
         file: String,
-        exports: Vec<ExportSpec>,
+        brick: String,
+        scope: Option<String>,
+    },
+    /// Stop exporting `brick` from the composite level in `file`.
+    RemoveExport {
+        file: String,
+        brick: String,
     },
     AddRule {
         file: String,
@@ -235,7 +243,8 @@ impl Op {
             | Op::MoveBrick { file, .. }
             | Op::MakeComposite { file, .. }
             | Op::Ungroup { file, .. }
-            | Op::SetExports { file, .. }
+            | Op::AddExport { file, .. }
+            | Op::RemoveExport { file, .. }
             | Op::AddRule { file, .. }
             | Op::RemoveRule { file, .. }
             | Op::SetRule { file, .. }
@@ -259,7 +268,8 @@ impl Op {
             Op::MoveBrick { .. } => "move_brick",
             Op::MakeComposite { .. } => "make_composite",
             Op::Ungroup { .. } => "ungroup",
-            Op::SetExports { .. } => "set_exports",
+            Op::AddExport { .. } => "add_export",
+            Op::RemoveExport { .. } => "remove_export",
             Op::AddRule { .. } => "add_rule",
             Op::RemoveRule { .. } => "remove_rule",
             Op::SetRule { .. } => "set_rule",

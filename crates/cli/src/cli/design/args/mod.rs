@@ -38,6 +38,9 @@ pub struct Write {
     /// Validate fully in memory and print the diff and the new todos; write nothing.
     #[arg(long)]
     pub dry_run: bool,
+    /// Set by `brick add --scaffold` and `apply --scaffold`; never a flag of its own here.
+    #[arg(skip)]
+    pub scaffold: bool,
 }
 
 /// One design op per line, the syntax of the write subcommands without `brickie design`.
@@ -77,6 +80,10 @@ pub enum Cmd {
     },
     /// Apply the ops read from stdin (one per line) as ONE version.
     Apply {
+        /// Also scaffold the missing code of every brick the lines add (default: design
+        /// files only).
+        #[arg(long)]
+        scaffold: bool,
         #[command(flatten)]
         w: Write,
     },
