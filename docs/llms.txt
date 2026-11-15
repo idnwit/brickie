@@ -291,7 +291,8 @@ One finding per function and metric above the limit of a `[[complexity]]` rule (
 - `lines`: lines of the function. Fix: split along real responsibilities.
 
 The rules of every level above a function apply to it (each level selects its own child on the
-path); per metric the tightest limit wins, so a nested config can only tighten. Test-scope
+path): each level uses its most specific rule that sets the metric, and the tightest limit across
+the levels wins, so a nested config can only tighten. Test-scope
 functions are checked only when the rule's `scope` includes tests. Never raise a limit; never add
 `#[cfg(test)]` or move code only to change its scope.
 
@@ -373,11 +374,6 @@ The design (see "Editing the design"):
 ## brickie.toml reference
 
 ```toml
-include = ["presets/layered.toml"]  # optional; paths relative to this file; merged first
-exports = ["api", { brick = "internal", scope = "test" }]
-                               # composite files only: children visible from outside (default
-                               # none); a scoped entry counts for edges of that scope only
-
 [[brick]]
 name = "engine"                # unique in this file
 members = ["my-engine", "my-app::api", "module:my-app::entry", "path:crates/engine/"]
@@ -385,31 +381,26 @@ members = ["my-engine", "my-app::api", "module:my-app::entry", "path:crates/engi
                                # exact module id | path:<dir>/ (crates whose manifest is under the
                                # folder, relative to this file). Most specific wins (path: <
                                # package < module prefix < exact module; longer wins); a tie
-                               # across bricks is an error
+                               # across bricks is an error. Default: none
 tags = ["core"]                # optional labels for rule selectors
 desc = "Rule evaluation"       # optional one-liner shown in the viewer; no effect on checks
 
 [[brick]]
-name = "web"
-path = "crates/web"            # composite: children in crates/web/brickie.toml (required);
-                               # members default to ["path:crates/web/"]
+name = "app"
+members = ["my-app"]
+tags = ["app"]
 
 [deps]
-default = "allow"              # allow | deny: for edges that match no rule
-cycles = "deny"                # allow | deny: cycles between bricks (prod edges)
+default = "allow"              # allow (default) | deny: for edges that match no rule
+cycles = "deny"                # allow (default) | deny: cycles between bricks (prod edges)
 
 [[deps.rule]]
 from = "tag:app"               # selector: brick name | tag:<tag> | *
 to = "tag:core"
-via = ["ports-in"]             # optional; `to` must then name a composite brick (not a tag or *):
-                               # the rule matches only edges entering it through these exported
-                               # children, and scores +1 on the `to` side (brick + via beats a
-                               # plain brick rule). Default: any entry. Names must be in the
-                               # composite's `exports` (else config/unknown-via)
 kinds = ["uses", "implements"] # uses | implements | reexports; default all
 scope = "prod"                 # prod (default) | test | all
-action = "allow"               # allow | deny
-reason = "app calls into core" # shown in findings
+action = "allow"               # allow | deny (required)
+reason = "app calls into core" # shown in findings; a rule without one is a design todo
 help = "optional fix hint"     # replaces the built-in hint
 
 [measure]                      # root file only
@@ -422,19 +413,59 @@ bricks = "tag:core"            # selector; default *
 cognitive = 15                 # any of cognitive, cyclomatic, nesting, paths, params, lines
 nesting = 3
 scope = "prod"                 # prod (default) | test | all
-level = "error"                # error (fails check) | warn; default error
+level = "error"                # error (fails check; default) | warn
 help = "optional fix hint"
+```
+
+A composite and the keys that need one (shown as text because the child file must exist):
+
+```toml
+# brickie.toml
+include = ["presets/layered.toml"]   # optional; relative to this file; merged first, recursively
+exports = ["api", { brick = "internal", scope = "test" }]
+                               # composite files only: children visible from outside (default
+                               # none). A plain name exports for every scope; a table's scope
+                               # defaults to prod. Each entry must name a brick of that file
+[[brick]]
+name = "web"
+path = "crates/web"            # composite: children in crates/web/brickie.toml (required);
+                               # members default to ["path:crates/web/"]
+[[deps.rule]]
+from = "tag:app"
+to = "web"                     # via needs a composite brick here (not a tag or *)
+via = ["api"]                  # optional: the rule matches only edges entering `to` through these
+                               # exported children, and scores +1 on the `to` side. Must be a
+                               # non-empty list of names in the composite's `exports`
+action = "allow"
 ```
 
 Names, tags and rules are local to a file: its rules select only its own bricks. Every
 `brickie.toml` (root or composite) has the same schema; `include` works in each.
 
-Matching: for edges, the rule with the highest specificity wins (brick name 3, tag 2, `*` 1 per
-side, summed); deny wins a tie. For complexity, per function and metric the most specific rule
-that sets the metric applies (the lower limit on a tie). Unknown fields, tags, bricks or kinds are
-configuration errors (exit 2).
+Loading:
 
-`brickie.review.toml` (next to `brickie.toml`) lists findings a human accepted:
+- Lists (`brick`, `exports`, `deps.rule`, `complexity`, `additional_targets`) of included files
+  and the including file are concatenated; for `deps.default` and `deps.cycles` the including
+  file wins. An include cycle, a duplicate brick name in a level, and a composite path that leads
+  back to a file already being loaded are errors.
+- `[measure]` is accepted in the root file only. Each target triple is trimmed, non-empty and has
+  only ASCII letters, digits, `-`, `_` and `.`; the list is sorted and deduplicated.
+- `exports` and `via` are checked against the composite's children after all levels load.
+
+Matching: for edges, the rule with the highest specificity wins (brick name 3, tag 2, `*` 1 per
+side, summed); deny wins a tie, and between equal rules of one action the earlier one wins. For
+complexity, per function and metric each level picks its most specific rule that sets the metric
+(the lower limit on a tie), and the tightest limit across the ancestor levels wins. Unknown
+fields, tags, bricks or kinds are configuration errors (exit 2).
+
+Severity and exit: `deps/deny`, `deps/default`, `deps/private` and `deps/cycle` are errors;
+`complexity/*` is an error unless the rule says `level = "warn"`; every other check code is a
+warning. Only an unaccepted error gives exit 1. `--skip` or `--brick` with an unknown code or
+brick gives exit 2.
+
+`brickie.review.toml` (next to `brickie.toml`) lists findings a human accepted; each entry has
+exactly `id` and `reason`, both required. An absent file means no acceptances; a file that does
+not parse gives exit 2.
 
 ```toml
 [[accept]]
