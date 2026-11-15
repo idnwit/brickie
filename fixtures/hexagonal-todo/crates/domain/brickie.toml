@@ -1,0 +1,59 @@
+exports = ["column", "note", "board", "kernel"]
+[[brick]]
+name = "kernel"
+members = ["todo-domain", "todo-domain::error"]
+desc = "DomainError"
+
+[[brick]]
+name = "column"
+members = ["todo-domain::column"]
+desc = "Column entity and values"
+
+[[brick]]
+name = "note"
+members = ["todo-domain::note"]
+desc = "Note entity and values"
+
+[[brick]]
+name = "board"
+members = ["todo-domain::board"]
+desc = "Board aggregate, invariants"
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "column"
+to = "kernel"
+scope = "all"
+action = "allow"
+reason = "values report DomainError"
+
+[[deps.rule]]
+from = "note"
+to = "kernel"
+scope = "all"
+action = "allow"
+reason = "values report DomainError"
+
+[[deps.rule]]
+from = "note"
+to = "column"
+scope = "all"
+action = "allow"
+reason = "a note is placed in a column"
+
+[[deps.rule]]
+from = "board"
+to = "*"
+scope = "all"
+action = "allow"
+reason = "the aggregate composes everything"
+
+[[deps.rule]]
+from = "kernel"
+to = "*"
+scope = "all"
+action = "allow"
+reason = "root module declares submodules"

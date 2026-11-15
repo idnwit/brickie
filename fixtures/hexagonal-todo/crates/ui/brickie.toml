@@ -1,0 +1,97 @@
+exports = ["shell"]
+[[brick]]
+name = "shell"
+members = ["todo-ui"]
+desc = "BoardApp, mount, refresh"
+
+[[brick]]
+name = "board-view"
+members = ["todo-ui::board"]
+desc = "Column list, new-column form slot"
+
+[[brick]]
+name = "column-view"
+members = ["todo-ui::column"]
+desc = "Column header, note list, drop zone"
+
+[[brick]]
+name = "note-card"
+members = ["todo-ui::note"]
+desc = "Draggable card"
+
+[[brick]]
+name = "drag"
+members = ["todo-ui::drag"]
+desc = "DragState, pure drop_target"
+
+[[brick]]
+name = "forms"
+members = ["todo-ui::forms"]
+desc = "Column and note forms"
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "shell"
+to = "*"
+scope = "all"
+action = "allow"
+reason = "the shell mounts everything"
+
+[[deps.rule]]
+from = "board-view"
+to = "column-view"
+scope = "all"
+action = "allow"
+reason = "board lists columns"
+
+[[deps.rule]]
+from = "board-view"
+to = "forms"
+scope = "all"
+action = "allow"
+reason = "new-column form"
+
+[[deps.rule]]
+from = "board-view"
+to = "drag"
+scope = "all"
+action = "allow"
+reason = "drag state"
+
+[[deps.rule]]
+from = "column-view"
+to = "note-card"
+scope = "all"
+action = "allow"
+reason = "column lists cards"
+
+[[deps.rule]]
+from = "column-view"
+to = "drag"
+scope = "all"
+action = "allow"
+reason = "drop zone"
+
+[[deps.rule]]
+from = "column-view"
+to = "forms"
+scope = "all"
+action = "allow"
+reason = "note form"
+
+[[deps.rule]]
+from = "note-card"
+to = "drag"
+scope = "all"
+action = "allow"
+reason = "drag start"
+
+[[deps.rule]]
+from = "note-card"
+to = "forms"
+scope = "all"
+action = "allow"
+reason = "edit form"

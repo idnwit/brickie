@@ -1,0 +1,114 @@
+
+[[brick]]
+name = "adapters"
+tags = ["adapter"]
+path = "crates/adapters"
+desc = "Driven adapters (in-memory, JSON local storage)"
+
+[[brick]]
+name = "app"
+members = ["todo-app"]
+desc = "Composition root: wires adapters into use cases and mounts the UI"
+
+[[brick]]
+name = "application"
+tags = ["core"]
+path = "crates/application"
+desc = "Application layer: ports and use cases"
+
+[[brick]]
+name = "domain"
+tags = ["core"]
+path = "crates/domain"
+desc = "Domain layer: entities, value objects, board invariants"
+members = ["path:crates/domain/"]
+
+[[brick]]
+name = "ui"
+members = ["path:crates/ui/"]
+tags = ["adapter"]
+path = "crates/ui"
+desc = "Driving adapter: Sycamore components"
+
+[deps]
+default = "deny"
+cycles = "deny"
+
+[[deps.rule]]
+from = "tag:core"
+to = "tag:adapter"
+action = "deny"
+reason = "core must not know its adapters"
+help = "define a port in the application layer and let app inject the adapter"
+
+[[deps.rule]]
+from = "adapters"
+to = "application"
+via = ["board-storage"]
+scope = "all"
+action = "allow"
+reason = "driven adapters implement the storage ports only"
+
+[[deps.rule]]
+from = "application"
+to = "domain"
+scope = "all"
+action = "allow"
+reason = "the application layer is written in domain types"
+
+[[deps.rule]]
+from = "adapters"
+to = "domain"
+scope = "all"
+action = "allow"
+reason = "driven adapters store and load domain entities"
+
+[[deps.rule]]
+from = "ui"
+to = "domain"
+kinds = ["uses"]
+scope = "all"
+action = "allow"
+reason = "the UI renders domain values (read-only use)"
+
+[[deps.rule]]
+from = "ui"
+to = "application"
+via = ["board-service"]
+scope = "all"
+action = "allow"
+reason = "the UI drives the application only through BoardService"
+
+[[deps.rule]]
+from = "app"
+to = "application"
+action = "allow"
+reason = "the composition root builds the interactor and wires the ports"
+
+[[deps.rule]]
+from = "app"
+to = "adapters"
+action = "allow"
+reason = "the composition root picks the driven adapters"
+
+[[deps.rule]]
+from = "app"
+to = "ui"
+action = "allow"
+reason = "the composition root mounts the UI (wasm32 only, measured via additional_targets)"
+
+[[deps.rule]]
+from = "app"
+to = "domain"
+action = "allow"
+reason = "the smoke run and the wiring use domain value types"
+
+[[complexity]]
+cognitive = 15
+nesting = 4
+params = 5
+level = "error"
+help = "reduce real complexity: early returns, smaller cohesive steps, a struct for related parameters"
+
+[measure]
+additional_targets = ["wasm32-unknown-unknown"]

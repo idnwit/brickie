@@ -1,0 +1,10 @@
+[package]
+name = "todo-ui"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+todo-domain = { workspace = true }
+todo-application = { workspace = true }
+sycamore = { workspace = true }

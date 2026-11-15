@@ -1,0 +1,17 @@
+[package]
+name = "todo-app"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+
+[dependencies]
+todo-domain = { workspace = true }
+todo-application = { workspace = true }
+todo-adapter-memory = { workspace = true }
+todo-adapter-storage = { workspace = true, optional = true }
+todo-ui = { workspace = true }
+sycamore = { workspace = true }
+
+[features]
+default = []
+storage = ["dep:todo-adapter-storage"]
