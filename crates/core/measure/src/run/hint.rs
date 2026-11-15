@@ -10,23 +10,24 @@ pub fn target_cfgs(src: &str) -> BTreeSet<(&'static str, String)> {
     for line in src.lines().filter(|l| !l.trim_start().starts_with("//")) {
         for key in ["target_arch", "target_os"] {
             for (at, _) in line.match_indices(key) {
-                if line[..at].trim_end().ends_with("not(") {
-                    continue;
-                }
-                let rest = line[at + key.len()..].trim_start();
-                let Some(rest) = rest.strip_prefix('=') else {
-                    continue;
-                };
-                let Some(rest) = rest.trim_start().strip_prefix('"') else {
-                    continue;
-                };
-                if let Some(end) = rest.find('"') {
-                    out.insert((key, rest[..end].to_string()));
+                if let Some(value) = cfg_value(line, at, key) {
+                    out.insert((key, value.to_string()));
                 }
             }
         }
     }
     out
+}
+
+/// The quoted value of `key = "x"` at byte `at` of `line`; `None` when it is not of that shape
+/// or sits directly under `not(`.
+fn cfg_value<'a>(line: &'a str, at: usize, key: &str) -> Option<&'a str> {
+    if line[..at].trim_end().ends_with("not(") {
+        return None;
+    }
+    let rest = line[at + key.len()..].trim_start().strip_prefix('=')?;
+    let rest = rest.trim_start().strip_prefix('"')?;
+    Some(&rest[..rest.find('"')?])
 }
 
 /// The triple to suggest for a cfg value, when there is an obvious one.

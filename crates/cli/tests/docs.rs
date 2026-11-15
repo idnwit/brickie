@@ -41,7 +41,7 @@ fn load(toml: &str) -> anyhow::Result<()> {
     let config = dir.path().join("brickie.toml");
     if toml.contains("[[accept]]") {
         std::fs::write(dir.path().join("brickie.review.toml"), toml).unwrap();
-        return brickie_check::read_review(&config).map(drop);
+        return brickie_check::check::read_review(&config).map(drop);
     }
     std::fs::write(&config, toml).unwrap();
     brickie_check::config::load(&config).map(drop)

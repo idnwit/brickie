@@ -20,6 +20,9 @@ pub struct Review {
 pub struct Accept {
     pub id: String,
     pub reason: String,
+    /// The finding's weight when accepted; the acceptance holds while it stays within it.
+    #[serde(default)]
+    pub weight: Option<u64>,
 }
 
 /// Directory of the config file (where `.brickie/` and the review file live).

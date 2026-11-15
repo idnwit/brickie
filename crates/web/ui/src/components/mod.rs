@@ -10,6 +10,6 @@ mod links;
 mod panels;
 mod popup;
 
-pub use app::app;
-pub use call::call;
-pub use canvas::dash;
+pub(crate) use app::app;
+use call::call;
+use canvas::dash;

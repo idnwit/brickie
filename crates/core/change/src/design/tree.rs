@@ -7,7 +7,7 @@ use brickie_model::design::{PlanAction, PlanFile};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-pub type Files = BTreeMap<String, Vec<u8>>;
+pub(super) type Files = BTreeMap<String, Vec<u8>>;
 
 /// Every file of the tree, read from disk.
 pub fn read(root: &Path, config: &str) -> Result<Files> {

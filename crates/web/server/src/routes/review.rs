@@ -22,20 +22,21 @@ pub async fn review(
     if reason == Some("") {
         return Err(bad("a reason is required to accept a finding"));
     }
-    if let Some(r) = reason {
-        // Accepting needs a finding to exist; unaccepting a vanished one must stay possible.
-        let l = st.load()?;
-        if !l.diagnostics.iter().any(|d| d.id == req.id) {
-            return Err(Failure(
-                StatusCode::NOT_FOUND,
-                format!("no finding {}", req.id),
-            ));
+    // Accepting needs a finding to exist (its weight bounds the acceptance); unaccepting a
+    // vanished one must stay possible.
+    let accept = match reason {
+        Some(r) => {
+            let l = st.load()?;
+            let weight = (l.weights.get(&req.id).copied())
+                .filter(|_| l.diagnostics.iter().any(|d| d.id == req.id))
+                .ok_or_else(|| Failure(StatusCode::NOT_FOUND, format!("no finding {}", req.id)))?;
+            Some((r, weight))
         }
-        let _ = r;
-    }
+        None => None,
+    };
     {
         let _g = st.review_lock.lock().unwrap_or_else(|e| e.into_inner());
-        review::set_review(&st.config, &req.id, reason)
+        review::set_review(&st.config, &req.id, accept)
             .map_err(|e| Failure(StatusCode::INTERNAL_SERVER_ERROR, format!("{e:#}")))?;
     }
     Ok(Json(brickie_web_api::ReviewReply {

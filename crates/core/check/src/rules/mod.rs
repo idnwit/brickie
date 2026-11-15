@@ -1,7 +1,7 @@
 //! Rule evaluation over the cache: dependency rules, brick cycles, complexity limits and
 //! unmapped modules. Each finding type implements [`Finding`] (see `diag.rs`).
 
-use crate::config::{Brick, Config, Resolved};
+use crate::config::{Action, Brick, Config, Resolved};
 use crate::diag::{Finding, Span};
 use brickie_facts::{Cache, Evidence};
 use std::path::Path;
@@ -39,6 +39,7 @@ pub fn evaluate(cache: &Cache, cfg: &Config, res: &Resolved, root: &Path) -> Vec
                 module: m.id.clone(),
                 file: m.file.clone(),
                 line: m.line,
+                deny_default: cfg.deps.default == Action::Deny,
             }));
         }
     }
@@ -61,8 +62,11 @@ mod via_tests;
 
 pub use complexity::limits as complexity_limits;
 pub use deps::dep_subject;
-pub use links::{Link, unused_links};
+pub use links::unused_links;
 use unmapped::Unmapped;
+mod members;
 mod stale;
-pub use stale::{evaluate as evaluate_stale, evaluate_measure as evaluate_stale_measure};
-pub use unused_link::filter_text;
+pub use stale::{
+    evaluate as evaluate_stale, evaluate_location as evaluate_stale_location,
+    evaluate_measure as evaluate_stale_measure,
+};

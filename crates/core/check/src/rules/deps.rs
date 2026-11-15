@@ -135,6 +135,9 @@ pub fn dep_subject(from: &str, to: &str, kind: &str, scope: &str) -> String {
 }
 
 impl Finding for Dep {
+    fn weight(&self) -> u64 {
+        (self.evidence.len() as u64).max(1)
+    }
     fn code(&self) -> String {
         if self.rule.is_some() {
             DEPS_DENY
@@ -193,11 +196,11 @@ impl Finding for Dep {
         Some(match &self.rule {
             Some((_, r)) if r.help.is_some() => r.help.clone().unwrap_or_default(),
             Some(_) => "remove the dependency, or change the rule if it is intended".into(),
-            None if self.scope == "test" => format!(
-                "remove the dependency, or add a rule that covers tests: \
-                 `brickie design rule add {} {} allow --scope all` (or `--scope test`)",
-                self.from.name, self.to.name
-            ),
+            None if self.scope == "test" => {
+                "remove the dependency, or ask the reviewer for a rule that covers tests \
+                 (`scope = \"test\"` or `\"all\"`)"
+                    .into()
+            }
             None => "remove the dependency, or add a [[deps.rule]] that allows it".into(),
         })
     }

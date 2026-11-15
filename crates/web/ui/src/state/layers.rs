@@ -4,7 +4,7 @@
 use brickie_web_api::*;
 use std::collections::BTreeMap;
 
-pub const LDEF: [(&str, bool); 23] = [
+const LDEF: [(&str, bool); 23] = [
     ("edges", true),
     ("tests", false),
     ("k-uses", true),
@@ -31,7 +31,7 @@ pub const LDEF: [(&str, bool); 23] = [
 ];
 
 /// `PRESETS`: overrides of `LDEF`.
-pub fn preset_over(p: &str) -> &'static [(&'static str, bool)] {
+fn preset_over(p: &str) -> &'static [(&'static str, bool)] {
     match p {
         "arch" => &[("cx", false), ("stale", false), ("iface", false)],
         "viol" => &[
@@ -79,15 +79,6 @@ pub const SUBS: [(&str, &[(&str, &str)]); 4] = [
     ),
     ("iface", &[("i-unused", "interface/unused")]),
 ];
-
-pub fn group_name(g: &str) -> &'static str {
-    match g {
-        "deps" => "deps",
-        "cx" => "complexity",
-        "iface" => "interface",
-        _ => "stale",
-    }
-}
 
 /// The effective data layers (`S.L`).
 #[derive(Debug, Clone, PartialEq)]
@@ -155,7 +146,7 @@ pub fn with_toggle(p: &Params, key: &str) -> Params {
 }
 
 /// `fOn`: the finding's group and sub-layer are both on.
-pub fn f_on(lay: &Lay, code: &str) -> bool {
+pub(super) fn f_on(lay: &Lay, code: &str) -> bool {
     let (g, sub) = group_sub(code);
     lay.on(g) && lay.on(&sub)
 }

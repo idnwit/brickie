@@ -8,7 +8,9 @@ async fn json_endpoints_use_the_same_params() {
     let (st, body) = s.get("/api/diagnostics?level=error").await;
     assert_eq!(st, StatusCode::OK);
     let v: Value = serde_json::from_str(&body).unwrap();
-    assert_eq!(v.as_array().unwrap().len(), 1);
+    // The fixture has a file added after measure: a stale cache is an error too.
+    assert_eq!(v.as_array().unwrap().len(), 2);
+    assert_eq!(v[1]["code"], "stale/file");
     assert_eq!(v[0]["code"], "complexity/cognitive");
     assert_eq!(v[0]["snippet"]["hit"], "busy");
     let v: Value =

@@ -29,24 +29,11 @@ pub struct Options {
     pub additional_targets: Vec<String>,
 }
 
-/// Measure and write the cache; returns its path.
-pub fn run(opts: &Options) -> Result<PathBuf> {
-    run_with(opts, &|_| {})
-}
-
-/// [`run`], reporting each step's name to `progress` as it starts. Holds the cache lock
+/// Measure and write the cache, reporting each step's name to `progress` as it starts. Returns
+/// the cache path. Holds the cache lock
 /// ([`CacheLock`]) for the whole run: a concurrent measure of the same config fails at once.
 pub fn run_with(opts: &Options, progress: &dyn Fn(&str)) -> Result<PathBuf> {
-    let cfg_dir = opts
-        .config
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."));
-    // The config only locates the cache; bricks are resolved by `check` and `serve`.
-    if !opts.config.exists() && opts.config != Path::new("brickie.toml") {
-        anyhow::bail!("config {} not found", opts.config.display());
-    }
+    let cfg_dir = config_dir(opts)?;
     let dir = cfg_dir.join(".brickie");
     let _cache_lock = CacheLock::acquire(&dir).map_err(anyhow::Error::msg)?;
     let workspace = opts.workspace.clone().unwrap_or_else(|| cfg_dir.clone());
@@ -108,6 +95,9 @@ pub fn run_with(opts: &Options, progress: &dyn Fn(&str)) -> Result<PathBuf> {
     }
     let mut cache = merged.context("no index was measured")?;
     cache.measured = measured_by(opts);
+    cache.measured.location = (cfg_dir.canonicalize().unwrap_or(cfg_dir))
+        .display()
+        .to_string();
     // Unreadable files stay in the cache as empty rows; say so rather than hide it.
     unreadable.sort();
     unreadable.dedup();
@@ -118,10 +108,27 @@ pub fn run_with(opts: &Options, progress: &dyn Fn(&str)) -> Result<PathBuf> {
         progress(&line);
     }
     progress("write cache");
-    // Write then rename, so readers never see a half-written cache.
+    write_cache(&dir, &cache)
+}
+
+/// The directory of the config, which holds the `.brickie` cache folder.
+fn config_dir(opts: &Options) -> Result<PathBuf> {
+    // The config only locates the cache; bricks are resolved by `check` and `serve`.
+    if !opts.config.exists() && opts.config != Path::new("brickie.toml") {
+        anyhow::bail!("config {} not found", opts.config.display());
+    }
+    Ok(opts
+        .config
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .map_or_else(|| PathBuf::from("."), Path::to_path_buf))
+}
+
+/// Write then rename, so readers never see a half-written cache.
+fn write_cache(dir: &Path, cache: &Cache) -> Result<PathBuf> {
     let out = dir.join("cache.json");
     let part = dir.join("cache.json.part");
-    std::fs::write(&part, serde_json::to_vec_pretty(&cache)?)?;
+    std::fs::write(&part, serde_json::to_vec_pretty(cache)?)?;
     std::fs::rename(&part, &out).with_context(|| format!("write {}", out.display()))?;
     Ok(out)
 }

@@ -22,7 +22,7 @@ pub mod tokenizer;
 use tokenizer::{Kind, is_ident, is_punct, skip_group, tokenize};
 
 /// A 0-based (line, UTF-8 byte column) position.
-pub type Pos = (u32, u32);
+type Pos = (u32, u32);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UseItem {

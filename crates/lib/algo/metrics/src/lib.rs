@@ -57,7 +57,7 @@ pub struct FnTree {
 }
 
 /// A 0-based (row, UTF-8 byte column) position, as in SCIP.
-pub type Pos = (u32, u32);
+type Pos = (u32, u32);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FnMetrics {

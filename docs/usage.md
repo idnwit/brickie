@@ -32,11 +32,13 @@ brickie design rule add api store allow --reason "reads data" --base 15   # edit
 brickie llms.txt                 # guide for coding agents
 ```
 
-- Re-run `measure` after changing code. `check` and `serve` warn (`stale/*`) when the cache is older
-  than the code. Changing only the rules never needs a re-measure.
+- Re-run `measure` after changing code. A cache older than the code is an error (`stale/*`,
+  exit 1): `check --measure` re-measures first when needed. Changing only the rules never needs
+  a re-measure.
 - Every command takes `--config path/to/brickie.toml`.
 - `measure --scip index.scip --workspace DIR`.
-- `check --format text|json --color auto|always|never`.
+- `check --format text|short|json --color auto|always|never`; `short` is one line per finding.
+- `check --save-baseline` / `check --new`: see [Coding agents](#coding-agents).
 - `serve --port 7881 --bind 127.0.0.1`.
 - `design`: every write needs `--base N` (or `BRICKIE_BASE`), the version it was based on; a
   stale base writes nothing and exits 3. History is in `.brickie/history/` (git-ignore
@@ -50,6 +52,7 @@ A reviewer accepts a finding in `brickie.review.toml` next to the config, or wit
 [[accept]]
 id = "3fa9c1d2"
 reason = "why this is fine"
+weight = 20   # optional: accepted only while the finding is not worse than this
 ```
 
 ## CI
@@ -62,15 +65,65 @@ reason = "why this is fine"
 | 1 | at least one unaccepted `error` finding |
 | 2 | configuration, review file or cache problem (for example no cache: run `measure`) |
 
-A typical job runs `brickie measure && brickie check`. `--format json` prints `{summary,
+A typical job runs `brickie check --measure`. `--format json` prints `{summary,
 diagnostics}`. Pin a released version for reproducible CI; `dev` and `latest` move.
 
 ```yaml
 - uses: dtolnay/rust-toolchain@stable
   with: { components: rust-analyzer }
 - run: curl -fsSL https://raw.githubusercontent.com/idnwit/brickie/main/install.sh | sh -s -- --version v0.1.0
-- run: PATH="$HOME/.local/bin:$PATH" && brickie measure && brickie check
+- run: PATH="$HOME/.local/bin:$PATH" && brickie check --measure
 ```
+
+## Coding agents
+
+The gate is one command; an agent or a hook needs only its exit code:
+
+```sh
+brickie check --measure --format short   # re-measure when stale, one line per finding
+```
+
+| Situation | Setup |
+| --- | --- |
+| `brickie check` is clean | gate on `brickie check --measure` |
+| Existing findings (legacy code) | a human runs `brickie check --measure --save-baseline` once on a reviewed commit; gate on `brickie check --measure --new` |
+
+`--new` hides the findings recorded in `.brickie/baseline.json` and shows a finding that is new
+or got worse (higher complexity value, more reference sites). It fails with
+`baseline/rules-changed` when a `brickie.toml` or `brickie.review.toml` changed since the
+baseline, so an agent cannot pass by relaxing a rule or accepting a finding: a human reviews the
+change and saves the baseline again. The baseline is local (`.brickie/` is git-ignored); in CI
+build it from the base branch.
+
+Instructions for the agent (`AGENTS.md` or `CLAUDE.md`; works for Codex and Claude Code):
+
+```md
+- Read `brickie llms.txt` once before changing code.
+- Before reporting work as done run `brickie check --measure --format short` (add `--new` when
+  `.brickie/baseline.json` exists) and fix every finding in the code.
+- Never edit `brickie.toml`, `brickie.review.toml` or `.brickie/`, and never run
+  `brickie check --save-baseline`. Change the design only when asked, with `brickie design`.
+```
+
+Claude Code can enforce it with a Stop hook in `.claude/settings.json`: exit code 2 sends the
+findings back to the agent, which continues until the gate passes. The `stop_hook_active` test
+lets the agent stop after one forced round, so an unfixable finding is reported, not looped on.
+
+```json
+{
+  "hooks": {
+    "Stop": [{
+      "hooks": [{
+        "type": "command",
+        "command": "grep -q '\"stop_hook_active\": *true' && exit 0; out=$(brickie check --measure --new --format short 2>&1) || { echo \"$out\" >&2; exit 2; }"
+      }]
+    }]
+  }
+}
+```
+
+Drop `--new` when there is no baseline. Limits of the gate:
+[design/check.md](design/check.md), "Gate for coding agents".
 
 ## Serve
 

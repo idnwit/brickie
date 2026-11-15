@@ -16,7 +16,7 @@ mod zoom_icon;
 
 use brick::node_view;
 use defs::defs;
-pub use edge::dash;
+pub(in crate::components) use edge::dash;
 use edge::edge_view;
 pub use frame::frame_rect;
 use frame::frame_view;

@@ -34,7 +34,24 @@ fn stale_files() {
         msgs.iter()
             .any(|m| m.contains("crates/app/src/new.rs") && m.contains("added"))
     );
-    assert_eq!(o.code, 0, "stale findings are warnings");
+    assert_eq!(o.code, 1, "stale findings are errors");
+    assert!(
+        codes(&o, "stale/file")
+            .iter()
+            .all(|d| d["level"] == "error")
+    );
+    // An accept of a stale id does not turn the gate green.
+    let id = codes(&o, "stale/file")[0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    w.write(
+        "brickie.review.toml",
+        &format!("[[accept]]\nid = \"{id}\"\nreason = \"x\"\n"),
+    );
+    let o = run(&cfg, &["--format", "json"]);
+    assert_eq!(o.code, 1, "{}", o.stdout);
+    assert_eq!(o.json["summary"]["accepted"], 0);
 }
 
 #[test]
@@ -123,4 +140,57 @@ fn stale_uses_git_candidates() {
     let cfg = w2.save(&with_bricks(""));
     let o = run(&cfg, &["--format", "json"]);
     assert_eq!(codes(&o, "stale/file").len(), 2, "{}", o.stdout);
+}
+
+#[test]
+fn interface_of_unknown_brick_is_a_usage_error() {
+    let w = world(|_| {});
+    let cfg = w.save(&with_bricks(""));
+    let o = Command::new(BIN)
+        .args(["interface", "nope", "--config"])
+        .arg(&cfg)
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(2));
+}
+
+#[test]
+fn cache_from_another_location_is_one_stale_measure() {
+    let mut w = world(|_| {});
+    let canon = w.dir.path().canonicalize().unwrap().display().to_string();
+    w.cache["measured"] = json!({"features": "all", "targets": [], "location": canon});
+    let cfg = w.save(&with_bricks(""));
+    // Same location (compared canonically): no stale finding.
+    let o = run(&cfg, &["--format", "json"]);
+    assert!(codes(&o, "stale").is_empty(), "{}", o.stdout);
+    // Another recorded location: one stale/measure, and no file is judged.
+    let w = world(|c| {
+        c["measured"] = json!({"features": "all", "targets": [], "location": "/nowhere/else"});
+    });
+    let cfg = w.save(&with_bricks(""));
+    w.write("ws/crates/eng/src/x.rs", "// edited\n");
+    let o = run(&cfg, &["--format", "json"]);
+    assert_eq!(codes(&o, "stale/measure").len(), 1, "{}", o.stdout);
+    assert!(codes(&o, "stale/file").is_empty());
+    assert!(
+        codes(&o, "stale/measure")[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("/nowhere/else")
+    );
+    assert_eq!(o.code, 1);
+}
+
+/// `check --measure` must re-measure even when the old facts make the config fail to load
+/// (for example `config/unassigned` for a crate that was removed since).
+#[test]
+fn a_config_error_does_not_hide_stale_facts() {
+    let w = world(|_| {});
+    let broken =
+        with_bricks("[[deps.rule]]\nfrom = \"no-such-brick\"\nto = \"port\"\naction = \"allow\"\n");
+    let cfg = w.save(&broken);
+    assert_eq!(run(&cfg, &[]).code, 2);
+    assert!(!brickie_check::check::needs_measure(&cfg));
+    w.write("ws/crates/eng/src/x.rs", "// edited\n");
+    assert!(brickie_check::check::needs_measure(&cfg));
 }

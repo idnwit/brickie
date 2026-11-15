@@ -12,7 +12,7 @@ mod measure;
 mod review;
 mod view;
 
-pub use assets::wasm_embedded;
+pub(crate) use assets::wasm_embedded;
 
 use super::AppState;
 use crate::code::CodeProvider;

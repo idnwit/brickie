@@ -14,7 +14,7 @@ mod write;
 pub use history::CAP;
 pub use links::Link;
 pub use stale::{Stale, ago};
-pub use tree::Files;
+use tree::Files;
 pub(crate) use tree::missing;
 pub use write::{Outcome, Plan};
 
@@ -64,12 +64,12 @@ impl Design {
     }
 
     /// Absolute path of the root config.
-    pub fn config_path(&self) -> PathBuf {
+    pub(crate) fn config_path(&self) -> PathBuf {
         self.root.join(&self.config)
     }
 
     /// File name of the root config.
-    pub fn config_name(&self) -> &str {
+    pub(crate) fn config_name(&self) -> &str {
         &self.config
     }
 
@@ -79,7 +79,7 @@ impl Design {
     }
 
     /// The config files on disk now.
-    pub fn files(&self) -> Result<Files> {
+    pub(crate) fn files(&self) -> Result<Files> {
         tree::read(&self.root, &self.config)
     }
 

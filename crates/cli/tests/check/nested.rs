@@ -115,7 +115,7 @@ pub(super) fn tree() -> World {
         );
     }
     let cache = json!({
-        "schema_version": 6, "tool_version": "0", "rust_analyzer": "0",
+        "schema_version": 7, "tool_version": "0", "rust_analyzer": "0",
         "workspace_root": w.ws().display().to_string(), "git": null,
         "crates": list, "modules": modules, "files": files,
     });

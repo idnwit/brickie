@@ -20,13 +20,7 @@ pub fn run() -> Result<i32> {
             scip,
             workspace,
         } => measure::run(config, scip, workspace),
-        Command::Check {
-            config,
-            format,
-            color,
-            bricks,
-            skip,
-        } => Ok(check::run(&config, format, color, &bricks, &skip)),
+        Command::Check(args) => Ok(check::run(args)),
         Command::Design(args) => Ok(design::run(*args)),
         Command::Interface {
             brick,

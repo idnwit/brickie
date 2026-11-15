@@ -43,7 +43,8 @@ billed and read.
 
 - Rust checks: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`
   (plus `cargo clippy -p brickie-ui --features hydrate --target wasm32-unknown-unknown` when the
-  UI changed), `cargo test --workspace`. Documentation-only changes need a consistency and link
+  UI changed), `cargo test --workspace`, and brickie's own gate
+  `cargo run -p brickie -- check --measure --format short` (must exit 0). Documentation-only changes need a consistency and link
   review.
 - Source layout is in `docs/design/layout.md`: folders by concern, small focused files
   (about 300 lines or fewer, tests aside), no flat `src/`; crates by layer under `crates/`.

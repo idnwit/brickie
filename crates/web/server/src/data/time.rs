@@ -1,7 +1,7 @@
 //! UTC time formatting without a time crate.
 
 /// `YYYY-MM-DD HH:MM:SS UTC` (civil-from-days, no time crate).
-pub fn utc(t: std::time::SystemTime) -> String {
+pub(super) fn utc(t: std::time::SystemTime) -> String {
     let secs = t
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs() as i64);

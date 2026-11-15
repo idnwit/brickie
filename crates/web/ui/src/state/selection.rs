@@ -17,7 +17,7 @@ pub enum Sel {
     Edge(usize),
 }
 
-pub fn edge_key(g: &GraphView, e: usize) -> String {
+pub(super) fn edge_key(g: &GraphView, e: usize) -> String {
     let x = &g.edges[e];
     format!(
         "{}>{}>{}",

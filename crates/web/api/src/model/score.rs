@@ -6,7 +6,7 @@ use super::{BrickView, DiagView, GraphView};
 use serde::{Deserialize, Serialize};
 
 /// Weight of an open warning relative to an open error.
-pub const WARN_WEIGHT: f64 = 0.25;
+const WARN_WEIGHT: f64 = 0.25;
 
 /// A function over its worst limit: the metric with the highest value/limit ratio.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -30,7 +30,7 @@ pub fn ratio(value: u64, limit: u64) -> f64 {
 pub const CATEGORIES: [&str; 5] = ["deps", "cycle", "complexity", "stale", "interface"];
 
 /// Index into [`CATEGORIES`] of a diagnostic code.
-pub fn category(code: &str) -> usize {
+fn category(code: &str) -> usize {
     match code {
         "deps/cycle" => 1,
         c if c.starts_with("deps/") => 0,
@@ -64,7 +64,7 @@ impl BrickScore {
 }
 
 /// Complexity excess of one brick: the sum of `ratio - 1` over its hot functions.
-pub fn excess(b: &BrickView) -> f64 {
+fn excess(b: &BrickView) -> f64 {
     b.hot.iter().map(|f| (f.ratio - 1.0).max(0.0)).sum()
 }
 

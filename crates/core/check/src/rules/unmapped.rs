@@ -8,6 +8,8 @@ pub(super) struct Unmapped {
     pub(super) module: String,
     pub(super) file: String,
     pub(super) line: u32,
+    /// Under `deps.default = "deny"` an unmapped module escapes every rule.
+    pub(super) deny_default: bool,
 }
 
 impl Finding for Unmapped {
@@ -15,7 +17,11 @@ impl Finding for Unmapped {
         BRICKS_UNMAPPED.into()
     }
     fn level(&self) -> Level {
-        Level::Warn
+        if self.deny_default {
+            Level::Error
+        } else {
+            Level::Warn
+        }
     }
     fn subject(&self) -> String {
         self.module.clone()
@@ -36,6 +42,10 @@ impl Finding for Unmapped {
         None
     }
     fn help(&self) -> Option<String> {
-        Some("add its crate or module to a [[brick]] members list; edges of unmapped modules are not checked".into())
+        Some(if self.deny_default {
+            "the module is unchecked: a human assigns it to a brick (an agent adds it to `members` only when the brick is obvious, via `brickie design brick set`)".into()
+        } else {
+            "add its crate or module to a [[brick]] members list; edges of unmapped modules are not checked".into()
+        })
     }
 }

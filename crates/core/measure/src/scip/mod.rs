@@ -80,7 +80,7 @@ pub struct Graph {
     pub use_items: Vec<UseItem>,
 }
 
-pub fn span(r: &[i32]) -> Span {
+fn span(r: &[i32]) -> Span {
     let u = |i: usize| r.get(i).copied().unwrap_or(0).max(0) as u32;
     if r.len() == 3 {
         (u(0), u(1), u(0), u(2))

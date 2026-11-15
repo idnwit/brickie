@@ -7,7 +7,18 @@ use brickie_check::interface::{self, EdgeItem, Interface, Site};
 use std::fmt::Write;
 use std::path::Path;
 
+/// Exit code 0, or 2 for a usage, config or cache problem.
 pub fn run(config: &Path, brick: &str, from: Option<&str>, json: bool) -> Result<i32> {
+    Ok(match print(config, brick, from, json) {
+        Ok(()) => 0,
+        Err(e) => {
+            eprintln!("brickie: error: {e:#}");
+            2
+        }
+    })
+}
+
+fn print(config: &Path, brick: &str, from: Option<&str>, json: bool) -> Result<()> {
     let Loaded {
         cfg,
         cache,
@@ -35,7 +46,7 @@ pub fn run(config: &Path, brick: &str, from: Option<&str>, json: bool) -> Result
         }
     };
     println!("{}", out.trim_end());
-    Ok(0)
+    Ok(())
 }
 
 /// Sites printed per using brick in the text form.

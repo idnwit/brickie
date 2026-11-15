@@ -2,11 +2,13 @@
 //! per rule type, nested brick trees, staleness, config includes, review acceptance and config
 //! errors.
 
+mod baseline;
 mod config;
 mod cycles_complexity;
 mod deps;
 mod links;
 mod nested;
+mod review;
 mod scope;
 mod stale;
 mod support;

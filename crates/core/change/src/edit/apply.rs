@@ -10,7 +10,7 @@ use super::{find, via};
 use crate::paths::join_rel;
 use anyhow::{Result, bail};
 use brickie_model::design::Op;
-use toml_edit::value;
+use toml_edit::{DocumentMut, value};
 
 pub fn apply(docs: &mut Docs, op: &Op) -> Result<()> {
     apply_one(docs, op)?;
@@ -59,7 +59,11 @@ fn apply_one(docs: &mut Docs, op: &Op) -> Result<()> {
         }
         _ => {}
     }
-    let doc = docs.get_mut(op.file())?;
+    apply_to_doc(docs.get_mut(op.file())?, op)
+}
+
+/// The ops that edit the one document they name.
+fn apply_to_doc(doc: &mut DocumentMut, op: &Op) -> Result<()> {
     match op {
         Op::SetBrick {
             name,

@@ -177,6 +177,9 @@ pub(super) fn complexity(
 }
 
 impl Finding for Cx {
+    fn weight(&self) -> u64 {
+        self.value
+    }
     fn bricks(&self) -> Vec<String> {
         vec![self.brick.clone()]
     }

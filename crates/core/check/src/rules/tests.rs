@@ -126,7 +126,7 @@ fn helps(code: &str, needle: &str) -> Vec<String> {
 fn default_help_names_the_scope_for_test_edges() {
     let test = helps("deps/default", "in tests");
     assert_eq!(test.len(), 1, "{test:?}");
-    assert!(test[0].contains("brickie design rule add core web allow --scope all"));
+    assert!(test[0].contains("ask the reviewer for a rule that covers tests"));
     let prod = helps("deps/default", "`shared` uses `api`");
     assert_eq!(prod.len(), 1, "{prod:?}");
     assert!(!prod[0].contains("--scope"));

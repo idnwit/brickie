@@ -1,12 +1,11 @@
 //! The facade over the internal `rules` and `review` bricks for the CLI and the webview.
 
-use crate::config::Config;
+use crate::config::{Config, Link};
 use crate::{review, rules};
 use anyhow::Result;
 use std::path::{Path, PathBuf};
 
 pub use brickie_model::codes::{DEPS_CYCLE, DEPS_DEFAULT, DEPS_DENY, DEPS_PRIVATE, DEPS_UNUSED};
-pub use rules::{Link, filter_text};
 
 /// Every allow rule between two named bricks that no measured edge backs, with its state.
 /// The design todo list, `deps/unused` and the viewer all read this one list.
@@ -34,7 +33,18 @@ pub fn config_dir(config: &Path) -> PathBuf {
     review::config_dir(config)
 }
 
-/// Accept (`Some(reason)`) or unaccept (`None`) the finding `id` in `brickie.review.toml`.
-pub fn set_review(config: &Path, id: &str, reason: Option<&str>) -> Result<()> {
-    review::set_review(config, id, reason)
+/// Accept (`Some((reason, weight))` with the finding's current weight) or unaccept (`None`)
+/// the finding `id` in `brickie.review.toml`.
+pub fn set_review(config: &Path, id: &str, accept: Option<(&str, u64)>) -> Result<()> {
+    review::set_review(config, id, accept)
+}
+
+/// Checks that the review file next to `config` parses; an absent file is an empty review.
+/// Returns the ids of the accepted findings.
+pub fn read_review(config: &Path) -> Result<Vec<String>> {
+    Ok(review::read(config)?
+        .accept
+        .into_iter()
+        .map(|a| a.id)
+        .collect())
 }

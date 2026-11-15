@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const SCHEMA_VERSION: u32 = 6;
+pub const SCHEMA_VERSION: u32 = 7;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Cache {
@@ -33,6 +33,10 @@ pub struct Measured {
     pub features: String,
     /// Targets measured besides the host, sorted.
     pub targets: Vec<String>,
+    /// Canonical directory of the config the run was made for; `check` reports a cache read
+    /// from another directory (a copied or moved project). Empty: not judged.
+    #[serde(default)]
+    pub location: String,
 }
 
 impl Measured {
@@ -41,6 +45,7 @@ impl Measured {
         Measured {
             features: "all".into(),
             targets,
+            location: String::new(),
         }
     }
 }

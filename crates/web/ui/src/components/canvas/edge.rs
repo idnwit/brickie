@@ -12,7 +12,7 @@ const KIND_ABBR: [(&str, &str); 3] = [
 ];
 
 /// `KDASH`.
-pub fn dash(kind: &str) -> &'static str {
+pub(in crate::components) fn dash(kind: &str) -> &'static str {
     match kind {
         "implements" => "10 5",
         "reexports" => "1.5 4.5",

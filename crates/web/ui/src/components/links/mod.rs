@@ -58,6 +58,51 @@ fn glyph(x: f64, y: f64, g: &str) -> View {
     view! { g(class="qmark") { circle(cx=px2, cy=py, r="8") text(x=px, y=ty, "text-anchor"="middle") { (g) } } }
 }
 
+/// The marks of one link (`!`, `?`, `A`) in a row from `at`, and the hover label after them.
+fn marks_of(pr: &Pair, at: Pt, agent: bool) -> (Vec<View>, Option<View>) {
+    let mut glyphs = vec!["!"];
+    if pr.no_reason() {
+        glyphs.push("?");
+    }
+    let (ax, ay) = (at.x, at.y);
+    let ty = (ay + 4.0).to_string();
+    let mut x = ax;
+    let mut shown: Vec<View> = Vec::new();
+    for g in glyphs {
+        shown.push(glyph(x, ay, g));
+        x += SLOT;
+    }
+    if agent {
+        let bx = x.to_string();
+        shown.push(
+            view! { text(class="abadge", x=bx, y=ty.clone(), "text-anchor"="middle") { "A" } },
+        );
+        x += SLOT;
+    }
+    let lx = if x > at.x {
+        x - SLOT + 14.0
+    } else {
+        at.x + 10.0
+    };
+    let ly = (at.y + 4.0).to_string();
+    let label = pr.label().map(|t| {
+        view! { text(class="rlabel", x=lx.to_string(), y=ly) { (t) } }
+    });
+    (shown, label)
+}
+
+/// Select the rule after the selected one among `refs` (the first when none is selected), and
+/// open the inspector.
+fn select_next(ed: Edit, refs: &[RuleRef]) {
+    // A pair of several rules: each click selects the next one.
+    let at = ed
+        .rule
+        .with_untracked(|x| x.as_ref().and_then(|r| refs.iter().position(|q| q == r)));
+    ed.rule
+        .set(refs.get(at.map_or(0, |i| (i + 1) % refs.len())).cloned());
+    ed.tab.set("inspect");
+}
+
 /// One pair: line, hit area, marks and the hover label.
 fn draw(
     cx: &Cx,
@@ -72,30 +117,7 @@ fn draw(
     let route = path_of(cx, pr.a, pr.b, p);
     let d = route.d();
     let at = mark_spot(&route, p, marks);
-    let mut glyphs: Vec<&str> = Vec::new();
-    glyphs.push("!");
-    if pr.no_reason() {
-        glyphs.push("?");
-    }
-    let mut x = at.x;
-    let mut shown: Vec<View> = Vec::new();
-    for g in &glyphs {
-        shown.push(glyph(x, at.y, g));
-        x += SLOT;
-    }
-    if agent {
-        let t = view! { text(class="abadge", x=x.to_string(), y=(at.y + 4.0).to_string(), "text-anchor"="middle") { "A" } };
-        shown.push(t);
-        x += SLOT;
-    }
-    let label = pr.label().map(|t| {
-        let lx = if x > at.x {
-            x - SLOT + 14.0
-        } else {
-            at.x + 10.0
-        };
-        view! { text(class="rlabel", x=lx.to_string(), y=(at.y + 4.0).to_string()) { (t) } }
-    });
+    let (shown, label) = marks_of(pr, at, agent);
     let refs: Vec<RuleRef> = pr
         .rules
         .iter()
@@ -123,13 +145,7 @@ fn draw(
         ev.stop_propagation();
         picked.set((picked.get_untracked() != Some(key)).then_some(key));
         if editing {
-            // A pair of several rules: each click selects the next one.
-            let at = ed
-                .rule
-                .with_untracked(|x| x.as_ref().and_then(|r| refs.iter().position(|q| q == r)));
-            ed.rule
-                .set(refs.get(at.map_or(0, |i| (i + 1) % refs.len())).cloned());
-            ed.tab.set("inspect");
+            select_next(ed, &refs);
         }
     };
     let dash_style = dash.map_or_else(String::new, |s| format!("stroke-dasharray:{s}"));

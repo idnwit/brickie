@@ -15,7 +15,7 @@ const OUTBOUND: &str = "outbound";
 
 /// The (from, to) brick pairs the planned rules of `level` draw, each once, in rule order.
 /// A selector `*` draws nothing; ghosts and self pairs are skipped.
-pub fn unused_pairs(level: &LevelView) -> Vec<(usize, usize)> {
+pub(super) fn unused_pairs(level: &LevelView) -> Vec<(usize, usize)> {
     let g = &level.graph;
     let ends = |sel: &str| -> Vec<usize> {
         (0..g.bricks.len())

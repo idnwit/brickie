@@ -5,7 +5,10 @@ use crate::platform;
 use brickie_web_api::{Endpoint, ReqOf, ResOf};
 
 /// POST `req` to `E::PATH` and hand the decoded reply (or an error message) to `done`.
-pub fn call<E: Endpoint>(req: &ReqOf<E>, done: impl FnOnce(Result<ResOf<E>, String>) + 'static) {
+pub(super) fn call<E: Endpoint>(
+    req: &ReqOf<E>,
+    done: impl FnOnce(Result<ResOf<E>, String>) + 'static,
+) {
     let body = match serde_json::to_string(req) {
         Ok(b) => b,
         Err(e) => return done(Err(e.to_string())),

@@ -26,6 +26,11 @@ pub trait Finding {
     fn brick_level(&self) -> Option<String> {
         None
     }
+    /// How bad the finding is, for comparing against a saved baseline: the measured value of
+    /// a complexity finding, the number of reference sites of a dependency finding, else 1.
+    fn weight(&self) -> u64 {
+        1
+    }
     /// Full level paths (`root/web/api`) of the bricks that own the finding, for scoped checks.
     /// Default: every brick in `bricks` at `brick_level`; none without a level.
     fn owners(&self) -> Vec<String> {

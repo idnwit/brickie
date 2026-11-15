@@ -98,3 +98,18 @@ fn rule_towards_a_partly_measured_composite_is_unused_without_an_edge() {
     assert_eq!(o.code, 1, "{}", o.stderr); // the existing errors, not a config failure
     assert_eq!(unused(&o).len(), 1, "{}", o.stdout);
 }
+
+#[test]
+fn short_format_prints_config_paths_relative_to_the_workspace() {
+    let mut w = world(|_| {});
+    // The config sits at the workspace root, as in a real project.
+    w.cache["workspace_root"] = w.dir.path().display().to_string().into();
+    let c = w.save(&with_bricks(RULES));
+    let o = run(&c, &["--format", "short"]);
+    let line = (o.stdout.lines())
+        .find(|l| l.starts_with("warning[deps/unused] "))
+        .unwrap_or_else(|| panic!("{}", o.stdout));
+    let at = line.split(' ').nth(2).unwrap();
+    assert!(at.starts_with("brickie.toml:"), "{line}");
+    assert!(!line.contains(" /"), "{line}");
+}

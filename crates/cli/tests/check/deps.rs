@@ -28,10 +28,22 @@ action = "allow"
         ),
     );
     assert!(codes(&o, "deps").is_empty(), "{}", o.stdout);
-    // Only the unmapped-module warning remains.
+    // Only the unmapped module remains; under default deny it is an error.
+    assert_eq!(o.code, 1);
+    assert_eq!(o.json["summary"]["errors"], 1);
+    let u = codes(&o, "bricks/unmapped");
+    assert_eq!(u.len(), 1);
+    assert_eq!(u[0]["level"], "error");
+}
+
+#[test]
+fn unmapped_is_a_warning_under_default_allow() {
+    let w = world(|_| {});
+    let o = check(&w, &with_bricks(""));
     assert_eq!(o.code, 0);
-    assert_eq!(o.json["summary"]["errors"], 0);
-    assert_eq!(codes(&o, "bricks/unmapped").len(), 1);
+    let u = codes(&o, "bricks/unmapped");
+    assert_eq!(u.len(), 1);
+    assert_eq!(u[0]["level"], "warn");
 }
 
 #[test]
