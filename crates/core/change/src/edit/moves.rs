@@ -25,10 +25,8 @@ pub fn add_brick(docs: &mut Docs, file: &str, spec: &BrickSpec) -> Result<()> {
     }
     brick::add(docs.get_mut(file)?, &spec)?;
     if let (Some(BrickKind::Group), Some(p)) = (spec.kind, &spec.path) {
-        docs.create(&join_rel(
-            file,
-            &format!("{}/brickie.toml", p.trim_end_matches('/')),
-        ))?;
+        let new = join_rel(file, &format!("{}/brickie.toml", p.trim_end_matches('/')));
+        docs.create_level(&new, file)?;
     }
     Ok(())
 }
@@ -72,10 +70,11 @@ pub fn move_brick(docs: &mut Docs, op: &Op) -> Result<()> {
         if !t.contains_key("path") {
             let p = path.clone().unwrap_or_else(|| parent.clone());
             t["path"] = value(p.trim_end_matches('/'));
-            docs.create(&join_rel(
+            let new = join_rel(
                 into_file,
                 &format!("{}/brickie.toml", p.trim_end_matches('/')),
-            ))?;
+            );
+            docs.create_level(&new, into_file)?;
         }
     }
     let Some(to) = target(docs, op) else {

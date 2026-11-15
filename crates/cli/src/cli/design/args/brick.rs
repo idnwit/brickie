@@ -27,9 +27,13 @@ pub struct BrickFields {
 #[derive(Subcommand)]
 pub enum BrickCmd {
     /// Add a brick to a level; a crate defaults to `path:crates/<name>/`, a group to its own
-    /// folder. Missing code is scaffolded.
+    /// folder. No source code is written unless `--scaffold` asks for it.
     Add {
         name: String,
+        /// Also create the missing code: a crate (`Cargo.toml`, `src/lib.rs`, workspace
+        /// member) or a module file with its `pub mod` line.
+        #[arg(long)]
+        scaffold: bool,
         #[arg(long = "in")]
         level: Option<String>,
         #[arg(long, value_enum)]

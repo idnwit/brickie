@@ -34,7 +34,7 @@ impl Design {
         self.file_of(&cfg, level)
     }
 
-    fn file_of(&self, cfg: &Config, level: &[String]) -> Result<String> {
+    pub(super) fn file_of(&self, cfg: &Config, level: &[String]) -> Result<String> {
         let node = cfg.node(level).with_context(|| {
             format!(
                 "{DESIGN_NO_MATCH}: no composite brick '{}'",

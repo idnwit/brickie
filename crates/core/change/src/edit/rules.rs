@@ -145,6 +145,28 @@ pub fn set_deps(doc: &mut DocumentMut, default: Option<&str>, cycles: Option<&st
     Ok(())
 }
 
+/// The current `exports` entries of the document, in order.
+pub fn read_exports(doc: &DocumentMut) -> Vec<ExportSpec> {
+    let Some(a) = doc.get("exports").and_then(Item::as_array) else {
+        return Vec::new();
+    };
+    a.iter()
+        .filter_map(|v| {
+            if let Some(s) = v.as_str() {
+                return Some(ExportSpec {
+                    brick: s.to_string(),
+                    scope: None,
+                });
+            }
+            let t = v.as_inline_table()?;
+            Some(ExportSpec {
+                brick: t.get("brick")?.as_str()?.to_string(),
+                scope: t.get("scope").and_then(Value::as_str).map(String::from),
+            })
+        })
+        .collect()
+}
+
 pub fn set_exports(doc: &mut DocumentMut, exports: &[ExportSpec]) {
     if exports.is_empty() {
         doc.remove("exports");

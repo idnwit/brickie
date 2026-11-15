@@ -1,6 +1,8 @@
 //! Engine tests on a temporary workspace (no cache: config-level behaviour only).
 
+mod exports;
 mod keys;
+mod levels;
 mod undo;
 mod ungroup;
 mod versions;

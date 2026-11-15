@@ -24,7 +24,11 @@
 - When `.brickie/baseline.json` exists, add `--new`: findings recorded in the baseline are
   hidden (footer `baseline: N errors, M warnings hidden`) and you fix what is shown: findings
   that are new, or worse than recorded (`worse than the baseline: 16 -> 22`). Never run
-  `brickie check --save-baseline`; a human saves the baseline.
+  `brickie check --save-baseline`; a human saves the baseline. JSON adds a `baseline` object
+  (`errors`, `warnings` hidden); a finding that got worse carries the note in `notes`. `--new`
+  without a baseline file exits 2.
+- `--measure` needs `rust-analyzer` on `PATH`; when the measure fails, `check` exits 2 and
+  prints the reason.
 - `brickie check --format json` prints `{summary, diagnostics}`; each finding has `id`, `code`,
   `level`, `brick_level`, `message`, `span`, `spans`, `rule`, `help`, `notes`, `bricks`, `edges`,
   `accepted`, `accepted_reason`. Read the text form, loop over the JSON.
@@ -125,15 +129,16 @@ Concurrency contract (a human may edit at the same time):
 - `undo [V]` reverts the file changes of version V (default: the head) as a new version, comments
   included. It refuses when a later version changed the same file and was not undone. Never undo
   a human's or an external version (the CLI refuses); ask the human. After a nested
-  `brickie.toml` was deleted, `show` warns and `undo` restores it.
+  `brickie.toml` was deleted, `show` warns and `undo` restores it. `undo` never removes
+  scaffolded code.
 
 - `show` prints `design v15 <hash>` and the tree: each level
   with its file, bricks (kind, members, tags, children), rules `from -> to [via] (scope)
   allow|deny "reason"`, limits and deps, then a `todo` list. `--since N` prints only the
   versions after N, each with its author, note and diff lines. `--in P` prints only the level
   owned by composite P and its subtree (use it on a large design).
-- A write prints `ok: v16` (`ok: v15 (no change)` when nothing changed) and lists code it
-  scaffolded. A write that would leave the design invalid writes nothing (`design/invalid`).
+- A write prints `ok: v16` (`ok: v15 (no change)` when nothing changed), lists the design files
+  and any code it created, then one `note: ...` line per fact worth knowing. A write that would leave the design invalid writes nothing (`design/invalid`).
 - Bricks are named by path from the root (`web/api`, `root/web/api` is the same); a level by the
   composite brick that owns it (`--in web`; default: the root level). Never use indices.
 - Prefer one `apply` per task: `brickie design apply --base N --note "why"` reads one op per
@@ -153,17 +158,18 @@ Concurrency contract (a human may edit at the same time):
   in a line resolve against the design as it is now, so a line cannot refer to a brick an
   earlier line adds, except by `brick add --in` or in a rule's `FROM`/`TO`.
 - `--dry-run` (on `apply` and on every write command) checks the base, applies and validates
-  everything in memory, prints the diff and the todos the change adds, and writes nothing (no
-  version, no scaffold). Use it before a large `apply`.
+  everything in memory, prints the diff, the todos the change adds and the notes, and writes
+  nothing (no version, no code). With `--scaffold` it also lists the code it would create.
+  Use it before a large `apply`.
 
 Commands (each write also takes `--base N`, `--note` and `--dry-run`; `undo` takes `--base`
-only):
+only; `--scaffold` is only on `brick add` and `apply`):
 
 ```
 brickie design show [--since N] [--in P] [--format json]
 brickie design log | diff A [B] | undo [V]
-brickie design apply   (ops on stdin, one per line)
-brickie design brick add NAME [--in P] [--kind crate|module|group] [--members a,b] [--tags a,b] [--desc D] [--path DIR]
+brickie design apply [--scaffold]   (ops on stdin, one per line)
+brickie design brick add NAME [--in P] [--kind crate|module|group] [--members a,b] [--tags a,b] [--desc D] [--path DIR] [--scaffold]
 brickie design brick set PATH [--members] [--tags] [--desc] [--path]   (empty --desc/--path removes)
 brickie design brick rename PATH NEW | move PATH --into P|root | rm PATH
 brickie design brick group NAME CHILD... | ungroup PATH
@@ -187,9 +193,20 @@ brickie design include add|rm FILE [--in P]
   (`path:<name>/` in a nested file); `--kind group` makes a composite in its own folder
   `<name>/` next to its parent file, with a new `brickie.toml`. Pass `--path` or `--members` to
   choose. `brick set NAME --path P` makes a module composite and creates
-  `P/brickie.toml` when it is absent. Missing code of a new brick is scaffolded (folder, crate
-  `Cargo.toml` and `src/lib.rs` plus a workspace member, or a module file; the write lists what it
-  created); existing files are never overwritten.
+  `P/brickie.toml` when it is absent. brickie writes no source code unless asked: the brick
+  shows as a `planned` todo until you write the code. `--scaffold` (on `brick add`, or on `apply`
+  for every line; not allowed inside a line) also creates the missing code (folder, crate
+  `Cargo.toml` and `src/lib.rs` plus a workspace member, or a module file plus `pub mod` in the
+  crate root; the write lists what it created); existing files are never overwritten. The
+  design files of a group and of `set --path` are always created.
+- Every `brickie.toml` has its own `deps.default` (allow when absent) and `deps.cycles`; nothing
+  is inherited. Under a nested file with no `deps`, an allow rule changes nothing until
+  `deps set --default deny --in P`. A nested file brickie creates copies `default` and `cycles`
+  from its parent level; existing files are never changed.
+- `rule add` (also as an `apply` line) prints `note: rule a -> b allow changes nothing: already
+  allowed by deps.default of grp/brickie.toml` when the new rule changes no edge of its level.
+  It is a note, not an error: the rule is written. No note when the level is created in the
+  same `apply`.
 - A rule's `scope` is `prod` unless set: edges from test code need `rule add ... --scope test|all`.
 - `brick group NAME CHILD...` makes composite NAME next to the children and moves them in;
   `ungroup` lifts the children, their rules and limits back up (the child file stays on disk).
@@ -201,7 +218,7 @@ brickie design include add|rm FILE [--in P]
 - After code changes run `brickie measure`, then `brickie design show` (the todo list) and
   `brickie check`.
 - `--format json`: `show` also has `since_agent: [version...]` when there are versions after your
-  last one; `--dry-run` prints `{dry_run, diff, new_todo, scaffold}`. `show` prints `{v, hash, by, at, root: {path, file, bricks: [{name, kind,
+  last one; `--dry-run` prints `{dry_run, diff, new_todo, scaffold, notes}`; a write prints its version, plus `notes: [text]` when there are notes. `show` prints `{v, hash, by, at, root: {path, file, bricks: [{name, kind,
   members, tags, desc, todo, children}], exports, default, cycles, rules: [{file, from, to, via,
   kinds, scope, action, reason, todo}], limits: [{file, bricks, metrics, level, scope}]}, todo:
   [{kind, text}]}`; `log` a list of versions `{v, hash, prev, by, at, note, ops, diff, files,
@@ -316,8 +333,8 @@ functions are checked only when the rule's `scope` includes tests. Never raise a
 
 A `.rs` file was changed, added or deleted after `brickie measure`, or a workspace crate
 (a `[workspace] members` entry of the root `Cargo.toml`) was added or removed (the message says
-which), so its data is old. Run `brickie check --measure` (or `brickie measure`, then `brickie check`). It
-cannot be skipped or accepted.
+which), so its data is old. Run `brickie check --measure` (or `brickie measure`, then
+`brickie check`). It cannot be skipped or accepted.
 
 ### stale/measure (error)
 
@@ -372,13 +389,20 @@ Configuration errors (exit 2, printed on stderr with the code first; no findings
 - `config/overlap`: a module matches two bricks of one file with equal specificity.
 - `config/unassigned`: a module of a composite is in none of its children (children must
   partition the composite).
-- `config/member-outside-parent`: a child's member matches a module outside its composite.
+- `config/member-outside-parent`: a child's member matches a module outside its composite. When
+  the message says a brick of an outer level took the module, see the paragraph below.
 - `config/unknown-export`: `exports` names something that is not a brick of that file.
 - `config/unknown-via`: a rule's `via` is an empty list, `to` is not a composite brick name (a tag,
   `*` or a leaf), or `via` names a child the `to` composite does not export. Fix `via` to list only
   names in that composite's `exports`.
 
 These are brick-structure decisions: report them rather than editing the config to silence them.
+
+A composite owns every module under its path, and a brick of an outer level must not take one
+from inside it (that would bypass its `exports`). If an outer brick's more specific member does,
+remove that member from the outer brick and make it a child brick of the composite; add it to
+the composite's `exports` if outside code uses it. Matching only package directories, a
+`path:` member that names a source file or a folder inside a package matches nothing.
 
 While a design is being built these can come from unfinished work: `config/unassigned`,
 `config/overlap` and `config/member-outside-parent` then show as `config` items of the
@@ -499,8 +523,8 @@ is `deny`; every other check code is a warning. Only an unaccepted error gives e
 or `--brick` with an unknown code or brick gives exit 2.
 
 `brickie.review.toml` (next to `brickie.toml`) lists findings a human accepted; each entry has
-`id` and `reason` (both required) and an optional integer `weight`. An absent file means no acceptances; a file that does
-not parse gives exit 2.
+`id` and `reason` (both required) and an optional integer `weight`. An absent file means no
+acceptances; a file that does not parse gives exit 2.
 
 ```toml
 [[accept]]

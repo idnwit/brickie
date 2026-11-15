@@ -60,7 +60,10 @@ pub fn describe(op: &Op) -> String {
         Op::AddRule { rule, .. } => rule_words(rule),
         Op::SetRule { key, .. } => format!("Changed rule {}", key_words(key)),
         Op::RemoveRule { key, .. } => format!("Removed rule {}", key_words(key)),
-        Op::SetExports { exports, .. } => format!("Set exports ({} bricks)", exports.len()),
+        Op::AddExport { brick, scope, .. } => {
+            format!("Exported {brick} ({})", scope.as_deref().unwrap_or("all"))
+        }
+        Op::RemoveExport { brick, .. } => format!("Stopped exporting {brick}"),
         Op::AddComplexity { .. } => "Added a complexity rule".into(),
         Op::SetComplexity { bricks, .. } => {
             format!("Changed complexity of {}", bricks.as_deref().unwrap_or("*"))

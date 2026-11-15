@@ -21,8 +21,10 @@ pub struct Outcome {
     pub version: Version,
     /// `false`: the ops left every file as it was; no version was added.
     pub changed: bool,
-    /// Code files scaffolded for new bricks.
+    /// Code files scaffolded for new bricks (only when asked for).
     pub scaffold: Vec<PlanFile>,
+    /// Facts about the ops that did not stop the write (a rule that changes nothing).
+    pub notes: Vec<String>,
 }
 
 /// What `apply` would do.
@@ -34,6 +36,8 @@ pub struct Plan {
     pub new_todo: Vec<Task>,
     /// Code files that would be scaffolded.
     pub scaffold: Vec<PlanFile>,
+    /// Facts about the ops that would not stop the write.
+    pub notes: Vec<String>,
 }
 
 struct Prepared {
@@ -44,13 +48,40 @@ struct Prepared {
 }
 
 impl Design {
-    /// Apply `ops` on top of version `base`, as one new version by `by`.
+    /// Apply `ops` on top of version `base`, as one new version by `by`. Writes design files
+    /// only, never source code.
     pub fn apply(&self, base: u64, by: By, note: Option<String>, ops: Vec<Op>) -> Result<Outcome> {
+        self.write(base, by, note, ops, false)
+    }
+
+    /// [`Design::apply`], and the code of the bricks the ops add is scaffolded too.
+    pub fn apply_scaffold(
+        &self,
+        base: u64,
+        by: By,
+        note: Option<String>,
+        ops: Vec<Op>,
+    ) -> Result<Outcome> {
+        self.write(base, by, note, ops, true)
+    }
+
+    fn write(
+        &self,
+        base: u64,
+        by: By,
+        note: Option<String>,
+        ops: Vec<Op>,
+        code: bool,
+    ) -> Result<Outcome> {
         let lock = self.lock()?;
         let p = self.prepare(&lock, base, &ops)?;
+        let notes = self.rule_notes(&ops);
         let mut out = self.commit(&p.entries, &p.old, &p.new, by, note, ops.clone())?;
+        out.notes = notes;
         if out.changed {
-            out.scaffold = self.scaffold(&p.cfg, &ops)?;
+            if code {
+                out.scaffold = self.scaffold(&p.cfg, &ops)?;
+            }
             out.scaffold.extend(tree::created(&p.old, &p.new));
         }
         Ok(out)
@@ -59,6 +90,15 @@ impl Design {
     /// Run `apply` in memory only: check the base, apply and validate the ops, and report what
     /// would change. Nothing is written (a hand edit is still recorded, as on any read).
     pub fn dry_run(&self, base: u64, ops: Vec<Op>) -> Result<Plan> {
+        self.plan(base, ops, false)
+    }
+
+    /// [`Design::dry_run`], including the code files `apply_scaffold` would write.
+    pub fn dry_run_scaffold(&self, base: u64, ops: Vec<Op>) -> Result<Plan> {
+        self.plan(base, ops, true)
+    }
+
+    fn plan(&self, base: u64, ops: Vec<Op>, code: bool) -> Result<Plan> {
         let lock = self.lock()?;
         let p = self.prepare(&lock, base, &ops)?;
         let before = Docs::from_base(&p.old, Some(self.root.clone()))?;
@@ -72,10 +112,14 @@ impl Design {
             diff: diff(&p.old, &p.new),
             new_todo,
             scaffold: [
-                self.scaffold_plan(&p.cfg, &ops),
+                match code {
+                    true => self.scaffold_plan(&p.cfg, &ops),
+                    false => Vec::new(),
+                },
                 tree::created(&p.old, &p.new),
             ]
             .concat(),
+            notes: self.rule_notes(&ops),
         })
     }
 
@@ -182,6 +226,7 @@ impl Design {
                 version: head.clone(),
                 changed: false,
                 scaffold: Vec::new(),
+                notes: Vec::new(),
             });
         }
         for p in &changed {
@@ -221,6 +266,7 @@ impl Design {
             version,
             changed: true,
             scaffold: Vec::new(),
+            notes: Vec::new(),
         })
     }
 

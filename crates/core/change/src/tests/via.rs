@@ -59,12 +59,9 @@ fn removing_or_unexporting_a_via_child_is_rejected() {
     };
     let e = format!("{:#}", ws.apply(A, vec![remove]).unwrap_err());
     assert!(e.contains("design/invalid") && e.contains("rule 0"), "{e}");
-    let unexport = Op::SetExports {
+    let unexport = Op::RemoveExport {
         file: "g/brickie.toml".into(),
-        exports: vec![crate::ExportSpec {
-            brick: "ports-out".into(),
-            scope: None,
-        }],
+        brick: "ports-in".into(),
     };
     assert!(ws.apply(A, vec![unexport]).is_err());
     let ungroup = Op::Ungroup {
@@ -78,12 +75,9 @@ fn removing_or_unexporting_a_via_child_is_rejected() {
         file: "g/brickie.toml".into(),
         name: "ports-out".into(),
     };
-    let exports = Op::SetExports {
+    let exports = Op::RemoveExport {
         file: "g/brickie.toml".into(),
-        exports: vec![crate::ExportSpec {
-            brick: "ports-in".into(),
-            scope: None,
-        }],
+        brick: "ports-out".into(),
     };
     // Alone it leaves an unknown export: the whole design is validated before any write.
     assert!(ws.apply(A, vec![ok.clone()]).is_err());

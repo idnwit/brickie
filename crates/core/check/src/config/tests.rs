@@ -313,3 +313,27 @@ fn via_must_name_exports_of_a_composite() {
         }
     }
 }
+
+#[test]
+fn outside_parent_names_the_outer_brick_that_took_the_module() {
+    let err = |root: &str, web: &str| {
+        let (dir, cfg) = fixture(root, web);
+        format!("{:#}", resolved(dir.path(), &cfg).unwrap_err())
+    };
+    // A root brick with a more specific member takes a module from inside `web`.
+    let root = format!("{ROOT}\n[[brick]]\nname = \"claim\"\nmembers = [\"web-api::m\"]\n");
+    let msg = err(&root, WEB);
+    assert!(msg.contains("config/member-outside-parent"), "{msg}");
+    assert!(msg.contains("brick 'claim' of level root took it"), "{msg}");
+    assert!(msg.contains("child brick of 'web'"), "{msg}");
+    // The plain case keeps the short message.
+    let web = WEB.replace(
+        "members = [\"web-shared\"]",
+        "members = [\"web-shared\", \"core\"]",
+    );
+    let msg = err(ROOT, &web);
+    assert!(
+        msg.contains("which is outside composite 'web' (level"),
+        "{msg}"
+    );
+}

@@ -33,6 +33,7 @@ pub fn brick(d: &Design, c: BrickCmd) -> Result<(Vec<Op>, Write)> {
     Ok(match c {
         BrickCmd::Add {
             name,
+            scaffold,
             level: l,
             kind: k,
             f,
@@ -47,7 +48,7 @@ pub fn brick(d: &Design, c: BrickCmd) -> Result<(Vec<Op>, Write)> {
                 desc: f.desc,
             };
             let file = level(d, l.as_deref())?;
-            (vec![Op::AddBrick { file, brick }], w)
+            (vec![Op::AddBrick { file, brick }], Write { scaffold, ..w })
         }
         BrickCmd::Set { brick, f, w } => {
             let (file, name) = d.brick_file(&brick_path(&brick))?;
@@ -149,12 +150,15 @@ pub fn export(d: &Design, c: ExportCmd) -> Result<(Vec<Op>, Write)> {
         ExportCmd::Rm { brick, w } => (brick, None, w),
     };
     let (file, name) = d.brick_file(&brick_path(&brick))?;
-    let mut exports = d.exports(&file)?;
-    exports.retain(|e| e.brick != name);
-    if let Some(scope) = scope {
-        exports.push(ExportSpec { brick: name, scope });
-    }
-    Ok((vec![Op::SetExports { file, exports }], w))
+    let op = match scope {
+        Some(scope) => Op::AddExport {
+            file,
+            brick: name,
+            scope,
+        },
+        None => Op::RemoveExport { file, brick: name },
+    };
+    Ok((vec![op], w))
 }
 
 fn spec(bricks: Option<String>, l: &Limits) -> ComplexitySpec {
