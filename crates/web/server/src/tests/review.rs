@@ -102,3 +102,13 @@ async fn missing_cache_is_a_clear_error() {
     assert_eq!(st, StatusCode::INTERNAL_SERVER_ERROR);
     assert!(body.contains("brickie measure"));
 }
+
+#[tokio::test]
+async fn accept_records_the_current_weight() {
+    let s = Site::new();
+    let id = s.diag_id();
+    let weight = check::load(&s.config()).unwrap().weights[&id];
+    s.review(json!({"id": id, "reason": "why"})).await;
+    let text = std::fs::read_to_string(s.dir.path().join("brickie.review.toml")).unwrap();
+    assert!(text.contains(&format!("weight = {weight}")), "{text}");
+}

@@ -98,7 +98,7 @@ impl AppState {
 }
 
 /// An error rendered as plain text with a status code.
-pub struct Failure(StatusCode, String);
+pub(crate) struct Failure(StatusCode, String);
 
 impl IntoResponse for Failure {
     fn into_response(self) -> Response {

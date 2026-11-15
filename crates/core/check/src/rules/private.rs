@@ -25,6 +25,9 @@ pub(super) struct Private {
 }
 
 impl Finding for Private {
+    fn weight(&self) -> u64 {
+        (self.evidence.len() as u64).max(1)
+    }
     fn code(&self) -> String {
         DEPS_PRIVATE.into()
     }

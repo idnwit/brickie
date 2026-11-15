@@ -4,9 +4,10 @@ use super::review_path;
 use anyhow::{Context, Result};
 use std::path::Path;
 
-/// Accept (`Some(reason)`) or unaccept (`None`) a finding in `brickie.review.toml`, creating
-/// the file if needed and keeping its other content and comments.
-pub fn set_review(config: &Path, id: &str, reason: Option<&str>) -> Result<()> {
+/// Accept (`Some((reason, weight))`, `weight` being the finding's current weight) or unaccept
+/// (`None`) a finding in `brickie.review.toml`, creating the file if needed and keeping its
+/// other content and comments.
+pub fn set_review(config: &Path, id: &str, accept: Option<(&str, u64)>) -> Result<()> {
     use toml_edit::{ArrayOfTables, DocumentMut, Item, Table, value};
     let path = review_path(config);
     let text = std::fs::read_to_string(&path).unwrap_or_default();
@@ -27,10 +28,11 @@ pub fn set_review(config: &Path, id: &str, reason: Option<&str>) -> Result<()> {
             i += 1;
         }
     }
-    if let Some(reason) = reason {
+    if let Some((reason, weight)) = accept {
         let mut t = Table::new();
         t["id"] = value(id);
         t["reason"] = value(reason);
+        t["weight"] = value(i64::try_from(weight).unwrap_or(i64::MAX));
         accepts.push(t);
     }
     if accepts.is_empty() {

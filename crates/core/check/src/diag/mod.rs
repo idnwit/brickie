@@ -3,9 +3,11 @@
 //! nothing here is formatted for later parsing.
 
 mod model;
+mod short;
 mod summary;
 mod text;
 
 pub use model::*;
+pub use short::render_short;
 pub use summary::summarize;
 pub use text::{Color, render_all};

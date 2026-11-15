@@ -45,13 +45,6 @@ action = "allow"
 reason = "handlers build page data from the check result"
 
 [[deps.rule]]
-from = "render"
-to = "data"
-scope = "all"
-action = "allow"
-reason = "pages embed the page data"
-
-[[deps.rule]]
 from = "routes"
 to = "code"
 scope = "all"

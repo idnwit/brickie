@@ -2,26 +2,9 @@
 //! the ends have code yet (reported as `deps/unused`). Rules backed by a measured edge are not
 //! listed.
 
-use crate::config::{Action, Config, DepRule, Resolved, Scope, Sel};
+use crate::config::{Action, Config, DepRule, Link, Resolved, Sel};
 use brickie_facts::Cache;
 use std::collections::BTreeSet;
-
-/// An allow rule between two named bricks that no measured edge backs.
-#[derive(Debug, Clone)]
-pub struct Link {
-    /// Names from the root to the level the rule is declared in.
-    pub level: Vec<String>,
-    pub from: String,
-    pub to: String,
-    pub via: Option<Vec<String>>,
-    /// Empty means all kinds.
-    pub kinds: Vec<String>,
-    pub scope: Scope,
-    /// The config file of the level and `file:line` of the rule.
-    pub file: String,
-    pub loc: String,
-    pub reason: Option<String>,
-}
 
 /// A measured module edge lifted to its level.
 #[derive(PartialEq, Eq, PartialOrd, Ord)]

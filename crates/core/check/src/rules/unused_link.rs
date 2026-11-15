@@ -1,26 +1,10 @@
 //! `deps/unused`: an allow rule between two named bricks that no measured edge uses.
 
-use super::links::Link;
-use crate::config::{Level, Scope, level_name};
+use crate::config::{Level, Link, level_name};
 use crate::diag::{Finding, RuleRef, Span};
 use brickie_model::codes::DEPS_UNUSED;
 
 pub(super) struct UnusedLink(pub(super) Link);
-
-/// ` no `uses` edge in test scope`: what the rule looks for.
-pub fn filter_text(l: &Link) -> String {
-    let kinds = if l.kinds.is_empty() {
-        "edge".to_string()
-    } else {
-        let k: Vec<String> = l.kinds.iter().map(|k| format!("`{k}`")).collect();
-        format!("{} edge", k.join(" or "))
-    };
-    let scope = match l.scope {
-        Scope::All => "any scope".to_string(),
-        s => format!("{} scope", s.name()),
-    };
-    format!("no {kinds} in {scope}")
-}
 
 impl Finding for UnusedLink {
     fn code(&self) -> String {
@@ -47,7 +31,7 @@ impl Finding for UnusedLink {
             "rule `{}` -> `{}` is unused: {} (in {})",
             l.from,
             l.to,
-            filter_text(l),
+            l.filter_text(),
             level_name(&l.level)
         )
     }

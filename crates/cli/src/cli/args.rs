@@ -24,21 +24,7 @@ pub enum Command {
         workspace: Option<PathBuf>,
     },
     /// Check the cached measurements against the rules.
-    Check {
-        #[arg(long, default_value = "brickie.toml")]
-        config: PathBuf,
-        #[arg(long, value_enum, default_value_t = Format::Text)]
-        format: Format,
-        #[arg(long, value_enum, default_value_t = ColorArg::Auto)]
-        color: ColorArg,
-        /// Show only findings owned by this brick (path from the root, such as `web/api`) or
-        /// its descendants; findings without an owner always show. Repeatable.
-        #[arg(long = "brick", value_name = "PATH")]
-        bricks: Vec<String>,
-        /// Hide warnings with this code (repeatable or comma separated); errors still show.
-        #[arg(long, value_name = "CODE", value_delimiter = ',')]
-        skip: Vec<String>,
-    },
+    Check(CheckArgs),
     /// Print a brick's declared interface: each item's signature, doc and uses (by brick, with
     /// locations); unused items are marked. With `--from A`, every reference site from brick A
     /// into the brick instead (the code behind the edge A -> brick).
@@ -70,10 +56,40 @@ pub enum Command {
     LlmsTxt,
 }
 
+/// Options of `brickie check`.
+#[derive(clap::Args)]
+pub struct CheckArgs {
+    #[arg(long, default_value = "brickie.toml")]
+    pub config: PathBuf,
+    #[arg(long, value_enum, default_value_t = Format::Text)]
+    pub format: Format,
+    #[arg(long, value_enum, default_value_t = ColorArg::Auto)]
+    pub color: ColorArg,
+    /// Show only findings owned by this brick (path from the root, such as `web/api`) or
+    /// its descendants; findings without an owner always show. Repeatable.
+    #[arg(long = "brick", value_name = "PATH")]
+    pub bricks: Vec<String>,
+    /// Hide warnings with this code (repeatable or comma separated); errors still show.
+    #[arg(long, value_name = "CODE", value_delimiter = ',')]
+    pub skip: Vec<String>,
+    /// Run measure first when the cache is missing, unreadable or has stale findings.
+    #[arg(long)]
+    pub measure: bool,
+    /// Write `.brickie/baseline.json` from the current findings (the exit code is as usual).
+    #[arg(long, conflicts_with = "new")]
+    pub save_baseline: bool,
+    /// Hide the findings in the saved baseline unless they got worse; fail when the rule
+    /// files changed since it was saved.
+    #[arg(long)]
+    pub new: bool,
+}
+
 #[derive(Clone, Copy, ValueEnum)]
 pub enum Format {
     Text,
     Json,
+    /// One line per finding, for coding agents.
+    Short,
 }
 
 #[derive(Clone, Copy, ValueEnum)]

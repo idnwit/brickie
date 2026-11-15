@@ -46,7 +46,7 @@ pub struct Params {
     pub edit: String,
 }
 
-pub const DEFAULT_LIMIT: usize = 50;
+const DEFAULT_LIMIT: usize = 50;
 
 fn enc(s: &str) -> String {
     let mut out = String::new();
@@ -61,7 +61,7 @@ fn enc(s: &str) -> String {
 }
 
 /// Percent-encoded query value of `s` (for building code viewer links).
-pub fn encode(s: &str) -> String {
+pub(super) fn encode(s: &str) -> String {
     enc(s)
 }
 

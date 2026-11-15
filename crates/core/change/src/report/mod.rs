@@ -5,5 +5,3 @@ pub mod diff;
 mod sheets;
 mod todo;
 mod view;
-
-pub use todo::{pending_text, planned_text};

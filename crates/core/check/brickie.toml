@@ -1,4 +1,4 @@
-# brickie-check by folder: diag <- config <- rules / interface <- check, plus review. `rules` and `review`
+# brickie-check by folder: `diag` and `config` <- `rules` / `interface` <- `check`, plus review. `rules` and `review`
 # stay internal: the CLI and the webview use them through the `check` facade.
 exports = ["check", "diag", "config", "interface"]
 
@@ -41,13 +41,6 @@ desc = "Findings, diagnostics and their text rendering"
 [deps]
 default = "deny"
 cycles = "deny"
-
-[[deps.rule]]
-from = "config"
-to = "diag"
-scope = "all"
-action = "allow"
-reason = "config errors are diagnostics"
 
 [[deps.rule]]
 from = "rules"

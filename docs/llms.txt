@@ -9,16 +9,25 @@
 1. `brickie measure` reads the code (cargo metadata, rust-analyzer, tree-sitter) and writes
    `.brickie/cache.json` next to `brickie.toml`. It is slow: run it once per round of edits.
 2. `brickie check` reads the cache and rules, prints diagnostics, and exits non-zero on an
-   unaccepted error. It is fast and never runs rust-analyzer. It checks structure (edges,
-   complexity), not runtime behaviour: pair it with the project's own tests.
+   unaccepted error. It is fast and never runs rust-analyzer unless you pass `--measure`. It
+   checks structure (edges, complexity), not runtime behaviour: pair it with the project's own
+   tests.
 3. Fix the code each diagnostic points at.
-4. Re-run `measure`, then `check`, until the exit code is 0.
+4. Repeat until the exit code is 0.
 
-- After any code change, re-measure before trusting `check`. A `stale/*` warning means the code
-  changed since the last measure. Config edits never need a re-measure.
+- The gate, in one command: `brickie check --measure --format short`. `--measure` re-measures
+  first when the cache is missing or older than the code. `--format short` prints one line per
+  finding: `error[deps/deny] 3fa9c1d2 src/a.rs:42:17: message`; use the default text format to
+  see the rule, help and notes of a finding you need to fix.
+- A cache older than the code is an error (`stale/*`, exit 1), never a pass: after any code
+  change re-measure before trusting `check`. Config edits never need a re-measure.
+- When `.brickie/baseline.json` exists, add `--new`: findings recorded in the baseline are
+  hidden (footer `baseline: N errors, M warnings hidden`) and you fix what is shown: findings
+  that are new, or worse than recorded (`worse than the baseline: 16 -> 22`). Never run
+  `brickie check --save-baseline`; a human saves the baseline.
 - `brickie check --format json` prints `{summary, diagnostics}`; each finding has `id`, `code`,
-  `level`, `brick_level`, `message`, `span`, `spans`, `rule`, `help`, `notes`. Read the text form,
-  loop over the JSON.
+  `level`, `brick_level`, `message`, `span`, `spans`, `rule`, `help`, `notes`, `bricks`, `edges`,
+  `accepted`, `accepted_reason`. Read the text form, loop over the JSON.
 - `brickie check --brick PATH` (repeatable; path from the root such as `web/api`, includes
   descendants) shows only findings owned by that brick: the source brick of `deps/*` edges, all
   members of a `deps/cycle`, both ends of `deps/unused`, the defining brick of `interface/*`, the
@@ -29,8 +38,9 @@
   error with the same code still shows. The footer `skipped: N warnings (codes)` counts them. JSON
   adds `outside_scope` and `skipped` objects when the options are used.
 - While coding brick X: `brickie check --brick X --skip interface/unused,deps/unused` (unused
-  surface and links to code not written yet are expected mid-work). Before reporting done, run a full
-  `brickie check` with no options.
+  surface and links to code not written yet are expected mid-work). A scoped check can exit 0
+  while errors remain outside the scope: before reporting done, run the full gate with no
+  `--brick` and no `--skip`.
 - `brickie interface <brick-path> [--json]` (for example `root/web/api`) prints the brick's
   declared interface: every item outside code can name, with signature, first doc paragraph,
   definition, and uses (grouped by using brick, file:line:col per site; `[test]` marks test code);
@@ -41,8 +51,9 @@
 - Every command accepts `--config path/to/brickie.toml` (default `./brickie.toml`).
 
 Exit codes of `brickie check`: 0 clean (only warnings or accepted findings), 1 at least one
-unaccepted `error`, 2 configuration, review file or cache problem (for example no cache: run
-`brickie measure`).
+unaccepted `error` (a stale cache included), 2 configuration, review file, cache, baseline or
+argument problem (for example no cache: run `brickie measure`). `brickie interface` exits 2 on
+any error; `brickie design` exits 3 on a stale base.
 
 ## Features and targets
 
@@ -65,8 +76,11 @@ report that the target is not installed (`rustup target add <target>`).
 ## Hard constraints
 
 - Never edit `brickie.toml` (or files it includes) or `brickie.review.toml` to make `check` pass;
-  they are the project's decisions. Change the design only with `brickie design` (see "Editing
-  the design"), never by hand.
+  they are the project's decisions. Change the design only when the human asked for a design
+  change, and only with `brickie design` (see "Editing the design"), never by hand. Never use
+  `brickie design` to make a finding go away (adding an allow rule, raising or removing a limit,
+  exporting a child, removing a deny rule): report the finding instead. Under `check --new` any
+  change of the rule files fails the gate until a human has reviewed it.
 - Accepting a finding (`[[accept]]` in `brickie.review.toml`, or Accept in the viewer) is for a
   human reviewer. If a finding looks wrong or a rule
   too strict, stop and report it with the finding id.
@@ -226,8 +240,10 @@ Vocabulary:
   visibility; private `use` leaves count as `uses`).
 - The edge target is always the module that DEFINES the item, even when reached through a
   re-export; a finding's note shows `written <path as written> -> defined in <module>`.
-- Scope is `prod`, or `test` for `#[cfg(test)]`, `tests/` and `benches/`; test edges are checked
-  like prod edges. Edges inside one brick, or touching a module in no brick, are ignored.
+- Scope is `test` for code under a package's own `tests/` or `benches/` directory and for items
+  gated by `#[cfg(test)]` or `#[cfg(all(test, ..))]` (a `mod x;` declared that way included);
+  everything else is `prod`, also `any(test, ..)`, `not(test)`, `cfg_attr` and `feature = ".."`
+  gates. Test edges are checked like prod edges. Edges inside one brick, or touching a module in no brick, are ignored.
 - Nested bricks: a brick with `path = "<dir>"` is a composite; its children, rules and `exports`
   are in `<dir>/brickie.toml`. A finding's JSON `brick_level` (`root`, `root/web`) is the tree
   level it is reported at; its brick names are children of that level and `rule` points at the
@@ -296,21 +312,27 @@ the levels wins, so a nested config can only tighten. Test-scope
 functions are checked only when the rule's `scope` includes tests. Never raise a limit; never add
 `#[cfg(test)]` or move code only to change its scope.
 
-### stale/file (warning)
+### stale/file (error)
 
-A `.rs` file was changed, added or deleted after `brickie measure` (the message says which), so
-its data is old. Run `brickie measure`, then `brickie check`.
+A `.rs` file was changed, added or deleted after `brickie measure`, or a workspace crate
+(a `[workspace] members` entry of the root `Cargo.toml`) was added or removed (the message says
+which), so its data is old. Run `brickie check --measure` (or `brickie measure`, then `brickie check`). It
+cannot be skipped or accepted.
 
-### stale/measure (warning)
+### stale/measure (error)
 
-The cache was measured with other features or `additional_targets` than `[measure]` asks for now.
-Run `brickie measure`, then `brickie check`.
+The cache was measured with other features or `additional_targets` than `[measure]` asks for now,
+or it was measured in another directory (the project was copied or moved together with its
+`.brickie` folder; the message names the old directory). No file is judged then. Run
+`brickie check --measure` (or `brickie measure`, then `brickie check`).
 
-### bricks/unmapped (warning)
+### bricks/unmapped (error when the root `deps.default` is `deny`, else warning)
 
 A module belongs to no brick, so none of its edges or functions are checked (usually after adding
-a file or module). Add it to the `members` of its `[[brick]]` only when the right brick is obvious
-from the surrounding code; otherwise ask the reviewer. No re-measure is needed.
+a file, module or crate). Under a root `deps.default = "deny"` this is an error: unchecked code
+must not pass. Add it to the `members` of a brick (`brickie design brick set PATH --members ...`)
+only when the right brick is obvious from the surrounding code; otherwise ask the reviewer. No
+re-measure is needed.
 
 ### interface/unused (warning)
 
@@ -329,6 +351,18 @@ example "no `uses` edge in test scope"); the location is the rule. While writing
 `--skip deps/unused`. Fix: write the code that uses the other brick, or,
 if the rule's `kinds` or `scope` are wrong, report it; the maintainers change or remove the rule
 (`brickie design rule set` / `rule rm`). Do not edit the rule yourself to silence it.
+
+### baseline/rules-changed (error)
+
+With `check --new`: a brickie.toml or brickie.review.toml differs from the saved baseline. Never
+edit rules to pass a check. A human reviews the change and re-saves the baseline; you never run
+`check --save-baseline` yourself. Report it and stop.
+
+### review/orphan (warning)
+
+An `[[accept]]` in `brickie.review.toml` whose id matches no current finding. The code moved (the
+finding has a new id: a human reviews it again) or it was fixed (the entry should go). Not shown
+while the cache is stale. Report it for a human reviewer; never edit the review file yourself.
 
 ### config/missing, config/overlap, config/unassigned, config/member-outside-parent, config/unknown-export, config/unknown-via
 
@@ -459,18 +493,26 @@ complexity, per function and metric each level picks its most specific rule that
 fields, tags, bricks or kinds are configuration errors (exit 2).
 
 Severity and exit: `deps/deny`, `deps/default`, `deps/private` and `deps/cycle` are errors;
-`complexity/*` is an error unless the rule says `level = "warn"`; every other check code is a
-warning. Only an unaccepted error gives exit 1. `--skip` or `--brick` with an unknown code or
-brick gives exit 2.
+`complexity/*` is an error unless the rule says `level = "warn"`; `stale/*` and
+`baseline/rules-changed` are errors; `bricks/unmapped` is an error when the root `deps.default`
+is `deny`; every other check code is a warning. Only an unaccepted error gives exit 1. `--skip`
+or `--brick` with an unknown code or brick gives exit 2.
 
 `brickie.review.toml` (next to `brickie.toml`) lists findings a human accepted; each entry has
-exactly `id` and `reason`, both required. An absent file means no acceptances; a file that does
+`id` and `reason` (both required) and an optional integer `weight`. An absent file means no acceptances; a file that does
 not parse gives exit 2.
 
 ```toml
 [[accept]]
 id = "3fa9c1d2"                # finding id
 reason = "why this is fine"
+weight = 20                    # optional: the finding's size when accepted
 ```
+
+With a `weight`, the acceptance holds only while the finding's current size stays within it
+(the metric value of `complexity/*`, the number of reference sites of `deps/deny`, `deps/default`
+and `deps/private`, else 1). Above it the finding is not accepted, keeps its level and gets the
+note `worse than accepted: N -> M`. Without `weight` it is accepted at any size. The viewer's
+Accept always writes the current weight.
 
 Accepted findings do not fail `check`. Do not create or edit this file yourself.

@@ -14,7 +14,7 @@ pub struct Vw {
 
 /// `fitView`: the whole layout inside the stage, zoom between 0.15 and 1.4.
 /// `room`: world height kept free under the layout (edit mode: the new-lane zone).
-pub fn fit_view(l: &Layout, (sw, sh): (f64, f64), room: f64) -> Vw {
+pub(super) fn fit_view(l: &Layout, (sw, sh): (f64, f64), room: f64) -> Vw {
     let h = l.h + room;
     let k = ((sw - 20.0) / l.w).min((sh - 20.0) / h).clamp(0.15, 1.4);
     Vw {
@@ -25,7 +25,7 @@ pub fn fit_view(l: &Layout, (sw, sh): (f64, f64), room: f64) -> Vw {
 }
 
 /// The room [`fit_view`] keeps under the layout.
-pub fn fit_room(editing: bool) -> f64 {
+pub(super) fn fit_room(editing: bool) -> f64 {
     if editing { NEW_LANE_ROOM } else { 0.0 }
 }
 

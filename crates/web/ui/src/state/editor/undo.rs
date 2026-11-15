@@ -12,7 +12,7 @@ fn undid(v: &Version) -> Option<u64> {
 
 /// `(undo, redo)` stacks of the human's versions (tops last): an edit is undone by reverting
 /// it; an undo is redone by reverting the undo.
-pub fn stacks(history: &[Version]) -> (Vec<u64>, Vec<u64>) {
+fn stacks(history: &[Version]) -> (Vec<u64>, Vec<u64>) {
     let (mut undo, mut redo) = (Vec::new(), Vec::new());
     for v in history.iter().filter(|v| v.by == By::Human) {
         match undid(v) {

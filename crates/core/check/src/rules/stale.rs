@@ -5,7 +5,9 @@
 //! are confirmed by sha256. Without git, or when the cached commit is gone, every cached file
 //! is hashed and the crate source directories are walked for added files. A cache measured on a
 //! dirty tree also hashes every cached file: a file edited before measure and reverted to HEAD
-//! afterwards is invisible to git. `check` never re-measures.
+//! afterwards is invisible to git. A workspace member the cache does not know (or a recorded
+//! package directory without its `Cargo.toml`) is stale too, see `members`. `check` never
+//! re-measures.
 
 use crate::config::{Level, MeasureCfg};
 use crate::diag::{Finding, RuleRef, Span};
@@ -113,17 +115,26 @@ pub fn evaluate(cache: &Cache) -> Vec<Box<dyn Finding>> {
         };
         out.push(Box::new(Stale { file: path, change }));
     }
+    let known: BTreeSet<String> = cache.crates.iter().map(|c| c.dir.clone()).collect();
+    for (file, added) in super::members::member_changes(root, &known) {
+        let change = if added {
+            Change::Added
+        } else {
+            Change::Deleted
+        };
+        out.push(Box::new(Stale { file, change }));
+    }
     out
 }
 
-const HELP: &str = "run `brickie measure` to refresh the cache";
+const HELP: &str = "run `brickie measure`, or `brickie check --measure`";
 
 impl Finding for Stale {
     fn code(&self) -> String {
         STALE_FILE.into()
     }
     fn level(&self) -> Level {
-        Level::Warn
+        Level::Error
     }
     fn subject(&self) -> String {
         self.file.clone()
@@ -165,13 +176,52 @@ pub fn measured_for(cfg: &MeasureCfg) -> Measured {
 /// record its settings (empty `features`) is not judged.
 pub fn evaluate_measure(cache: &Cache, cfg: &MeasureCfg) -> Vec<Box<dyn Finding>> {
     let want = measured_for(cfg);
-    if cache.measured.features.is_empty() || cache.measured == want {
+    let mut have = cache.measured.clone();
+    have.location.clear();
+    if have.features.is_empty() || have == want {
         return Vec::new();
     }
-    vec![Box::new(StaleMeasure {
-        have: cache.measured.clone(),
-        want,
-    })]
+    vec![Box::new(StaleMeasure { have, want })]
+}
+
+/// A cache measured for another directory than the one it is read from (a copied or moved
+/// project). Its recorded paths and hashes describe the other tree, so nothing else is judged.
+pub fn evaluate_location(cache: &Cache, here: &Path) -> Option<Box<dyn Finding>> {
+    let there = &cache.measured.location;
+    let same = there.is_empty() || Path::new(there) == here;
+    (!same).then(|| {
+        Box::new(WrongPlace {
+            there: there.clone(),
+        }) as Box<dyn Finding>
+    })
+}
+
+struct WrongPlace {
+    there: String,
+}
+
+impl Finding for WrongPlace {
+    fn code(&self) -> String {
+        STALE_MEASURE.into()
+    }
+    fn level(&self) -> Level {
+        Level::Error
+    }
+    fn subject(&self) -> String {
+        "measure".into()
+    }
+    fn message(&self) -> String {
+        format!("the cache was measured in `{}`, not here", self.there)
+    }
+    fn spans(&self) -> Vec<Span> {
+        vec![]
+    }
+    fn rule(&self) -> Option<RuleRef> {
+        None
+    }
+    fn help(&self) -> Option<String> {
+        Some(HELP.into())
+    }
 }
 
 struct StaleMeasure {
@@ -184,7 +234,7 @@ impl Finding for StaleMeasure {
         STALE_MEASURE.into()
     }
     fn level(&self) -> Level {
-        Level::Warn
+        Level::Error
     }
     fn subject(&self) -> String {
         "measure".into()

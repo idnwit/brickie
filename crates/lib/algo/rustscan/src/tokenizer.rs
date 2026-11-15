@@ -14,12 +14,12 @@ pub struct Tok {
     pub end: usize,
 }
 
-pub fn is_ident_byte(b: u8) -> bool {
+fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || b >= 0x80
 }
 
 /// Index just past the closing quote of a (non-raw) string starting at `i` (the opening `"`).
-pub fn skip_string(b: &[u8], mut i: usize) -> usize {
+fn skip_string(b: &[u8], mut i: usize) -> usize {
     i += 1;
     while i < b.len() {
         match b[i] {
@@ -32,7 +32,7 @@ pub fn skip_string(b: &[u8], mut i: usize) -> usize {
 }
 
 /// If a raw string body starts at `i` (`#*"`), return the index past its end.
-pub fn skip_raw_string(b: &[u8], i: usize) -> Option<usize> {
+fn skip_raw_string(b: &[u8], i: usize) -> Option<usize> {
     let mut j = i;
     while j < b.len() && b[j] == b'#' {
         j += 1;
@@ -59,7 +59,7 @@ pub fn skip_raw_string(b: &[u8], i: usize) -> Option<usize> {
 }
 
 /// Index past a char literal starting at `i` (the opening `'`) or None if it is a lifetime.
-pub fn char_literal_end(src: &str, i: usize) -> Option<usize> {
+fn char_literal_end(src: &str, i: usize) -> Option<usize> {
     let b = src.as_bytes();
     if b.get(i + 1) == Some(&b'\\') {
         let mut j = i + 2;
@@ -189,7 +189,7 @@ pub fn tokenize(src: &str) -> Vec<Tok> {
 }
 
 /// Index of the token after the delimiter group opened at `toks[open]`.
-pub fn skip_group(toks: &[Tok], open: usize) -> usize {
+pub(super) fn skip_group(toks: &[Tok], open: usize) -> usize {
     let mut depth = 0i32;
     for (j, t) in toks.iter().enumerate().skip(open) {
         match t.kind {

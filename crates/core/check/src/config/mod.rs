@@ -1,6 +1,7 @@
 //! `brickie.toml`: the brick tree (one level per config file, composites via `path`), its
 //! dependency and complexity rules, and the resolution of modules to leaf paths.
 
+mod link;
 mod load;
 mod measure;
 mod member;
@@ -13,6 +14,7 @@ mod validate;
 #[cfg(test)]
 pub(crate) mod tests;
 
+pub use link::Link;
 pub use load::{load, load_from, load_measure};
 pub use measure::MeasureCfg;
 pub use resolve::{Mode, Pending, Resolved, resolve};

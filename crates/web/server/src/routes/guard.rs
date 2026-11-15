@@ -10,7 +10,7 @@ use axum::http::{HeaderMap, StatusCode};
 use std::net::IpAddr;
 
 /// Extracting it passes the guard.
-pub struct Guard;
+pub(super) struct Guard;
 
 impl FromRequestParts<AppState> for Guard {
     type Rejection = Failure;

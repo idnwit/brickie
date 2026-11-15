@@ -2,7 +2,7 @@
 //! computed against the live design and the measured cache.
 
 use crate::preview::{cache_mismatch, planned};
-use brickie_check::check::{Loaded, filter_text, unused_links};
+use brickie_check::check::{Loaded, unused_links};
 use brickie_check::config::{Config, Pending, level_name};
 use brickie_model::codes::{CONFIG_UNASSIGNED, DEPS_UNUSED, DESIGN_NO_REASON, DESIGN_PLANNED};
 use brickie_model::design::{Task, TaskKind};
@@ -52,7 +52,7 @@ fn measured(l: &Loaded, t: &mut Todo) {
             link.from,
             link.to,
             level_name(&link.level),
-            filter_text(&link),
+            link.filter_text(),
         );
         t.unbacked.push(link.loc);
         t.tasks.push(task(TaskKind::Unused, text));
@@ -83,7 +83,7 @@ fn reasonless(level: &Config, out: &mut Vec<Task>) {
 }
 
 /// A tolerated partition error of the draft, with how to finish it.
-pub fn pending_text(p: &Pending) -> String {
+fn pending_text(p: &Pending) -> String {
     let hint = match p.module {
         Some(_) if p.code == CONFIG_UNASSIGNED => {
             "; add it to the members of one of the composite's bricks"
@@ -94,7 +94,7 @@ pub fn pending_text(p: &Pending) -> String {
 }
 
 /// `brick root/x has no measured module yet; create the code for members [..]`.
-pub fn planned_text(cfg: &Config, path: &[String]) -> String {
+fn planned_text(cfg: &Config, path: &[String]) -> String {
     let Some(b) = cfg.brick_at(path) else {
         return level_name(path);
     };

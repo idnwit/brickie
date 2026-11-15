@@ -22,7 +22,7 @@ Proposal and phases: [../proposals/features.md](../proposals/features.md).
 | The config JSON uses the nested form `{"cargo": {...}}`; flat `cargo.features` keys are silently ignored by rust-analyzer | verified on rust-analyzer's `scip` command |
 | A failed run reports its target and says exclusive features must be made additive | P1 enforced by construction |
 | `measure` prints one `hint:` line per `cfg(target_arch/os = ...)` family found by a text scan that neither the host (`rustc -vV`) nor an additional target covers | never add a target silently; its cost stays visible |
-| The cache records `measured { features, targets }`; `check` warns `stale/measure` when the config differs | the settings are part of the cache key; a cache without them is not judged |
+| The cache records `measured { features, targets, location }` (`location` is the canonical config directory); `check` reports `stale/measure` when the config differs or the cache is read from another directory, and then judges no file | the settings and the place are part of the cache key; a copied or moved project must not be judged on the old tree; a cache without them is not judged |
 
 ## Facts
 
@@ -38,12 +38,14 @@ Proposal and phases: [../proposals/features.md](../proposals/features.md).
   | `implements` | trait path of `impl Trait for X` in another module (rust-analyzer emits no SCIP relationships, so syntax + SCIP) |
 
 - Evidence `written` is the path as written at the site, never expanded through imports.
-- Edge `scope` is `test` for `#[cfg(test)]`, `tests/`, `benches/`, else `prod`.
+- Edge `scope` is `test` for `#[cfg(test)]` and `test` under `all(..)` (items and `mod` declarations),
+  and for a package's own `tests/` and `benches/` directories (a path segment before any `src`); else
+  `prod`. `any(test, ..)`, `not(test)`, `cfg_attr` and `feature = ".."` are `prod`: that code ships.
 - Function metrics: `cognitive`, `cyclomatic`, `nesting`, `paths` (NPath), `params` (no `self`),
   `lines`, `scope`. Macro bodies are not parsed, so branches inside `println!`, `vec![]` and
   `view!` are invisible. Scoring follows SonarSource.
 
-## Cache layout (schema_version 6)
+## Cache layout (schema_version 7)
 
 `.brickie/cache.json` sits next to the config. Top level: `schema_version`, `tool_version`,
 `rust_analyzer`, `measured`, `workspace_root`, `git`, `crates`, `modules`, `files`.

@@ -52,7 +52,7 @@ impl Paint {
     }
 }
 
-fn loc(s: &Span) -> String {
+pub(super) fn loc(s: &Span) -> String {
     match (s.line, s.col) {
         (0, _) => s.file.clone(),
         (l, None) => format!("{}:{l}", s.file),
@@ -60,7 +60,15 @@ fn loc(s: &Span) -> String {
     }
 }
 
-fn word(l: Level) -> &'static str {
+/// `file` relative to the workspace `root` when it lies under it, else unchanged.
+pub(super) fn relative(file: &str, root: &Path) -> String {
+    match Path::new(file).strip_prefix(root) {
+        Ok(r) => r.to_string_lossy().into_owned(),
+        Err(_) => file.to_string(),
+    }
+}
+
+pub(super) fn word(l: Level) -> &'static str {
     match l {
         Level::Error => "error",
         Level::Warn => "warning",
@@ -182,14 +190,9 @@ pub fn render(d: &Diagnostic, root: &Path, color: bool) -> String {
 pub fn plural(n: usize, noun: &str) -> String {
     format!("{n} {noun}{}", if n == 1 { "" } else { "s" })
 }
-/// All unaccepted diagnostics, then the summary line.
-pub fn render_all(ds: &[Diagnostic], root: &Path, color: bool) -> String {
+/// `error: 1 error, 0 warnings; 2 accepted` (or `ok: ...`), with a newline.
+pub(super) fn summary_line(ds: &[Diagnostic], color: bool) -> String {
     let p = Paint(color);
-    let mut out = String::new();
-    for d in ds.iter().filter(|d| !d.accepted) {
-        out += &render(d, root, color);
-        out.push('\n');
-    }
     let s = summarize(ds);
     let (lvl, word) = if s.errors > 0 {
         (Level::Error, "error")
@@ -203,12 +206,22 @@ pub fn render_all(ds: &[Diagnostic], root: &Path, color: bool) -> String {
     } else {
         p.level(lvl, word)
     };
-    out += &format!(
+    format!(
         "{head}: {}, {}; {} accepted\n",
         plural(s.errors, "error"),
         plural(s.warnings, "warning"),
         s.accepted
-    );
+    )
+}
+
+/// All unaccepted diagnostics, then the summary line.
+pub fn render_all(ds: &[Diagnostic], root: &Path, color: bool) -> String {
+    let mut out = String::new();
+    for d in ds.iter().filter(|d| !d.accepted) {
+        out += &render(d, root, color);
+        out.push('\n');
+    }
+    out += &summary_line(ds, color);
     out
 }
 

@@ -2,7 +2,8 @@
 //! backs (`unused_links`). The viewer
 //! draws them in view mode and in the editor alike.
 
-use brickie_check::check::{Link, Loaded, filter_text, unused_links};
+use brickie_check::check::{Loaded, unused_links};
+use brickie_check::config::Link;
 use brickie_check::config::level_name;
 use brickie_web_api::UnusedLink;
 use std::path::{Path, PathBuf};
@@ -26,7 +27,7 @@ fn edge(k: &Link, root: &Path) -> UnusedLink {
         scope: k.scope.name().to_string(),
         action: "allow".into(),
         reason: k.reason.clone().filter(|s| !s.trim().is_empty()),
-        filter: filter_text(k),
+        filter: k.filter_text(),
     }
 }
 

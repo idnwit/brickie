@@ -109,7 +109,7 @@ fn function<'a>(c: &'a Value, file: &str, qname: &str) -> &'a Value {
 fn measure_fixture() {
     let Some(m) = measure() else { return };
     let c = &m.cache;
-    assert_eq!(c["schema_version"], 6);
+    assert_eq!(c["schema_version"], 7);
     // A file no `mod` declares is recorded, hashed, not compiled, without functions or edges.
     let orphan = &c["files"]["crates/app/src/orphan.rs"];
     assert_eq!(orphan["compiled"], false);
@@ -244,10 +244,10 @@ fn measure_complexity() {
     assert_eq!(function(c, file, "straight")["lines"], 3);
     assert_eq!(function(c, file, "straight")["line"], 1);
 
-    // Test gating: cfg(not(test)) is prod; test-util and any(test, ..) are test.
+    // Test gating: cfg(not(test)) is prod; test-util features and any(test, ..) compile in production.
     assert_eq!(function(c, file, "prod_only")["scope"], "prod");
-    assert_eq!(function(c, file, "test_util")["scope"], "test");
-    assert_eq!(function(c, file, "maybe_test")["scope"], "test");
+    assert_eq!(function(c, file, "test_util")["scope"], "prod");
+    assert_eq!(function(c, file, "maybe_test")["scope"], "prod");
     assert_eq!(
         function(c, "crates/app/src/engine.rs", "uses_shape")["scope"],
         "test"

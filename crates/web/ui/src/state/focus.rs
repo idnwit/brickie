@@ -21,10 +21,6 @@ pub struct Focus {
     pub lit: BTreeSet<usize>,
 }
 
-pub fn brick_ix(g: &GraphView, name: &str) -> Option<usize> {
-    g.bricks.iter().position(|b| b.name == name)
-}
-
 fn is_dep(code: &str) -> bool {
     code.starts_with("deps/")
 }
@@ -68,7 +64,7 @@ fn with_lit(g: &GraphView, mut f: Focus) -> Focus {
 }
 
 /// `focusSpec`: a selected finding wins over the brick/edge/group selection.
-pub fn focus_of(g: &GraphView, sel: &Sel, p: &Params, diags: &[DiagView]) -> Option<Focus> {
+pub(super) fn focus_of(g: &GraphView, sel: &Sel, p: &Params, diags: &[DiagView]) -> Option<Focus> {
     if let Some(d) = diags.iter().find(|d| !p.item.is_empty() && d.id == p.item) {
         return Some(finding_focus(g, d));
     }

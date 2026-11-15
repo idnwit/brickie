@@ -10,6 +10,8 @@ pub const DEPS_PRIVATE: &str = "deps/private";
 pub const BRICKS_UNMAPPED: &str = "bricks/unmapped";
 pub const INTERFACE_UNUSED: &str = "interface/unused";
 pub const DEPS_UNUSED: &str = "deps/unused";
+pub const BASELINE_RULES_CHANGED: &str = "baseline/rules-changed";
+pub const REVIEW_ORPHAN: &str = "review/orphan";
 // Config errors (exit 2): the message starts with the code.
 pub const CONFIG_MISSING: &str = "config/missing";
 pub const CONFIG_MEMBER_OUTSIDE_PARENT: &str = "config/member-outside-parent";
@@ -48,6 +50,8 @@ pub fn all() -> Vec<String> {
         BRICKS_UNMAPPED,
         INTERFACE_UNUSED,
         DEPS_UNUSED,
+        BASELINE_RULES_CHANGED,
+        REVIEW_ORPHAN,
         CONFIG_MISSING,
         CONFIG_MEMBER_OUTSIDE_PARENT,
         CONFIG_OVERLAP,

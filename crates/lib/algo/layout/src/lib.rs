@@ -30,20 +30,20 @@ use std::collections::HashMap;
 
 /// `LAY` of the original.
 pub const H: f64 = 54.0;
-pub const GAPY: f64 = 72.0;
+const GAPY: f64 = 72.0;
 /// Row gap that no edge crosses (labels under the boxes only).
 pub const GAPY_FREE: f64 = 36.0;
-pub const GAP: f64 = 10.0;
-pub const DUM: f64 = 28.0;
-pub const PADL: f64 = 40.0;
-pub const PADR: f64 = 20.0;
-pub const ITER: usize = 24;
-pub const RESTARTS: usize = 30;
+const GAP: f64 = 10.0;
+const DUM: f64 = 28.0;
+const PADL: f64 = 40.0;
+const PADR: f64 = 20.0;
+const ITER: usize = 24;
+const RESTARTS: usize = 30;
 pub const REFK: usize = 12;
-pub const LANE: f64 = 9.0;
+const LANE: f64 = 9.0;
 /// `BZ.PORT` / `BZ.PAD` of the original.
-pub const PORT: f64 = 12.0;
-pub const PAD: f64 = 10.0;
+const PORT: f64 = 12.0;
+const PAD: f64 = 10.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Pt {
@@ -91,7 +91,7 @@ pub enum Side {
 impl Side {
     pub const ALL: [Side; 4] = [Side::T, Side::B, Side::L, Side::R];
     /// `BZ.N`: outward normal.
-    pub fn normal(self) -> (f64, f64) {
+    fn normal(self) -> (f64, f64) {
         match self {
             Side::T => (0.0, -1.0),
             Side::B => (0.0, 1.0),
@@ -99,7 +99,7 @@ impl Side {
             Side::R => (1.0, 0.0),
         }
     }
-    pub fn horizontal(self) -> bool {
+    fn horizontal(self) -> bool {
         matches!(self, Side::L | Side::R)
     }
 }
@@ -112,7 +112,7 @@ pub enum End {
 }
 
 impl End {
-    pub fn other(self) -> End {
+    fn other(self) -> End {
         match self {
             End::A => End::B,
             End::B => End::A,
@@ -204,9 +204,6 @@ impl Layout {
     /// not), or `None` for self edges.
     pub fn path(&self, e: usize, p: &[Rect]) -> Option<Route> {
         path::route_path(self, e, p)
-    }
-    pub fn edge_ends(&self, e: usize) -> (usize, usize) {
-        self.edges[e]
     }
 }
 

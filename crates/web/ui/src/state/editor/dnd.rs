@@ -13,11 +13,11 @@ pub const UNTAGGED: &str = "(untagged)";
 /// Height (world units) of the "+ new tag lane" zone under the last lane.
 const NEW_LANE_H: f64 = 40.0;
 /// Room under the frame that fitting the view keeps visible in edit mode: the new-lane zone.
-pub const NEW_LANE_ROOM: f64 = 8.0 + NEW_LANE_H + 12.0;
+pub(in crate::state) const NEW_LANE_ROOM: f64 = 8.0 + NEW_LANE_H + 12.0;
 /// Space between the children and the level frame (narrow at the sides: the row captions sit
 /// there).
-pub const FRAME_PAD: f64 = 20.0;
-pub const FRAME_PADX: f64 = 10.0;
+const FRAME_PAD: f64 = 20.0;
+const FRAME_PADX: f64 = 10.0;
 
 /// What is being dragged: an existing brick of the level, a new tile from the toolbar, or a
 /// brick lifted from another level (it can only go into a brick, up, or onto this level).

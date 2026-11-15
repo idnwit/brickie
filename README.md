@@ -59,6 +59,7 @@ Then:
 ```sh
 brickie measure   # slow, once per code change: runs rust-analyzer
 brickie check     # fast: exits 1 on errors
+brickie check --measure --format short   # the gate for hooks and agents: re-measures when stale
 brickie serve     # viewer on http://127.0.0.1:7881
 ```
 

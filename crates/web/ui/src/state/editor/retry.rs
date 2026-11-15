@@ -12,7 +12,7 @@ pub enum Refusal {
 }
 
 /// Whether the error is `design/stale`.
-pub fn is_stale(err: &str) -> bool {
+fn is_stale(err: &str) -> bool {
     err.contains("design/stale")
 }
 

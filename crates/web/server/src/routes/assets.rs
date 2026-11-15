@@ -15,7 +15,7 @@ const UI_JS: Option<&str> = None;
 const UI_WASM: Option<&[u8]> = None;
 
 /// Whether the interactive bundle is embedded.
-pub fn wasm_embedded() -> bool {
+pub(crate) fn wasm_embedded() -> bool {
     UI_WASM.is_some()
 }
 

@@ -9,12 +9,12 @@ mod interface;
 mod time;
 
 pub use interface::{edge_uses, interface};
-pub use time::utc;
 
 use brickie_check::check::Loaded;
 use brickie_web_api::*;
 use diagnostics::{Lines, diag_view};
 use std::path::Path;
+use time::utc;
 
 pub fn page(l: &Loaded, cache_file: &Path) -> PageData {
     let cache = &l.cache;

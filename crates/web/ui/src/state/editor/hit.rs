@@ -39,7 +39,7 @@ fn overlaps(a: &Rect, b: &Rect) -> bool {
 }
 
 /// Move each brick not `placed` that overlaps another box to the right of every box.
-pub fn place_free(pos: &mut [Rect], bricks: &[BrickView], placed: &[bool]) {
+fn place_free(pos: &mut [Rect], bricks: &[BrickView], placed: &[bool]) {
     let n = pos.len().min(bricks.len());
     let mut right = (0..n)
         .filter(|&i| !bricks[i].ghost)
