@@ -49,12 +49,15 @@ pub fn evaluate(cache: &Cache, cfg: &Config, res: &Resolved, root: &Path) -> Vec
 mod complexity;
 mod cycles;
 mod deps;
+mod independent;
 mod lift;
 mod links;
 mod private;
 mod unmapped;
 mod unused_link;
 
+#[cfg(test)]
+mod independent_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

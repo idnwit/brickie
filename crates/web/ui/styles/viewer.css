@@ -113,6 +113,7 @@ table.fns th a.on{color:var(--ink);font-weight:700}
 /* A composite (has a level inside) gets a tinted fill; error/warning fills still win. */
 .node.comp:not(.bd-red):not(.bd-amber) .box{fill:var(--comp-fill)}.node .box2{fill:none;stroke:var(--ink);stroke-width:1;opacity:.45;pointer-events:none}
 .node.ghost{opacity:.5}.node.ghost .box{fill:var(--bg);stroke-dasharray:4 3}
+.node.independent .box{stroke-dasharray:2 2}
 .node:focus{outline:none}.node:focus-visible .box{stroke:var(--sel);stroke-width:2.5}
 .port circle,circle.port{fill:var(--sel);stroke:var(--node);stroke-width:1.5}.port text{fill:var(--sel);font:500 10px ui-monospace,monospace}
 .edge.wall .mark{display:inline;fill:var(--e-err);font-size:20px}

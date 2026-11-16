@@ -21,6 +21,10 @@ pub struct Brick {
     pub path: Option<String>,
     /// One-line description shown in the viewer; no effect on checks.
     pub desc: Option<String>,
+    /// The brick acts like an external library (root level, leaf bricks only): it may use only
+    /// itself and external crates, and edges into it are allowed unless a deny rule names it.
+    #[serde(default)]
+    pub independent: bool,
     /// Canonical directory of the declaring file; `path:` members are relative to it.
     #[serde(skip)]
     pub base: PathBuf,

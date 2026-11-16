@@ -3,6 +3,12 @@
 use super::HotFn;
 use serde::{Deserialize, Serialize};
 
+/// The non-colour mark of an independent lib on its node and in the inspector.
+pub const INDEPENDENT_LABEL: &str = "independent lib";
+
+/// What an independent lib is, for tooltips.
+pub const INDEPENDENT_TIP: &str = "independent lib: used like an external library. Edges into it are hidden unless they violate a rule; its own outgoing edges are errors unless allowed between independent libs.";
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct BrickView {
@@ -37,6 +43,12 @@ pub struct BrickView {
     pub ghost: bool,
     /// Edit mode: in the design, but no measured module maps to it yet.
     pub planned: bool,
+    /// An independent lib (`independent = true`): used like an external library. Inbound edges
+    /// that are not violations are not drawn; see `hidden_in`.
+    pub independent: bool,
+    /// Bricks (as seen from this level) whose non-violating edges into this independent lib are
+    /// hidden. A missing edge must not read as "no dependency", so the inspector says so.
+    pub hidden_in: usize,
     /// Change preview: not a brick but the placeholder for modules of this composite that
     /// none of its bricks claims yet (`config/unassigned`); `members` covers them. Dropping
     /// it onto a brick adds those members there.

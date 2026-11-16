@@ -15,12 +15,23 @@ pub struct ModEdge {
     pub prod: bool,
     pub refs: usize,
     pub diags: Vec<String>,
+    /// A clean edge into an independent lib from a non-independent brick: hidden in the view.
+    pub hidden: bool,
 }
 
 /// Module edges between mapped modules of different leaves.
 pub fn mod_edges(l: &Loaded) -> Vec<ModEdge> {
     let found: BTreeSet<&str> = l.diagnostics.iter().map(|d| d.id.as_str()).collect();
-    let codes = [rules::DEPS_DENY, rules::DEPS_DEFAULT, rules::DEPS_PRIVATE];
+    let codes = [
+        rules::DEPS_DENY,
+        rules::DEPS_DEFAULT,
+        rules::DEPS_PRIVATE,
+        brickie_model::codes::DEPS_INDEPENDENT,
+    ];
+    let independent = |p: &[String]| match p {
+        [name] => l.cfg.brick(name).is_some_and(|b| b.independent),
+        _ => false,
+    };
     let mut out = Vec::new();
     for e in l.cache.edges() {
         let (Some(from), Some(to)) = (l.resolved.path(&e.from), l.resolved.path(&e.to)) else {
@@ -34,7 +45,8 @@ pub fn mod_edges(l: &Loaded) -> Vec<ModEdge> {
             .iter()
             .map(|c| diag::finding_id(c, &subject))
             .filter(|id| found.contains(id.as_str()))
-            .collect();
+            .collect::<Vec<String>>();
+        let hidden = independent(to) && !independent(from) && diags.is_empty();
         out.push(ModEdge {
             from: from.to_vec(),
             to: to.to_vec(),
@@ -42,6 +54,7 @@ pub fn mod_edges(l: &Loaded) -> Vec<ModEdge> {
             prod: e.scope == "prod",
             refs: e.evidence.len(),
             diags,
+            hidden,
         });
     }
     out

@@ -8,6 +8,7 @@
 name = "audio"
 members = ["acme-audio"]          # package name: all its targets
 tags = ["port"]
+# independent = true               # root leaf bricks only: acts like an external library (uses only itself)
 
 [[brick]]
 name = "engine"

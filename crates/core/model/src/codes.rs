@@ -10,6 +10,7 @@ pub const DEPS_PRIVATE: &str = "deps/private";
 pub const BRICKS_UNMAPPED: &str = "bricks/unmapped";
 pub const INTERFACE_UNUSED: &str = "interface/unused";
 pub const DEPS_UNUSED: &str = "deps/unused";
+pub const DEPS_INDEPENDENT: &str = "deps/independent";
 pub const BASELINE_RULES_CHANGED: &str = "baseline/rules-changed";
 pub const REVIEW_ORPHAN: &str = "review/orphan";
 // Config errors (exit 2): the message starts with the code.
@@ -19,6 +20,8 @@ pub const CONFIG_OVERLAP: &str = "config/overlap";
 pub const CONFIG_UNASSIGNED: &str = "config/unassigned";
 pub const CONFIG_UNKNOWN_EXPORT: &str = "config/unknown-export";
 pub const CONFIG_UNKNOWN_VIA: &str = "config/unknown-via";
+pub const CONFIG_INDEPENDENT_NESTED: &str = "config/independent-nested";
+pub const CONFIG_INDEPENDENT_RULE: &str = "config/independent-rule";
 // The design (`brickie design`): the message starts with the code.
 pub const DESIGN_PLANNED: &str = "design/planned";
 pub const DESIGN_INVALID: &str = "design/invalid";
@@ -50,6 +53,7 @@ pub fn all() -> Vec<String> {
         BRICKS_UNMAPPED,
         INTERFACE_UNUSED,
         DEPS_UNUSED,
+        DEPS_INDEPENDENT,
         BASELINE_RULES_CHANGED,
         REVIEW_ORPHAN,
         CONFIG_MISSING,
@@ -58,6 +62,8 @@ pub fn all() -> Vec<String> {
         CONFIG_UNASSIGNED,
         CONFIG_UNKNOWN_EXPORT,
         CONFIG_UNKNOWN_VIA,
+        CONFIG_INDEPENDENT_NESTED,
+        CONFIG_INDEPENDENT_RULE,
         DESIGN_PLANNED,
         DESIGN_INVALID,
         DESIGN_NO_REASON,

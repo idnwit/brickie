@@ -53,6 +53,7 @@ fn complexity_limits_use_the_most_specific_rule() {
         path: None,
         desc: None,
         base: Default::default(),
+        independent: false,
         sub: None,
     };
     let cfg = Config {

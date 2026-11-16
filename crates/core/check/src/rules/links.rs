@@ -65,6 +65,10 @@ fn walk(level: &Config, hops: &BTreeSet<Hop>, out: &mut Vec<Link>) {
         let (Sel::Brick(from), Sel::Brick(to)) = (&r.from, &r.to) else {
             continue;
         };
+        let indep = |n: &str| level.brick(n).is_some_and(|b| b.independent);
+        if indep(to) && !indep(from) {
+            continue;
+        }
         if r.action != Action::Allow || backed(level, r, hops) || out.iter().any(|l| l.loc == r.loc)
         {
             continue;

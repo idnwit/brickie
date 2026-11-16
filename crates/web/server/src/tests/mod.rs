@@ -5,6 +5,7 @@ mod api;
 mod code;
 mod editor;
 mod events;
+mod independent;
 mod index;
 mod interface;
 mod levels;
