@@ -4,7 +4,7 @@ exports = ["run"]
 
 [[brick]]
 name = "run"
-members = ["brickie-measure"]         # the crate root and `run`; the folders below win
+members = ["brickie-measure::run", "brickie-measure::e2e_tests", "path:src/lib.rs"]   # `run`, its tests and the crate root
 tags = ["flow"]
 desc = "The measure flow: index, analyse, assign and write `.brickie/cache.json`"
 
@@ -20,11 +20,7 @@ members = ["brickie-measure::scip"]
 tags = ["source"]
 desc = "rust-analyzer SCIP index into file, symbol, module and occurrence rows"
 
-[deps]
-default = "deny"
-cycles = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "run"
 to = "tag:source"
 scope = "all"

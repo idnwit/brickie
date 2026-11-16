@@ -1,7 +1,6 @@
 //! Cargo-style text printer: one consumer of the [`Diagnostic`] value.
 
-use super::{Diagnostic, Span, summarize};
-use brickie_model::Level;
+use super::{Diagnostic, Span};
 use std::io::IsTerminal;
 use std::path::Path;
 
@@ -38,14 +37,8 @@ impl Paint {
             s.to_string()
         }
     }
-    fn level(&self, l: Level, s: &str) -> String {
-        self.wrap(
-            match l {
-                Level::Error => "1;31",
-                Level::Warn => "1;33",
-            },
-            s,
-        )
+    fn error(&self, s: &str) -> String {
+        self.wrap("1;31", s)
     }
     fn blue(&self, s: &str) -> String {
         self.wrap("1;34", s)
@@ -68,29 +61,21 @@ pub(super) fn relative(file: &str, root: &Path) -> String {
     }
 }
 
-pub(super) fn word(l: Level) -> &'static str {
-    match l {
-        Level::Error => "error",
-        Level::Warn => "warning",
-    }
-}
-
 /// The source line of a span with its gutter and, when the column is known, a caret line.
 struct Snippet<'a> {
     text: String,
     span: &'a Span,
-    level: Level,
 }
 
 impl<'a> Snippet<'a> {
     /// `None` for a whole-file span or a line that cannot be read from `root`.
-    fn load(span: &'a Span, level: Level, root: &Path) -> Option<Self> {
+    fn load(span: &'a Span, root: &Path) -> Option<Self> {
         if span.line == 0 {
             return None;
         }
         let text = std::fs::read_to_string(root.join(&span.file)).ok()?;
         let text = text.lines().nth(span.line as usize - 1)?.to_string();
-        Some(Snippet { text, span, level })
+        Some(Snippet { text, span })
     }
 
     /// (chars before the caret, caret count) for the 1-based byte `col` and `len`, clamped to
@@ -112,12 +97,12 @@ impl<'a> Snippet<'a> {
         let line = p.blue(&format!("{:>w$}", self.span.line, w = pad.len()));
         let mut out = format!("{pad} {bar}\n{line} {bar} {}\n", self.text);
         if let Some((start, len)) = self.carets() {
-            let carets = p.level(self.level, &"^".repeat(len));
+            let carets = p.error(&"^".repeat(len));
             let label = self
                 .span
                 .label
                 .as_deref()
-                .map_or(String::new(), |l| format!(" {}", p.level(self.level, l)));
+                .map_or(String::new(), |l| format!(" {}", p.error(l)));
             out += &format!("{pad} {bar} {}{carets}{label}\n", " ".repeat(start));
         }
         out + &format!("{pad} {bar}\n")
@@ -168,14 +153,14 @@ pub fn render(d: &Diagnostic, root: &Path, color: bool) -> String {
     let p = Paint(color);
     let mut out = format!(
         "{}: {}\n",
-        p.level(d.level, &format!("{}[{}]", word(d.level), d.code)),
+        p.error(&format!("error[{}]", d.code)),
         d.message
     );
     let width = d.span.as_ref().map_or(1, |s| s.line.to_string().len());
     let pad = " ".repeat(width);
     if let Some(s) = &d.span {
         out += &format!("{pad}{} {}\n", p.blue("-->"), loc(s));
-        if let Some(snippet) = Snippet::load(s, d.level, root) {
+        if let Some(snippet) = Snippet::load(s, root) {
             out += &snippet.render(&p, &pad);
         }
     }
@@ -186,38 +171,27 @@ pub fn render(d: &Diagnostic, root: &Path, color: bool) -> String {
     out
 }
 
-/// `1 warning`, `3 errors`.
+/// `1 error`, `3 errors`.
 pub fn plural(n: usize, noun: &str) -> String {
     format!("{n} {noun}{}", if n == 1 { "" } else { "s" })
 }
-/// `error: 1 error, 0 warnings; 2 accepted` (or `ok: ...`), with a newline.
+
+/// `error: 2 errors` (or `ok: 0 errors`), with a newline.
 pub(super) fn summary_line(ds: &[Diagnostic], color: bool) -> String {
     let p = Paint(color);
-    let s = summarize(ds);
-    let (lvl, word) = if s.errors > 0 {
-        (Level::Error, "error")
-    } else if s.warnings > 0 {
-        (Level::Warn, "warning")
-    } else {
-        (Level::Warn, "ok")
-    };
-    let head = if word == "ok" {
+    let n = ds.len();
+    let head = if n == 0 {
         p.wrap("1;32", "ok")
     } else {
-        p.level(lvl, word)
+        p.error("error")
     };
-    format!(
-        "{head}: {}, {}; {} accepted\n",
-        plural(s.errors, "error"),
-        plural(s.warnings, "warning"),
-        s.accepted
-    )
+    format!("{head}: {}\n", plural(n, "error"))
 }
 
-/// All unaccepted diagnostics, then the summary line.
+/// All diagnostics, then the summary line.
 pub fn render_all(ds: &[Diagnostic], root: &Path, color: bool) -> String {
     let mut out = String::new();
-    for d in ds.iter().filter(|d| !d.accepted) {
+    for d in ds.iter() {
         out += &render(d, root, color);
         out.push('\n');
     }
@@ -232,7 +206,6 @@ mod tests {
     fn diag(span: Span) -> Diagnostic {
         Diagnostic {
             id: String::new(),
-            level: Level::Warn,
             code: "c".into(),
             message: "m".into(),
             span: Some(span),
@@ -243,8 +216,6 @@ mod tests {
             bricks: Vec::new(),
             brick_level: None,
             edges: Vec::new(),
-            accepted: false,
-            accepted_reason: None,
         }
     }
 
@@ -263,7 +234,6 @@ mod tests {
         Snippet {
             text: text.into(),
             span: &span,
-            level: Level::Warn,
         }
         .carets()
     }

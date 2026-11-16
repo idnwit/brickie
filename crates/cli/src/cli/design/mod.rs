@@ -1,11 +1,14 @@
 //! `brickie design`: read and edit the design, versioned. The CLI writes as `agent`.
 //!
+//! Every write goes to the draft; `publish` copies it into the real files.
+//!
 //! Exit code: 0 ok, 2 any error (nothing written), 3 `design/stale` (the base is not the head;
-//! nothing written).
+//! nothing written), 4 `design/blocked` (publish refused: the code does not match the draft).
 
 mod args;
 mod batch;
 mod ops;
+mod publish;
 mod render;
 
 pub use args::DesignArgs;
@@ -14,23 +17,25 @@ use super::args::Format;
 use anyhow::Context;
 use anyhow::Result;
 use args::Cmd;
-use brickie_change::{By, Design, LevelView, Op, Stale, Version, brick_path};
+use brickie_change::{Blocked, By, Design, LevelView, Op, Stale, Version, brick_path};
 use serde::Serialize;
 use std::io::Read;
 
 pub fn run(args: DesignArgs) -> i32 {
     match dispatch(args) {
         Ok(()) => 0,
-        Err(e) => match e.downcast_ref::<Stale>() {
-            Some(s) => {
+        Err(e) => {
+            if let Some(s) = e.downcast_ref::<Stale>() {
                 eprintln!("{s}");
-                3
+                return 3;
             }
-            None => {
-                eprintln!("brickie: error: {e:#}");
-                2
+            if let Some(b) = e.downcast_ref::<Blocked>() {
+                eprintln!("{b}");
+                return 4;
             }
-        },
+            eprintln!("brickie: error: {e:#}");
+            2
+        }
     }
 }
 
@@ -72,6 +77,19 @@ fn dispatch(a: DesignArgs) -> Result<()> {
         Cmd::Undo { v, base } => {
             let out = d.undo(base, By::Agent, v)?;
             return print(json, &out.version, || render::outcome(&out));
+        }
+        Cmd::Publish {
+            base,
+            dry_run,
+            note,
+        } => return publish::publish(&d, json, base, dry_run, note),
+        Cmd::Rebase { base } => {
+            let out = d.rebase(base, By::Agent)?;
+            return print(json, &render::outcome_json(&out), || render::outcome(&out));
+        }
+        Cmd::Discard { base } => {
+            let out = d.discard(base, By::Agent)?;
+            return print(json, &render::outcome_json(&out), || render::outcome(&out));
         }
         Cmd::Apply { scaffold, w } => {
             let mut script = String::new();

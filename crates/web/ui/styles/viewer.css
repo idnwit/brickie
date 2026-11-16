@@ -16,7 +16,7 @@ label{display:inline-flex;gap:4px;align-items:center;color:var(--muted);font-siz
 .item{display:block;padding:6px 12px;border-left:3px solid transparent;cursor:pointer;font-size:13px}.item:hover{background:var(--band)}.item.sel{background:var(--hl);border-left-color:var(--sel)}
 .item .id{font:12px ui-monospace,monospace;color:var(--muted)}.item .st{float:right;font-size:11px}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;background:var(--c-debt)}
-.dot.accepted{background:var(--c-acc)}.dot.fix-code{background:#2e8b57}.dot.change-design{background:var(--c-err)}.dot.gap{background:var(--muted)}.dot.fixed{background:#2e8b57}
+.dot.fix-code{background:#2e8b57}.dot.change-design{background:var(--c-err)}.dot.gap{background:var(--muted)}.dot.fixed{background:#2e8b57}
 #left input{width:calc(100% - 24px);margin:4px 12px}
 #stage{position:relative;overflow:hidden;cursor:grab;min-width:0}#stage.pan{cursor:grabbing}
 svg{width:100%;height:100%;display:block;user-select:none}
@@ -73,7 +73,7 @@ header{flex-wrap:wrap;row-gap:4px;white-space:nowrap;overflow:visible;gap:6px}he
 .fi .l1{display:flex;gap:4px;align-items:center;white-space:nowrap;overflow:hidden}.fi .l1 .bk{font-weight:600;overflow:hidden;text-overflow:ellipsis;min-width:0}.fi .l1 .st{margin-left:auto;flex:none;font-size:11px;color:var(--muted)}
 .fi .l2{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gi{flex:none;display:inline-block;width:16px;height:16px;border-radius:3px;text-align:center;font:700 11px/16px ui-monospace,monospace;color:#fff}.gi.deps{background:var(--c-debt)}.gi.cx{background:var(--k-implements)}.gi.cap{background:var(--k-extends)}
-.lv{flex:none;font-size:10px;padding:0 5px;border-radius:8px;border:1px solid}.lv.error{color:var(--c-debt);border-color:var(--c-debt)}.lv.warn{color:var(--warn-ink);background:var(--warn-bg);border-color:var(--bd-amber)}.lv.advice{color:var(--muted);border-color:var(--line)}.lv.info{color:var(--muted);border-color:var(--line);border-style:dashed;background:transparent}.ginfo{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:2px 12px}
+.ginfo{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:2px 12px}
 .dot.new{background:var(--c-debt)}
 .seg.sm button{padding:3px 8px;font-weight:500;font-size:12px}.seg.sm{margin-left:6px}.seg[hidden]{display:none}.seg{display:inline-flex}.seg button{border-radius:0;font-weight:600;padding:4px 12px}.seg button:first-child{border-radius:6px 0 0 6px}.seg button:last-child{border-radius:0 6px 6px 0}.seg button:disabled{cursor:default;opacity:.55}.seg button.on{opacity:1}
 .lay-pop{min-width:420px;gap:6px}.lay-pop .tg{display:flex;white-space:normal}.lay-pop .ddm{left:auto;right:0}
@@ -92,7 +92,7 @@ code,.mono{font:12px ui-monospace,monospace}
 .err{color:var(--c-debt)}.cnt b.err{color:var(--c-debt)}
 .edge.off{display:none}
 #stage{display:block}.selbox{position:absolute;border:1px dashed var(--sel);background:rgba(47,111,179,.12);pointer-events:none}
-.gi.stale{background:var(--c-acc)}.gi.iface{background:var(--muted)}.lv.error{color:var(--c-debt);border-color:var(--c-debt)}
+.gi.stale{background:var(--c-acc)}.gi.iface{background:var(--muted)}
 .pad{padding:8px 12px}.small{font-size:11px}.tiny{font-size:11px;margin-top:4px}
 #left h3.tag-h a{color:inherit}#left h3.tag-h.on{color:var(--sel)}#left h3.idx{margin-top:14px}
 .sh{margin-bottom:4px}.tagrow{margin-top:6px}
@@ -110,8 +110,8 @@ table.fns th a.on{color:var(--ink);font-weight:700}
 .crumbs{display:flex;align-items:center;gap:4px;font:600 13px ui-monospace,monospace}.crumbs .crumb{color:var(--sel);text-decoration:none;padding:1px 4px;border-radius:4px}.crumbs .crumb:hover{background:var(--band)}.crumbs .csep{color:var(--muted)}.crumbs .ccur{padding:1px 4px}
 .frame .fbox{fill:none;stroke:var(--ink);stroke-width:1.6;opacity:.55}.frame .flab{fill:var(--muted);font-weight:600;font-family:ui-monospace,monospace}
 .node.comp .box{stroke:var(--ink)}
-/* A composite (has a level inside) gets a tinted fill; error/warning fills still win. */
-.node.comp:not(.bd-red):not(.bd-amber) .box{fill:var(--comp-fill)}.node .box2{fill:none;stroke:var(--ink);stroke-width:1;opacity:.45;pointer-events:none}
+/* A composite (has a level inside) gets a tinted fill; error fills still win. */
+.node.comp:not(.bd-red) .box{fill:var(--comp-fill)}.node .box2{fill:none;stroke:var(--ink);stroke-width:1;opacity:.45;pointer-events:none}
 .node.ghost{opacity:.5}.node.ghost .box{fill:var(--bg);stroke-dasharray:4 3}
 .node.independent .box{stroke-dasharray:2 2}
 .node:focus{outline:none}.node:focus-visible .box{stroke:var(--sel);stroke-width:2.5}

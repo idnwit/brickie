@@ -58,10 +58,10 @@ pub(crate) fn tree_stamp(root: &Path) -> u64 {
     acc
 }
 
-/// The design's head. Reading it records a hand edit of the files as an `external` version,
-/// so a hand edit reaches the page as a design event too.
+/// The newest version of either track (draft or published). Reading it records a hand edit of
+/// the files as an `external` version, so a hand edit reaches the page as a design event too.
 fn head(st: &AppState) -> Option<(String, u64, By)> {
-    let v = Design::at(&st.config()).and_then(|d| d.head()).ok()?;
+    let v = Design::at(&st.config()).and_then(|d| d.log()).ok()?.pop()?;
     Some((v.hash, v.v, v.by))
 }
 

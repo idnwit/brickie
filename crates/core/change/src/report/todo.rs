@@ -3,8 +3,8 @@
 
 use crate::preview::{cache_mismatch, planned};
 use brickie_check::check::{Loaded, unused_links};
-use brickie_check::config::{Config, Pending, level_name};
-use brickie_model::codes::{CONFIG_UNASSIGNED, DEPS_UNUSED, DESIGN_NO_REASON, DESIGN_PLANNED};
+use brickie_check::config::{Config, level_name};
+use brickie_model::codes::{DESIGN_NO_REASON, DESIGN_PLANNED};
 use brickie_model::design::{Task, TaskKind};
 use std::path::Path;
 
@@ -13,7 +13,7 @@ fn task(kind: TaskKind, text: String) -> Task {
 }
 
 /// Everything to do, plus the planned brick paths and unbacked rule locations for marking the
-/// tree. `loaded` is the draft check of the design (`Err`: why it does not check).
+/// tree. `loaded` is the check of the published design (`Err`: why it does not check).
 pub struct Todo {
     pub tasks: Vec<Task>,
     pub planned: Vec<Vec<String>>,
@@ -37,10 +37,15 @@ pub fn todo(root: &Path, cfg: &Config, loaded: Result<&Loaded, String>) -> Todo 
     t
 }
 
+/// The todo list of a draft: config self-consistency only (the draft is never resolved
+/// against the code; `design publish --dry-run` lists what the code lacks).
+pub fn draft_todo(cfg: &Config) -> Vec<Task> {
+    let mut out = Vec::new();
+    reasonless(cfg, &mut out);
+    out
+}
+
 fn measured(l: &Loaded, t: &mut Todo) {
-    let pending = l.resolved.pending.iter();
-    t.tasks
-        .extend(pending.map(|p| task(TaskKind::Config, pending_text(p))));
     t.planned = planned(&l.cfg, &l.resolved);
     for p in &t.planned {
         let text = format!("{DESIGN_PLANNED}: {}", planned_text(&l.cfg, p));
@@ -48,7 +53,7 @@ fn measured(l: &Loaded, t: &mut Todo) {
     }
     for link in unused_links(l) {
         let text = format!(
-            "{DEPS_UNUSED}: rule {} -> {} in {} is unused ({}); write the code, or hide it with `--skip deps/unused` while coding",
+            "unused rule: {} -> {} in {} decides no edge yet ({}); write the code",
             link.from,
             link.to,
             level_name(&link.level),
@@ -61,7 +66,7 @@ fn measured(l: &Loaded, t: &mut Todo) {
 
 /// One task per rule without a reason (a preset's rule once).
 fn reasonless(level: &Config, out: &mut Vec<Task>) {
-    for r in &level.deps.rules {
+    for r in &level.rules {
         if r.reason.as_deref().is_some_and(|s| !s.trim().is_empty()) {
             continue;
         }
@@ -80,17 +85,6 @@ fn reasonless(level: &Config, out: &mut Vec<Task>) {
             reasonless(sub, out);
         }
     }
-}
-
-/// A tolerated partition error of the draft, with how to finish it.
-fn pending_text(p: &Pending) -> String {
-    let hint = match p.module {
-        Some(_) if p.code == CONFIG_UNASSIGNED => {
-            "; add it to the members of one of the composite's bricks"
-        }
-        _ => "",
-    };
-    format!("{}{hint}", p.message)
 }
 
 /// `brick root/x has no measured module yet; create the code for members [..]`.

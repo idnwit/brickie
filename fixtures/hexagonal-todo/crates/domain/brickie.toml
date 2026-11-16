@@ -1,7 +1,7 @@
 exports = ["column", "note", "board", "kernel"]
 [[brick]]
 name = "kernel"
-members = ["todo-domain", "todo-domain::error"]
+members = ["path:src/lib.rs", "todo-domain::error"]
 desc = "DomainError"
 
 [[brick]]
@@ -19,39 +19,35 @@ name = "board"
 members = ["todo-domain::board"]
 desc = "Board aggregate, invariants"
 
-[deps]
-default = "deny"
-cycles = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "column"
 to = "kernel"
 scope = "all"
 action = "allow"
 reason = "values report DomainError"
 
-[[deps.rule]]
+[[rule]]
 from = "note"
 to = "kernel"
 scope = "all"
 action = "allow"
 reason = "values report DomainError"
 
-[[deps.rule]]
+[[rule]]
 from = "note"
 to = "column"
 scope = "all"
 action = "allow"
 reason = "a note is placed in a column"
 
-[[deps.rule]]
+[[rule]]
 from = "board"
 to = "*"
 scope = "all"
 action = "allow"
 reason = "the aggregate composes everything"
 
-[[deps.rule]]
+[[rule]]
 from = "kernel"
 to = "*"
 scope = "all"

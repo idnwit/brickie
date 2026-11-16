@@ -15,18 +15,14 @@ name = "core"
 members = ["core"]
 tags = ["core"]
 
-[deps]
-default = "deny"
-cycles = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "tag:app"
 to = "tag:core"
 action = "allow"
 "#;
 
 pub(super) const WEB: &str = r#"
-exports = ["api", { brick = "ui", scope = "test" }]
+exports = ["api", "ui"]
 
 [[brick]]
 name = "api"
@@ -40,15 +36,12 @@ members = ["web-ui"]
 name = "shared"
 members = ["web-shared"]
 
-[deps]
-default = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "*"
 to = "shared"
 action = "allow"
 
-[[deps.rule]]
+[[rule]]
 from = "ui"
 to = "api"
 action = "allow"
@@ -135,8 +128,8 @@ fn findings_carry_level_and_owning_file() {
     w.write("ws/crates/web/brickie.toml", WEB);
     let o = check(&w, ROOT);
     assert_eq!(o.code, 1, "{}", o.stderr);
-    // Root: core -> web is denied by default (test edges are checked too).
-    let root = find(&o, "deps/default", "root");
+    // Root: core -> web matches no rule (test edges are checked too).
+    let root = find(&o, "deps/deny", "root");
     assert_eq!(root.len(), 3, "{}", o.stdout);
     assert!(root.iter().all(|d| d["bricks"] == json!(["core", "web"])));
     assert!(
@@ -146,7 +139,7 @@ fn findings_carry_level_and_owning_file() {
             .ends_with("/brickie.toml")
     );
     // web: shared -> ui has no rule; the finding points at web's own file.
-    let web = find(&o, "deps/default", "root/web");
+    let web = find(&o, "deps/deny", "root/web");
     assert_eq!(web.len(), 1, "{}", o.stdout);
     assert_eq!(web[0]["bricks"], json!(["shared", "ui"]));
     assert!(
@@ -155,7 +148,7 @@ fn findings_carry_level_and_owning_file() {
             .unwrap()
             .ends_with("ws/crates/web/brickie.toml")
     );
-    // Visibility: shared is private; ui is exported to test edges only.
+    // Visibility: shared is private; api and ui are exported.
     let private = find(&o, "deps/private", "root/web");
     assert_eq!(private.len(), 1, "{}", o.stdout);
     assert_eq!(private[0]["bricks"], json!(["shared"]));
@@ -166,6 +159,8 @@ fn findings_carry_level_and_owning_file() {
         0,
         "test edges form no cycle"
     );
+    // Inside web, ui and shared use each other.
+    assert_eq!(find(&o, "deps/cycle", "root/web").len(), 1, "{}", o.stdout);
     // Complexity from web's file applies to ui.
     let cx = find(&o, "complexity/cognitive", "root/web");
     assert_eq!(cx.len(), 1);
@@ -205,7 +200,7 @@ fn partition_and_missing_config_exit_2() {
         ),
         (
             WEB.replace("exports = [\"api\"", "exports = [\"ghost\""),
-            "config/unknown-export",
+            "config/invalid",
         ),
         (
             WEB.replace("to = \"shared\"", "to = \"core\""),
@@ -218,74 +213,4 @@ fn partition_and_missing_config_exit_2() {
         assert_eq!(o.code, 2, "{needle}");
         assert!(o.stderr.contains(needle), "{needle} not in {}", o.stderr);
     }
-}
-
-/// Hexagonal shape: root `core` plays the ui, composite `web` is `application` with `api` as
-/// ports-in, `ui` as ports-out (both exported) and `shared` as a hidden usecase.
-#[test]
-fn via_limits_entry_into_a_composite() {
-    let w = tree();
-    let web = WEB.replace(", { brick = \"ui\", scope = \"test\" }", ", \"ui\"");
-    w.write("ws/crates/web/brickie.toml", &web);
-    let rule = |via: &str, action: &str| {
-        format!(
-            "[[deps.rule]]\nfrom = \"core\"\nto = \"web\"\nscope = \"all\"\n{via}action = \"{action}\"\n"
-        )
-    };
-    let codes = |o: &Out| -> Vec<(String, String)> {
-        let mut v: Vec<_> = o.json["diagnostics"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|d| {
-                (
-                    d["code"].as_str().unwrap().to_string(),
-                    d["message"].as_str().unwrap().to_string(),
-                )
-            })
-            .collect();
-        v.sort();
-        v
-    };
-    let base = "[[brick]]\nname = \"web\"\npath = \"ws/crates/web\"\n[[brick]]\nname = \"core\"\nmembers = [\"core\"]\n";
-    let allow_api = format!(
-        "{base}[deps]\ndefault = \"deny\"\n{}",
-        rule("via = [\"api\"]\n", "allow")
-    );
-    let o = check(&w, &allow_api);
-    let f = codes(&o);
-    assert_eq!(o.code, 1, "{f:?}");
-    assert!(
-        f.iter()
-            .any(|(c, m)| c == "deps/default" && m.contains("via `ui`")),
-        "{f:?}"
-    );
-    assert!(!f.iter().any(|(_, m)| m.contains("via `api`")), "{f:?}");
-    let deny_ui = format!(
-        "{base}[deps]\ndefault = \"allow\"\n{}",
-        rule("via = [\"ui\"]\n", "deny")
-    );
-    let f = codes(&check(&w, &deny_ui));
-    assert!(
-        f.iter()
-            .any(|(c, m)| c == "deps/deny" && m.contains("via `ui`")),
-        "{f:?}"
-    );
-    assert!(
-        f.iter()
-            .any(|(c, m)| c == "deps/private" && m.contains("`shared`")),
-        "{f:?}"
-    );
-    assert!(
-        !f.iter()
-            .any(|(c, m)| c == "deps/deny" && m.contains("via `api`")),
-        "{f:?}"
-    );
-    let bad = format!(
-        "{base}[deps]\ndefault = \"allow\"\n{}",
-        rule("via = [\"shared\"]\n", "allow")
-    );
-    let o = check(&w, &bad);
-    assert_eq!(o.code, 2);
-    assert!(o.stderr.contains("config/unknown-via"), "{}", o.stderr);
 }

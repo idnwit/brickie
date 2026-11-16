@@ -1,4 +1,4 @@
-//! The inspector with nothing selected: the level's file and deps defaults, its bricks and
+//! The inspector with nothing selected: the level's file, its bricks and
 //! tags, and how to start.
 
 use crate::state::*;
@@ -18,11 +18,6 @@ pub fn level_view(cx: &Cx) -> View {
         .and_then(|c| c.levels.get(&lv.path))
         .cloned()
         .unwrap_or_default();
-    let deps = format!(
-        "deps: default {} \u{00B7} cycles {}",
-        sheet.default.as_deref().unwrap_or("allow"),
-        sheet.cycles.as_deref().unwrap_or("allow")
-    );
     let counts = format!(
         "{} bricks \u{00B7} {} rules in this file",
         info.bricks.len(),
@@ -41,8 +36,7 @@ pub fn level_view(cx: &Cx) -> View {
     view! {
         h2 { (lv.name().to_string()) }
         p(class="muted mono") { (file) }
-        p { (deps) " " a(href="#", on:click=move |e: Click| { e.prevent_default(); ed.tab.set("rules"); }) { "edit" } }
-        p(class="muted") { (counts) }
+        p(class="muted") { (counts) " " a(href="#", on:click=move |e: Click| { e.prevent_default(); ed.tab.set("rules"); }) { "edit" } }
         label { "tags" }
         div(class="pills") { (tags) }
         p(class="muted") { "Nothing selected. Drag a brick tile from the toolbar onto the canvas; hover a brick and drag one of its typed ports onto a sibling to add a rule; drop a brick on another to move it inside (rest on a group to open it), or Ctrl+X / Ctrl+V across levels; select a rule and drag its arrowhead to retarget it. Press ? for all shortcuts." }

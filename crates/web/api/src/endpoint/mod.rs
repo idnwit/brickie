@@ -3,8 +3,9 @@
 //! same `E::PATH` and decodes the same `E::Res`.
 //!
 //! `Req` is the input: the JSON body of a POST endpoint, or the query string of a GET endpoint
-//! (the viewer [`Params`]). With `edit=1` the GET endpoints answer for the design loaded as
-//! a draft (bricks without code allowed), marked for the editor. `()` means the endpoint takes no input.
+//! (the viewer [`Params`]). With `edit=1` the GET endpoints answer for the working tree (the draft
+//! when one exists, else the published design), marked for the editor. `()` means the endpoint
+//! takes no input.
 
 mod editor;
 mod measure;
@@ -14,7 +15,7 @@ pub use measure::*;
 
 use crate::{
     DiagView, EdgeItemView, EdgeUsesRequest, FnRow, InterfaceRequest, InterfaceView, LevelView,
-    Params, ReviewReply, ReviewRequest,
+    Params,
 };
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -29,14 +30,6 @@ pub trait Endpoint {
 pub type ReqOf<E> = <E as Endpoint>::Req;
 /// The response type of endpoint `E`.
 pub type ResOf<E> = <E as Endpoint>::Res;
-
-/// `POST /review`: accept (`reason`) or unaccept (`reason: null`) a finding.
-pub struct Review;
-impl Endpoint for Review {
-    const PATH: &'static str = "/review";
-    type Req = ReviewRequest;
-    type Res = ReviewReply;
-}
 
 /// `GET /api/graph?<params>`: every level of the brick tree (marked for the editor with
 /// `edit=1`).

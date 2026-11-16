@@ -1,4 +1,4 @@
-//! Check tests: include, review and config errors.
+//! Check tests: include and config errors.
 
 use super::support::*;
 use serde_json::json;
@@ -8,15 +8,17 @@ fn include_merges_relative_to_including_file() {
     let w = world(|_| {});
     w.write(
         "presets/layers.toml",
-        "include = [\"more/extra.toml\"]\n[[deps.rule]]\nfrom = \"tag:core\"\nto = \"tag:backend\"\naction = \"deny\"\n",
+        "include = [\"more/extra.toml\"]\n[[rule]]\nfrom = \"tag:core\"\nto = \"tag:backend\"\naction = \"deny\"\n",
     );
     w.write(
         "presets/more/extra.toml",
-        "[[complexity]]\nbricks = \"tag:core\"\ncognitive = 15\nlevel = \"warn\"\n",
+        "[[complexity]]\nbricks = \"tag:core\"\ncognitive = 15\n",
     );
     let o = check(
         &w,
-        &format!("include = [\"presets/layers.toml\"]\n{BRICKS}"),
+        &format!(
+            "include = [\"presets/layers.toml\"]\n{BRICKS}\n[[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\n"
+        ),
     );
     assert_eq!(codes(&o, "deps/deny").len(), 1);
     assert_eq!(codes(&o, "complexity").len(), 1);
@@ -26,40 +28,6 @@ fn include_merges_relative_to_including_file() {
             .unwrap()
             .ends_with("presets/layers.toml:2")
     );
-    // The including file overrides `default` from its includes.
-    w.write("presets/d.toml", "[deps]\ndefault = \"deny\"\n");
-    let o = check(
-        &w,
-        &format!("include = [\"presets/d.toml\"]\n{BRICKS}\n[deps]\ndefault = \"allow\"\n"),
-    );
-    assert!(codes(&o, "deps").is_empty());
-}
-
-#[test]
-fn review_acceptance_flips_exit_code() {
-    let w = world(|_| {});
-    let cfg_text =
-        with_bricks("[[deps.rule]]\nfrom = \"tag:core\"\nto = \"adapter\"\naction = \"deny\"\n");
-    let o = check(&w, &cfg_text);
-    assert_eq!(o.code, 1);
-    let id = codes(&o, "deps")[0]["id"].as_str().unwrap().to_string();
-    assert_eq!(id.len(), 8);
-    // Ids are stable across runs.
-    assert_eq!(codes(&check(&w, &cfg_text), "deps")[0]["id"], id);
-    w.write(
-        "brickie.review.toml",
-        &format!("[[accept]]\nid = \"{id}\"\nreason = \"tracked in #12\"\n"),
-    );
-    let o = check(&w, &cfg_text);
-    assert_eq!(o.code, 0);
-    assert_eq!(o.json["summary"]["accepted"], 1);
-    assert_eq!(codes(&o, "deps")[0]["accepted_reason"], "tracked in #12");
-    // A warning-only accept does not matter; an unknown field in the review file is an error.
-    w.write(
-        "brickie.review.toml",
-        "[[accept]]\nid = \"x\"\nreason = \"r\"\nextra = 1\n",
-    );
-    assert_eq!(check(&w, &cfg_text).code, 2);
 }
 
 #[test]
@@ -71,11 +39,11 @@ fn config_errors_exit_2() {
             "duplicate brick 'port'",
         ),
         (
-            with_bricks("[[deps.rule]]\nfrom = \"tag:nope\"\nto = \"*\"\naction = \"deny\"\n"),
+            with_bricks("[[rule]]\nfrom = \"tag:nope\"\nto = \"*\"\naction = \"deny\"\n"),
             "unknown tag 'nope'",
         ),
         (
-            with_bricks("[[deps.rule]]\nfrom = \"*\"\nto = \"ghost\"\naction = \"deny\"\n"),
+            with_bricks("[[rule]]\nfrom = \"*\"\nto = \"ghost\"\naction = \"deny\"\n"),
             "unknown brick 'ghost'",
         ),
         (
@@ -83,14 +51,14 @@ fn config_errors_exit_2() {
             "unknown brick 'ghost'",
         ),
         (
-            with_bricks("[[deps.rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"deny\"\nbogus = 1\n"),
+            with_bricks("[[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"deny\"\nbogus = 1\n"),
             "bogus",
         ),
-        (with_bricks("[deps]\nbogus = 1\n"), "bogus"),
+        (with_bricks("[deps]\ndefault = \"allow\"\n"), "deps"),
         ("bogus = 1\n".to_string(), "bogus"),
         (
             with_bricks(
-                "[[deps.rule]]\nfrom = \"*\"\nto = \"*\"\nkinds = [\"calls\"]\naction = \"deny\"\n",
+                "[[rule]]\nfrom = \"*\"\nto = \"*\"\nkinds = [\"calls\"]\naction = \"deny\"\n",
             ),
             "unknown kind 'calls'",
         ),

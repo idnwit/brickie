@@ -25,9 +25,6 @@ pub struct RuleFields {
     /// Exported children of the `to` composite the rule applies to (comma-separated).
     #[arg(long, value_delimiter = ',')]
     pub via: Option<Vec<String>>,
-    /// The fix shown with a finding (the rule's `help`).
-    #[arg(long)]
-    pub fix: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -43,7 +40,7 @@ pub enum RuleCmd {
         #[command(flatten)]
         w: Write,
     },
-    /// Change the action, reason, via or fix of a rule (an empty value removes it).
+    /// Change the action, reason or via of a rule (an empty value removes it).
     Set {
         #[command(flatten)]
         sel: RuleSel,

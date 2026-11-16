@@ -15,16 +15,20 @@ use brickie_web_api::design::LevelView as DesignLevel;
 use brickie_web_api::{DesignState, HISTORY, LevelInfo, LevelView};
 use std::collections::{BTreeMap, BTreeSet};
 
-/// The design at its head. `error` says why the tree does not show (`files` is then empty).
+/// The design at the head of its working track, with the draft's state and gate. `error` says why the tree does not show (`files` is then empty).
 pub fn state(d: &Design) -> Result<DesignState> {
     let log = d.log()?;
-    let head = log
-        .last()
-        .cloned()
-        .ok_or_else(|| anyhow::anyhow!("no version"))?;
+    let head = d.head()?;
+    let published = d.published_head()?.v;
+    let forked_from = d.forked_from()?;
+    // A draft behind the published head has no gate (the check refuses it): rebase first.
+    let gate = forked_from.and_then(|_| d.publish_check(head.v).ok());
     let skip = log.len().saturating_sub(HISTORY);
     let mut out = DesignState {
         v: head.v,
+        published,
+        forked_from,
+        gate,
         hash: head.hash,
         by: head.by,
         history: log.into_iter().skip(skip).collect(),

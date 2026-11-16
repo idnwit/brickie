@@ -1,19 +1,19 @@
 //! Resolving every module to a leaf path in the brick tree, and the partition checks.
 //!
-//! At each level the most specific member wins (`path:` < package < module prefix < exact module,
-//! longer wins);
-//! equal specificity in two bricks is `config/overlap`. Below a composite every module must
+//! At each level a module may match the members of only one brick; a match in two bricks is
+//! `config/overlap`, whatever the members' specificity. Below a composite every module must
 //! land in exactly one child (`config/unassigned`), and a child's members must not reach
 //! modules outside the composite (`config/member-outside-parent`). At the root an unmatched
 //! module is merely unmapped.
 //!
-//! [`Mode::Draft`] (the change preview) tolerates these three "not finished yet" errors: the
-//! design resolves with best effort (an unassigned module stays unmapped, an overlap goes to
-//! the first brick, a member reaching outside is ignored) and each becomes a [`Pending`].
+//! Every partition error of the tree is collected (best effort goes on: an unassigned module
+//! stays unmapped, an overlap goes to the first brick, a member reaching outside is ignored);
+//! any of them fails the resolve with a [`Partition`] error listing them all, so `design
+//! publish --dry-run` can show the whole checklist.
 
 use super::Config;
-use super::member::{Spec, Subject, matches};
-use anyhow::{Result, anyhow};
+use super::member::{Subject, matches};
+use anyhow::Result;
 use brickie_facts::{Crate, Module};
 use brickie_model::codes::{CONFIG_MEMBER_OUTSIDE_PARENT, CONFIG_OVERLAP, CONFIG_UNASSIGNED};
 use std::collections::BTreeMap;
@@ -24,70 +24,62 @@ use std::path::Path;
 #[derive(Debug, Default, Clone)]
 pub struct Resolved {
     pub paths: BTreeMap<String, Vec<String>>,
-    /// Draft mode only: the partition errors tolerated, in tree order.
-    pub pending: Vec<Pending>,
 }
 
-/// How strictly the partition rules apply.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Mode {
-    /// `check`: the first partition error aborts.
-    Strict,
-    /// A design in progress: partition errors are collected as [`Pending`].
-    Draft,
-}
-
-/// A partition error a draft resolve tolerated (the design is not finished yet).
+/// One partition error: the code does not fit the drawn structure.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Pending {
+pub struct Issue {
     /// `config/unassigned` | `config/overlap` | `config/member-outside-parent`.
     pub code: &'static str,
-    /// The full message, as strict mode reports it (`code: ...`).
+    /// The full message (`code: ...`).
     pub message: String,
     /// The composite (level path) it happened in; `[]` is the root.
     pub level: Vec<String>,
-    /// `config/unassigned`: the module left out.
+    /// The config file of that level.
+    pub file: String,
+    /// The module concerned, when one is.
     pub module: Option<String>,
+    /// The member selector concerned, when one is.
+    pub member: Option<String>,
 }
 
-impl Resolved {
-    /// Modules no child of the composite at `level` claims (draft only).
-    pub fn unassigned(&self, level: &[String]) -> Vec<&str> {
-        (self.pending.iter())
-            .filter(|p| p.code == CONFIG_UNASSIGNED && p.level == level)
-            .filter_map(|p| p.module.as_deref())
-            .collect()
+/// Every partition error of a resolve; the error `resolve` fails with.
+#[derive(Debug, Clone)]
+pub struct Partition(pub Vec<Issue>);
+
+impl std::fmt::Display for Partition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let lines: Vec<&str> = self.0.iter().map(|i| i.message.as_str()).collect();
+        f.write_str(&lines.join("\n"))
     }
 }
 
+impl std::error::Error for Partition {}
+
 struct Ctx<'r> {
-    mode: Mode,
     out: &'r mut Resolved,
-    /// (composite level path, module id) -> (claiming brick, its level) for modules a brick of
-    /// an outer level took although a member of the composite brick matched them.
-    claimed: BTreeMap<(Vec<String>, String), (String, String)>,
+    issues: Vec<Issue>,
 }
 
 impl Ctx<'_> {
-    /// Abort (strict) or record (draft) a partition error.
+    /// Record a partition error.
     fn fail(
         &mut self,
         code: &'static str,
         cfg: &Config,
         module: Option<&str>,
+        member: Option<&str>,
         msg: String,
-    ) -> Result<()> {
+    ) {
         let message = format!("{code}: {msg} (level {}, {})", cfg.level(), cfg.file);
-        if self.mode == Mode::Strict {
-            return Err(anyhow!(message));
-        }
-        self.out.pending.push(Pending {
+        self.issues.push(Issue {
             code,
             message,
             level: cfg.path.clone(),
+            file: cfg.file.clone(),
             module: module.map(str::to_string),
+            member: member.map(str::to_string),
         });
-        Ok(())
     }
 }
 
@@ -103,7 +95,6 @@ pub fn resolve(
     crates: &[Crate],
     modules: &[Module],
     ws_root: &Path,
-    mode: Mode,
 ) -> Result<Resolved> {
     let by_id: BTreeMap<&str, &Crate> = crates.iter().map(|c| (c.id.as_str(), c)).collect();
     let subjects: Vec<Subject> = modules
@@ -112,54 +103,49 @@ pub fn resolve(
         .collect();
     let all: Vec<&Subject> = subjects.iter().collect();
     let mut out = Resolved::default();
-    assign(
-        cfg,
-        &all,
-        &all,
-        &mut Ctx {
-            mode,
-            out: &mut out,
-            claimed: BTreeMap::new(),
-        },
-    )?;
-    Ok(out)
+    let mut cx = Ctx {
+        out: &mut out,
+        issues: Vec::new(),
+    };
+    assign(cfg, &all, &all, &mut cx);
+    match cx.issues.is_empty() {
+        true => Ok(out),
+        false => Err(Partition(cx.issues).into()),
+    }
 }
 
-/// The best brick of `cfg` for `s`, or an overlap error (draft: the first brick wins).
-fn best<'c>(cfg: &'c Config, s: &Subject, cx: &mut Ctx) -> Result<Option<&'c str>> {
-    let mut best: Option<(Spec, &str)> = None;
+/// The brick of `cfg` whose members match `s`; a match in a second brick is an overlap, which is
+/// recorded and the first brick keeps the module.
+fn owner<'c>(cfg: &'c Config, s: &Subject, cx: &mut Ctx) -> Option<&'c str> {
+    let mut found: Option<&str> = None;
     for b in &cfg.bricks {
-        for member in &b.members {
-            let Some(spec) = matches(member, &b.base, s) else {
-                continue;
-            };
-            match best {
-                Some((bs, n)) if bs > spec || (bs == spec && n == b.name) => {}
-                Some((bs, n)) if bs == spec => {
-                    let msg = format!(
-                        "module {} matches bricks '{n}' and '{}' with equal specificity",
-                        s.module.id, b.name
-                    );
-                    cx.fail(CONFIG_OVERLAP, cfg, Some(&s.module.id), msg)?;
-                }
-                _ => best = Some((spec, b.name.as_str())),
+        let Some(member) = b.members.iter().find(|m| matches(m, &b.base, s)) else {
+            continue;
+        };
+        match found {
+            None => found = Some(b.name.as_str()),
+            Some(n) => {
+                let msg = format!(
+                    "module {} matches bricks '{n}' and '{}'; a module belongs to one brick",
+                    s.module.id, b.name
+                );
+                cx.fail(CONFIG_OVERLAP, cfg, Some(&s.module.id), Some(member), msg);
             }
         }
     }
-    Ok(best.map(|(_, n)| n))
+    found
 }
 
 /// Assign `mods` (the modules of this level) to the children of `cfg`, recursively.
-fn assign(cfg: &Config, all: &[&Subject], mods: &[&Subject], cx: &mut Ctx) -> Result<()> {
+fn assign(cfg: &Config, all: &[&Subject], mods: &[&Subject], cx: &mut Ctx) {
     let root = cfg.path.is_empty();
     if !root {
-        outside_parent(cfg, all, mods, cx)?;
+        outside_parent(cfg, all, mods, cx);
     }
     let mut groups: BTreeMap<&str, Vec<&Subject>> = BTreeMap::new();
     for s in mods {
-        match best(cfg, s, cx)? {
+        match owner(cfg, s, cx) {
             Some(n) => {
-                note_claims(cfg, s, n, cx);
                 groups.entry(n).or_default().push(s);
             }
             None if root => {}
@@ -169,14 +155,14 @@ fn assign(cfg: &Config, all: &[&Subject], mods: &[&Subject], cx: &mut Ctx) -> Re
                     s.module.id,
                     cfg.path.join("/")
                 );
-                cx.fail(CONFIG_UNASSIGNED, cfg, Some(&s.module.id), msg)?;
+                cx.fail(CONFIG_UNASSIGNED, cfg, Some(&s.module.id), None, msg);
             }
         }
     }
     for (name, group) in groups {
         let Some(b) = cfg.brick(name) else { continue };
         match &b.sub {
-            Some(sub) => assign(sub, all, &group, cx)?,
+            Some(sub) => assign(sub, all, &group, cx),
             None => {
                 let mut path = cfg.path.clone();
                 path.push(name.to_string());
@@ -186,53 +172,32 @@ fn assign(cfg: &Config, all: &[&Subject], mods: &[&Subject], cx: &mut Ctx) -> Re
             }
         }
     }
-    Ok(())
-}
-
-/// Records that brick `winner` of `cfg` took `s` from every other composite brick of `cfg`
-/// whose own members match `s`.
-fn note_claims(cfg: &Config, s: &Subject, winner: &str, cx: &mut Ctx) {
-    for b in cfg
-        .bricks
-        .iter()
-        .filter(|b| b.sub.is_some() && b.name != winner)
-    {
-        if b.members.iter().any(|m| matches(m, &b.base, s).is_some()) {
-            let mut at = cfg.path.clone();
-            at.push(b.name.clone());
-            cx.claimed
-                .insert((at, s.module.id.clone()), (winner.to_string(), cfg.level()));
-        }
-    }
 }
 
 /// A child member that matches a module outside this composite.
-fn outside_parent(cfg: &Config, all: &[&Subject], mods: &[&Subject], cx: &mut Ctx) -> Result<()> {
+fn outside_parent(cfg: &Config, all: &[&Subject], mods: &[&Subject], cx: &mut Ctx) {
     let inside: std::collections::BTreeSet<&str> =
         mods.iter().map(|s| s.module.id.as_str()).collect();
     for b in &cfg.bricks {
         for member in &b.members {
-            if let Some(s) = all.iter().find(|s| {
-                !inside.contains(s.module.id.as_str()) && matches(member, &b.base, s).is_some()
-            }) {
-                let mut msg = format!(
-                    "member '{member}' of brick '{}' matches module {}, which is outside composite '{}'",
+            if let Some(s) = all
+                .iter()
+                .find(|s| !inside.contains(s.module.id.as_str()) && matches(member, &b.base, s))
+            {
+                let msg = format!(
+                    "member '{member}' of brick '{}' matches module {}, which is outside composite '{}' (a composite owns the modules under its path)",
                     b.name,
                     s.module.id,
                     cfg.path.join("/")
                 );
-                if let Some((brick, level)) =
-                    cx.claimed.get(&(cfg.path.clone(), s.module.id.clone()))
-                {
-                    msg.push_str(&format!(
-                        ": brick '{brick}' of level {level} took it from inside the composite. \
-                         Remove that member from '{brick}' and make it a child brick of '{}' (add it to the composite's exports if outside code uses it), or narrow member '{member}'",
-                        cfg.path.join("/")
-                    ));
-                }
-                cx.fail(CONFIG_MEMBER_OUTSIDE_PARENT, cfg, None, msg)?;
+                cx.fail(
+                    CONFIG_MEMBER_OUTSIDE_PARENT,
+                    cfg,
+                    Some(&s.module.id),
+                    Some(member),
+                    msg,
+                );
             }
         }
     }
-    Ok(())
 }

@@ -41,9 +41,9 @@ fn undo_removes_a_created_file() {
         path: "g".into(),
     };
     ws.apply(A, vec![group]).unwrap();
-    assert!(ws.path("g/brickie.toml").exists());
+    assert!(ws.has("g/brickie.toml"));
     ws.design().undo(2, A, None).unwrap();
-    assert!(!ws.path("g/brickie.toml").exists());
+    assert!(!ws.has("g/brickie.toml"));
 }
 
 #[test]
@@ -71,11 +71,11 @@ fn undo_goes_back_step_by_step_once_the_later_versions_are_reverted() {
     let ws = Ws::new();
     ws.apply(H, vec![desc("a", "x")]).unwrap();
     ws.apply(H, vec![desc("b", "y")]).unwrap();
-    let before = std::fs::read_to_string(ws.path("brickie.toml")).unwrap();
+    let before = ws.read("brickie.toml");
     ws.design().undo(3, H, Some(3)).unwrap();
     // v3 is reverted by v4: the file is as v2 left it, so v2 can be undone too.
     ws.design().undo(4, H, Some(2)).unwrap();
-    let now = std::fs::read_to_string(ws.path("brickie.toml")).unwrap();
+    let now = ws.read("brickie.toml");
     assert!(
         !now.contains("desc = \"x\"") && !now.contains("desc = \"y\""),
         "{now}"

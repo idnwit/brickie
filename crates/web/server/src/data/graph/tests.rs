@@ -17,7 +17,6 @@ fn cycle_hops_map_path_edges_to_the_finding() {
     };
     let d = Diagnostic {
         id: "cyc1".into(),
-        level: brickie_check::config::Level::Error,
         code: rules::DEPS_CYCLE.into(),
         message: String::new(),
         span: None,
@@ -28,8 +27,6 @@ fn cycle_hops_map_path_edges_to_the_finding() {
         bricks: vec!["a".into(), "b".into()],
         brick_level: Some("root".into()),
         edges: vec![hop("a", "b"), hop("b", "a"), hop("b", "zzz")],
-        accepted: false,
-        accepted_reason: None,
     };
     let index: BTreeMap<End, usize> = [("a", 0), ("b", 1), ("c", 2)]
         .map(|(n, i)| (End::Child(n.into()), i))

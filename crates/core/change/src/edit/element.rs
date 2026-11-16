@@ -33,15 +33,6 @@ pub fn elements(doc: &DocumentMut) -> Vec<(String, String)> {
         let sel = t.get("bricks").and_then(Item::as_str).unwrap_or("*");
         push(format!("limit {sel}"), canon(t.iter()));
     }
-    if let Some(deps) = doc.get("deps").and_then(Item::as_table) {
-        let items = deps
-            .iter()
-            .filter(|(k, i)| *k != "rule" && !i.is_array_of_tables());
-        let c = canon(items);
-        if !c.is_empty() {
-            push("deps".into(), c);
-        }
-    }
     for k in ["exports", "include"] {
         if let Some(i) = doc.get(k) {
             push(k.into(), canon(std::iter::once((k, i))));

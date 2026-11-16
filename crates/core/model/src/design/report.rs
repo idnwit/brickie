@@ -1,6 +1,6 @@
 //! What `design show` reports: the tree, its rules and limits, and the todo list.
 
-use super::By;
+use super::{By, Track};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -11,7 +11,7 @@ pub enum TaskKind {
     Planned,
     /// The design does not check (an unfinished partition, a cache problem).
     Config,
-    /// An allow rule between two named bricks that no measured edge uses (`deps/unused`).
+    /// An allow rule between two named bricks that decides no measured edge.
     Unused,
     /// A rule without a `reason`.
     Reason,
@@ -27,6 +27,11 @@ pub struct Task {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DesignView {
     pub v: u64,
+    /// The tree shown: the draft when one exists, else the published tree.
+    pub track: Track,
+    /// The draft's base: the published version it was forked from.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forked_from: Option<u64>,
     pub hash: String,
     pub by: By,
     pub at: u64,
@@ -44,9 +49,6 @@ pub struct LevelView {
     pub bricks: Vec<BrickView>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exports: Vec<String>,
-    /// `allow` or `deny`.
-    pub default: String,
-    pub cycles: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<RuleView>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -96,7 +98,6 @@ pub struct LimitView {
     pub bricks: String,
     /// Metric -> limit.
     pub metrics: BTreeMap<String, u64>,
-    pub level: String,
     pub scope: String,
 }
 

@@ -3,7 +3,7 @@
 //! types are `brickie_model::design`, re-exported as [`design`](crate::design).
 
 use crate::LevelView;
-use crate::design::{By, FileSheet, Op, Task, Version};
+use crate::design::{By, FileSheet, Gate, Op, Task, Version};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -11,8 +11,19 @@ use std::collections::BTreeMap;
 /// needs (layout hints, level files, selectors, unused links).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DesignState {
-    /// The head version: the `base` of the next write.
+    /// The head of the working track (the draft's last version, else the published head): the
+    /// `base` of the next write.
     pub v: u64,
+    /// The published head: what `check` and the view mode read.
+    #[serde(default)]
+    pub published: u64,
+    /// The published version the draft was forked from; `None`: no draft (the next edit
+    /// starts one).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forked_from: Option<u64>,
+    /// The publish gate of the draft; `None` without a draft or while it is behind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gate: Option<Gate>,
     pub hash: String,
     pub by: By,
     /// The latest versions, oldest first (at most [`HISTORY`]).
@@ -35,6 +46,13 @@ pub struct DesignState {
     pub error: Option<String>,
 }
 
+impl DesignState {
+    /// The draft is based on an older published version: it must be rebased before publish.
+    pub fn behind(&self) -> bool {
+        self.forked_from.is_some_and(|f| f != self.published)
+    }
+}
+
 /// How many versions [`DesignState::history`] carries.
 pub const HISTORY: usize = 50;
 
@@ -46,7 +64,7 @@ pub struct LayoutHint {
 }
 
 /// An allow rule between named bricks that no measured edge backs: the canvas draws it as an
-/// unused link (`deps/unused`). Named by identity (`file`, `from`, `to`, `kinds`, `scope`).
+/// unused link. Named by identity (`file`, `from`, `to`, `kinds`, `scope`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnusedLink {
     /// Level path the rule applies to (`root`, `root/web`).

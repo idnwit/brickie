@@ -1,4 +1,4 @@
-//! HTTP routes: the page, the code viewer, the JSON endpoints, review, the design editor's
+//! HTTP routes: the page, the code viewer, the JSON endpoints, the design editor's
 //! endpoints and the measure job (writes behind `guard`) and the wasm assets.
 
 mod api;
@@ -9,7 +9,6 @@ mod guard;
 mod index;
 mod interface;
 mod measure;
-mod review;
 mod view;
 
 pub(crate) use assets::wasm_embedded;
@@ -29,13 +28,15 @@ pub fn router(state: AppState) -> Router {
         .route(Diagnostics::PATH, get(api::diagnostics))
         .route(Functions::PATH, get(api::functions))
         .route(Graph::PATH, get(api::graph))
-        .route(Review::PATH, post(review::review))
         .route(Interface::PATH, post(interface::interface))
         .route(EdgeUses::PATH, post(interface::edge_uses))
         .route(DesignGet::PATH, get(editor::state))
         .route(DesignEdit::PATH, post(editor::edit))
         .route(DesignMove::PATH, post(editor::move_brick))
         .route(DesignUndo::PATH, post(editor::undo))
+        .route(DesignPublish::PATH, post(editor::publish))
+        .route(DesignRebase::PATH, post(editor::rebase))
+        .route(DesignDiscard::PATH, post(editor::discard))
         .route(DesignLinks::PATH, post(editor::links))
         .route(DesignLinkCheck::PATH, post(editor::link_check))
         .route(DesignLevels::PATH, post(editor::levels))

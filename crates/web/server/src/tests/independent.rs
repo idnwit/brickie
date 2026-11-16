@@ -20,10 +20,12 @@ name = "other"
 members = ["other"]
 tags = ["app"]
 
-[deps]
-default = "allow"
+[[rule]]
+from = "*"
+to = "*"
+action = "allow"
 
-[[deps.rule]]
+[[rule]]
 from = "other"
 to = "lib"
 action = "deny"
@@ -108,7 +110,7 @@ async fn hidden_edges_do_not_count_toward_scores() {
     let (_, body) = site().get("/api/graph").await;
     let v: Vec<brickie_web_api::LevelView> = serde_json::from_str(&body).unwrap();
     let g = &v[0].graph;
-    let scores = brickie_web_api::brick_scores(g, &[], &[]);
+    let scores = brickie_web_api::brick_scores(g, &[]);
     // Only other -> lib is drawn into lib; the hidden app -> lib adds no in-edge.
     assert_eq!(scores[0].edges_in, 1);
     assert_eq!(scores[0].edges_out, 1);

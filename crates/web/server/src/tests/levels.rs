@@ -20,15 +20,12 @@ name = "client"
 members = ["client"]
 tags = ["app"]
 
-[deps]
-default = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "tag:app"
 to = "tag:core"
 action = "allow"
 
-[[deps.rule]]
+[[rule]]
 from = "client"
 to = "web"
 action = "allow"
@@ -45,8 +42,10 @@ members = ["web-api"]
 name = "ui"
 members = ["web-ui"]
 
-[deps]
-default = "allow"
+[[rule]]
+from = "*"
+to = "*"
+action = "allow"
 "#;
 
 fn edge(from: &str, to: &str, line: u32) -> Value {
@@ -157,15 +156,14 @@ async fn graph_is_aggregated_per_level() {
     // Two module edges with two references in total, lifted to web -> core.
     let wc = edge_of(root, "web", "core");
     assert_eq!(wc["count"], 2);
-    assert_eq!(wc["diags"], json!([]));
-    assert_eq!(wc["worst"], Value::Null);
+    // Sibling cycles are always errors: web -> core -> client -> web is one.
+    assert_eq!(wc["diags"].as_array().unwrap().len(), 1);
     let cc = edge_of(root, "core", "client");
-    assert_eq!(cc["diags"].as_array().unwrap().len(), 1);
-    assert_eq!(cc["worst"], "error");
+    assert_eq!(cc["diags"].as_array().unwrap().len(), 2);
     // client -> web carries the private finding of root/web (red here, no wall at the root).
     let cw = edge_of(root, "client", "web");
     assert_eq!(cw["count"], 2);
-    assert_eq!(cw["diags"].as_array().unwrap().len(), 1);
+    assert_eq!(cw["diags"].as_array().unwrap().len(), 2);
     assert_eq!(cw["wall"], false);
 
     // root/web: children, then outside neighbours (sources row first, targets row last).
@@ -192,12 +190,16 @@ async fn graph_is_aggregated_per_level() {
     // The private edge from outside stops at the wall; the exported one does not.
     let into_ui = edge_of(g, "root/client", "ui");
     assert_eq!(into_ui["wall"], true);
-    assert_eq!(into_ui["worst"], "error");
     assert_eq!(edge_of(g, "root/client", "api")["wall"], false);
     assert_eq!(edge_of(g, "api", "root/core")["count"], 2);
     assert_eq!(edge_of(g, "ui", "api")["diags"], json!([]));
-    // The same finding id marks the edge at both levels.
-    assert_eq!(cw["diags"], into_ui["diags"]);
+    // The same finding id marks the edge at both levels (the root also has the cycle).
+    assert!(
+        cw["diags"]
+            .as_array()
+            .unwrap()
+            .contains(&into_ui["diags"][0])
+    );
 
     // The findings name children of their level.
     let d: Value =

@@ -107,9 +107,8 @@ pub(super) fn edge_detail(cx: &Cx, e: usize) -> View {
 }
 
 pub(super) fn finding_detail(cx: &Cx, i: usize) -> View {
-    let card = cx.m.cards[i].clone();
-    let bricks: Vec<View> = card
-        .d
+    let d = cx.m.diags[i].clone();
+    let bricks: Vec<View> = d
         .bricks
         .iter()
         .filter_map(|n| cx.brick(n))
@@ -121,7 +120,7 @@ pub(super) fn finding_detail(cx: &Cx, i: usize) -> View {
     let bricks = View::from(bricks);
     let c = cx.clone();
     let clear = view! { a(href="#", on:click=move |e: Click| { e.prevent_default(); c.go(c.params.get_clone().with(|p| p.item.clear())); }) { "\u{2190} back" } };
-    let card_v = card_view(card, cx.modal);
+    let card_v = card_view(d, cx.modal);
     view! {
         div(class="sh") { (clear) }
         p { "Bricks: " (bricks) }

@@ -97,11 +97,6 @@ fn hand_edit_becomes_an_external_version() {
 fn invalid_design_is_rejected_and_files_untouched() {
     let ws = Ws::new();
     let before = ws.read("brickie.toml");
-    let bad = Op::SetDeps {
-        file: "brickie.toml".into(),
-        default: None,
-        cycles: None,
-    };
     let rule = Op::AddRule {
         file: "brickie.toml".into(),
         rule: crate::RuleSpec {
@@ -111,7 +106,7 @@ fn invalid_design_is_rejected_and_files_untouched() {
             ..Default::default()
         },
     };
-    let e = format!("{:#}", ws.apply(A, vec![bad, rule]).unwrap_err());
+    let e = format!("{:#}", ws.apply(A, vec![rule]).unwrap_err());
     assert!(
         e.contains("design/invalid") && e.contains("nothing was written"),
         "{e}"
@@ -148,9 +143,10 @@ fn history_keeps_at_most_cap_versions() {
     }
     let d = ws.design();
     let log = d.log().unwrap();
-    assert_eq!(log.len(), crate::CAP);
-    assert!(log[0].full);
-    let first = d.state(log[0].v).unwrap();
+    // The published head (v1) is kept besides the last CAP versions.
+    assert_eq!(log.len(), crate::CAP + 1);
+    assert!(log[0].full && log[1].full);
+    let first = d.state(log[1].v).unwrap();
     assert!(String::from_utf8_lossy(&first["brickie.toml"]).contains("desc = \"d3\""));
 }
 

@@ -4,7 +4,7 @@
 
 use super::declared::declared;
 use super::uses::Index;
-use crate::config::{Config, Level, Resolved, level_name};
+use crate::config::{Config, Resolved, level_name};
 use crate::diag::{Finding, RuleRef, Span};
 use brickie_facts::Cache;
 use brickie_model::codes::INTERFACE_UNUSED;
@@ -23,9 +23,6 @@ struct Unused {
 impl Finding for Unused {
     fn code(&self) -> String {
         INTERFACE_UNUSED.into()
-    }
-    fn level(&self) -> Level {
-        Level::Warn
     }
     fn subject(&self) -> String {
         format!("{}:{}:{}", level_name(&self.leaf), self.module, self.symbol)

@@ -81,7 +81,6 @@ pub fn link_rule(from: &str, to: &str, ty: LinkType, scope: &str) -> RuleSpec {
         scope: Some(scope.to_string()),
         action: ty.action().to_string(),
         reason: None,
-        help: None,
     }
 }
 
@@ -113,8 +112,8 @@ pub fn scope_key(key: &str) -> Option<&'static str> {
 }
 
 /// The ops that turn rule `r` (as it is now, `old`) into `new`: a `set_rule` patch when only
-/// action, reason, via or help change; remove and add (one version) when its identity (from,
-/// to, kinds, scope) changes. An emptied reason / help / via is removed. Empty when unchanged.
+/// action or reason change; remove and add (one version) when its identity (from,
+/// to, kinds, scope) changes. An emptied reason is removed. Empty when unchanged.
 pub fn rule_ops(r: &super::RuleRef, old: &RuleSpec, new: &RuleSpec) -> Vec<Op> {
     if old == new {
         return Vec::new();
@@ -140,7 +139,6 @@ pub fn rule_ops(r: &super::RuleRef, old: &RuleSpec, new: &RuleSpec) -> Vec<Op> {
             action: (old.action != new.action).then(|| new.action.clone()),
             reason: text(&old.reason, &new.reason),
             via: (old.via != new.via).then(|| new.via.clone()),
-            help: text(&old.help, &new.help),
         },
     }]
 }
@@ -149,6 +147,7 @@ pub fn rule_ops(r: &super::RuleRef, old: &RuleSpec, new: &RuleSpec) -> Vec<Op> {
 pub fn retarget_ops(r: &super::RuleRef, rule: &RuleSpec, to: &str) -> Option<Vec<Op>> {
     let new = RuleSpec {
         to: to.to_string(),
+        via: Vec::new(),
         ..rule.clone()
     };
     (rule.to != to).then(|| rule_ops(r, rule, &new))
@@ -203,12 +202,8 @@ mod tests {
         };
         assert_eq!(key, &r.key);
         assert_eq!(
-            (
-                set.action.as_deref(),
-                set.reason.as_deref(),
-                set.via.clone()
-            ),
-            (Some("deny"), Some("ports"), None)
+            (set.action.as_deref(), set.reason.as_deref()),
+            (Some("deny"), Some("ports"))
         );
         let cleared = rule_ops(&super::super::RuleRef::of("brickie.toml", &why), &why, &old);
         let [Op::SetRule { set, .. }] = cleared.as_slice() else {
@@ -228,7 +223,6 @@ mod tests {
     #[test]
     fn retarget_replaces_the_rule_and_keeps_its_fields() {
         let rule = RuleSpec {
-            via: vec!["ports-in".into()],
             reason: Some("why".into()),
             ..link_rule("a", "b", LinkType::Uses, "prod")
         };
@@ -240,8 +234,8 @@ mod tests {
         };
         assert_eq!((key.from.as_str(), key.to.as_str()), ("a", "b"));
         assert_eq!(
-            (n.to.as_str(), n.reason.clone(), n.via.clone()),
-            ("tag:io", rule.reason.clone(), rule.via.clone())
+            (n.to.as_str(), n.reason.clone()),
+            ("tag:io", rule.reason.clone())
         );
     }
 }

@@ -2,7 +2,6 @@
 
 use super::deps::{at_level, dep_subject, in_tests, verb};
 use super::span;
-use crate::config::Level;
 use crate::diag::{Finding, Note, RuleRef, Span};
 use brickie_facts::Evidence;
 use brickie_model::codes::DEPS_PRIVATE;
@@ -25,14 +24,8 @@ pub(super) struct Private {
 }
 
 impl Finding for Private {
-    fn weight(&self) -> u64 {
-        (self.evidence.len() as u64).max(1)
-    }
     fn code(&self) -> String {
         DEPS_PRIVATE.into()
-    }
-    fn level(&self) -> Level {
-        Level::Error
     }
     fn subject(&self) -> String {
         dep_subject(&self.from_module, &self.to_module, &self.kind, &self.scope)
@@ -68,8 +61,8 @@ impl Finding for Private {
     }
     fn help(&self) -> Option<String> {
         Some(format!(
-            "use an exported brick of `{}` instead; if `{}` is meant to be public, add it to `exports` in that file (or a scoped entry such as {{ brick = \"{}\", scope = \"test\" }}); or run `brickie design export set {} [--scope prod|test]`",
-            self.to, self.hidden, self.hidden, self.hidden
+            "use an exported brick of `{}` instead; if `{}` is meant to be public, add it to `exports` in that file, or run `brickie design export set {}`",
+            self.to, self.hidden, self.hidden
         ))
     }
     /// Names are local to the finding's level (the composite): the hidden child.

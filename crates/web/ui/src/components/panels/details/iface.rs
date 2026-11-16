@@ -92,7 +92,7 @@ pub(super) fn interface_section(cx: &Cx, path: String) -> View {
         }
     };
     view! {
-        h4(title="What code outside the brick can name, and who uses it (tests anywhere count). Unused items are interface/unused warnings.") { "Interface" }
+        h4(title="What code outside the brick can name, and who uses it (tests anywhere count). Unused items are interface/unused findings.") { "Interface" }
         (body)
     }
 }

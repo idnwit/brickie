@@ -4,21 +4,12 @@
 use super::MeasureCfg;
 use super::source::{Disk, FileSource};
 use super::validate::{validate, validate_via};
-use super::{Action, Brick, ComplexityRule, Config, DepRule, Export};
+use super::{Brick, ComplexityRule, Config, DepRule};
 use anyhow::{Context, Result, bail};
 use brickie_model::codes::CONFIG_MISSING;
 use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
-
-#[derive(Deserialize, Default)]
-#[serde(deny_unknown_fields)]
-struct RawDeps {
-    default: Option<Action>,
-    cycles: Option<Action>,
-    #[serde(default)]
-    rule: Vec<DepRule>,
-}
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -26,11 +17,11 @@ struct Raw {
     #[serde(default)]
     include: Vec<String>,
     #[serde(default)]
-    exports: Vec<Export>,
+    exports: Vec<String>,
     #[serde(default)]
     brick: Vec<Brick>,
     #[serde(default)]
-    deps: RawDeps,
+    rule: Vec<DepRule>,
     #[serde(default)]
     complexity: Vec<ComplexityRule>,
     #[serde(default)]
@@ -133,8 +124,7 @@ fn cfg_level(path: &[String]) -> String {
     super::level_name(path)
 }
 
-/// Includes are merged before the including file: lists are concatenated, and `default` /
-/// `cycles` set by the including file override those of its includes.
+/// Includes are merged before the including file: lists are concatenated.
 fn load_file(
     src: &dyn FileSource,
     path: &Path,
@@ -174,19 +164,13 @@ fn load_file(
         cfg.measure.additional_targets.extend(m.additional_targets);
     }
     cfg.exports.extend(raw.exports);
-    if let Some(d) = raw.deps.default {
-        cfg.deps.default = d;
-    }
-    if let Some(c) = raw.deps.cycles {
-        cfg.deps.cycles = c;
-    }
     let loc = |lines: &[usize], i: usize| {
         format!("{}:{}", path.display(), lines.get(i).copied().unwrap_or(0))
     };
-    let lines = header_lines(&text, "[[deps.rule]]");
-    for (i, mut r) in raw.deps.rule.into_iter().enumerate() {
+    let lines = header_lines(&text, "[[rule]]");
+    for (i, mut r) in raw.rule.into_iter().enumerate() {
         r.loc = loc(&lines, i);
-        cfg.deps.rules.push(r);
+        cfg.rules.push(r);
     }
     let lines = header_lines(&text, "[[complexity]]");
     for (i, mut r) in raw.complexity.into_iter().enumerate() {
@@ -214,10 +198,8 @@ mod tests {
 
     #[test]
     fn parses_and_rejects() {
-        let c =
-            load_str("[deps]\ndefault=\"deny\"\n[[brick]]\nname=\"a\"\nmembers=[\"x\"]\n").unwrap();
+        let c = load_str("[[brick]]\nname=\"a\"\nmembers=[\"x\"]\n").unwrap();
         assert_eq!(c.bricks.len(), 1);
-        assert_eq!(c.deps.default, Action::Deny);
         let dup = "[[brick]]\nname=\"a\"\nmembers=[]\n[[brick]]\nname=\"a\"\nmembers=[]\n";
         assert!(
             load_str(dup)
@@ -239,7 +221,7 @@ mod tests {
         write(
             dir.path(),
             "crates/web/brickie.toml",
-            "exports=[\"api\", { brick = \"ui\", scope = \"test\" }]\n\
+            "exports=[\"api\"]\n\
              [[brick]]\nname=\"api\"\nmembers=[\"web-api\"]\n\
              [[brick]]\nname=\"ui\"\nmembers=[\"web-ui\"]\n",
         );
@@ -248,9 +230,8 @@ mod tests {
         assert_eq!(web.members, vec!["path:crates/web/".to_string()]);
         let sub = c.node(&["web".into()]).unwrap();
         assert_eq!(sub.level(), "root/web");
-        assert!(sub.exports_to("api", "prod"));
-        assert!(!sub.exports_to("ui", "prod"));
-        assert!(sub.exports_to("ui", "test"));
+        assert!(sub.exports("api"));
+        assert!(!sub.exports("ui"));
         // A missing composite config and an unknown export are errors.
         write(
             dir.path(),
@@ -258,7 +239,7 @@ mod tests {
             "exports=[\"ghost\"]\n[[brick]]\nname=\"api\"\n",
         );
         let e = format!("{:#}", load(&root).unwrap_err());
-        assert!(e.contains("config/unknown-export"), "{e}");
+        assert!(e.contains("config/invalid"), "{e}");
         write(
             dir.path(),
             "brickie.toml",

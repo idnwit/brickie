@@ -1,6 +1,6 @@
 //! The explorer trees. "Bricks": the brick tree (composites nest their children), each leaf
 //! brick with its crates and their files as a folder tree. "Folders": the cached files by directory. Badges are
-//! the open errors and warnings, summed up the tree.
+//! the findings, summed up the tree.
 
 use super::marks::counts;
 use brickie_check::check::Loaded;
@@ -27,7 +27,6 @@ fn group(id: String, label: String, kind: NodeKind, children: Vec<Node>) -> Node
     let mut b = Badge::default();
     for c in children.iter().filter_map(|c| c.badge.as_ref()) {
         b.errors += c.errors;
-        b.warns += c.warns;
     }
     Node {
         id,

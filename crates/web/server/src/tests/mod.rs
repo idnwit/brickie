@@ -3,6 +3,7 @@
 
 mod api;
 mod code;
+mod draft;
 mod editor;
 mod events;
 mod independent;
@@ -12,7 +13,6 @@ mod levels;
 mod levels_snapshot;
 mod links;
 mod measure;
-mod review;
 
 use super::*;
 use axum::body::Body;
@@ -30,7 +30,6 @@ tags = ["core"]
 [[complexity]]
 bricks = "*"
 cognitive = 5
-level = "error"
 "#;
 
 const SOURCE: &str = "// x.rs <b>&</b>\npub fn busy() {}\npub fn quiet() {}\n";
@@ -108,10 +107,6 @@ impl Site {
     pub(crate) async fn get(&self, uri: &str) -> (StatusCode, String) {
         self.call(Request::get(uri).body(Body::empty()).unwrap())
             .await
-    }
-
-    pub(crate) async fn review(&self, body: Value) -> (StatusCode, String) {
-        self.post("/review", body).await
     }
 
     /// POST from the page the server served (passes the write guard).

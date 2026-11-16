@@ -1,5 +1,4 @@
-//! New level files copy the parent's `deps`, rules that change nothing get a note, and code is
-//! written only when scaffolding is asked for.
+//! Rules that change nothing get a note, and code is written only when scaffolding is asked for.
 
 use super::*;
 use crate::{BrickKind, RuleSpec};
@@ -26,34 +25,8 @@ fn rule(file: &str, from: &str, to: &str) -> Op {
             scope: None,
             action: "allow".into(),
             reason: None,
-            help: None,
         },
     }
-}
-
-#[test]
-fn a_new_group_file_copies_default_and_cycles_from_its_parent() {
-    let ws = Ws::new();
-    ws.write(
-        "brickie.toml",
-        &ROOT.replace(
-            "default = \"deny\"",
-            "default = \"deny\"\ncycles = \"deny\"",
-        ),
-    );
-    ws.apply(A, vec![group("g")]).unwrap();
-    let text = ws.read("g/brickie.toml");
-    assert!(
-        text.contains("default = \"deny\"") && text.contains("cycles = \"deny\""),
-        "{text}"
-    );
-    // A group inside it copies from that file, and a parent without `deps` gives none.
-    ws.write(
-        "brickie.toml",
-        "[[brick]]\nname = \"a\"\nmembers = [\"pa\"]\n",
-    );
-    ws.apply(A, vec![group("h")]).unwrap();
-    assert!(!ws.read("h/brickie.toml").contains("deps"));
 }
 
 #[test]
@@ -73,26 +46,26 @@ fn an_existing_level_file_is_never_changed() {
 }
 
 #[test]
-fn a_rule_that_changes_nothing_gets_a_note_only_under_default_allow() {
+fn a_rule_that_changes_nothing_gets_a_note() {
     let ws = Ws::new();
-    // Under `default = "deny"` the rule b -> a changes the level.
+    // No rule allows b -> a, so the rule changes the level.
     let out = ws.apply(A, vec![rule("brickie.toml", "b", "a")]).unwrap();
     assert!(out.notes.is_empty(), "{:?}", out.notes);
+    // An allow from an independent brick to a normal brick never applies.
     let ws = Ws::new();
     ws.write(
         "brickie.toml",
-        &ROOT.replace("default = \"deny\"", "default = \"allow\""),
+        "[[brick]]\nname = \"a\"\nmembers = [\"pa\"]\nindependent = true\n\
+         [[brick]]\nname = \"b\"\nmembers = [\"pb\"]\n",
     );
     let d = ws.design();
-    let plan = d.dry_run(1, vec![rule("brickie.toml", "b", "a")]).unwrap();
-    let want = "rule b -> a allow changes nothing: already allowed by deps.default of brickie.toml";
+    let plan = d.dry_run(1, vec![rule("brickie.toml", "a", "b")]).unwrap();
+    let want = "rule a -> b allow changes nothing: an allow from an independent brick to a normal brick never applies";
     assert_eq!(plan.notes, [want]);
-    assert_eq!(
-        ws.apply(A, vec![rule("brickie.toml", "b", "a")])
-            .unwrap()
-            .notes,
-        [want]
-    );
+    // b -> a is already allowed: an independent brick accepts inbound edges.
+    let plan = d.dry_run(1, vec![rule("brickie.toml", "b", "a")]).unwrap();
+    let want = "rule b -> a allow changes nothing: already allowed by the default (no rule)";
+    assert_eq!(plan.notes, [want]);
 }
 
 #[test]

@@ -1,6 +1,5 @@
 //! The virtual file set: workspace-relative path -> parsed document.
 
-use super::rules::set_deps;
 use anyhow::{Context, Result, bail};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -31,7 +30,7 @@ impl Docs {
         })
     }
 
-    /// The paths of every file of the design.
+    /// The files of the design, sorted.
     pub fn files(&self) -> Vec<String> {
         self.files.keys().cloned().collect()
     }
@@ -59,27 +58,16 @@ impl Docs {
         Ok(self.files.entry(file.to_string()).or_default())
     }
 
-    /// A new level file below `parent`: `[deps]` `default` and `cycles` are copied from the
-    /// parent file, so the new level is as strict as its parent. Nothing is inherited at
-    /// check time, and an absent value means allow, so a bare file would be the loosest level.
-    pub fn create_level(&mut self, file: &str, parent: &str) -> Result<()> {
-        let value_of = |key: &str| {
-            let deps = self.files.get(parent)?.get("deps")?;
-            deps.get(key)?.as_str().map(String::from)
-        };
-        let (default, cycles) = (value_of("default"), value_of("cycles"));
-        let doc = self.create(file)?;
-        if default.is_some() || cycles.is_some() {
-            set_deps(doc, default.as_deref(), cycles.as_deref())?;
-        }
-        Ok(())
+    /// A new, empty level file.
+    pub fn create_level(&mut self, file: &str) -> Result<()> {
+        self.create(file).map(|_| ())
     }
 
     /// [`Docs::create_level`] unless the file is in the design or on disk already.
-    pub fn ensure_level(&mut self, file: &str, parent: &str) -> Result<()> {
+    pub fn ensure_level(&mut self, file: &str) -> Result<()> {
         let on_disk = self.root.as_ref().is_some_and(|r| r.join(file).exists());
         if !self.files.contains_key(file) && !on_disk {
-            self.create_level(file, parent)?;
+            self.create_level(file)?;
         }
         Ok(())
     }

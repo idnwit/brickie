@@ -27,16 +27,11 @@ pub fn lift<'a>(cfg: &'a Config, p1: &[String], p2: &[String]) -> Option<Lifted<
 }
 
 /// The first composite on the target path below the common ancestor that does not export the
-/// next brick for edges of `scope`: (composite level, hidden child name).
-pub fn hidden<'a>(
-    cfg: &'a Config,
-    p2: &'a [String],
-    k: usize,
-    scope: &str,
-) -> Option<(&'a Config, &'a str)> {
+/// next brick: (composite level, hidden child name).
+pub fn hidden<'a>(cfg: &'a Config, p2: &'a [String], k: usize) -> Option<(&'a Config, &'a str)> {
     (k + 1..p2.len()).find_map(|j| {
         let composite = cfg.node(&p2[..j])?;
         let child = p2[j].as_str();
-        (!composite.exports_to(child, scope)).then_some((composite, child))
+        (!composite.exports(child)).then_some((composite, child))
     })
 }

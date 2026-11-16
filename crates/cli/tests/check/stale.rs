@@ -35,23 +35,6 @@ fn stale_files() {
             .any(|m| m.contains("crates/app/src/new.rs") && m.contains("added"))
     );
     assert_eq!(o.code, 1, "stale findings are errors");
-    assert!(
-        codes(&o, "stale/file")
-            .iter()
-            .all(|d| d["level"] == "error")
-    );
-    // An accept of a stale id does not turn the gate green.
-    let id = codes(&o, "stale/file")[0]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    w.write(
-        "brickie.review.toml",
-        &format!("[[accept]]\nid = \"{id}\"\nreason = \"x\"\n"),
-    );
-    let o = run(&cfg, &["--format", "json"]);
-    assert_eq!(o.code, 1, "{}", o.stdout);
-    assert_eq!(o.json["summary"]["accepted"], 0);
 }
 
 #[test]
@@ -187,7 +170,7 @@ fn cache_from_another_location_is_one_stale_measure() {
 fn a_config_error_does_not_hide_stale_facts() {
     let w = world(|_| {});
     let broken =
-        with_bricks("[[deps.rule]]\nfrom = \"no-such-brick\"\nto = \"port\"\naction = \"allow\"\n");
+        with_bricks("[[rule]]\nfrom = \"no-such-brick\"\nto = \"port\"\naction = \"allow\"\n");
     let cfg = w.save(&broken);
     assert_eq!(run(&cfg, &[]).code, 2);
     assert!(!brickie_check::check::needs_measure(&cfg));

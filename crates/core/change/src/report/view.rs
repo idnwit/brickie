@@ -1,11 +1,12 @@
-//! `design show`: the design at the head as a tree, marked with what the code lacks.
+//! `design show`: the working tree (the draft, else the published design) as a tree. The
+//! published design is marked with what the code lacks; a draft lists config items only.
 
-use super::todo::todo;
+use super::todo::{Todo, draft_todo, todo};
 use crate::design::Design;
 use crate::paths::to_rel;
 use anyhow::Result;
 use brickie_check::check;
-use brickie_check::config::{self, Action, Brick, Config, Scope, level_name};
+use brickie_check::config::{Action, Brick, Config, Scope, level_name};
 use brickie_model::design::{BrickView, DesignView, LevelView, LimitView, RuleView, Task};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -17,16 +18,12 @@ struct Marks<'a> {
 }
 
 impl Design {
-    /// The todo list of a design held in memory (the files and the measured cache on disk).
+    /// The todo list of a draft held in memory: config self-consistency only.
     pub(crate) fn todo_of(&self, src: &crate::preview::Preview) -> Vec<Task> {
-        let Ok(cfg) = src.load_config() else {
-            return Vec::new();
-        };
-        let loaded = match self.root().join(".brickie/cache.json").is_file() {
-            true => check::load_draft_from(src, &self.config_path()).map_err(|e| format!("{e:#}")),
-            false => Err("no measurements yet".into()),
-        };
-        todo(self.root(), &cfg, loaded.as_ref().map_err(String::clone)).tasks
+        match src.load_config() {
+            Ok(cfg) => draft_todo(&cfg),
+            Err(_) => Vec::new(),
+        }
     }
 
     /// The design at the head; fails when it does not load.
@@ -61,15 +58,25 @@ impl Design {
     /// `show` plus warnings about config files that are missing.
     pub fn show_checked(&self) -> Result<(DesignView, Vec<String>)> {
         let head = self.head()?;
+        let forked_from = self.forked_from()?;
         let (cfg, warnings) = self.config_lenient()?;
-        let loaded = match self.root().join(".brickie/cache.json").is_file() {
-            true => check::load_draft_from(&config::Disk, &self.config_path())
-                .map_err(|e| format!("{e:#}")),
-            false => {
-                Err("no measurements yet: run `brickie measure` to list what the code lacks".into())
+        let t = match forked_from {
+            Some(_) => Todo {
+                tasks: draft_todo(&cfg),
+                planned: Vec::new(),
+                unbacked: Vec::new(),
+            },
+            None => {
+                let loaded = match self.root().join(".brickie/cache.json").is_file() {
+                    true => check::load(&self.config_path()).map_err(|e| format!("{e:#}")),
+                    false => Err(
+                        "no measurements yet: run `brickie measure` to list what the code lacks"
+                            .into(),
+                    ),
+                };
+                todo(self.root(), &cfg, loaded.as_ref().map_err(String::clone))
             }
         };
-        let t = todo(self.root(), &cfg, loaded.as_ref().map_err(String::clone));
         let marks = Marks {
             root: self.root(),
             planned: t.planned.iter().map(|p| level_name(p)).collect(),
@@ -77,6 +84,8 @@ impl Design {
         };
         let view = DesignView {
             v: head.v,
+            track: head.track,
+            forked_from,
             hash: head.hash.clone(),
             by: head.by,
             at: head.at,
@@ -116,7 +125,7 @@ fn scope(s: Scope) -> String {
 }
 
 fn level(cfg: &Config, m: &Marks) -> LevelView {
-    let rules = cfg.deps.rules.iter().map(|r| RuleView {
+    let rules = cfg.rules.iter().map(|r| RuleView {
         file: rel(m.root, &r.loc),
         from: r.from.to_string(),
         to: r.to.to_string(),
@@ -143,7 +152,6 @@ fn level(cfg: &Config, m: &Marks) -> LevelView {
             file: rel(m.root, &c.loc),
             bricks: c.bricks.to_string(),
             metrics,
-            level: format!("{:?}", c.level).to_lowercase(),
             scope: scope(c.scope),
         }
     });
@@ -151,9 +159,7 @@ fn level(cfg: &Config, m: &Marks) -> LevelView {
         path: cfg.level(),
         file: rel(m.root, &cfg.file),
         bricks: cfg.bricks.iter().map(|b| brick(cfg, b, m)).collect(),
-        exports: cfg.exports.iter().map(|e| e.brick.clone()).collect(),
-        default: action(cfg.deps.default),
-        cycles: action(cfg.deps.cycles),
+        exports: cfg.exports.clone(),
         rules: rules.collect(),
         limits: limits.collect(),
     }

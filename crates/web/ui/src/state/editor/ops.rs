@@ -135,9 +135,7 @@ pub fn complexity_ops(file: &str, old: &ComplexitySpec, new: &ComplexitySpec) ->
         paths: n(old.paths, new.paths),
         params: n(old.params, new.params),
         lines: n(old.lines, new.lines),
-        level: t(&old.level, &new.level),
         scope: t(&old.scope, &new.scope),
-        help: t(&old.help, &new.help),
     };
     vec![Op::SetComplexity {
         file: file.to_string(),
@@ -164,14 +162,14 @@ mod tests {
         let old = ComplexitySpec {
             bricks: Some("core".into()),
             cognitive: Some(25),
-            level: Some("warn".into()),
+            scope: Some("prod".into()),
             ..Default::default()
         };
         assert!(complexity_ops("b.toml", &old, &old).is_empty());
         let new = ComplexitySpec {
             cognitive: None,
             lines: Some(80),
-            level: None,
+            scope: None,
             ..old.clone()
         };
         let ops = complexity_ops("b.toml", &old, &new);
@@ -180,7 +178,7 @@ mod tests {
         };
         assert_eq!(bricks.as_deref(), Some("core"));
         assert_eq!(
-            (set.cognitive, set.lines, set.level.as_deref()),
+            (set.cognitive, set.lines, set.scope.as_deref()),
             (Some(0), Some(80), Some(""))
         );
         assert_eq!(set.nesting, None);

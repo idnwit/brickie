@@ -1,12 +1,12 @@
-//! Rule, complexity, deps, exports and include ops on one document.
+//! Rule, complexity, exports and include ops on one document.
 
 use super::table::{aot_mut, set_list, set_opt, str_array};
 use anyhow::{Context, Result, bail};
-use brickie_model::design::{ComplexitySpec, ExportSpec, RulePatch, RuleSpec};
+use brickie_model::design::{ComplexitySpec, RulePatch, RuleSpec};
 
-pub const RULES: &[&str] = &["deps", "rule"];
+pub const RULES: &[&str] = &["rule"];
 pub const COMPLEXITY: &[&str] = &["complexity"];
-use toml_edit::{Array, DocumentMut, InlineTable, Item, Table, Value, value};
+use toml_edit::{DocumentMut, Item, Table, value};
 
 pub fn rule_table(r: &RuleSpec) -> Table {
     let mut t = Table::new();
@@ -17,7 +17,6 @@ pub fn rule_table(r: &RuleSpec) -> Table {
     set_opt(&mut t, "scope", r.scope.as_deref());
     t["action"] = value(r.action.as_str());
     set_opt(&mut t, "reason", r.reason.as_deref());
-    set_opt(&mut t, "help", r.help.as_deref());
     t
 }
 
@@ -37,9 +36,7 @@ pub fn complexity_table(r: &ComplexitySpec) -> Table {
             t[k] = value(v as i64);
         }
     }
-    set_opt(&mut t, "level", r.level.as_deref());
     set_opt(&mut t, "scope", r.scope.as_deref());
-    set_opt(&mut t, "help", r.help.as_deref());
     t
 }
 
@@ -88,9 +85,6 @@ pub fn patch_rule(doc: &mut DocumentMut, i: usize, p: &RulePatch) -> Result<()> 
     if let Some(r) = &p.reason {
         set_opt(t, "reason", Some(r));
     }
-    if let Some(h) = &p.help {
-        set_opt(t, "help", Some(h));
-    }
     Ok(())
 }
 
@@ -116,75 +110,28 @@ pub fn patch_complexity(doc: &mut DocumentMut, i: usize, p: &ComplexitySpec) -> 
             None => {}
         }
     }
-    for (k, v) in [("level", &p.level), ("scope", &p.scope), ("help", &p.help)] {
-        if let Some(v) = v {
-            set_opt(t, k, Some(v));
-        }
-    }
-    Ok(())
-}
-
-pub fn set_deps(doc: &mut DocumentMut, default: Option<&str>, cycles: Option<&str>) -> Result<()> {
-    for v in [default, cycles].into_iter().flatten() {
-        if v != "allow" && v != "deny" {
-            bail!("deps value must be allow or deny, not '{v}'");
-        }
-    }
-    let deps = doc
-        .entry("deps")
-        .or_insert_with(|| Item::Table(Table::new()))
-        .as_table_mut()
-        .context("`deps` is not a table")?;
-    deps.set_implicit(false);
-    if let Some(d) = default {
-        deps["default"] = value(d);
-    }
-    if let Some(c) = cycles {
-        deps["cycles"] = value(c);
+    if let Some(v) = &p.scope {
+        set_opt(t, "scope", Some(v));
     }
     Ok(())
 }
 
 /// The current `exports` entries of the document, in order.
-pub fn read_exports(doc: &DocumentMut) -> Vec<ExportSpec> {
+pub fn read_exports(doc: &DocumentMut) -> Vec<String> {
     let Some(a) = doc.get("exports").and_then(Item::as_array) else {
         return Vec::new();
     };
     a.iter()
-        .filter_map(|v| {
-            if let Some(s) = v.as_str() {
-                return Some(ExportSpec {
-                    brick: s.to_string(),
-                    scope: None,
-                });
-            }
-            let t = v.as_inline_table()?;
-            Some(ExportSpec {
-                brick: t.get("brick")?.as_str()?.to_string(),
-                scope: t.get("scope").and_then(Value::as_str).map(String::from),
-            })
-        })
+        .filter_map(|v| v.as_str().map(String::from))
         .collect()
 }
 
-pub fn set_exports(doc: &mut DocumentMut, exports: &[ExportSpec]) {
+pub fn set_exports(doc: &mut DocumentMut, exports: &[String]) {
     if exports.is_empty() {
         doc.remove("exports");
         return;
     }
-    let mut a = Array::new();
-    for e in exports {
-        match &e.scope {
-            None => a.push(e.brick.as_str()),
-            Some(s) => {
-                let mut t = InlineTable::new();
-                t.insert("brick", Value::from(e.brick.as_str()));
-                t.insert("scope", Value::from(s.as_str()));
-                a.push(t);
-            }
-        }
-    }
-    doc["exports"] = Item::Value(Value::Array(a));
+    doc["exports"] = Item::Value(str_array(exports));
 }
 
 /// Add or remove an `include` entry.
@@ -211,24 +158,4 @@ pub fn edit_include(doc: &mut DocumentMut, path: &str, add: bool) -> Result<()> 
         doc["include"] = Item::Value(str_array(&list));
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn via_is_written_only_when_set() {
-        let mut r = RuleSpec {
-            from: "ui".into(),
-            to: "application".into(),
-            via: vec!["ports-in".into()],
-            action: "allow".into(),
-            ..RuleSpec::default()
-        };
-        let text = rule_table(&r).to_string();
-        assert!(text.contains("via = [\"ports-in\"]"), "{text}");
-        r.via.clear();
-        assert!(!rule_table(&r).to_string().contains("via"));
-    }
 }

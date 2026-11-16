@@ -58,6 +58,23 @@ billed and read.
 - Never commit private or machine-specific names, paths or addresses (test fixtures, docs,
   comments, snapshots included).
 
+## Retro: minimise after long coding
+
+A good design is a simple one, without needless parts. Features accumulate special cases. After a long stretch of feature work (or when the user asks),
+run a retro before adding more:
+
+- Restate the model as the fewest basic rules in `docs/llms.txt`; there is no target count. Each
+  rule states why it exists, conflicts with no other rule, and cannot be derived from the others;
+  a rule that fails any of these is cut or merged.
+- Minimise the `brickie.toml` schema (and other file formats) the same way: every key needs a
+  reason, and a key that can be derived from another key or replaced by a rule is cut.
+- Have an independent reviewer list every option, code, exemption and duplicated concept as
+  KEEP / CUT / MERGE against those rules; prefer deleting over adding.
+- After the user approves the list, cut the code, tests and docs in one change. State each rule
+  once and link to it.
+- One decision function per question (for example, whether an edge is allowed) is shared by
+  `check`, the design editor and the viewer; never re-implement a rule in a second place.
+
 ## Git and shared working tree
 
 - Never commit or push unless the user explicitly asks. Commit messages and PR titles follow

@@ -15,15 +15,7 @@ fn rule_words(r: &RuleSpec) -> String {
         "Allowed"
     };
     let scope = r.scope.as_deref().unwrap_or("prod");
-    let via = if r.via.is_empty() {
-        String::new()
-    } else {
-        format!(" via {}", r.via.join("+"))
-    };
-    format!(
-        "{verb} {} \u{2192} {}{via} ({kinds}, {scope})",
-        r.from, r.to
-    )
+    format!("{verb} {} \u{2192} {} ({kinds}, {scope})", r.from, r.to)
 }
 
 fn brick_words(op: &Op) -> Option<String> {
@@ -60,9 +52,7 @@ pub fn describe(op: &Op) -> String {
         Op::AddRule { rule, .. } => rule_words(rule),
         Op::SetRule { key, .. } => format!("Changed rule {}", key_words(key)),
         Op::RemoveRule { key, .. } => format!("Removed rule {}", key_words(key)),
-        Op::AddExport { brick, scope, .. } => {
-            format!("Exported {brick} ({})", scope.as_deref().unwrap_or("all"))
-        }
+        Op::AddExport { brick, .. } => format!("Exported {brick}"),
         Op::RemoveExport { brick, .. } => format!("Stopped exporting {brick}"),
         Op::AddComplexity { .. } => "Added a complexity rule".into(),
         Op::SetComplexity { bricks, .. } => {
@@ -71,7 +61,6 @@ pub fn describe(op: &Op) -> String {
         Op::RemoveComplexity { bricks, .. } => {
             format!("Removed complexity of {}", bricks.as_deref().unwrap_or("*"))
         }
-        Op::SetDeps { .. } => "Changed deps defaults".into(),
         Op::AddInclude { path, .. } => format!("Included {path}"),
         Op::RemoveInclude { path, .. } => format!("Dropped include {path}"),
         Op::CreateFile { file } => format!("Created {file}"),
@@ -165,14 +154,13 @@ mod tests {
             rule: RuleSpec {
                 from: "ui".into(),
                 to: "application".into(),
-                via: vec!["ports-in".into()],
                 action: "allow".into(),
                 ..Default::default()
             },
         };
         assert_eq!(
             describe(&v),
-            "Allowed ui \u{2192} application via ports-in (all kinds, prod)"
+            "Allowed ui \u{2192} application (all kinds, prod)"
         );
         assert_eq!(op_brick(&add("t")), Some("t"));
         assert_eq!(op_brick(&r), None);
@@ -182,6 +170,9 @@ mod tests {
     fn versions_read_as_one_line() {
         let mut v = Version {
             v: 3,
+            track: Default::default(),
+            forked_from: None,
+            reverts: None,
             hash: "ab".into(),
             prev: None,
             by: By::Agent,

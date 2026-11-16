@@ -4,7 +4,7 @@
 use brickie_web_api::*;
 use std::collections::BTreeMap;
 
-const LDEF: [(&str, bool); 23] = [
+const LDEF: [(&str, bool); 22] = [
     ("edges", true),
     ("tests", false),
     ("k-uses", true),
@@ -12,7 +12,6 @@ const LDEF: [(&str, bool); 23] = [
     ("k-reexports", true),
     ("deps", true),
     ("d-deny", true),
-    ("d-default", true),
     ("d-private", true),
     ("d-cycle", true),
     ("cx", true),
@@ -56,8 +55,7 @@ pub const SUBS: [(&str, &[(&str, &str)]); 4] = [
     (
         "deps",
         &[
-            ("d-deny", "deps/deny (rule forbids)"),
-            ("d-default", "deps/default (not allowed)"),
+            ("d-deny", "deps/deny (not allowed)"),
             ("d-private", "deps/private (not exported)"),
             ("d-cycle", "deps/cycle"),
         ],
@@ -151,21 +149,15 @@ pub(super) fn f_on(lay: &Lay, code: &str) -> bool {
     lay.on(g) && lay.on(&sub)
 }
 
-/// `vOn`: `fOn` plus, in the Violations preset, error level only (unless a level is chosen)
-/// and the violations scope.
-pub fn v_on(lay: &Lay, p: &Params, code: &str, level: &str) -> bool {
+/// `vOn`: `fOn` plus, in the Violations preset, the violations scope.
+pub fn v_on(lay: &Lay, p: &Params, code: &str) -> bool {
     if !f_on(lay, code) {
         return false;
     }
     if p.preset() != "viol" {
         return true;
     }
-    let lev_ok = if p.level.is_empty() {
-        level == "error"
-    } else {
-        level == p.level
-    };
-    lev_ok && (p.vscope() == "all" || group_sub(code).0 == p.vscope())
+    p.vscope() == "all" || group_sub(code).0 == p.vscope()
 }
 
 #[cfg(test)]
@@ -190,15 +182,12 @@ mod tests {
     }
 
     #[test]
-    fn violations_preset_shows_errors_only_unless_a_level_is_chosen() {
+    fn violations_preset_applies_the_scope() {
         let p = Params::default().with(|p| p.p = "viol".into());
         let lay = Lay::from_params(&p);
-        assert!(v_on(&lay, &p, "deps/deny", "error"));
-        assert!(!v_on(&lay, &p, "stale/file", "warn"));
-        let w = p.with(|p| p.level = "warn".into());
-        assert!(v_on(&lay, &w, "stale/file", "warn"));
+        assert!(v_on(&lay, &p, "deps/deny"));
         let scoped = p.with(|p| p.vs = "cx".into());
-        assert!(!v_on(&lay, &scoped, "deps/deny", "error"));
+        assert!(!v_on(&lay, &scoped, "deps/deny"));
     }
 
     #[test]

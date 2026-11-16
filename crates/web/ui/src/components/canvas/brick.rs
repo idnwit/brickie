@@ -26,9 +26,9 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
     let badge = {
         let cx = cx.clone();
         move || {
-            let (e, w) = cx.scores.with(|s| (s[b].errors, s[b].warns));
-            let bd = Badge::new(e, w, r0.w);
-            let tip = format!("{e} open error(s), {w} open warning(s)");
+            let e = cx.scores.with(|s| s[b].errors);
+            let bd = Badge::new(e, r0.w);
+            let tip = format!("{e} finding(s)");
             view! {
                 g(class=bd.cls) {
                     svg_title { (tip) }
@@ -106,12 +106,11 @@ fn brick_tip(b: &BrickView, s: &BrickScore) -> String {
         String::new()
     };
     format!(
-        "{} [{}]{desc}{indep}\nscore {} ({}E {}W, complexity excess {}){}",
+        "{} [{}]{desc}{indep}\nscore {} ({} finding(s), complexity excess {}){}",
         b.name,
         b.tag,
         fmt_score(s.score),
         s.errors,
-        s.warns,
         fmt_score(s.excess),
         peek(b)
     )
@@ -127,19 +126,17 @@ fn node_flags(cx: &Cx, b: usize) -> NodeFlags {
         .get()
         .is_some_and(|h| finding_focus(&cx.m.g, &cx.m.diags[h]).bricks.contains(&b));
     cx.eval.with(|ev| {
-        let (open, err) = ev.node[b];
+        let open = ev.node[b];
         let f = ev.focus.as_ref();
         NodeFlags {
             off_focus: f.is_some_and(|f| !f.lit.contains(&b)),
             viol,
             open,
-            err,
             selected: if item {
                 f.is_some_and(|f| f.finding && f.bricks.contains(&b))
             } else {
                 ev.sel == Sel::Brick(b)
             },
-            acc: ev.node_acc[b],
             hov,
         }
     })

@@ -1,9 +1,11 @@
-//! Writes: `apply` (ops) and `undo` (a version's file changes reverted). Both run under the
-//! lock: record a hand edit, check the base, build the new files in memory, load and validate
-//! the whole design, write each changed file by rename, append the version.
+//! `apply`: ops written to the draft (forked from the published head when there is none). Under
+//! the lock: record a hand edit, check the base, build the new files in memory, load and
+//! validate the whole design (config only, never against the code), store the draft, append
+//! the version.
 
+use super::commit::Stamp;
 use super::tree::{self, Files};
-use super::{Design, history, stale};
+use super::{Design, history, of_track, stale};
 use crate::edit::{Docs, apply};
 use crate::lock::{Lock, write_atomic};
 use crate::preview::Preview;
@@ -11,7 +13,7 @@ use crate::report::diff::diff;
 use crate::scaffold;
 use anyhow::{Context, Result, bail};
 use brickie_model::codes::DESIGN_INVALID;
-use brickie_model::design::{By, Op, PlanAction, PlanFile, Task, Version};
+use brickie_model::design::{By, Op, PlanAction, PlanFile, Task, Track, Version};
 use std::collections::BTreeSet;
 
 /// What a write did.
@@ -45,11 +47,14 @@ struct Prepared {
     old: Files,
     new: Files,
     cfg: brickie_check::config::Config,
+    /// No draft yet: the published head the write forks the draft from.
+    fork: Option<u64>,
 }
 
 impl Design {
-    /// Apply `ops` on top of version `base`, as one new version by `by`. Writes design files
-    /// only, never source code.
+    /// Apply `ops` to the draft on top of version `base` (the draft head, or the published head
+    /// when there is no draft yet), as one new draft version by `by`. Writes the draft only,
+    /// never the published files or source code.
     pub fn apply(&self, base: u64, by: By, note: Option<String>, ops: Vec<Op>) -> Result<Outcome> {
         self.write(base, by, note, ops, false)
     }
@@ -76,7 +81,14 @@ impl Design {
         let lock = self.lock()?;
         let p = self.prepare(&lock, base, &ops)?;
         let notes = self.rule_notes(&ops);
-        let mut out = self.commit(&p.entries, &p.old, &p.new, by, note, ops.clone())?;
+        let stamp = Stamp {
+            by,
+            note,
+            ops: ops.clone(),
+            fork: p.fork,
+            reverts: None,
+        };
+        let mut out = self.commit_draft(&p.entries, &p.old, &p.new, stamp)?;
         out.notes = notes;
         if out.changed {
             if code {
@@ -123,13 +135,13 @@ impl Design {
         })
     }
 
-    /// Check the base, apply `ops` to the files in memory and validate the whole design.
+    /// Check the base, apply `ops` to the working files in memory and validate the design.
     fn prepare(&self, lock: &Lock, base: u64, ops: &[Op]) -> Result<Prepared> {
         if ops.is_empty() {
             bail!("nothing to apply");
         }
-        let (entries, old) = self.sync(lock)?;
-        stale::check(&entries, base)?;
+        let (entries, published) = self.sync(lock)?;
+        let (old, fork) = self.work_base(&entries, published, base)?;
         let mut docs = Docs::from_base(&old, Some(self.root.clone()))?;
         for op in ops {
             apply(&mut docs, op).with_context(|| format!("{} on {}", op.name(), op.file()))?;
@@ -145,129 +157,28 @@ impl Design {
             old,
             new,
             cfg,
+            fork,
         })
     }
 
-    /// Revert the file changes of version `target` (default: the head) as a new version. Refused
-    /// when a file it changed is no longer as it left it (a later version changed it and was not
-    /// reverted), and for an agent when `target` was made by a human or by hand.
-    pub fn undo(&self, base: u64, by: By, target: Option<u64>) -> Result<Outcome> {
-        let lock = self.lock()?;
-        let (entries, old) = self.sync(&lock)?;
-        stale::check(&entries, base)?;
-        let n = target.unwrap_or(history::head(&entries)?.v);
-        let t = (entries.iter())
-            .find(|e| e.v == n)
-            .with_context(|| format!("v{n} is not in the history"))?;
-        if t.full {
-            bail!("v{n} is the oldest kept version; there is nothing before it to go back to");
-        }
-        // An agent may restore files a hand edit deleted, and nothing else of it.
-        let restores = t.by == By::External && t.files.is_empty() && !t.removed.is_empty();
-        if by == By::Agent && t.by != By::Agent && !restores {
-            bail!(
-                "v{n} was made by {}; an agent never undoes it (ask the human)",
-                t.by.name()
-            );
-        }
-        let touched: BTreeSet<&String> = t.files.iter().chain(&t.removed).collect();
-        let after = self.history.state(&entries, n)?;
-        // A later version that changed a file and was reverted since leaves it as `n` did.
-        if let Some(f) = touched.iter().find(|f| old.get(**f) != after.get(**f)) {
-            let later = (entries.iter().rev())
-                .find(|e| e.v > n && e.files.iter().chain(&e.removed).any(|x| x == *f));
-            let v = later.map_or(n, |e| e.v);
-            bail!("v{v} changed {f} after v{n}; undo v{v} first");
-        }
-        let before = self.history.state(&entries, n - 1)?;
-        let mut new = old.clone();
-        for f in touched {
-            match before.get(f) {
-                Some(b) => new.insert(f.clone(), b.clone()),
-                None => new.remove(f),
-            };
-        }
-        let docs = Docs::from_base(&new, None)?;
-        Preview::new(&self.root, &self.config, &docs)
-            .load_config()
-            .map_err(|e| anyhow::anyhow!("{DESIGN_INVALID}: {e:#}; nothing was written"))?;
-        self.commit(
-            &entries,
-            &old,
-            &new,
-            by,
-            Some(format!("undo v{n}")),
-            Vec::new(),
-        )
-    }
-
-    /// Write the files that differ from `old`, delete the ones gone, append the version.
-    fn commit(
+    /// The files a write starts from and, with no draft yet, the published head it forks; the
+    /// base must be the head of that track.
+    pub(super) fn work_base(
         &self,
         entries: &[Version],
-        old: &Files,
-        new: &Files,
-        by: By,
-        note: Option<String>,
-        ops: Vec<Op>,
-    ) -> Result<Outcome> {
-        let head = history::head(entries)?;
-        let changed: Vec<String> = (new.iter())
-            .filter(|(p, b)| old.get(*p) != Some(*b))
-            .map(|(p, _)| p.clone())
-            .collect();
-        let gone: Vec<String> = old
-            .keys()
-            .filter(|p| !new.contains_key(*p))
-            .cloned()
-            .collect();
-        if changed.is_empty() && gone.is_empty() {
-            return Ok(Outcome {
-                version: head.clone(),
-                changed: false,
-                scaffold: Vec::new(),
-                notes: Vec::new(),
-            });
+        published: Files,
+        base: u64,
+    ) -> Result<(Files, Option<u64>)> {
+        match self.draft()? {
+            Some(d) => {
+                stale::check(&of_track(entries, Track::Draft), base)?;
+                Ok((d.files, None))
+            }
+            None => {
+                stale::check(&of_track(entries, Track::Published), base)?;
+                Ok((published, Some(history::head(entries)?.v)))
+            }
         }
-        for p in &changed {
-            write_atomic(&self.root.join(p), &new[p])?;
-        }
-        // A file this write created and an undo takes away; a file only dropped from the tree
-        // (ungroup) stays on disk.
-        for p in gone
-            .iter()
-            .filter(|p| ops.is_empty() && !p.ends_with(".review.toml"))
-        {
-            let _ = std::fs::remove_file(self.root.join(p));
-        }
-        let disk = tree::read(&self.root, &self.config)?;
-        let version = Version {
-            v: head.v + 1,
-            hash: tree::hash(&disk),
-            prev: Some(head.hash.clone()),
-            by,
-            at: stale::now(),
-            note: note.filter(|n| !n.trim().is_empty()),
-            ops,
-            diff: diff(old, &disk),
-            files: changed
-                .into_iter()
-                .filter(|p| disk.contains_key(p))
-                .collect(),
-            removed: old
-                .keys()
-                .filter(|p| !disk.contains_key(*p))
-                .cloned()
-                .collect(),
-            full: false,
-        };
-        self.history.append(&version, &disk)?;
-        Ok(Outcome {
-            version,
-            changed: true,
-            scaffold: Vec::new(),
-            notes: Vec::new(),
-        })
     }
 
     /// The code files the ops' new bricks need (never overwrites a file); nothing is written.

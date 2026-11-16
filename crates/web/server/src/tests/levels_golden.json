@@ -86,36 +86,37 @@
         {
           "count": 2,
           "diags": [
-            "b87ded85"
+            "b87ded85",
+            "e49bfa52"
           ],
           "from": 2,
           "kind": "uses",
           "test": false,
           "to": 0,
-          "wall": false,
-          "worst": "error"
+          "wall": false
         },
         {
           "count": 1,
           "diags": [
-            "0ded8262"
+            "ba6b14f0",
+            "e49bfa52"
           ],
           "from": 1,
           "kind": "uses",
           "test": false,
           "to": 2,
-          "wall": false,
-          "worst": "error"
+          "wall": false
         },
         {
           "count": 2,
-          "diags": [],
+          "diags": [
+            "e49bfa52"
+          ],
           "from": 0,
           "kind": "uses",
           "test": false,
           "to": 1,
-          "wall": false,
-          "worst": null
+          "wall": false
         }
       ],
       "rows": [
@@ -225,8 +226,7 @@
           "kind": "uses",
           "test": false,
           "to": 3,
-          "wall": false,
-          "worst": null
+          "wall": false
         },
         {
           "count": 1,
@@ -235,8 +235,7 @@
           "kind": "uses",
           "test": false,
           "to": 0,
-          "wall": false,
-          "worst": null
+          "wall": false
         },
         {
           "count": 1,
@@ -245,8 +244,7 @@
           "kind": "uses",
           "test": false,
           "to": 0,
-          "wall": false,
-          "worst": null
+          "wall": false
         },
         {
           "count": 1,
@@ -257,8 +255,7 @@
           "kind": "uses",
           "test": false,
           "to": 1,
-          "wall": true,
-          "worst": "error"
+          "wall": true
         }
       ],
       "rows": [

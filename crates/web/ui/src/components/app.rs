@@ -62,7 +62,7 @@ fn page(cx: &Cx) -> View {
     view! { (hdr) (ban) (nav) (stage) (det) }
 }
 
-pub(crate) fn app(data: PageData, initial: Params) -> View {
+pub(super) fn app(data: PageData, initial: Params) -> View {
     let sh = Shared::new(data, initial);
     let cur: Cur = Rc::new(RefCell::new(None));
     {

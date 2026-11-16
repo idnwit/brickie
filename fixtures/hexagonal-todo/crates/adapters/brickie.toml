@@ -9,7 +9,3 @@ desc = "In-memory repositories and SequentialIds"
 name = "storage"
 members = ["path:storage/"]
 desc = "JSON local-storage repositories (file backend on native, localStorage on wasm32)"
-
-[deps]
-default = "deny"
-cycles = "deny"

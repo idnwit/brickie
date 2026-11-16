@@ -5,17 +5,16 @@ use super::*;
 #[tokio::test]
 async fn json_endpoints_use_the_same_params() {
     let s = Site::new();
-    let (st, body) = s.get("/api/diagnostics?level=error").await;
+    let (st, body) = s.get("/api/diagnostics").await;
     assert_eq!(st, StatusCode::OK);
     let v: Value = serde_json::from_str(&body).unwrap();
-    // The fixture has a file added after measure: a stale cache is an error too.
-    assert_eq!(v.as_array().unwrap().len(), 2);
-    assert_eq!(v[1]["code"], "stale/file");
+    // Every finding is listed: the over-limit function, two unused items and the file added
+    // after measure (a stale cache).
+    assert_eq!(v.as_array().unwrap().len(), 4);
+    assert_eq!(v[3]["code"], "stale/file");
     assert_eq!(v[0]["code"], "complexity/cognitive");
     assert_eq!(v[0]["snippet"]["hit"], "busy");
-    let v: Value =
-        serde_json::from_str(&s.get("/api/diagnostics?level=warn&code=complexity").await.1)
-            .unwrap();
+    let v: Value = serde_json::from_str(&s.get("/api/diagnostics?code=deps").await.1).unwrap();
     assert!(v.as_array().unwrap().is_empty());
     let v: Value = serde_json::from_str(&s.get("/api/diagnostics?brick=nope").await.1).unwrap();
     assert!(v.as_array().unwrap().is_empty());

@@ -1,23 +1,19 @@
-//! Config, cache and review combined into the diagnostics both `check` and `view` show.
+//! Config and cache combined into the diagnostics both `check` and `view` show.
 
-use crate::config::{self, Config, Mode, Resolved};
+use crate::config::{self, Config, Resolved};
 use crate::diag::{self, Diagnostic};
-use crate::{interface, review, rules};
+use crate::{interface, rules};
 use anyhow::{Context, Result, bail};
 use brickie_facts::{Cache, SCHEMA_VERSION};
 
-mod accept;
-mod baseline;
 mod facade;
-mod orphan;
 mod scope;
-pub use baseline::Baseline;
 pub use facade::*;
-pub use scope::{Counts, Filter, Filtered};
+pub use scope::{Filter, Filtered};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-/// Config, cache and the diagnostics derived from them (review decisions applied, sorted).
+/// Config, cache and the diagnostics derived from them (sorted).
 /// Shared by `check` and `view`, so both show the same values.
 pub struct Loaded {
     /// The brick tree (root level).
@@ -28,36 +24,23 @@ pub struct Loaded {
     pub diagnostics: Vec<Diagnostic>,
     /// Diagnostic id -> owner brick paths (`root/web/api`), for scoped checks.
     pub owners: BTreeMap<String, Vec<String>>,
-    /// Diagnostic id -> weight (see `Finding::weight`), for baseline comparison.
-    pub weights: BTreeMap<String, u64>,
 }
 
 pub fn load(config: &Path) -> Result<Loaded> {
     load_from(&config::Disk, config)
 }
 
-/// `load` with the config tree read from `src` (a change's preview); the cache and the review
-/// file are read from disk.
-fn load_from(src: &dyn config::FileSource, config: &Path) -> Result<Loaded> {
-    load_mode(src, config, Mode::Strict)
-}
-
-/// `load_from` for a design in progress: partition errors (`config/unassigned`, ...) do not
-/// abort; they are in `resolved.pending`. Parse and validation errors still do.
-pub fn load_draft_from(src: &dyn config::FileSource, config: &Path) -> Result<Loaded> {
-    load_mode(src, config, Mode::Draft)
-}
-
-fn load_mode(src: &dyn config::FileSource, config: &Path, mode: Mode) -> Result<Loaded> {
+/// `load` with the config tree read from `src` (the design draft); the cache is read from
+/// disk. Partition errors fail with a [`config::Partition`] listing them all.
+pub fn load_from(src: &dyn config::FileSource, config: &Path) -> Result<Loaded> {
     let cfg = config::load_from(src, config)?;
     let cache = read_cache(config)?;
-    let review = review::read(config)?;
     let root = Path::new(&cache.workspace_root);
     let ws = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
-    let resolved = config::resolve(&cfg, &cache.crates, &cache.modules, &ws, mode)?;
+    let resolved = config::resolve(&cfg, &cache.crates, &cache.modules, &ws)?;
     let mut found = rules::evaluate(&cache, &cfg, &resolved, root);
     // A cache from another directory describes another tree: report that alone.
-    let here = review::config_dir(config);
+    let here = config_dir(config);
     let here = here.canonicalize().unwrap_or(here);
     match rules::evaluate_stale_location(&cache, &here) {
         Some(moved) => found.push(moved),
@@ -72,18 +55,13 @@ fn load_mode(src: &dyn config::FileSource, config: &Path, mode: Mode) -> Result<
     let owners = (found.iter())
         .map(|f| (diag::finding_id(&f.code(), &f.subject()), f.owners()))
         .collect();
-    let weights = (found.iter())
-        .map(|f| (diag::finding_id(&f.code(), &f.subject()), f.weight()))
-        .collect();
-    accept::apply(config, &review, &weights, &mut diagnostics);
-    diagnostics.sort_by(|a, b| (a.level, &a.code, &a.message).cmp(&(b.level, &b.code, &b.message)));
+    diagnostics.sort_by(|a, b| (&a.code, &a.message).cmp(&(&b.code, &b.message)));
     Ok(Loaded {
         cfg,
         cache,
         resolved,
         diagnostics,
         owners,
-        weights,
     })
 }
 
@@ -95,7 +73,7 @@ pub fn needs_measure(config: &Path) -> bool {
     let Ok(cache) = read_cache(config) else {
         return true;
     };
-    let here = review::config_dir(config);
+    let here = config_dir(config);
     let here = here.canonicalize().unwrap_or(here);
     if rules::evaluate_stale_location(&cache, &here).is_some()
         || !rules::evaluate_stale(&cache).is_empty()
@@ -106,7 +84,7 @@ pub fn needs_measure(config: &Path) -> bool {
 }
 
 fn read_cache(config: &Path) -> Result<Cache> {
-    let cache_path = review::config_dir(config).join(".brickie/cache.json");
+    let cache_path = config_dir(config).join(".brickie/cache.json");
     let bytes = std::fs::read(&cache_path).with_context(|| {
         format!(
             "read {} (run `brickie measure` first)",

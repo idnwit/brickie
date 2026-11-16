@@ -3,6 +3,8 @@
 use super::support::*;
 use serde_json::json;
 
+const OPEN: &str = "[[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\n";
+
 #[test]
 fn deps_allow_passes() {
     let w = world(|_| {});
@@ -10,17 +12,15 @@ fn deps_allow_passes() {
         &w,
         &with_bricks(
             r#"
-[deps]
-default = "deny"
-[[deps.rule]]
+[[rule]]
 from = "*"
 to = "port"
 action = "allow"
-[[deps.rule]]
+[[rule]]
 from = "app"
 to = "*"
 action = "allow"
-[[deps.rule]]
+[[rule]]
 from = "engine"
 to = "adapter"
 action = "allow"
@@ -28,22 +28,11 @@ action = "allow"
         ),
     );
     assert!(codes(&o, "deps").is_empty(), "{}", o.stdout);
-    // Only the unmapped module remains; under default deny it is an error.
+    // Only the unmapped module remains; it is always an error.
     assert_eq!(o.code, 1);
     assert_eq!(o.json["summary"]["errors"], 1);
     let u = codes(&o, "bricks/unmapped");
     assert_eq!(u.len(), 1);
-    assert_eq!(u[0]["level"], "error");
-}
-
-#[test]
-fn unmapped_is_a_warning_under_default_allow() {
-    let w = world(|_| {});
-    let o = check(&w, &with_bricks(""));
-    assert_eq!(o.code, 0);
-    let u = codes(&o, "bricks/unmapped");
-    assert_eq!(u.len(), 1);
-    assert_eq!(u[0]["level"], "warn");
 }
 
 #[test]
@@ -51,23 +40,21 @@ fn deps_deny_fails() {
     let w = world(|_| {});
     let o = check(
         &w,
-        &with_bricks(
+        &with_bricks(&format!(
             r#"
-[[deps.rule]]
+{OPEN}
+[[rule]]
 from = "tag:core"
 to = "tag:backend"
 action = "deny"
 reason = "core must not use adapter"
-help = "go through the port"
-"#,
-        ),
+"#
+        )),
     );
     assert_eq!(o.code, 1);
     let d = codes(&o, "deps");
     assert_eq!(d.len(), 1);
     assert_eq!(d[0]["code"], "deps/deny");
-    assert_eq!(d[0]["level"], "error");
-    assert_eq!(d[0]["help"], "go through the port");
     assert_eq!(d[0]["span"]["file"], "crates/eng/src/x.rs");
     assert_eq!(d[0]["span"]["line"], 2);
     assert_eq!(d[0]["span"]["col"], 14);
@@ -81,22 +68,22 @@ help = "go through the port"
         d[0]["rule"]["loc"]
             .as_str()
             .unwrap()
-            .ends_with("brickie.toml:18")
+            .contains("brickie.toml:")
     );
 }
 
 #[test]
-fn deps_default_deny() {
+fn no_matching_rule_denies() {
     let w = world(|_| {});
-    let o = check(&w, &with_bricks("[deps]\ndefault = \"deny\"\n"));
+    let o = check(&w, &with_bricks(""));
     assert_eq!(o.code, 1);
     let d = codes(&o, "deps");
     assert_eq!(d.len(), 5);
-    assert!(d.iter().all(|d| d["code"] == "deps/default"));
-    // Without a [deps] section, nothing is denied.
-    let o = check(&w, &with_bricks(""));
-    assert!(codes(&o, "deps").is_empty());
-    assert_eq!(o.code, 0);
+    assert!(d.iter().all(|d| d["code"] == "deps/deny"));
+    assert!(d.iter().all(|d| d["rule"]["name"] == "no rule allows it"));
+    // `* -> *` allow opens the level.
+    let o = check(&w, &with_bricks(OPEN));
+    assert!(codes(&o, "deps").is_empty(), "{}", o.stdout);
 }
 
 #[test]
@@ -105,18 +92,19 @@ fn deps_specificity() {
     // brick beats tag: the allow on `engine` wins over the deny on `tag:core`.
     let o = check(
         &w,
-        &with_bricks(
+        &with_bricks(&format!(
             r#"
-[[deps.rule]]
+{OPEN}
+[[rule]]
 from = "tag:core"
 to = "adapter"
 action = "deny"
-[[deps.rule]]
+[[rule]]
 from = "engine"
 to = "adapter"
 action = "allow"
-"#,
-        ),
+"#
+        )),
     );
     assert!(codes(&o, "deps").is_empty());
     // tag beats `*`.
@@ -124,19 +112,19 @@ action = "allow"
         &w,
         &with_bricks(
             r#"
-[[deps.rule]]
+[[rule]]
 from = "*"
 to = "*"
 action = "deny"
-[[deps.rule]]
+[[rule]]
 from = "tag:core"
 to = "tag:backend"
 action = "allow"
-[[deps.rule]]
+[[rule]]
 from = "*"
 to = "port"
 action = "allow"
-[[deps.rule]]
+[[rule]]
 from = "app"
 to = "*"
 action = "allow"
@@ -147,22 +135,23 @@ action = "allow"
     // Equal specificity: deny wins whatever the order.
     let o = check(
         &w,
-        &with_bricks(
+        &with_bricks(&format!(
             r#"
-[[deps.rule]]
+{OPEN}
+[[rule]]
 from = "tag:core"
 to = "adapter"
 action = "allow"
-[[deps.rule]]
+[[rule]]
 from = "tag:core"
 to = "adapter"
 action = "deny"
-[[deps.rule]]
+[[rule]]
 from = "tag:core"
 to = "adapter"
 action = "allow"
-"#,
-        ),
+"#
+        )),
     );
     assert_eq!(codes(&o, "deps/deny").len(), 1);
 }
@@ -180,12 +169,17 @@ fn deps_kinds_and_scope_filters() {
         &w,
         &with_bricks(
             r#"
-[[deps.rule]]
+[[rule]]
+from = "*"
+to = "*"
+scope = "all"
+action = "allow"
+[[rule]]
 from = "engine"
 to = "*"
 kinds = ["implements"]
 action = "deny"
-[[deps.rule]]
+[[rule]]
 from = "engine"
 to = "adapter"
 action = "deny"
@@ -209,7 +203,12 @@ action = "deny"
         &w,
         &with_bricks(
             r#"
-[[deps.rule]]
+[[rule]]
+from = "*"
+to = "*"
+scope = "all"
+action = "allow"
+[[rule]]
 from = "engine"
 to = "adapter"
 scope = "test"
@@ -233,6 +232,6 @@ fn edges_inside_a_brick_are_ignored() {
             json!({"id": "eng::other", "crate": "eng", "file": "crates/eng/src/x.rs", "line": 3}),
         );
     });
-    let o = check(&w, &with_bricks("[deps]\ndefault = \"deny\"\n"));
+    let o = check(&w, &with_bricks(""));
     assert_eq!(codes(&o, "deps").len(), 5);
 }

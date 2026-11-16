@@ -36,7 +36,8 @@ fn names(i: &Interface) -> Vec<&str> {
 /// `hidden` is not exported from its crate. ui declares `view` (used by a web-api test),
 /// shared declares `util`.
 fn world() -> (tempfile::TempDir, crate::config::Config, Resolved, Cache) {
-    let (dir, cfg) = fixture(ROOT, WEB);
+    let web = WEB.replace("exports = [\"api\"]", "exports = [\"api\", \"ui\"]");
+    let (dir, cfg) = fixture(ROOT, &web);
     let res = resolved(dir.path(), &cfg).unwrap();
     let mut c = cache(
         &dir.path().canonicalize().unwrap(),

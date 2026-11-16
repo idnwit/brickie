@@ -51,7 +51,7 @@ pub enum BrickCmd {
         #[command(flatten)]
         w: Write,
     },
-    /// Rename a brick; rules and `via` entries that name it follow.
+    /// Rename a brick; rules, limits and exports of its file follow.
     Rename {
         brick: String,
         to: String,

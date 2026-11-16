@@ -18,8 +18,7 @@ to the default branch builds Linux x86-64 and macOS binaries into a rolling `dev
 5. Publish: repo, CI, branch protection, dev release, install script, release-plz. Open.
 6. Incremental measure. Open: re-measure complexity of changed files (tree-sitter only); mark
    dependencies stale when a diff touches `use`, `impl` or `pub` signatures (a full SCIP run
-   is still needed). Findings new against a baseline: done (`check --new`, [check.md](check.md),
-   "Gate for coding agents").
+   is still needed).
 7. Nested bricks: per-level checks, `exports`, zoom. Done. ([levels.md](levels.md))
 8. Brick interfaces. Done.
 9. Versioned design editing. CLI and viewer done. ([editor.md](editor.md))

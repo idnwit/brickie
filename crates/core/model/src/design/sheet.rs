@@ -2,25 +2,20 @@
 //! ([`FileSheet`]), the links a brick may draw ([`LinkOption`]) and whether a new rule would
 //! change anything ([`LinkCheck`]).
 
-use super::{ComplexitySpec, ExportSpec, RuleSpec};
+use super::{ComplexitySpec, RuleSpec};
 use serde::{Deserialize, Serialize};
 
 /// The editable content of one physical config file, not merged with what it includes.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileSheet {
-    /// `deps.default` / `deps.cycles` as written (`None`: not set in this file).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub default: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cycles: Option<String>,
-    /// `[[deps.rule]]` in file order.
+    /// `[[rule]]` in file order.
     #[serde(default)]
     pub rules: Vec<RuleSpec>,
     /// `[[complexity]]` in file order.
     #[serde(default)]
     pub complexity: Vec<ComplexitySpec>,
     #[serde(default)]
-    pub exports: Vec<ExportSpec>,
+    pub exports: Vec<String>,
     /// `include` entries as written (relative to the file).
     #[serde(default)]
     pub include: Vec<String>,
@@ -40,7 +35,7 @@ pub struct LinkOption {
     pub scope: String,
     /// `allow` or `deny`.
     pub action: String,
-    /// `file:line` of the deciding rule; `None` when `deps.default` decides.
+    /// `file:line` of the deciding rule; `None` when no rule decides (the fixed default).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rule: Option<String>,
 }
@@ -52,7 +47,7 @@ pub struct LinkCheck {
     pub redundant: bool,
     /// Plain words for the UI ("already allowed by brickie.toml:12", "would allow 3 edges").
     pub why: String,
-    /// `file:line` of the rule that already decides it (`None`: `deps.default`, or not
+    /// `file:line` of the rule that already decides it (`None`: the default, or not
     /// redundant).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rule: Option<String>,

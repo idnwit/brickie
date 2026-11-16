@@ -35,14 +35,10 @@ fn docs() -> Vec<PathBuf> {
     out
 }
 
-/// Loads `toml` as a `brickie.toml` (or a `brickie.review.toml` when it holds `[[accept]]`).
+/// Loads `toml` as a `brickie.toml`.
 fn load(toml: &str) -> anyhow::Result<()> {
     let dir = tempfile::tempdir().unwrap();
     let config = dir.path().join("brickie.toml");
-    if toml.contains("[[accept]]") {
-        std::fs::write(dir.path().join("brickie.review.toml"), toml).unwrap();
-        return brickie_check::check::read_review(&config).map(drop);
-    }
     std::fs::write(&config, toml).unwrap();
     brickie_check::config::load(&config).map(drop)
 }
@@ -68,11 +64,9 @@ fn llms_txt_names_every_config_key() {
     let tables = [
         "bogus = 1",
         "[[brick]]\nname = \"a\"\nbogus = 1",
-        "[deps]\nbogus = 1",
-        "[[deps.rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\nbogus = 1",
+        "[[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\nbogus = 1",
         "[[complexity]]\nbogus = 1",
         "[measure]\nbogus = 1",
-        "[[accept]]\nid = \"x\"\nreason = \"y\"\nbogus = 1",
     ];
     for toml in tables {
         for key in accepted_keys(toml) {

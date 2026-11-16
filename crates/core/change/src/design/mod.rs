@@ -1,8 +1,12 @@
-//! The design: the `brickie.toml` tree on disk, versioned. Every write is applied to the files
-//! at once, under `.brickie/design.lock`, and based on a version (`base`): a write based on an
-//! older version than the head is refused ([`Stale`]). A hand edit of the files becomes an
-//! `external` version on the next read or write.
+//! The design: two trees, versioned in one history. The published tree is the `brickie.toml`
+//! tree on disk that `check` reads; the draft (`.brickie/draft/`) is what every edit writes,
+//! forked from the published head by the first edit. `publish` copies the draft into the real
+//! files once the code matches its structure. Every write runs under `.brickie/design.lock` and
+//! is based on the head of the track it writes (`base`); another base is refused ([`Stale`]).
+//! A hand edit of the published files becomes an `external` version on the next read or write.
 
+mod commit;
+mod draft;
 mod history;
 mod links;
 mod notes;
@@ -10,8 +14,10 @@ mod resolve;
 pub use resolve::brick_path;
 mod stale;
 mod tree;
+mod undo;
 mod write;
 
+pub use draft::Blocked;
 pub use history::CAP;
 pub use links::Link;
 pub use stale::{Stale, ago};
@@ -22,7 +28,7 @@ pub use write::{Outcome, Plan};
 use crate::lock::Lock;
 use crate::report::diff::diff;
 use anyhow::{Context, Result};
-use brickie_model::design::{By, Version};
+use brickie_model::design::{By, Track, Version};
 use history::History;
 use std::path::{Path, PathBuf};
 
@@ -79,24 +85,46 @@ impl Design {
         Lock::acquire(&self.root.join(".brickie/design.lock"))
     }
 
-    /// The config files on disk now.
+    /// The config files of the working tree: the draft when one exists, else the published
+    /// files on disk.
     pub(crate) fn files(&self) -> Result<Files> {
+        match self.draft()? {
+            Some(d) => Ok(d.files),
+            None => self.published_files(),
+        }
+    }
+
+    /// The published config files on disk now.
+    fn published_files(&self) -> Result<Files> {
         tree::read(&self.root, &self.config)
     }
 
-    /// Under the lock: record the first version, or an `external` one when the files differ
-    /// from the head. Returns the history and the files on disk.
+    /// A preview of `files` over the disk, readable by the loader.
+    pub(crate) fn preview(&self, files: &Files) -> Result<crate::preview::Preview> {
+        let docs = crate::edit::Docs::from_base(files, None)?;
+        Ok(crate::preview::Preview::new(
+            &self.root,
+            &self.config,
+            &docs,
+        ))
+    }
+
+    /// Under the lock: record the first version, or an `external` one when the published files
+    /// differ from the published head. Returns the history and the published files on disk.
     fn sync(&self, _lock: &Lock) -> Result<(Vec<Version>, Files)> {
         let mut entries = self.history.entries()?;
-        let files = self.files()?;
+        let files = self.published_files()?;
         let hash = tree::hash(&files);
-        let v = match entries.last() {
+        let v = match history::head_of(&entries, Track::Published) {
             Some(h) if h.hash == hash => return Ok((entries, files)),
             Some(h) => {
                 let old = self.history.state(&entries, h.v)?;
                 let changed = files.iter().filter(|(p, b)| old.get(*p) != Some(*b));
                 Version {
-                    v: h.v + 1,
+                    v: history::next(&entries),
+                    track: Track::Published,
+                    forked_from: None,
+                    reverts: None,
                     hash,
                     prev: Some(h.hash.clone()),
                     by: By::External,
@@ -114,7 +142,10 @@ impl Design {
                 }
             }
             None => Version {
-                v: 1,
+                v: history::next(&entries),
+                track: Track::Published,
+                forked_from: None,
+                reverts: None,
                 hash,
                 prev: None,
                 by: By::External,
@@ -132,11 +163,31 @@ impl Design {
         Ok((entries, files))
     }
 
-    /// The head version (a hand edit is recorded first).
+    /// The head of the working track: the draft's last version when a draft exists, else the
+    /// published head (a hand edit is recorded first). Writes take it as `--base`.
     pub fn head(&self) -> Result<Version> {
         let lock = self.lock()?;
         let (entries, _) = self.sync(&lock)?;
+        self.work_head(&entries).cloned()
+    }
+
+    /// The published head (a hand edit is recorded first).
+    pub fn published_head(&self) -> Result<Version> {
+        let lock = self.lock()?;
+        let (entries, _) = self.sync(&lock)?;
         Ok(history::head(&entries)?.clone())
+    }
+
+    /// The published version the draft is based on; `None` without a draft.
+    pub fn forked_from(&self) -> Result<Option<u64>> {
+        Ok(self.draft()?.map(|d| d.forked_from))
+    }
+
+    fn work_head<'e>(&self, entries: &'e [Version]) -> Result<&'e Version> {
+        match self.draft()? {
+            Some(_) => history::head_of(entries, Track::Draft).context("the draft has no version"),
+            None => history::head(entries),
+        }
     }
 
     /// Every kept version, oldest first.
@@ -160,4 +211,12 @@ impl Design {
         );
         Ok(diff(&x, &y))
     }
+}
+
+/// The versions of `track`, oldest first.
+fn of_track(entries: &[Version], track: Track) -> Vec<Version> {
+    (entries.iter())
+        .filter(|e| e.track == track)
+        .cloned()
+        .collect()
 }

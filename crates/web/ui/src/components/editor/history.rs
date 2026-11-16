@@ -1,4 +1,4 @@
-//! The History tab: the design's versions, newest first, each with its author (agent violet,
+//! The History tab: the design's versions, newest first, each with its track, its author (agent violet,
 //! you, hand edit), age, what it did (its diff lines) and an Undo that reverts it as a new
 //! version.
 
@@ -9,7 +9,12 @@ use sycamore::prelude::*;
 
 fn row(cx: &Cx, v: &Version, head: u64) -> View {
     let (c, n) = (cx.clone(), v.v);
-    let title = format!("v{} \u{00B7} {}", v.v, by_word(v.by));
+    let title = format!(
+        "v{} \u{00B7} {} \u{00B7} {}",
+        v.v,
+        v.track.name(),
+        by_word(v.by)
+    );
     let what = version_words(v);
     let lines: Vec<View> = (v.diff.iter().take(8))
         .map(|d| {
@@ -40,7 +45,7 @@ pub fn history(cx: &Cx) -> View {
     let rows: Vec<View> = d.history.iter().rev().map(|v| row(cx, v, d.v)).collect();
     let rows = View::from(rows);
     view! {
-        p(class="muted") { "Every edit is a version of the brickie.toml files. Undo reverts one as a new version." }
+        p(class="muted") { "Every edit is a draft version; publish makes a published one. Undo reverts one as a new version." }
         (rows)
     }
 }

@@ -18,7 +18,7 @@ use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use brickie_check::check::{self, Loaded};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 pub use routes::router;
 
@@ -31,8 +31,6 @@ pub struct Options {
 #[derive(Clone)]
 pub struct AppState {
     config: Arc<PathBuf>,
-    /// Serialises writes to `brickie.review.toml`.
-    review_lock: Arc<Mutex<()>>,
     /// The address the server listens on, for the write guard (`routes::guard`).
     bind: Arc<Bind>,
     /// The measure job (`/api/measure`).
@@ -51,7 +49,6 @@ impl AppState {
     pub fn new(config: PathBuf) -> Self {
         AppState {
             config: Arc::new(config),
-            review_lock: Arc::new(Mutex::new(())),
             bind: Arc::new(Bind {
                 host: "127.0.0.1".into(),
                 port: None,

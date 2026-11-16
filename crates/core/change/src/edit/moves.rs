@@ -26,7 +26,7 @@ pub fn add_brick(docs: &mut Docs, file: &str, spec: &BrickSpec) -> Result<()> {
     brick::add(docs.get_mut(file)?, &spec)?;
     if let (Some(BrickKind::Group), Some(p)) = (spec.kind, &spec.path) {
         let new = join_rel(file, &format!("{}/brickie.toml", p.trim_end_matches('/')));
-        docs.create_level(&new, file)?;
+        docs.create_level(&new)?;
     }
     Ok(())
 }
@@ -74,7 +74,7 @@ pub fn move_brick(docs: &mut Docs, op: &Op) -> Result<()> {
                 into_file,
                 &format!("{}/brickie.toml", p.trim_end_matches('/')),
             );
-            docs.create_level(&new, into_file)?;
+            docs.create_level(&new)?;
         }
     }
     let Some(to) = target(docs, op) else {
@@ -98,7 +98,7 @@ pub fn move_brick(docs: &mut Docs, op: &Op) -> Result<()> {
 
 /// Rules between two children of one composite become `parent -> parent` once renamed: drop them.
 fn drop_self_rules(doc: &mut toml_edit::DocumentMut, parent: &str) -> Result<()> {
-    let rules = super::table::aot_mut(doc, &["deps", "rule"])?;
+    let rules = super::table::aot_mut(doc, &["rule"])?;
     let is_str = |t: &Table, k: &str| t.get(k).and_then(Item::as_str) == Some(parent);
     let mut i = 0;
     while i < rules.len() {

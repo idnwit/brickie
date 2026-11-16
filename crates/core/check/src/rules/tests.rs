@@ -1,5 +1,5 @@
 //! Rule evaluation on the two-level fixture of `config::tests`: lifting to the common
-//! ancestor, `deps/private` with scoped exports, cycles per level and inherited complexity.
+//! ancestor, `deps/private`, cycles per level and complexity per level.
 
 use crate::config::tests::{ROOT, WEB, cache, edge, fixture, func, resolved};
 use crate::diag::diagnostic;
@@ -59,36 +59,34 @@ fn has(f: &[(String, String, String)], code: &str, level: &str, needle: &str) ->
 #[test]
 fn edges_are_checked_at_the_common_ancestor() {
     let f = findings(ROOT, WEB);
-    // web -> core is allowed at the root; core -> web is not (test edges included).
+    // web -> core is allowed at the root; core -> web matches no rule (test edges included).
     assert!(!f.iter().any(|x| x.2.starts_with("`web`")), "{f:#?}");
     assert!(has(
         &f,
-        "deps/default",
+        "deps/deny",
         "root",
         "`core` (core) uses `web` (app) via `ui` in tests"
     ));
-    let root_defaults = f
+    let root = f
         .iter()
-        .filter(|(c, l, _)| c == "deps/default" && l == "root")
+        .filter(|(c, l, _)| c == "deps/deny" && l == "root")
         .count();
-    assert_eq!(root_defaults, 3, "{f:#?}");
+    assert_eq!(root, 3, "{f:#?}");
     // Inside web: shared -> api has no rule.
-    assert!(has(&f, "deps/default", "root/web", "`shared` uses `api`"));
-    assert_eq!(f.iter().filter(|x| x.0.starts_with("deps/de")).count(), 4);
+    assert!(has(&f, "deps/deny", "root/web", "`shared` uses `api`"));
+    assert_eq!(f.iter().filter(|x| x.0 == "deps/deny").count(), 4);
 }
 
 #[test]
-fn private_respects_scoped_exports() {
+fn private_hides_unexported_children() {
     let f = findings(ROOT, WEB);
     let private: Vec<_> = f.iter().filter(|x| x.0 == "deps/private").collect();
-    // core -> shared is hidden; core -> ui (test) passes through the scoped export.
-    assert_eq!(private.len(), 1, "{f:#?}");
-    assert_eq!(private[0].1, "root/web");
-    assert!(private[0].2.contains("`shared`"));
-    // Without the scoped entry the test edge into ui is private too.
-    let web = WEB.replace(", { brick = \"ui\", scope = \"test\" }", "");
+    // core -> shared and core -> ui (test) enter web through children it does not export.
+    assert_eq!(private.len(), 2, "{f:#?}");
+    assert!(private.iter().all(|p| p.1 == "root/web"));
+    let web = WEB.replace("exports = [\"api\"]", "exports = [\"api\", \"ui\"]");
     let f = findings(ROOT, &web);
-    assert_eq!(f.iter().filter(|x| x.0 == "deps/private").count(), 2);
+    assert_eq!(f.iter().filter(|x| x.0 == "deps/private").count(), 1);
 }
 
 /// Help texts of the findings with `code` whose message contains `needle`.
@@ -123,20 +121,17 @@ fn helps(code: &str, needle: &str) -> Vec<String> {
 }
 
 #[test]
-fn default_help_names_the_scope_for_test_edges() {
-    let test = helps("deps/default", "in tests");
-    assert_eq!(test.len(), 1, "{test:?}");
-    assert!(test[0].contains("ask the reviewer for a rule that covers tests"));
-    let prod = helps("deps/default", "`shared` uses `api`");
-    assert_eq!(prod.len(), 1, "{prod:?}");
-    assert!(!prod[0].contains("--scope"));
+fn deny_help_asks_for_a_rule() {
+    let h = helps("deps/deny", "`shared` uses `api`");
+    assert_eq!(h.len(), 1, "{h:?}");
+    assert!(h[0].contains("[[rule]]"));
 }
 
 #[test]
 fn private_help_gives_the_export_command() {
     let h = helps("deps/private", "`shared`");
     assert_eq!(h.len(), 1, "{h:?}");
-    assert!(h[0].contains("brickie design export set shared [--scope prod|test]"));
+    assert!(h[0].contains("brickie design export set shared`"));
 }
 
 #[test]
@@ -144,13 +139,10 @@ fn cycles_are_found_per_level() {
     let f = findings(ROOT, WEB);
     assert!(has(&f, "deps/cycle", "root", "`core`, `web`"), "{f:#?}");
     assert!(has(&f, "deps/cycle", "root/web", "`api`, `ui`"), "{f:#?}");
-    let web = WEB.replace("cycles = \"deny\"", "cycles = \"allow\"");
-    let f = findings(ROOT, &web);
-    assert!(!f.iter().any(|x| x.0 == "deps/cycle" && x.1 == "root/web"));
 }
 
 #[test]
-fn complexity_rules_of_all_levels_apply_tightest_wins() {
+fn complexity_limits_only_tighten_across_levels() {
     let f = findings(ROOT, WEB);
     let cx: Vec<_> = f.iter().filter(|x| x.0 == "complexity/cognitive").collect();
     assert_eq!(cx.len(), 2, "{f:#?}");
@@ -166,10 +158,8 @@ fn complexity_rules_of_all_levels_apply_tightest_wins() {
         "root",
         "`core_fn` has cognitive 25 (limit 20)"
     ));
-    // A looser nested rule does not relax the root limit.
+    // A nested rule cannot loosen the root limit for its children.
     let web = WEB.replace("cognitive = 10", "cognitive = 100");
-    let f = findings(ROOT, &web);
-    assert!(!has(&f, "complexity/cognitive", "root/web", "ui_fn"));
     let root = ROOT.replace("cognitive = 20", "cognitive = 12");
     let f = findings(&root, &web);
     assert!(has(
@@ -177,5 +167,12 @@ fn complexity_rules_of_all_levels_apply_tightest_wins() {
         "complexity/cognitive",
         "root/web",
         "`ui_fn` has cognitive 15 (limit 12)"
+    ));
+    // Children of web without a nested rule keep the root limit.
+    assert!(has(
+        &f,
+        "complexity/cognitive",
+        "root/web",
+        "`api_fn` has cognitive 15 (limit 12)"
     ));
 }

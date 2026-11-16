@@ -1,4 +1,4 @@
-//! State that outlives a level: the URL params, the review state of every finding, the popup
+//! State that outlives a level: the URL params, the popup
 //! and menus, and the page data. [`Cx`] is rebuilt from it each time the level changes.
 
 use super::{Bus, Cx, Edit, Live, Nav};
@@ -6,19 +6,6 @@ use brickie_web_api::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 use sycamore::prelude::*;
-
-/// One diagnostic with its client-side review state.
-#[derive(Clone)]
-pub struct Card {
-    pub d: DiagView,
-    pub accepted: Signal<bool>,
-    /// The reason of the accepted state.
-    pub reason: Signal<String>,
-    /// The reason input box.
-    pub input: Signal<String>,
-    pub note: Signal<String>,
-    pub busy: Signal<bool>,
-}
 
 #[derive(Clone)]
 pub struct Shared {
@@ -32,7 +19,6 @@ pub struct Shared {
     pub q: Signal<String>,
     pub cache: CacheInfo,
     pub diags: Vec<DiagView>,
-    pub cards: Rc<Vec<Card>>,
     pub fns: Vec<FnRow>,
     /// The levels and the design (patched in place by the editor).
     pub live: Live,
@@ -48,19 +34,6 @@ pub type Cur = Rc<RefCell<Option<Cx>>>;
 
 impl Shared {
     pub fn new(data: PageData, initial: Params) -> Shared {
-        let cards = data
-            .diags
-            .iter()
-            .cloned()
-            .map(|d| Card {
-                accepted: create_signal(d.accepted),
-                reason: create_signal(d.accepted_reason.clone().unwrap_or_default()),
-                input: create_signal(String::new()),
-                note: create_signal(String::new()),
-                busy: create_signal(false),
-                d,
-            })
-            .collect();
         Shared {
             nav: create_signal(Nav::new(initial.url())),
             bus: Bus::new(),
@@ -71,7 +44,6 @@ impl Shared {
             q: create_signal(String::new()),
             cache: data.cache,
             diags: data.diags,
-            cards: Rc::new(cards),
             fns: data.functions,
             live: Live::new(data.levels, data.design),
             ed: Edit::new(),

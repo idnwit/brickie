@@ -2,7 +2,7 @@
 
 use super::lift::lift;
 use super::span;
-use crate::config::{Action, Config, Level, Resolved};
+use crate::config::{Config, Resolved};
 use crate::diag::{DiagEdge, Finding, Note, RuleRef, Span};
 use brickie_facts::{Cache, Evidence};
 use brickie_model::codes::DEPS_CYCLE;
@@ -20,8 +20,7 @@ struct Cycle {
 
 type Graph = BTreeMap<String, BTreeMap<String, Evidence>>;
 
-/// Per level, cycles among its children over lifted prod edges (levels with
-/// `deps.cycles = "deny"` only).
+/// Per level, cycles among its children over lifted prod edges.
 pub(super) fn cycles(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Box<dyn Finding>>) {
     // Level path -> child graph; the first evidence per ordered pair.
     let mut graphs: BTreeMap<Vec<String>, Graph> = BTreeMap::new();
@@ -30,9 +29,6 @@ pub(super) fn cycles(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<
             continue;
         };
         let Some(l) = lift(cfg, p1, p2) else { continue };
-        if l.level.deps.cycles != Action::Deny {
-            continue;
-        }
         if let Some(ev) = e.evidence.into_iter().next() {
             graphs
                 .entry(l.level.path.clone())
@@ -92,9 +88,6 @@ impl Finding for Cycle {
     fn code(&self) -> String {
         DEPS_CYCLE.into()
     }
-    fn level(&self) -> Level {
-        Level::Error
-    }
     fn subject(&self) -> String {
         if self.level == "root" {
             self.bricks.join(",")
@@ -126,7 +119,7 @@ impl Finding for Cycle {
     }
     fn rule(&self) -> Option<RuleRef> {
         Some(RuleRef {
-            name: "deps.cycles = \"deny\"".into(),
+            name: "sibling cycles are errors".into(),
             loc: Some(self.file.clone()),
         })
     }

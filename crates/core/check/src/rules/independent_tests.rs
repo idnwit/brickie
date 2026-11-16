@@ -1,8 +1,9 @@
-//! The `independent` brick flag: outbound errors, inbound deny handling, load-time errors and
-//! the unused-link exclusion. Flat root config over the `config::tests` crates.
+//! The `independent` brick flag through `decide`: inbound allowed unless a deny names it,
+//! outbound only to another independent brick under an allow naming both. Flat root config over
+//! the `config::tests` crates.
 
+use crate::config::load;
 use crate::config::tests::{cache, edge, fixture, resolved};
-use crate::config::{Config, load};
 use crate::diag::diagnostic;
 
 const BRICKS: &str = r#"
@@ -20,7 +21,7 @@ members = ["web-ui"]
 independent = true
 "#;
 
-/// Root config: the bricks above (web-shared stays unmapped), then `deps`.
+/// Root config: the bricks above (web-shared stays unmapped), then the rules.
 fn root(deps: &str) -> String {
     format!("{BRICKS}\n{deps}")
 }
@@ -60,205 +61,108 @@ fn codes(f: &[(String, String)]) -> Vec<&str> {
     f.iter().map(|(c, _)| c.as_str()).collect()
 }
 
-const ALLOW_ALL: &str = "[deps]\ndefault = \"allow\"\n";
-const DENY_ALL: &str = "[deps]\ndefault = \"deny\"\n";
+fn rule(from: &str, to: &str, action: &str) -> String {
+    format!("[[rule]]\nfrom = \"{from}\"\nto = \"{to}\"\naction = \"{action}\"\n")
+}
 
 #[test]
-fn outbound_edge_to_a_brick_is_independent_error_only() {
-    for deps in [ALLOW_ALL, DENY_ALL] {
-        let f = run(&root(deps), &[("core", "web-api")]);
-        assert_eq!(codes(&f), ["deps/independent"], "{f:#?}");
-        assert_eq!(f[0].1, "`lib` is independent and uses `other`");
+fn outbound_to_a_normal_brick_is_denied_whatever_the_rules() {
+    for rules in [
+        String::new(),
+        rule("*", "*", "allow"),
+        rule("lib", "other", "allow"),
+    ] {
+        let f = run(&root(&rules), &[("core", "web-api")]);
+        assert_eq!(codes(&f), ["deps/deny"], "{rules}: {f:#?}");
+        assert_eq!(f[0].1, "`lib` (lib) uses `other`");
     }
 }
 
 #[test]
-fn outbound_edge_to_another_independent_brick_is_an_error() {
-    let f = run(&root(ALLOW_ALL), &[("core", "web-ui")]);
-    assert_eq!(codes(&f), ["deps/independent"], "{f:#?}");
-    assert!(f[0].1.contains("`other-lib`"));
-}
-
-#[test]
-fn outbound_edge_to_an_unmapped_module_is_an_error() {
-    let f = run(&root(ALLOW_ALL), &[("core", "web-shared")]);
-    assert_eq!(codes(&f), ["deps/independent"], "{f:#?}");
-    assert!(f[0].1.contains("`web-shared::m`"), "{f:#?}");
-}
-
-#[test]
-fn outbound_error_ignores_allow_rules_private_and_pick_rule() {
-    let deps =
-        "[deps]\ndefault = \"deny\"\n[[deps.rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\n";
-    let f = run(&root(deps), &[("core", "web-api")]);
-    assert_eq!(codes(&f), ["deps/independent"], "{f:#?}");
+fn outbound_to_an_independent_brick_needs_an_allow_naming_both() {
+    let f = run(&root(&rule("*", "*", "allow")), &[("core", "web-ui")]);
+    assert_eq!(codes(&f), ["deps/deny"], "{f:#?}");
+    for from in ["lib", "tag:lib"] {
+        let f = run(
+            &root(&rule(from, "other-lib", "allow")),
+            &[("core", "web-ui")],
+        );
+        assert!(f.is_empty(), "{from}: {f:#?}");
+    }
 }
 
 #[test]
 fn edge_inside_an_independent_brick_is_fine() {
-    let f = run(&root(DENY_ALL), &[("core", "core")]);
+    let f = run(&root(""), &[("core", "core")]);
     assert!(f.is_empty(), "{f:#?}");
 }
 
 #[test]
-fn inbound_edge_is_allowed_by_default_even_under_default_deny() {
-    let f = run(&root(DENY_ALL), &[("web-api", "core")]);
+fn inbound_is_allowed_unless_a_deny_names_it() {
+    let f = run(&root(""), &[("web-api", "core")]);
     assert!(f.is_empty(), "{f:#?}");
-}
-
-#[test]
-fn inbound_deny_by_brick_or_tag_is_a_violation() {
+    let f = run(&root(&rule("*", "*", "deny")), &[("web-api", "core")]);
+    assert!(
+        f.is_empty(),
+        "`*` never matches an independent brick: {f:#?}"
+    );
     for to in ["lib", "tag:lib"] {
-        let deps = format!(
-            "{ALLOW_ALL}[[deps.rule]]\nfrom = \"other\"\nto = \"{to}\"\naction = \"deny\"\n"
-        );
-        let f = run(&root(&deps), &[("web-api", "core")]);
+        let f = run(&root(&rule("other", to, "deny")), &[("web-api", "core")]);
         assert_eq!(codes(&f), ["deps/deny"], "{to}: {f:#?}");
     }
+    let rules = rule("*", "lib", "deny") + &rule("other", "lib", "allow");
+    let f = run(&root(&rules), &[("web-api", "core")]);
+    assert!(f.is_empty(), "the more specific allow wins: {f:#?}");
 }
 
 #[test]
-fn inbound_star_deny_never_matches_an_independent_target() {
-    let deps =
-        format!("{ALLOW_ALL}[[deps.rule]]\nfrom = \"other\"\nto = \"*\"\naction = \"deny\"\n");
-    let f = run(&root(&deps), &[("web-api", "core")]);
-    assert!(f.is_empty(), "{f:#?}");
-    let f = run(&root(&deps), &[("web-api", "web-shared")]);
-    assert!(f.is_empty(), "unmapped is ignored: {f:#?}");
-}
-
-#[test]
-fn inbound_more_specific_allow_beats_a_deny() {
-    let deps = format!(
-        "{ALLOW_ALL}[[deps.rule]]\nfrom = \"*\"\nto = \"tag:lib\"\naction = \"deny\"\n\
-         [[deps.rule]]\nfrom = \"other\"\nto = \"lib\"\naction = \"allow\"\n"
-    );
-    let f = run(&root(&deps), &[("web-api", "core")]);
-    assert!(f.is_empty(), "{f:#?}");
-}
-
-fn load_err(root: &str, web: &str) -> String {
+fn independent_in_a_nested_level_is_invalid() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(dir.path().join("crates/web")).unwrap();
-    std::fs::write(dir.path().join("brickie.toml"), root).unwrap();
-    std::fs::write(dir.path().join("crates/web/brickie.toml"), web).unwrap();
-    format!("{:#}", load(&dir.path().join("brickie.toml")).unwrap_err())
-}
-
-#[test]
-fn independent_in_a_nested_level_is_a_config_error() {
-    let root = "[[brick]]\nname = \"web\"\npath = \"crates/web\"\n[deps]\ndefault = \"allow\"\n";
-    let web = "[[brick]]\nname = \"api\"\nmembers = [\"web-api\"]\nindependent = true\n";
-    assert!(load_err(root, web).contains("config/independent-nested"));
+    std::fs::write(
+        dir.path().join("brickie.toml"),
+        "[[brick]]\nname = \"web\"\npath = \"crates/web\"\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("crates/web/brickie.toml"),
+        "[[brick]]\nname = \"api\"\nmembers = [\"web-api\"]\nindependent = true\n",
+    )
+    .unwrap();
+    let e = format!("{:#}", load(&dir.path().join("brickie.toml")).unwrap_err());
+    assert!(e.contains("config/invalid"), "{e}");
 }
 
 #[test]
 fn independent_root_composite_acts_as_one_lib() {
     let root = "[[brick]]\nname = \"app\"\nmembers = [\"core\"]\n\
-        [[brick]]\nname = \"web\"\npath = \"crates/web\"\nindependent = true\n\
-        [deps]\ndefault = \"deny\"\n";
+        [[brick]]\nname = \"web\"\npath = \"crates/web\"\nindependent = true\n";
     let web = "exports = [\"api\"]\n\
         [[brick]]\nname = \"api\"\nmembers = [\"web-api\"]\n\
         [[brick]]\nname = \"ui\"\nmembers = [\"web-ui\"]\n\
         [[brick]]\nname = \"shared\"\nmembers = [\"web-shared\"]\n\
-        [deps]\ndefault = \"allow\"\n";
-    // Inside the composite: its own level rules decide; inbound into an export: allowed.
+        [[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\n";
     let f = run_in(root, web, &[("web-ui", "web-shared"), ("core", "web-api")]);
     assert!(f.is_empty(), "{f:#?}");
-    // Outbound from any child: `deps/independent` naming the composite.
     let f = run_in(root, web, &[("web-api", "core")]);
-    assert_eq!(codes(&f), ["deps/independent"], "{f:#?}");
-    assert_eq!(f[0].1, "`web` is independent and uses `app`");
-}
-
-#[test]
-fn allow_rule_from_an_independent_brick_is_a_config_error() {
-    let deps = "[deps]\ndefault = \"deny\"\n[[deps.rule]]\nfrom = \"lib\"\nto = \"other\"\naction = \"allow\"\n";
-    let e = load_err(&root(deps), "");
-    assert!(e.contains("config/independent-rule"), "{e}");
-}
-
-#[test]
-fn deny_rule_from_an_independent_brick_loads() {
-    let deps = "[deps]\ndefault = \"deny\"\n[[deps.rule]]\nfrom = \"lib\"\nto = \"other\"\naction = \"deny\"\n";
-    let (_d, cfg): (_, Config) = fixture(&root(deps), "");
-    assert!(cfg.brick("lib").unwrap().independent);
-    assert!(!cfg.brick("other").unwrap().independent);
-}
-
-#[test]
-fn allow_rule_to_an_independent_brick_is_never_unused() {
-    let deps = "[deps]\ndefault = \"deny\"\n\
-        [[deps.rule]]\nfrom = \"other\"\nto = \"lib\"\naction = \"allow\"\n\
-        [[deps.rule]]\nfrom = \"other\"\nto = \"other-lib\"\naction = \"allow\"\n";
-    let (dir, cfg) = fixture(&root(deps), "");
-    let res = resolved(dir.path(), &cfg).unwrap();
-    let c = cache(&dir.path().canonicalize().unwrap(), &[]);
-    assert!(crate::rules::unused_links(&c, &cfg, &res).is_empty());
-}
-
-#[test]
-fn allow_rule_to_a_normal_brick_is_still_unused_without_edges() {
-    let root = "[[brick]]\nname = \"a\"\nmembers = [\"core\"]\n[[brick]]\nname = \"b\"\nmembers = [\"web-api\"]\n\
-        [deps]\ndefault = \"deny\"\n[[deps.rule]]\nfrom = \"a\"\nto = \"b\"\naction = \"allow\"\n";
-    let (dir, cfg) = fixture(root, "");
-    let res = resolved(dir.path(), &cfg).unwrap();
-    let c = cache(&dir.path().canonicalize().unwrap(), &[]);
-    assert_eq!(crate::rules::unused_links(&c, &cfg, &res).len(), 1);
-}
-
-fn allow(from: &str, to: &str) -> String {
-    format!("[[deps.rule]]\nfrom = \"{from}\"\nto = \"{to}\"\naction = \"allow\"\n")
-}
-
-#[test]
-fn independent_may_use_independent_with_an_explicit_allow_rule() {
-    for (a, b) in [("lib", "other-lib"), ("tag:lib", "other-lib")] {
-        let deps = format!("{DENY_ALL}{}", allow(a, b));
-        let f = run(&root(&deps), &[("core", "web-ui")]);
-        assert!(f.is_empty(), "{a}->{b}: {f:#?}");
-    }
-}
-
-#[test]
-fn star_allow_does_not_permit_independent_to_independent() {
-    for (a, b) in [("*", "other-lib"), ("lib", "*"), ("*", "*")] {
-        let deps = format!("{DENY_ALL}{}", allow(a, b));
-        let f = run(&root(&deps), &[("core", "web-ui")]);
-        assert_eq!(codes(&f), ["deps/independent"], "{a}->{b}: {f:#?}");
-    }
-}
-
-#[test]
-fn independent_to_a_normal_brick_is_an_error_whatever_the_rules() {
-    // A rule from the independent brick by name is `config/independent-rule`; `*` loads.
-    let deps = format!("{ALLOW_ALL}{}", allow("*", "other"));
-    let f = run(&root(&deps), &[("core", "web-api")]);
-    assert_eq!(codes(&f), ["deps/independent"], "{f:#?}");
-}
-
-#[test]
-fn allow_between_independents_loads_and_unbacked_one_is_unused() {
-    let deps = format!("{DENY_ALL}{}", allow("lib", "other-lib"));
-    let (dir, cfg) = fixture(&root(&deps), "");
-    let res = resolved(dir.path(), &cfg).unwrap();
-    let c = cache(&dir.path().canonicalize().unwrap(), &[]);
-    assert_eq!(crate::rules::unused_links(&c, &cfg, &res).len(), 1);
-    let edges = vec![edge("core", "web-ui", "prod")];
-    let c = cache(
-        &dir.path().canonicalize().unwrap(),
-        &[("core", edges, vec![])],
+    assert_eq!(codes(&f), ["deps/deny"], "{f:#?}");
+    let f = run_in(root, web, &[("core", "web-ui")]);
+    assert_eq!(
+        codes(&f),
+        ["deps/private"],
+        "exports apply to independents: {f:#?}"
     );
-    assert!(crate::rules::unused_links(&c, &cfg, &res).is_empty());
 }
 
 #[test]
-fn cycles_among_independent_bricks_are_reported() {
-    let deps = format!(
-        "[deps]\ndefault = \"deny\"\ncycles = \"deny\"\n{}{}",
-        allow("lib", "other-lib"),
-        allow("other-lib", "lib")
-    );
-    let f = run(&root(&deps), &[("core", "web-ui"), ("web-ui", "core")]);
-    assert_eq!(codes(&f), ["deps/cycle"], "{f:#?}");
+fn unused_links_skip_allows_that_never_apply() {
+    let rules = rule("lib", "other", "allow") + &rule("other", "lib", "allow");
+    let (dir, cfg) = fixture(&root(&rules), "");
+    let res = resolved(dir.path(), &cfg).unwrap();
+    let c = cache(&dir.path().canonicalize().unwrap(), &[]);
+    assert!(super::unused_links(&c, &cfg, &res).is_empty());
+    let rules = rule("lib", "other-lib", "allow");
+    let (dir, cfg) = fixture(&root(&rules), "");
+    let res = resolved(dir.path(), &cfg).unwrap();
+    assert_eq!(super::unused_links(&c, &cfg, &res).len(), 1);
 }

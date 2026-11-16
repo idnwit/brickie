@@ -38,20 +38,6 @@ pub fn insert(doc: &mut DocumentMut, t: Table) -> Result<()> {
     Ok(())
 }
 
-/// The brick names in `exports`.
-pub fn exported(doc: &DocumentMut) -> Vec<String> {
-    let Some(a) = doc.get("exports").and_then(Item::as_array) else {
-        return Vec::new();
-    };
-    a.iter()
-        .filter_map(|v| {
-            v.as_str()
-                .or_else(|| v.as_inline_table()?.get("brick")?.as_str())
-        })
-        .map(String::from)
-        .collect()
-}
-
 /// Drop `name` from `exports`.
 pub fn unexport(doc: &mut DocumentMut, name: &str) {
     if let Some(a) = doc.get_mut("exports").and_then(Item::as_array_mut) {
@@ -125,7 +111,7 @@ pub fn rename(doc: &mut DocumentMut, from: &str, to: &str) -> Result<()> {
 
 /// Point the rule selectors, complexity selectors and `exports` of `doc` at `to`.
 pub fn rename_refs(doc: &mut DocumentMut, from: &str, to: &str) -> Result<()> {
-    for t in aot_mut(doc, &["deps", "rule"])?.iter_mut() {
+    for t in aot_mut(doc, &["rule"])?.iter_mut() {
         rename_key(t, "from", from, to);
         rename_key(t, "to", from, to);
     }
@@ -148,17 +134,13 @@ fn rename_key(t: &mut Table, key: &str, from: &str, to: &str) {
 }
 
 fn rename_export(v: &mut Value, from: &str, to: &str) {
-    match v {
-        Value::String(s) if s.value() == from => *v = Value::from(to),
-        Value::InlineTable(t) if t.get("brick").and_then(Value::as_str) == Some(from) => {
-            t.insert("brick", Value::from(to));
-        }
-        _ => {}
+    if v.as_str() == Some(from) {
+        *v = Value::from(to);
     }
 }
 
-/// Drop the empty `[[deps.rule]]` / `[[complexity]]` arrays and implicit `[deps]` that
-/// `aot_mut` created while looking.
+/// Drop the empty `[[rule]]` / `[[complexity]]` / `[[brick]]` arrays that `aot_mut` created
+/// while looking.
 pub fn prune_empty(doc: &mut DocumentMut) {
     let empty = |i: &Item| i.as_array_of_tables().is_some_and(|a| a.is_empty());
     if doc.get("complexity").is_some_and(empty) {
@@ -167,12 +149,7 @@ pub fn prune_empty(doc: &mut DocumentMut) {
     if doc.get("brick").is_some_and(empty) {
         doc.remove("brick");
     }
-    if let Some(deps) = doc.get_mut("deps").and_then(Item::as_table_mut) {
-        if deps.get("rule").is_some_and(empty) {
-            deps.remove("rule");
-        }
-        if deps.is_empty() && deps.is_implicit() {
-            doc.remove("deps");
-        }
+    if doc.get("rule").is_some_and(empty) {
+        doc.remove("rule");
     }
 }

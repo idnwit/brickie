@@ -23,7 +23,6 @@ pub fn edit(d: &Design, e: Edit) -> Result<(Vec<Op>, Write)> {
         Edit::Rule(c) => rule(d, c),
         Edit::Export(c) => export(d, c),
         Edit::Limit(c) => limit(d, c),
-        Edit::Deps(c) => deps(d, c),
         Edit::Include(c) => include(d, c),
     }
 }
@@ -109,18 +108,22 @@ fn key(sel: &RuleSel) -> RuleKey {
     }
 }
 
+/// `--via ''` gives an empty list, which `rule set` reads as removing `via`.
+fn via(v: Option<Vec<String>>) -> Option<Vec<String>> {
+    v.map(|v| v.into_iter().filter(|s| !s.is_empty()).collect())
+}
+
 pub fn rule(d: &Design, c: RuleCmd) -> Result<(Vec<Op>, Write)> {
     Ok(match c {
         RuleCmd::Add { sel, action, f, w } => {
             let rule = RuleSpec {
                 from: sel.from,
                 to: sel.to,
-                via: f.via.unwrap_or_default(),
+                via: via(f.via).unwrap_or_default(),
                 kinds: sel.kinds,
                 scope: sel.scope,
                 action,
                 reason: f.reason,
-                help: f.fix,
             };
             let file = level(d, sel.level.as_deref())?;
             (vec![Op::AddRule { file, rule }], w)
@@ -131,8 +134,7 @@ pub fn rule(d: &Design, c: RuleCmd) -> Result<(Vec<Op>, Write)> {
             let set = RulePatch {
                 action,
                 reason: f.reason,
-                via: f.via,
-                help: f.fix,
+                via: via(f.via),
             };
             (vec![Op::SetRule { file, key, set }], w)
         }
@@ -145,18 +147,14 @@ pub fn rule(d: &Design, c: RuleCmd) -> Result<(Vec<Op>, Write)> {
 }
 
 pub fn export(d: &Design, c: ExportCmd) -> Result<(Vec<Op>, Write)> {
-    let (brick, scope, w) = match c {
-        ExportCmd::Set { brick, scope, w } => (brick, Some(scope), w),
-        ExportCmd::Rm { brick, w } => (brick, None, w),
+    let (brick, add, w) = match c {
+        ExportCmd::Set { brick, w } => (brick, true, w),
+        ExportCmd::Rm { brick, w } => (brick, false, w),
     };
     let (file, name) = d.brick_file(&brick_path(&brick))?;
-    let op = match scope {
-        Some(scope) => Op::AddExport {
-            file,
-            brick: name,
-            scope,
-        },
-        None => Op::RemoveExport { file, brick: name },
+    let op = match add {
+        true => Op::AddExport { file, brick: name },
+        false => Op::RemoveExport { file, brick: name },
     };
     Ok((vec![op], w))
 }
@@ -170,9 +168,7 @@ fn spec(bricks: Option<String>, l: &Limits) -> ComplexitySpec {
         paths: l.paths,
         params: l.params,
         lines: l.lines,
-        level: l.level.clone(),
         scope: l.scope.clone(),
-        help: None,
     }
 }
 
@@ -197,24 +193,6 @@ pub fn limit(d: &Design, c: LimitCmd) -> Result<(Vec<Op>, Write)> {
             (vec![Op::RemoveComplexity { file, bricks }], w)
         }
     })
-}
-
-pub fn deps(d: &Design, c: DepsCmd) -> Result<(Vec<Op>, Write)> {
-    let DepsCmd::Set {
-        default,
-        cycles,
-        level: l,
-        w,
-    } = c;
-    let file = level(d, l.as_deref())?;
-    Ok((
-        vec![Op::SetDeps {
-            file,
-            default,
-            cycles,
-        }],
-        w,
-    ))
 }
 
 pub fn include(d: &Design, c: IncludeCmd) -> Result<(Vec<Op>, Write)> {

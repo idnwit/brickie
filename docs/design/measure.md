@@ -9,7 +9,7 @@ brick data.
 - Every measure holds `.brickie/cache.lock` (holder PID inside) and writes the cache through a
   temp file and rename. A second measure fails at once: a wait looks hung. A dead holder's lock
   is taken over.
-- Stale cache: changed, added or deleted `.rs` files give `stale/file` warnings (see [check.md](check.md)).
+- Stale cache: changed, added or deleted `.rs` files give `stale/file` errors (see [check.md](check.md)).
 
 ## Features and targets
 

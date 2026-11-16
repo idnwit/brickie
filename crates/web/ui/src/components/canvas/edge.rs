@@ -33,7 +33,6 @@ fn edge_flags(cx: &Cx, ei: usize) -> EdgeFlags {
         EdgeFlags {
             st,
             wall: edge.wall,
-            err: st == Some(EStat::Debt) && is_err(cx, ei),
             arch,
             hot: focus.is_some_and(|f| f.hot.contains(&ei)),
             lab: focus.is_some_and(|f| !f.group),
@@ -44,17 +43,6 @@ fn edge_flags(cx: &Cx, ei: usize) -> EdgeFlags {
                 .is_some_and(|h| finding_focus(&cx.m.g, &cx.m.diags[h]).hot.contains(&ei)),
         }
     })
-}
-
-/// Whether an open error (or no finding at all, as for cycle members) backs the edge.
-fn is_err(cx: &Cx, ei: usize) -> bool {
-    let ids = &cx.m.g.edges[ei].diags;
-    let mut cards =
-        cx.m.cards
-            .iter()
-            .filter(|c| ids.contains(&c.d.id))
-            .peekable();
-    cards.peek().is_none() || cards.any(|c| !c.accepted.get() && c.d.level == "error")
 }
 
 /// One edge: halo, line, hit area, label and mark. Visible only while some layer shows it and

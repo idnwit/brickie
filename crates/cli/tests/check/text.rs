@@ -10,43 +10,46 @@ fn text_output_snapshot() {
         "{}\n{}",
         bricks_with_misc(),
         r#"
-[[deps.rule]]
+[[rule]]
+from = "*"
+to = "*"
+action = "allow"
+
+[[rule]]
 from = "tag:core"
 to = "tag:backend"
 action = "deny"
 reason = "core must not use adapter"
-help = "depend on the port and receive the impl from the assembly"
 
 [[complexity]]
 bricks = "tag:core"
 cognitive = 15
-level = "warn"
 "#,
     ));
     let o = run(&cfg, &["--color", "never"]);
     assert_eq!(o.code, 1);
     let path = cfg.display();
     let expected = format!(
-        "error[deps/deny]: `engine` (core) uses `adapter` (backend)
- --> crates/eng/src/x.rs:2:14
-  |
-2 |     let io = AudioIo::build();
-  |              ^^^^^^^^^^^^^^ written `item` → defined in `adp::y`
-  |
-  = rule: deps.rule[0] \"core must not use adapter\" ({path}:18)
-  = help: depend on the port and receive the impl from the assembly
-  = note: modules: eng::x -> adp::y (uses, prod)
-
-warning[complexity/cognitive]: `busy` has cognitive 20 (limit 15)
+        "error[complexity/cognitive]: `busy` has cognitive 20 (limit 15)
  --> crates/eng/src/x.rs:5:8
   |
 5 | pub fn busy() {{}}
   |        ^^^^ cognitive over the limit by 5
   |
-  = rule: complexity[0] cognitive <= 15 ({path}:25)
+  = rule: complexity[0] cognitive <= 15 ({path}:29)
   = help: return early or extract a function to cut cognitive by at least 5
 
-error: 1 error, 1 warning; 0 accepted
+error[deps/deny]: `engine` (core) uses `adapter` (backend)
+ --> crates/eng/src/x.rs:2:14
+  |
+2 |     let io = AudioIo::build();
+  |              ^^^^^^^^^^^^^^ written `item` → defined in `adp::y`
+  |
+  = rule: rule[1] \"core must not use adapter\" ({path}:23)
+  = help: remove the dependency, or change the rule if it is intended
+  = note: modules: eng::x -> adp::y (uses, prod)
+
+error: 2 errors
 "
     );
     assert_eq!(o.stdout, expected);
@@ -60,7 +63,7 @@ error: 1 error, 1 warning; 0 accepted
         }
     });
     let cfg = w.save(&format!(
-        "{}[[deps.rule]]\nfrom = \"engine\"\nto = \"adapter\"\naction = \"deny\"\n",
+        "{}[[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\n[[rule]]\nfrom = \"engine\"\nto = \"adapter\"\naction = \"deny\"\n",
         bricks_with_misc()
     ));
     let o = run(&cfg, &["--color", "never"]);

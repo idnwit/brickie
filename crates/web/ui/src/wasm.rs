@@ -32,7 +32,7 @@ pub fn hydrate() -> Result<(), JsValue> {
             old.dispose();
         }
         let root = sycamore::reactive::create_root(|| {
-            sycamore::web::hydrate_in_scope(|| components::app(data, params), &host);
+            components::hydrate_in(data, params, &host);
         });
         *r.borrow_mut() = Some(root);
     });
