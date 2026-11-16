@@ -47,6 +47,7 @@ struct Prepared {
     old: Files,
     new: Files,
     cfg: brickie_check::config::Config,
+    notes: Vec<String>,
     /// No draft yet: the published head the write forks the draft from.
     fork: Option<u64>,
 }
@@ -80,7 +81,7 @@ impl Design {
     ) -> Result<Outcome> {
         let lock = self.lock()?;
         let p = self.prepare(&lock, base, &ops)?;
-        let notes = self.rule_notes(&ops);
+        let notes = p.notes.clone();
         let stamp = Stamp {
             by,
             note,
@@ -131,7 +132,7 @@ impl Design {
                 tree::created(&p.old, &p.new),
             ]
             .concat(),
-            notes: self.rule_notes(&ops),
+            notes: p.notes,
         })
     }
 
@@ -143,7 +144,13 @@ impl Design {
         let (entries, published) = self.sync(lock)?;
         let (old, fork) = self.work_base(&entries, published, base)?;
         let mut docs = Docs::from_base(&old, Some(self.root.clone()))?;
+        let mut notes = Vec::new();
         for op in ops {
+            if matches!(op, Op::AddRule { .. })
+                && let Ok(cfg) = Preview::new(&self.root, &self.config, &docs).load_config()
+            {
+                notes.extend(self.rule_note(&cfg, op));
+            }
             apply(&mut docs, op).with_context(|| format!("{} on {}", op.name(), op.file()))?;
         }
         let cfg = Preview::new(&self.root, &self.config, &docs)
@@ -157,6 +164,7 @@ impl Design {
             old,
             new,
             cfg,
+            notes,
             fork,
         })
     }

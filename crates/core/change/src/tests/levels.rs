@@ -110,3 +110,28 @@ fn code_is_written_only_with_scaffold() {
     assert!(ws.path("crates/c/src/lib.rs").is_file());
     assert!(ws.read("Cargo.toml").contains("crates/c"));
 }
+
+#[test]
+fn a_rule_removed_and_added_again_in_one_write_gets_no_note() {
+    let ws = Ws::new();
+    let out = ws.apply(A, vec![rule("brickie.toml", "b", "a")]).unwrap();
+    let rm = Op::RemoveRule {
+        file: "brickie.toml".into(),
+        key: crate::RuleKey {
+            from: "b".into(),
+            to: "a".into(),
+            kinds: None,
+            scope: None,
+        },
+    };
+    let base = out.version.v;
+    let out = (ws.design())
+        .apply(
+            base,
+            By::Agent,
+            None,
+            vec![rm, rule("brickie.toml", "b", "a")],
+        )
+        .unwrap();
+    assert!(out.notes.is_empty(), "{:?}", out.notes);
+}

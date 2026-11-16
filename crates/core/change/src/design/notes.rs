@@ -3,7 +3,6 @@
 use super::Design;
 use super::links::Link;
 use crate::paths::to_rel;
-use anyhow::Result;
 use brickie_check::config::Config;
 use brickie_model::design::Op;
 
@@ -19,25 +18,14 @@ fn level_of(root: &std::path::Path, cfg: &Config, file: &str) -> Option<Vec<Stri
 }
 
 impl Design {
-    /// One note per `add_rule` op whose rule changes nothing at its level, judged against the
-    /// design as it is now. An op that cannot be judged (the level or a brick it names is
-    /// created by the same write) gets no note.
-    pub fn rule_notes(&self, ops: &[Op]) -> Vec<String> {
-        let Ok(cfg) = self.config() else {
-            return Vec::new();
-        };
-        ops.iter()
-            .filter_map(|op| self.rule_note(&cfg, op).ok().flatten())
-            .collect()
-    }
-
-    fn rule_note(&self, cfg: &Config, op: &Op) -> Result<Option<String>> {
+    /// The note for one `add_rule` op whose rule changes nothing at its level, judged against
+    /// `cfg`: the design just before the op, so earlier ops of the same write count. An op that
+    /// cannot be judged (the level or a brick it names does not exist yet) gets no note.
+    pub(super) fn rule_note(&self, cfg: &Config, op: &Op) -> Option<String> {
         let Op::AddRule { file, rule } = op else {
-            return Ok(None);
+            return None;
         };
-        let Some(level) = level_of(&self.root, cfg, file) else {
-            return Ok(None);
-        };
+        let level = level_of(&self.root, cfg, file)?;
         let scope = rule.scope.as_deref().unwrap_or("prod");
         let link = Link {
             from: &rule.from,
@@ -46,12 +34,12 @@ impl Design {
             scope,
             action: &rule.action,
         };
-        let check = self.link_check(&level, &link)?;
-        Ok(check.redundant.then(|| {
+        let check = self.link_check_in(cfg, &level, &link).ok()?;
+        check.redundant.then(|| {
             format!(
                 "rule {} -> {} {} changes nothing: {}",
                 rule.from, rule.to, rule.action, check.why
             )
-        }))
+        })
     }
 }
