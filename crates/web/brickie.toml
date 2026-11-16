@@ -21,25 +21,21 @@ path = "ui"                           # composite: model, state, platform, compo
 tags = ["view"]
 desc = "The viewer components (Sycamore): rendered on the server, hydrated in the browser"
 
-[deps]
-default = "deny"
-cycles = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "server"
 to = "ui"
 scope = "all"
 action = "allow"
 reason = "the server only renders the viewer (SSR page and source popup) and embeds its CSS"
 
-[[deps.rule]]
+[[rule]]
 from = "server"
 to = "api"
 scope = "all"
 action = "allow"
 reason = "the server implements the endpoint contracts and builds the shared page data"
 
-[[deps.rule]]
+[[rule]]
 from = "ui"
 to = "api"
 scope = "all"

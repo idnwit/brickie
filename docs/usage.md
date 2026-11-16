@@ -38,22 +38,10 @@ brickie llms.txt                 # guide for coding agents
 - Every command takes `--config path/to/brickie.toml`.
 - `measure --scip index.scip --workspace DIR`.
 - `check --format text|short|json --color auto|always|never`; `short` is one line per finding.
-- `check --save-baseline` / `check --new`: see [Coding agents](#coding-agents).
 - `serve --port 7881 --bind 127.0.0.1`.
 - `design`: every write needs `--base N` (or `BRICKIE_BASE`), the version it was based on; a
   stale base writes nothing and exits 3. History is in `.brickie/history/` (git-ignore
   `.brickie/`). See `brickie design --help`.
-
-## Accept a finding
-
-A reviewer accepts a finding in `brickie.review.toml` next to the config, or with Accept in the viewer:
-
-```toml
-[[accept]]
-id = "3fa9c1d2"
-reason = "why this is fine"
-weight = 20   # optional: accepted only while the finding is not worse than this
-```
 
 ## CI
 
@@ -61,9 +49,9 @@ weight = 20   # optional: accepted only while the finding is not worse than this
 
 | code | meaning |
 | --- | --- |
-| 0 | no unaccepted `error` findings (warnings and accepted findings do not fail) |
-| 1 | at least one unaccepted `error` finding |
-| 2 | configuration, review file or cache problem (for example no cache: run `measure`) |
+| 0 | no findings |
+| 1 | at least one finding (every finding is an error) |
+| 2 | configuration or cache problem (for example no cache: run `measure`) |
 
 A typical job runs `brickie check --measure`. `--format json` prints `{summary,
 diagnostics}`. Pin a released version for reproducible CI; `dev` and `latest` move.
@@ -83,26 +71,17 @@ The gate is one command; an agent or a hook needs only its exit code:
 brickie check --measure --format short   # re-measure when stale, one line per finding
 ```
 
-| Situation | Setup |
-| --- | --- |
-| `brickie check` is clean | gate on `brickie check --measure` |
-| Existing findings (legacy code) | a human runs `brickie check --measure --save-baseline` once on a reviewed commit; gate on `brickie check --measure --new` |
-
-`--new` hides the findings recorded in `.brickie/baseline.json` and shows a finding that is new
-or got worse (higher complexity value, more reference sites). It fails with
-`baseline/rules-changed` when a `brickie.toml` or `brickie.review.toml` changed since the
-baseline, so an agent cannot pass by relaxing a rule or accepting a finding: a human reviews the
-change and saves the baseline again. The baseline is local (`.brickie/` is git-ignored); in CI
-build it from the base branch.
+Every finding fails the gate; there is no accept file, baseline or skip list. To pass, fix the
+code, or let a human relax the design (rules, limits).
 
 Instructions for the agent (`AGENTS.md` or `CLAUDE.md`; works for Codex and Claude Code):
 
 ```md
 - Read `brickie llms.txt` once before changing code.
-- Before reporting work as done run `brickie check --measure --format short` (add `--new` when
-  `.brickie/baseline.json` exists) and fix every finding in the code.
-- Never edit `brickie.toml`, `brickie.review.toml` or `.brickie/`, and never run
-  `brickie check --save-baseline`. Change the design only when asked, with `brickie design`.
+- Before reporting work as done run `brickie check --measure --format short` and fix every finding
+  in the code.
+- Never edit `brickie.toml` or `.brickie/`. Change the design only when asked, with
+  `brickie design`.
 ```
 
 Claude Code can enforce it with a Stop hook in `.claude/settings.json`: exit code 2 sends the
@@ -115,14 +94,14 @@ lets the agent stop after one forced round, so an unfixable finding is reported,
     "Stop": [{
       "hooks": [{
         "type": "command",
-        "command": "grep -q '\"stop_hook_active\": *true' && exit 0; out=$(brickie check --measure --new --format short 2>&1) || { echo \"$out\" >&2; exit 2; }"
+        "command": "grep -q '\"stop_hook_active\": *true' && exit 0; out=$(brickie check --measure --format short 2>&1) || { echo \"$out\" >&2; exit 2; }"
       }]
     }]
   }
 }
 ```
 
-Drop `--new` when there is no baseline. Limits of the gate:
+Limits of the gate:
 [design/check.md](design/check.md), "Gate for coding agents".
 
 ## Serve
@@ -131,7 +110,7 @@ Drop `--new` when there is no baseline. Limits of the gate:
 header shows the cache age and how many files changed since. Its Measure button runs measure inside
 the server (one at a time) and reloads when done. A measure holds `.brickie/cache.lock`; a second
 one fails at once. Without the browser bundle the page is complete but read-only. With it you get
-pan, zoom, dragging, filters and Accept. See [webui.md](webui.md).
+pan, zoom, dragging and filters. See [webui.md](webui.md).
 
 ## Build the viewer bundle
 

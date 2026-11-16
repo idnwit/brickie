@@ -2,14 +2,16 @@
 //! the web api. An [`Op`] is one edit; a [`Version`] is one entry of the design's
 //! history. No I/O here.
 
+mod gate;
 mod op;
 mod report;
 mod sheet;
 mod version;
 
-pub use op::{BrickKind, BrickSpec, ComplexitySpec, ExportSpec, Op, RuleKey, RulePatch, RuleSpec};
+pub use gate::{Blocker, Gate};
+pub use op::{BrickKind, BrickSpec, ComplexitySpec, Op, RuleKey, RulePatch, RuleSpec};
 pub use report::{
     BrickView, DesignView, LevelView, LimitView, PlanAction, PlanFile, RuleView, Task, TaskKind,
 };
 pub use sheet::{FileSheet, LinkCheck, LinkOption};
-pub use version::{By, Version};
+pub use version::{By, Track, Version};

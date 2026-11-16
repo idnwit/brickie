@@ -1,5 +1,5 @@
 //! The config tree on disk: every file reachable from the root config (includes and composite
-//! configs) plus the review file, and its hash.
+//! configs), and its hash.
 
 use crate::paths::join_rel;
 use anyhow::Result;
@@ -22,10 +22,6 @@ pub fn read(root: &Path, config: &str) -> Result<Files> {
         };
         queue.extend(references(&rel, &bytes));
         out.insert(rel, bytes);
-    }
-    let review = join_rel(config, "brickie.review.toml");
-    if let Ok(bytes) = std::fs::read(root.join(&review)) {
-        out.insert(review, bytes);
     }
     Ok(out)
 }

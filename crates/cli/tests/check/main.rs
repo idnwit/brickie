@@ -1,15 +1,12 @@
 //! `brickie check` on hand-built caches (no rust-analyzer needed): one pass and one violation
-//! per rule type, nested brick trees, staleness, config includes, review acceptance and config
-//! errors.
+//! per rule type, nested brick trees, staleness, config includes and config errors.
 
-mod baseline;
 mod config;
 mod cycles_complexity;
 mod deps;
-mod links;
 mod nested;
-mod review;
 mod scope;
+mod short;
 mod stale;
 mod support;
 mod text;

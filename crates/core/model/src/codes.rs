@@ -2,26 +2,19 @@
 //! in the `brickie` crate (`cli/llms.rs`) enforces it), so a new code is added here first.
 
 pub const DEPS_DENY: &str = "deps/deny";
-pub const DEPS_DEFAULT: &str = "deps/default";
 pub const DEPS_CYCLE: &str = "deps/cycle";
 pub const STALE_FILE: &str = "stale/file";
 pub const STALE_MEASURE: &str = "stale/measure";
 pub const DEPS_PRIVATE: &str = "deps/private";
 pub const BRICKS_UNMAPPED: &str = "bricks/unmapped";
 pub const INTERFACE_UNUSED: &str = "interface/unused";
-pub const DEPS_UNUSED: &str = "deps/unused";
-pub const DEPS_INDEPENDENT: &str = "deps/independent";
-pub const BASELINE_RULES_CHANGED: &str = "baseline/rules-changed";
-pub const REVIEW_ORPHAN: &str = "review/orphan";
 // Config errors (exit 2): the message starts with the code.
 pub const CONFIG_MISSING: &str = "config/missing";
+pub const CONFIG_INVALID: &str = "config/invalid";
 pub const CONFIG_MEMBER_OUTSIDE_PARENT: &str = "config/member-outside-parent";
 pub const CONFIG_OVERLAP: &str = "config/overlap";
 pub const CONFIG_UNASSIGNED: &str = "config/unassigned";
-pub const CONFIG_UNKNOWN_EXPORT: &str = "config/unknown-export";
 pub const CONFIG_UNKNOWN_VIA: &str = "config/unknown-via";
-pub const CONFIG_INDEPENDENT_NESTED: &str = "config/independent-nested";
-pub const CONFIG_INDEPENDENT_RULE: &str = "config/independent-rule";
 // The design (`brickie design`): the message starts with the code.
 pub const DESIGN_PLANNED: &str = "design/planned";
 pub const DESIGN_INVALID: &str = "design/invalid";
@@ -30,6 +23,8 @@ pub const DESIGN_NO_REASON: &str = "design/no-reason";
 pub const DESIGN_STALE: &str = "design/stale";
 pub const DESIGN_NO_MATCH: &str = "design/no-match";
 pub const DESIGN_EXISTS: &str = "design/exists";
+/// `design publish` refused: the code does not match the draft's structure yet (exit code 4).
+pub const DESIGN_BLOCKED: &str = "design/blocked";
 
 /// Complexity metrics; the code of a finding is `complexity/<metric>`.
 pub const METRICS: [&str; 6] = [
@@ -45,31 +40,25 @@ pub const METRICS: [&str; 6] = [
 pub fn all() -> Vec<String> {
     let mut v: Vec<String> = [
         DEPS_DENY,
-        DEPS_DEFAULT,
         DEPS_CYCLE,
         DEPS_PRIVATE,
         STALE_FILE,
         STALE_MEASURE,
         BRICKS_UNMAPPED,
         INTERFACE_UNUSED,
-        DEPS_UNUSED,
-        DEPS_INDEPENDENT,
-        BASELINE_RULES_CHANGED,
-        REVIEW_ORPHAN,
         CONFIG_MISSING,
+        CONFIG_INVALID,
         CONFIG_MEMBER_OUTSIDE_PARENT,
         CONFIG_OVERLAP,
         CONFIG_UNASSIGNED,
-        CONFIG_UNKNOWN_EXPORT,
         CONFIG_UNKNOWN_VIA,
-        CONFIG_INDEPENDENT_NESTED,
-        CONFIG_INDEPENDENT_RULE,
         DESIGN_PLANNED,
         DESIGN_INVALID,
         DESIGN_NO_REASON,
         DESIGN_STALE,
         DESIGN_NO_MATCH,
         DESIGN_EXISTS,
+        DESIGN_BLOCKED,
     ]
     .iter()
     .map(|c| c.to_string())

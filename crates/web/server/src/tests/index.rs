@@ -26,7 +26,7 @@ async fn index_renders_diagnostic_with_hydration_markers() {
         html.contains("id=\"stage\"") && html.contains("class=\"node"),
         "{html}"
     );
-    assert!(html.contains("open errors"));
+    assert!(html.contains("findings (E) of any layer"));
     assert!(
         html.contains("class=\"sbadge") && html.contains("class=\"heat h"),
         "{html}"
@@ -39,16 +39,11 @@ async fn index_renders_diagnostic_with_hydration_markers() {
 async fn filters_change_the_output() {
     let s = Site::new();
     let has_card = |html: &str| html.contains("class=\"fi");
-    assert!(has_card(&s.get("/?p=all&level=error").await.1));
-    assert!(!has_card(
-        &s.get("/?p=all&level=warn&code=complexity").await.1
-    ));
     assert!(has_card(&s.get("/?p=all&code=complexity").await.1));
     assert!(!has_card(&s.get("/?p=all&code=deps").await.1));
     assert!(has_card(&s.get("/?p=all&brick=engine").await.1));
     // The page ignores unknown bricks (as the original viewer ignored unknown ids).
     assert!(has_card(&s.get("/?p=all&brick=nope").await.1));
-    assert!(!has_card(&s.get("/?p=all&status=accepted").await.1));
     // Layers: the complexity layer off hides the finding; Violations shows errors only.
     assert!(!has_card(
         &s.get("/?p=all&lay=-cx,-stale,-deps,-iface").await.1
@@ -63,5 +58,23 @@ async fn filters_change_the_output() {
     let asc = s.get("/?fn_sort=cognitive&fn_dir=asc").await.1;
     assert!(pos(&asc, "quiet") < pos(&asc, "busy"));
     // The active filter is reflected in the links.
-    assert!(s.get("/?level=error").await.1.contains("class=\"chip on\""));
+    assert!(
+        s.get("/?code=complexity")
+            .await
+            .1
+            .contains("class=\"chip on\"")
+    );
+}
+
+#[test]
+fn bundle_detection_follows_the_build() {
+    assert_eq!(crate::routes::wasm_embedded(), cfg!(ui_wasm));
+}
+
+#[test]
+fn failure_is_plain_text_with_its_status() {
+    use axum::response::IntoResponse;
+    let r = crate::Failure(StatusCode::NOT_FOUND, "nope".into()).into_response();
+    assert_eq!(r.status(), StatusCode::NOT_FOUND);
+    assert_eq!(r.headers()["content-type"], "text/plain; charset=utf-8");
 }

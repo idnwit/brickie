@@ -27,39 +27,35 @@ members = ["brickie"]                 # the binary, its tests
 tags = ["domain"]
 desc = "The `brickie` command line: measure, check, serve, llms"
 
-[deps]
-default = "deny"
-cycles = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "cli"
 to = "core"
 scope = "all"
 action = "allow"
 reason = "the commands drive measure and check"
 
-[[deps.rule]]
+[[rule]]
 from = "cli"
 to = "web"
 scope = "all"
 action = "allow"
 reason = "`brickie serve` starts the server"
 
-[[deps.rule]]
+[[rule]]
 from = "web"
 to = "core"
 scope = "all"
 action = "allow"
 reason = "the server reads the cache and checks; the viewer shares the model"
 
-[[deps.rule]]
+[[rule]]
 from = "core"
 to = "lib"
 scope = "all"
 action = "allow"
 reason = "measure and check use the metrics, scanner and graph libraries"
 
-[[deps.rule]]
+[[rule]]
 from = "web"
 to = "lib"
 scope = "all"
@@ -75,7 +71,6 @@ cognitive = 15
 nesting = 4
 params = 6
 lines = 80
-level = "error"
 
 # Hard ceiling for every brick, including a new one without a tag: past this a function is
 # unreviewable. An error, so CI fails.
@@ -84,7 +79,6 @@ bricks = "*"
 cognitive = 60
 nesting = 6
 lines = 200
-level = "error"
 
 # Test code: only the extreme cases.
 [[complexity]]
@@ -92,6 +86,5 @@ bricks = "*"
 scope = "test"
 cognitive = 40
 lines = 150
-level = "warn"
 
 

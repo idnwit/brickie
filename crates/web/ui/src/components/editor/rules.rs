@@ -1,49 +1,10 @@
-//! The Rules tab: `[deps]` default / cycles of the level's file, and every dependency rule that
-//! applies at the level (its own file and includes), each with its physical file; a row opens
+//! The Rules tab: every dependency rule that applies at the level (its own file and includes), each with its physical file; a row opens
 //! the rule in the inspector, `x` removes it, and the add row takes selectors of the level.
 
 use super::op;
-use super::widgets::seg;
 use crate::state::*;
-use brickie_web_api::design::{FileSheet, Op};
+use brickie_web_api::design::Op;
 use sycamore::prelude::*;
-
-fn deps(cx: &Cx, file: &str, sheet: &FileSheet) -> View {
-    let set = |default: bool| {
-        let (c, f) = (cx.clone(), file.to_string());
-        move |v: &'static str| {
-            let (d, y) = if default {
-                (Some(v.to_string()), None)
-            } else {
-                (None, Some(v.to_string()))
-            };
-            op(
-                &c,
-                Op::SetDeps {
-                    file: f.clone(),
-                    default: d,
-                    cycles: y,
-                },
-            );
-        }
-    };
-    let d = seg(
-        &["allow", "deny"],
-        sheet.default.as_deref().unwrap_or("allow"),
-        set(true),
-    );
-    let y = seg(
-        &["allow", "deny"],
-        sheet.cycles.as_deref().unwrap_or("allow"),
-        set(false),
-    );
-    view! {
-        div(class="form") {
-            label { "deps.default (edges no rule matches)" } (d)
-            label { "deps.cycles" } (y)
-        }
-    }
-}
 
 fn row(cx: &Cx, own: &str, r: Row<brickie_web_api::design::RuleSpec>) -> View {
     let ed = cx.ed;
@@ -78,11 +39,7 @@ fn row(cx: &Cx, own: &str, r: Row<brickie_web_api::design::RuleSpec>) -> View {
     let at = r.file.clone();
     let (from, to, scope, action) = (
         r.item.from,
-        if r.item.via.is_empty() {
-            r.item.to
-        } else {
-            format!("{} via {}", r.item.to, r.item.via.join("+"))
-        },
+        r.item.to,
         r.item.scope.unwrap_or_else(|| "prod".into()),
         r.item.action,
     );
@@ -141,7 +98,6 @@ pub fn rules(cx: &Cx) -> View {
         return View::default();
     };
     let lv = cx.level().path.clone();
-    let sheet = ch.sheets.get(&file).cloned().unwrap_or_default();
     let rows: Vec<View> = level_rules(&ch, &lv)
         .into_iter()
         .map(|r| row(cx, &file, r))
@@ -152,15 +108,11 @@ pub fn rules(cx: &Cx) -> View {
         .get(&lv)
         .map(|l| l.selectors.clone())
         .unwrap_or_default();
-    let (d, a) = (
-        deps(cx, &file, &sheet),
-        add_row(cx, file.clone(), selectors),
-    );
+    let a = add_row(cx, file.clone(), selectors);
     let rows = View::from(rows);
     view! {
         h3 { "Dependency rules" }
         p(class="muted mono") { (file) }
-        (d)
         table(class="rules") {
             tr { th { "from" } th { "to" } th { "kinds" } th { "scope" } th { "action" } th { "reason" } th {} }
             (rows)

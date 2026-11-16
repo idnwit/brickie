@@ -4,7 +4,7 @@ exports = ["routes"]
 
 [[brick]]
 name = "routes"
-members = ["brickie-web"]             # the crate root, `routes` and tests; the folders below win
+members = ["brickie-web::routes", "brickie-web::events", "brickie-web::measure", "brickie-web::tests", "path:src/lib.rs", "path:build.rs"]   # crate root and build script, `routes`, events, measure and tests
 tags = ["http"]
 desc = "HTTP layer: router, handlers (incl. the change endpoints and their write guard), app state, wasm assets, and the crate's tests"
 
@@ -26,25 +26,21 @@ members = ["brickie-web::code"]
 tags = ["data"]
 desc = "Adapter for the code viewer: implements codeview's provider port from the workspace"
 
-[deps]
-default = "deny"
-cycles = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "routes"
 to = "render"
 scope = "all"
 action = "allow"
 reason = "handlers answer with rendered pages"
 
-[[deps.rule]]
+[[rule]]
 from = "routes"
 to = "data"
 scope = "all"
 action = "allow"
 reason = "handlers build page data from the check result"
 
-[[deps.rule]]
+[[rule]]
 from = "routes"
 to = "code"
 scope = "all"

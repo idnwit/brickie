@@ -1,8 +1,8 @@
-//! Arrow markers per edge kind plus the violating and accepted ones (`defsHTML`).
+//! Arrow markers per edge kind plus the violating one (`defsHTML`).
 
 use sycamore::prelude::*;
 
-/// `defsHTML`: arrow markers per kind plus the violating and accepted ones.
+/// `defsHTML`: arrow markers per kind plus the violating one.
 pub fn defs() -> View {
     let simple = |id: &'static str, color: &'static str, w: &'static str| {
         let style = format!("fill:{color}");
@@ -14,8 +14,6 @@ pub fn defs() -> View {
     };
     let uses = simple("m-uses", "var(--k-uses)", "14");
     let viol = simple("m-viol", "var(--e-err)", "17");
-    let acc = simple("m-acc", "var(--e-acc)", "16");
-    let warn = simple("m-warn", "var(--e-warn)", "15");
     let n_uses = simple("m-n-uses", "var(--e-ok)", "14");
     view! {
         defs {
@@ -40,8 +38,6 @@ pub fn defs() -> View {
             }
             (n_uses)
             (viol)
-            (warn)
-            (acc)
         }
     }
 }

@@ -2,12 +2,14 @@
 
 use super::support::*;
 
+const OPEN: &str = "[[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\n";
+
 #[test]
 fn cycles() {
     let w = world(|_| {});
-    let o = check(&w, &with_bricks("[deps]\ncycles = \"deny\"\n"));
+    let o = check(&w, &with_bricks(OPEN));
     assert!(codes(&o, "deps/cycle").is_empty());
-    assert_eq!(o.code, 0);
+    assert_eq!(o.code, 1, "the unmapped module is an error");
 
     let w = world(|c| {
         c["files"]["crates/port/src/t.rs"]["edges"]
@@ -15,7 +17,7 @@ fn cycles() {
             .unwrap()
             .push(edge("port::t", "eng::x", "uses", "prod", 3));
     });
-    let o = check(&w, &with_bricks("[deps]\ncycles = \"deny\"\n"));
+    let o = check(&w, &with_bricks(OPEN));
     assert_eq!(o.code, 1);
     let d = codes(&o, "deps/cycle");
     assert_eq!(d.len(), 1);
@@ -55,14 +57,14 @@ fn cycles() {
     );
     assert_eq!(d[0]["notes"].as_array().unwrap().len(), 5);
     assert!(d[0]["span"]["file"].is_string());
-    let text = run(&w.save(&with_bricks("[deps]\ncycles = \"deny\"\n")), &[]).stdout;
+    let text = run(&w.save(&with_bricks(OPEN)), &[]).stdout;
     assert!(
         text.contains("`port` -> `engine` is on a cycle, used at"),
         "{text}"
     );
-    // Not requested: no finding.
+    // Sibling cycles are errors even when no rule is written.
     let o = check(&w, &with_bricks(""));
-    assert!(codes(&o, "deps/cycle").is_empty());
+    assert_eq!(codes(&o, "deps/cycle").len(), 1);
 }
 
 // ---- complexity ----
@@ -78,7 +80,6 @@ fn complexity_error_and_pass() {
     let d = codes(&o, "complexity");
     assert_eq!(d.len(), 1, "test-scope and other bricks are not checked");
     assert_eq!(d[0]["code"], "complexity/cognitive");
-    assert_eq!(d[0]["level"], "error");
     assert_eq!(d[0]["message"], "`busy` has cognitive 20 (limit 15)");
     assert_eq!(d[0]["span"]["line"], 5);
     // At the limit passes.
@@ -87,23 +88,20 @@ fn complexity_error_and_pass() {
         &with_bricks("[[complexity]]\nbricks = \"tag:core\"\ncognitive = 20\n"),
     );
     assert!(codes(&o, "complexity").is_empty());
-    assert_eq!(o.code, 0);
 }
 
 #[test]
-fn complexity_warn_scope_and_specificity() {
+fn complexity_scope_and_specificity() {
     let w = world(|_| {});
     let o = check(
         &w,
-        &with_bricks("[[complexity]]\nbricks = \"*\"\ncognitive = 15\nlevel = \"warn\"\n"),
+        &with_bricks("[[complexity]]\nbricks = \"*\"\ncognitive = 15\n"),
     );
-    assert_eq!(o.code, 0);
     assert_eq!(codes(&o, "complexity").len(), 2); // busy and heavy
-    assert!(codes(&o, "complexity").iter().all(|d| d["level"] == "warn"));
     // scope = "all" includes test functions.
     let o = check(
         &w,
-        &with_bricks("[[complexity]]\nscope = \"all\"\ncognitive = 15\nlevel = \"warn\"\n"),
+        &with_bricks("[[complexity]]\nscope = \"all\"\ncognitive = 15\n"),
     );
     assert_eq!(codes(&o, "complexity").len(), 3);
     // The brick rule overrides the tag rule for the metric it sets.

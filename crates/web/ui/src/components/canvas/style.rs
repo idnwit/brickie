@@ -12,19 +12,16 @@ pub struct NodeFlags {
     pub off_focus: bool,
     /// The Violations preset is active.
     pub viol: bool,
-    /// Open findings on the brick, and whether one of them is an error.
+    /// Findings on the brick.
     pub open: usize,
-    pub err: bool,
     /// Selected (or part of the focused finding while an item is open).
     pub selected: bool,
-    /// Accepted debt only.
-    pub acc: bool,
     /// The hovered finding touches the brick.
     pub hov: bool,
 }
 
 impl NodeFlags {
-    /// `node{kind}` plus ` dh`, ` sel`, ` bd-red`/` bd-amber`/` acc`, ` hov`, in that order.
+    /// `node{kind}` plus ` dh`, ` sel`, ` bd-red`, ` hov`, in that order.
     pub fn class(&self, kind: &str) -> String {
         let mut c = format!("node{kind}");
         if self.off_focus || (self.viol && self.open == 0) {
@@ -34,9 +31,7 @@ impl NodeFlags {
             c += " sel";
         }
         if self.open > 0 {
-            c += if self.err { " bd-red" } else { " bd-amber" };
-        } else if self.acc {
-            c += " acc";
+            c += " bd-red";
         }
         if self.hov {
             c += " hov";
@@ -56,13 +51,11 @@ pub struct Badge {
 }
 
 impl Badge {
-    /// `3E 1W` of the open errors and warnings, a check when clean.
-    pub fn new(e: u32, w: u32, box_w: f64) -> Self {
-        let (label, cls) = match (e, w) {
-            (0, 0) => ("\u{2713}".to_string(), "sbadge clean"),
-            (_, 0) => (format!("{e}E"), "sbadge err"),
-            (0, _) => (format!("{w}W"), "sbadge warn"),
-            _ => (format!("{e}E {w}W"), "sbadge err"),
+    /// `3E` of the findings, a check when clean.
+    pub fn new(e: u32, box_w: f64) -> Self {
+        let (label, cls) = match e {
+            0 => ("\u{2713}".to_string(), "sbadge clean"),
+            _ => (format!("{e}E"), "sbadge err"),
         };
         let bw = (10 + 7 * label.chars().count()).max(22) as f64;
         Self {
@@ -125,8 +118,6 @@ pub struct EdgeFlags {
     pub st: Option<EStat>,
     /// Private: stops at the wall of the level.
     pub wall: bool,
-    /// An open error (or no finding at all) backs a violating edge.
-    pub err: bool,
     /// The Architecture preset: kind colours.
     pub arch: bool,
     /// Hot in the focus, and whether the focus is a single edge (shows the label).
@@ -149,9 +140,7 @@ impl EdgeFlags {
         }
         c += match st {
             EStat::Ok => " ok",
-            EStat::Accepted => " acc",
-            EStat::Debt if self.err => " err",
-            EStat::Debt => " warn",
+            EStat::Debt => " err",
         };
         for (on, s) in [
             (self.arch, " kc"),
@@ -167,16 +156,14 @@ impl EdgeFlags {
         c
     }
 
-    /// The arrowhead: violating and accepted edges get their own colour, allowed ones the kind
+    /// The arrowhead: violating edges get their own colour, allowed ones the kind
     /// colour in Architecture and grey elsewhere; none on a wall edge.
     pub fn marker_end(&self, kind: &str) -> String {
         if self.wall {
             return String::new();
         }
         let id = match self.st {
-            Some(EStat::Accepted) => "acc".to_string(),
-            Some(EStat::Debt) if self.err => "viol".to_string(),
-            Some(EStat::Debt) => "warn".to_string(),
+            Some(EStat::Debt) => "viol".to_string(),
             _ if self.arch => kind.to_string(),
             _ => format!("n-{kind}"),
         };
@@ -192,11 +179,10 @@ impl EdgeFlags {
         }
     }
 
-    /// The mark at the label: a cross on debt, a check when accepted.
+    /// The mark at the label: a cross on debt, a cross on debt.
     pub fn mark(&self) -> &'static str {
         match self.st {
             Some(EStat::Debt) => "\u{2717}",
-            Some(EStat::Accepted) => "\u{2713}",
             _ => "",
         }
     }
@@ -218,41 +204,28 @@ mod tests {
             off_focus: true,
             selected: true,
             open: 2,
-            err: true,
             hov: true,
             ..Default::default()
         };
         assert_eq!(f.class(" comp"), "node comp dh sel bd-red hov");
         let f = NodeFlags {
-            open: 1,
-            ..Default::default()
-        };
-        assert_eq!(f.class(""), "node bd-amber");
-        let f = NodeFlags {
             viol: true,
-            acc: true,
             ..Default::default()
         };
-        assert_eq!(f.class(""), "node dh acc");
+        assert_eq!(f.class(""), "node dh");
         assert_eq!(NodeFlags::default().class(""), "node");
     }
 
     #[test]
     fn badge_label_and_place() {
-        let b = Badge::new(0, 0, 100.0);
+        let b = Badge::new(0, 100.0);
         assert_eq!(
             (b.label.as_str(), b.cls, b.bw),
             ("\u{2713}", "sbadge clean", 22.0)
         );
         assert_eq!((b.x, b.tx), (72.0, 83.0));
-        let b = Badge::new(3, 1, 200.0);
-        assert_eq!(
-            (b.label.as_str(), b.cls, b.bw),
-            ("3E 1W", "sbadge err", 45.0)
-        );
-        assert_eq!(Badge::new(0, 2, 100.0).label, "2W");
-        assert_eq!(Badge::new(0, 2, 100.0).cls, "sbadge warn");
-        assert_eq!(Badge::new(4, 0, 100.0).cls, "sbadge err");
+        let b = Badge::new(3, 200.0);
+        assert_eq!((b.label.as_str(), b.cls, b.bw), ("3E", "sbadge err", 24.0));
     }
 
     #[test]
@@ -278,7 +251,6 @@ mod tests {
         let f = EdgeFlags {
             st: Some(EStat::Debt),
             wall: true,
-            err: true,
             arch: true,
             hot: true,
             lab: true,
@@ -290,12 +262,7 @@ mod tests {
             st: Some(EStat::Debt),
             ..Default::default()
         };
-        assert_eq!(f.class("uses"), "edge k-uses warn");
-        let f = EdgeFlags {
-            st: Some(EStat::Accepted),
-            ..Default::default()
-        };
-        assert_eq!(f.class("uses"), "edge k-uses acc");
+        assert_eq!(f.class("uses"), "edge k-uses err");
         assert_eq!(EdgeFlags::default().class("uses"), "edge off");
     }
 
@@ -313,11 +280,7 @@ mod tests {
         f.arch = false;
         assert_eq!(f.marker_start("reexports"), "url(#t-n-reexports)");
         f.st = Some(EStat::Debt);
-        assert_eq!(f.marker_end("uses"), "url(#m-warn)");
-        f.err = true;
         assert_eq!(f.marker_end("uses"), "url(#m-viol)");
-        f.st = Some(EStat::Accepted);
-        assert_eq!(f.marker_end("uses"), "url(#m-acc)");
         f.wall = true;
         assert_eq!(f.marker_end("uses"), "");
     }
@@ -329,7 +292,6 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(f(Some(EStat::Debt)).mark(), "\u{2717}");
-        assert_eq!(f(Some(EStat::Accepted)).mark(), "\u{2713}");
         assert_eq!(f(Some(EStat::Ok)).mark(), "");
         assert_eq!(edge_width(0), "--k:1.00");
         assert_eq!(edge_width(2), "--k:1.35");

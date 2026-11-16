@@ -134,6 +134,11 @@ mod imp {
         }
     }
 
+    /// Ask the user to confirm `text` (the browser's dialog).
+    pub fn confirm(text: &str) -> bool {
+        web_sys::window().is_some_and(|w| w.confirm_with_message(text).unwrap_or(false))
+    }
+
     pub fn reload() {
         if let Some(w) = web_sys::window() {
             let _ = w.location().reload();
@@ -239,6 +244,9 @@ mod imp {
     pub fn next_frame(_: impl FnOnce() + 'static) {}
     pub fn focus(_: &str) {}
     pub fn reload() {}
+    pub fn confirm(_: &str) -> bool {
+        false
+    }
     pub fn blur_active() {}
     pub fn typing() -> bool {
         false

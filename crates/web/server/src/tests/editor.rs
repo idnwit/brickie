@@ -1,5 +1,5 @@
-//! The design editor's endpoints: the design at its head, writes as human versions (edit,
-//! move, undo) based on a version, `design/stale` as 409 with the head, link checks, layout
+//! The design editor's endpoints: the design at its head, writes as human versions of the
+//! draft (edit, move, undo) based on a version, `design/stale` as 409 with the head, link checks, layout
 //! hints, and the write guard first.
 
 use super::*;
@@ -62,11 +62,28 @@ async fn an_edit_is_a_version_and_a_stale_base_is_refused() {
         .find(|b| b["name"] == "cache")
         .unwrap();
     assert_eq!(cache["planned"], true, "no code yet: planned");
+    // The edit started a draft forked from v1; the published file is untouched.
+    assert_eq!(
+        (
+            r["design"]["published"].as_u64(),
+            r["design"]["forked_from"].as_u64()
+        ),
+        (Some(1), Some(1))
+    );
+    let blocking = r["design"]["gate"]["blocking"].as_array().unwrap();
     assert!(
-        std::fs::read_to_string(s.config())
+        blocking.iter().any(|b| b["code"] == "design/planned"),
+        "{blocking:?}"
+    );
+    assert!(
+        !std::fs::read_to_string(s.config())
             .unwrap()
             .contains("cache")
     );
+    let draft = s
+        .config()
+        .with_file_name(".brickie/draft/files/brickie.toml");
+    assert!(std::fs::read_to_string(draft).unwrap().contains("cache"));
 
     // Based on v1 while the head is v2: nothing written, 409 with the stale text and the head.
     let (st, head, text) = post_head(
@@ -166,7 +183,7 @@ async fn links_and_link_checks_read_the_live_design() {
     let (st, text) = s.post("/api/design/link-check", chk).await;
     assert_eq!(st, StatusCode::OK, "{text}");
     let c: Value = serde_json::from_str(&text).unwrap();
-    assert_eq!(c["redundant"], true, "the default allows it: {text}");
+    assert_eq!(c["redundant"], false, "no rule allows it yet: {text}");
 }
 
 #[tokio::test]
@@ -198,10 +215,6 @@ async fn writes_need_the_same_origin() {
     let s = Site::new();
     let evil = [("origin", "http://evil.test")];
     let (st, _) = s
-        .post_with("/review", json!({"id": "deadbeef", "reason": null}), &evil)
-        .await;
-    assert_eq!(st, StatusCode::FORBIDDEN);
-    let (st, _) = s
         .post_with(
             "/api/design/edit",
             json!({"base": 1, "ops": [add("x")]}),
@@ -211,10 +224,12 @@ async fn writes_need_the_same_origin() {
     assert_eq!(st, StatusCode::FORBIDDEN);
     // Not bound to loopback: every write is refused.
     let wide = AppState::new(s.config()).bound("0.0.0.0", 3000);
-    let req = Request::post("/review")
+    let req = Request::post("/api/design/edit")
         .header("content-type", "application/json")
         .header("host", "127.0.0.1:3000")
-        .body(Body::from(json!({"id": "x", "reason": null}).to_string()))
+        .body(Body::from(
+            json!({"base": 1, "ops": [add("x")]}).to_string(),
+        ))
         .unwrap();
     let resp = router(wide).oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::FORBIDDEN);

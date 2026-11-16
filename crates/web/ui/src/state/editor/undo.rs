@@ -74,6 +74,9 @@ mod tests {
     fn ver(v: u64, by: By, note: Option<&str>, edit: bool) -> Version {
         Version {
             v,
+            track: Default::default(),
+            forked_from: None,
+            reverts: None,
             hash: String::new(),
             prev: None,
             by,

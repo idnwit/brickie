@@ -14,7 +14,7 @@ in `brickie.toml` and reports findings. Function metrics come from the syntax tr
 | `paths` | How many ways can execution run through the function? | none set | [npath.md](npath.md) |
 | `params` | How many arguments does the signature take? | 6 (`tag:domain`) | [params.md](params.md) |
 | `lines` | How long is the function? | 80 (`tag:domain`), 200 ceiling | [lines.md](lines.md) |
-| dependency edges | Which brick uses which, and is there a cycle? | `[deps]` rules | [dependencies.md](dependencies.md) |
+| dependency edges | Which brick uses which, and is there a cycle? | `[[rule]]` rules | [dependencies.md](dependencies.md) |
 
 No metric has a built-in default limit. A metric without a limit in any `[[complexity]]` rule is
 measured but never checked. The limits above are this repo's own, from the root `brickie.toml`
@@ -28,13 +28,12 @@ bricks = "tag:domain"   # selector, default *
 cognitive = 15          # any of cognitive, cyclomatic, nesting, paths, params, lines
 nesting = 4
 scope = "prod"          # prod (default) | test | all
-level = "error"         # error (fails check) | warn
 ```
 
 - A limit is inclusive: `cognitive = 15` accepts 15 and fails at 16.
 - Per function and metric the most specific rule applies. A nested `brickie.toml` can only
   tighten a limit.
-- `level = "error"` makes `brickie check` exit 1. `warn` is shown but does not fail.
+- Every limit is an error: a function above it makes `brickie check` exit 1.
 - Functions in test code (`#[cfg(test)]`, `#[test]`, `tests/`) are checked only when `scope` is
   `test` or `all`.
 
@@ -42,7 +41,7 @@ level = "error"         # error (fails check) | warn
 
 Each function metric over its limit gives one finding per function with the code
 `complexity/<metric>`, for example `complexity/cognitive`. Dependency problems give `deps/deny`,
-`deps/default`, `deps/private` and `deps/cycle`. How to fix each one is in
+`deps/private` and `deps/cycle`. How to fix each one is in
 [../llms.txt](../llms.txt).
 
 ## Shared rules for function metrics

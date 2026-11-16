@@ -2,7 +2,7 @@
 //! plays `application` with `api` as ports-in, `ui` as ports-out and `shared` as usecases.
 
 use crate::config::tests::{cache, edge, fixture, resolved};
-use crate::config::{Brick, DepRule, Sel};
+use crate::config::{Action, Brick, DepRule, Sel, decide};
 use crate::diag::diagnostic;
 
 const WEB: &str = r#"
@@ -16,11 +16,15 @@ members = ["web-ui"]
 [[brick]]
 name = "shared"
 members = ["web-shared"]
-[deps]
-default = "allow"
 "#;
 
-fn root(default: &str, rules: &str) -> String {
+/// `open`: a `* -> *` allow rule opens the level; otherwise no match denies.
+fn root(open: bool, rules: &str) -> String {
+    let all = if open {
+        "[[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\n"
+    } else {
+        ""
+    };
     format!(
         r#"
 [[brick]]
@@ -29,14 +33,12 @@ path = "crates/web"
 [[brick]]
 name = "core"
 members = ["core"]
-[deps]
-default = "{default}"
-{rules}"#
+{all}{rules}"#
     )
 }
 
 fn rule(via: &str, action: &str) -> String {
-    format!("[[deps.rule]]\nfrom = \"core\"\nto = \"web\"\n{via}\naction = \"{action}\"\n")
+    format!("[[rule]]\nfrom = \"core\"\nto = \"web\"\n{via}\naction = \"{action}\"\n")
 }
 
 /// (code, message) of the findings for `core` using web's api, ui and shared.
@@ -68,18 +70,18 @@ fn count(f: &[(String, String)], code: &str, needle: &str) -> usize {
 }
 
 #[test]
-fn via_allow_under_default_deny() {
-    let f = run(&root("deny", &rule("via = [\"api\"]", "allow")));
-    assert_eq!(count(&f, "deps/default", "via `api`"), 0, "{f:#?}");
-    assert_eq!(count(&f, "deps/default", "`core` uses `web` via `ui`"), 1);
-    assert_eq!(count(&f, "deps/default", "via `shared`"), 1);
+fn via_allow_under_no_match() {
+    let f = run(&root(false, &rule("via = [\"api\"]", "allow")));
+    assert_eq!(count(&f, "deps/deny", "via `api`"), 0, "{f:#?}");
+    assert_eq!(count(&f, "deps/deny", "`core` uses `web` via `ui`"), 1);
+    assert_eq!(count(&f, "deps/deny", "via `shared`"), 1);
     assert_eq!(count(&f, "deps/private", "`shared`"), 1, "{f:#?}");
     assert_eq!(f.len(), 3, "{f:#?}");
 }
 
 #[test]
-fn via_deny_under_default_allow_leaves_hidden_to_private() {
-    let f = run(&root("allow", &rule("via = [\"ui\"]", "deny")));
+fn via_deny_under_open_level_leaves_hidden_to_private() {
+    let f = run(&root(true, &rule("via = [\"ui\"]", "deny")));
     assert_eq!(
         count(&f, "deps/deny", "`core` uses `web` via `ui`"),
         1,
@@ -92,21 +94,13 @@ fn via_deny_under_default_allow_leaves_hidden_to_private() {
 #[test]
 fn via_rule_beats_plain_rule_and_deny_wins_a_tie() {
     let rules = format!("{}{}", rule("", "allow"), rule("via = [\"ui\"]", "deny"));
-    let f = run(&root("deny", &rules));
+    let f = run(&root(false, &rules));
     assert_eq!(count(&f, "deps/deny", "via `ui`"), 1, "{f:#?}");
-    assert_eq!(count(&f, "deps/default", ""), 0, "{f:#?}");
-    let rules = format!(
-        "{}{}",
-        rule("via = [\"api\"]", "allow"),
-        rule("via = [\"api\"]", "deny")
-    );
-    let reversed = format!(
-        "{}{}",
-        rule("via = [\"api\"]", "deny"),
-        rule("via = [\"api\"]", "allow")
-    );
-    for r in [rules, reversed] {
-        let f = run(&root("allow", &r));
+    assert_eq!(count(&f, "deps/deny", "via `api`"), 0, "{f:#?}");
+    let allow = rule("via = [\"api\"]", "allow");
+    let deny = rule("via = [\"api\"]", "deny");
+    for r in [format!("{allow}{deny}"), format!("{deny}{allow}")] {
+        let f = run(&root(true, &r));
         assert_eq!(count(&f, "deps/deny", "via `api`"), 1, "{f:#?}");
     }
 }
@@ -129,12 +123,21 @@ fn leaf_target_never_matches_a_via_rule() {
         via: Some(vec!["x".into()]),
         kinds: vec![],
         scope: Default::default(),
-        action: crate::config::Action::Allow,
+        action: Action::Allow,
         reason: None,
-        help: None,
         loc: String::new(),
     };
-    assert_eq!(r.to_rank(&leaf, None), None);
-    assert_eq!(r.to_rank(&leaf, Some("x")), Some(4));
-    assert_eq!(r.to_rank(&leaf, Some("y")), None);
+    assert!(!r.enters(None));
+    assert!(r.enters(Some("x")));
+    assert!(!r.enters(Some("y")));
+    let level = crate::config::Config {
+        rules: vec![r],
+        ..Default::default()
+    };
+    // A leaf has no entered child, so the via rule never decides.
+    assert!(
+        decide(&level, &leaf, &leaf, None, "uses", "prod")
+            .rule
+            .is_none()
+    );
 }

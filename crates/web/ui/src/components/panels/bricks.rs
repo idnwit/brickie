@@ -4,7 +4,7 @@ use crate::state::*;
 use brickie_web_api::{BrickScore, BrickView, GraphView, fmt_score};
 use sycamore::prelude::*;
 
-const TIP: &str = "open errors (E) and warnings (W) of any layer, then the score = errors + 0.25 x warnings + complexity excess; a cycle counts once for each brick in it";
+const TIP: &str = "findings (E) of any layer, then the score = findings + complexity excess; a cycle counts once for each brick in it";
 
 /// The brick index by tag (the original's "bricks by family"): a tag header selects the row.
 pub fn brick_index(cx: &Cx) -> View {
@@ -111,22 +111,13 @@ fn score_label(s: &BrickScore) -> String {
     if s.clean() && s.excess == 0.0 {
         "\u{00B7} \u{2713}".to_string()
     } else {
-        format!(
-            "\u{00B7} {}E {}W \u{00B7} {}",
-            s.errors,
-            s.warns,
-            fmt_score(s.score)
-        )
+        format!("\u{00B7} {}E \u{00B7} {}", s.errors, fmt_score(s.score))
     }
 }
 
-/// The class of the score badge: ok without findings, warn with warnings only, else err.
+/// The class of the score badge: ok without findings, else err.
 fn score_class(s: &BrickScore) -> &'static str {
-    match (s.errors, s.warns) {
-        (0, 0) => "sc ok",
-        (0, _) => "sc warn",
-        _ => "sc err",
-    }
+    if s.errors == 0 { "sc ok" } else { "sc err" }
 }
 
 /// The selection after a click on brick `b`: Shift adds it to a brick or group selection.
@@ -142,10 +133,9 @@ fn click_target(sel: Sel, shift: bool, b: usize) -> Sel {
 mod tests {
     use super::*;
 
-    fn sc(errors: u32, warns: u32, excess: f64, score: f64) -> BrickScore {
+    fn sc(errors: u32, excess: f64, score: f64) -> BrickScore {
         BrickScore {
             errors,
-            warns,
             excess,
             score,
             ..Default::default()
@@ -154,28 +144,20 @@ mod tests {
 
     #[test]
     fn label_is_a_check_only_when_clean_and_within_limits() {
-        assert_eq!(score_label(&sc(0, 0, 0.0, 0.0)), "\u{00B7} \u{2713}");
-        assert_eq!(
-            score_label(&sc(0, 0, 0.5, 0.5)),
-            "\u{00B7} 0E 0W \u{00B7} 0.5"
-        );
-        assert_eq!(
-            score_label(&sc(2, 1, 0.0, 2.25)),
-            "\u{00B7} 2E 1W \u{00B7} 2.25"
-        );
+        assert_eq!(score_label(&sc(0, 0.0, 0.0)), "\u{00B7} \u{2713}");
+        assert_eq!(score_label(&sc(0, 0.5, 0.5)), "\u{00B7} 0E \u{00B7} 0.5");
+        assert_eq!(score_label(&sc(2, 0.0, 2.0)), "\u{00B7} 2E \u{00B7} 2");
     }
 
     #[test]
-    fn class_follows_errors_then_warnings() {
-        assert_eq!(score_class(&sc(0, 0, 0.0, 0.0)), "sc ok");
-        assert_eq!(score_class(&sc(0, 3, 0.0, 0.0)), "sc warn");
-        assert_eq!(score_class(&sc(1, 0, 0.0, 0.0)), "sc err");
-        assert_eq!(score_class(&sc(1, 1, 0.0, 0.0)), "sc err");
+    fn class_follows_errors() {
+        assert_eq!(score_class(&sc(0, 0.0, 0.0)), "sc ok");
+        assert_eq!(score_class(&sc(1, 0.0, 0.0)), "sc err");
     }
 
     #[test]
     fn members_sort_worst_first_and_stable() {
-        let initial = [sc(0, 0, 0.0, 1.0), sc(0, 0, 0.0, 3.0), sc(0, 0, 0.0, 1.0)];
+        let initial = [sc(0, 0.0, 1.0), sc(0, 0.0, 3.0), sc(0, 0.0, 1.0)];
         let mut m = vec![(0, ()), (1, ()), (2, ())];
         sort_worst_first(&mut m, &initial);
         let order: Vec<usize> = m.iter().map(|x| x.0).collect();

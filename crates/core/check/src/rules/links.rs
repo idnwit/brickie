@@ -1,8 +1,7 @@
-//! The unused allow rules between two named bricks: no measured edge matches them, whether or not
-//! the ends have code yet (reported as `deps/unused`). Rules backed by a measured edge are not
-//! listed.
+//! The unused allow rules between two named bricks: [`decide`] picks them for no measured edge,
+//! whether or not the ends have code yet. They are design todos, not findings.
 
-use crate::config::{Action, Config, DepRule, Link, Resolved, Sel};
+use crate::config::{Action, Config, DepRule, Link, Resolved, Sel, decide};
 use brickie_facts::Cache;
 use std::collections::BTreeSet;
 
@@ -12,7 +11,7 @@ struct Hop {
     path: Vec<String>,
     from: String,
     to: String,
-    /// The child of `to` the edge enters through (`None` for a leaf).
+    /// The child of `to` the edge enters through, if `to` is a composite.
     entered: Option<String>,
     kind: String,
     scope: String,
@@ -45,10 +44,9 @@ fn backed(lv: &Config, r: &DepRule, measured: &BTreeSet<Hop>) -> bool {
             return false;
         };
         h.path == lv.path
-            && r.from.specificity(f).is_some()
-            && r.to_rank(t, h.entered.as_deref()).is_some()
-            && (r.kinds.is_empty() || r.kinds.contains(&h.kind))
-            && r.scope.matches(&h.scope)
+            && decide(lv, f, t, h.entered.as_deref(), &h.kind, &h.scope)
+                .rule
+                .is_some_and(|(_, d)| std::ptr::eq(d, r))
     })
 }
 
@@ -61,12 +59,13 @@ pub fn unused_links(cache: &Cache, cfg: &Config, res: &Resolved) -> Vec<Link> {
 }
 
 fn walk(level: &Config, hops: &BTreeSet<Hop>, out: &mut Vec<Link>) {
-    for r in &level.deps.rules {
+    for r in &level.rules {
         let (Sel::Brick(from), Sel::Brick(to)) = (&r.from, &r.to) else {
             continue;
         };
+        // An allow between a normal and an independent brick never changes a decision.
         let indep = |n: &str| level.brick(n).is_some_and(|b| b.independent);
-        if indep(to) && !indep(from) {
+        if indep(to) != indep(from) {
             continue;
         }
         if r.action != Action::Allow || backed(level, r, hops) || out.iter().any(|l| l.loc == r.loc)
@@ -77,7 +76,7 @@ fn walk(level: &Config, hops: &BTreeSet<Hop>, out: &mut Vec<Link>) {
             level: level.path.clone(),
             from: from.clone(),
             to: to.clone(),
-            via: r.via.clone(),
+            via: r.via.clone().unwrap_or_default(),
             kinds: r.kinds.clone(),
             scope: r.scope,
             file: level.file.clone(),

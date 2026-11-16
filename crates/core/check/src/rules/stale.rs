@@ -9,7 +9,7 @@
 //! package directory without its `Cargo.toml`) is stale too, see `members`. `check` never
 //! re-measures.
 
-use crate::config::{Level, MeasureCfg};
+use crate::config::MeasureCfg;
 use crate::diag::{Finding, RuleRef, Span};
 use brickie_facts::sha256_hex;
 use brickie_facts::{Cache, Measured};
@@ -133,9 +133,6 @@ impl Finding for Stale {
     fn code(&self) -> String {
         STALE_FILE.into()
     }
-    fn level(&self) -> Level {
-        Level::Error
-    }
     fn subject(&self) -> String {
         self.file.clone()
     }
@@ -204,9 +201,6 @@ impl Finding for WrongPlace {
     fn code(&self) -> String {
         STALE_MEASURE.into()
     }
-    fn level(&self) -> Level {
-        Level::Error
-    }
     fn subject(&self) -> String {
         "measure".into()
     }
@@ -232,9 +226,6 @@ struct StaleMeasure {
 impl Finding for StaleMeasure {
     fn code(&self) -> String {
         STALE_MEASURE.into()
-    }
-    fn level(&self) -> Level {
-        Level::Error
     }
     fn subject(&self) -> String {
         "measure".into()

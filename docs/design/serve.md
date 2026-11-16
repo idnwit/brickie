@@ -20,9 +20,8 @@ Scope: `brickie serve` webview, its decisions, the layout port, the embedded cod
 
 - Endpoint list: `crates/web/api`. Bundle: `scripts/build-ui.sh`. `crates/web/server/build.rs`
   embeds it, or serves the read-only SSR page with a cargo warning.
-- **Brick score** (`crates/web/api/src/model/score.rs`, the only place): `open errors + 0.25 x
-  open warnings + sum over functions of max(0, worst ratio - 1)`. Open means not accepted,
-  whatever layers are shown.
+- **Brick score** (`crates/web/api/src/model/score.rs`, the only place): `errors + sum over
+  functions of max(0, worst ratio - 1)`, whatever layers are shown.
 - **Layers and presets**: Architecture = edges plus `deps` findings; Violations = error findings
   only; All; Custom. Finding groups: `deps`, `cx`, `stale`, `interface`.
 - sycamore 0.9: `view!` treats any non-identifier expression as dynamic, so bind values to
@@ -34,7 +33,7 @@ Scope: `brickie serve` webview, its decisions, the layout port, the embedded cod
 `crates/lib/algo/layout` is a function-by-function port of the Python prototype viewer's
 JavaScript. Deviations: rows are tags, no areas, side columns or families; exact-integer LCG in
 the annealer; one layout candidate; routes are cubic segments. Data remap: layers -> tags; edge
-kinds -> `uses`, `implements`, `reexports`; statuses -> `ok`, violating, accepted.
+kinds -> `uses`, `implements`, `reexports`; statuses -> `ok`, violating.
 
 | Decision | Reason |
 | --- | --- |

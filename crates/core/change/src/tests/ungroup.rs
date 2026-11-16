@@ -13,7 +13,7 @@ members = ["path:x/"]
 name = "y"
 members = ["py"]
 
-[[deps.rule]]
+[[rule]]
 from = "x"
 to = "y"
 action = "allow"
@@ -40,7 +40,10 @@ fn ungroup_lifts_children_and_rules() {
     let root = ws.read("brickie.toml");
     assert!(root.contains("\"path:g/x/\""), "{root}");
     assert!(root.contains("from = \"x\""), "{root}");
-    assert!(ws.path("g/brickie.toml").exists());
+    assert!(
+        ws.path("g/brickie.toml").exists(),
+        "ungroup keeps the file on disk"
+    );
     let cfg = ws.design().config().unwrap();
     assert!(cfg.brick("x").is_some() && cfg.brick("a").unwrap().sub.is_none());
 }
@@ -62,7 +65,7 @@ fn group_then_ungroup_in_one_write() {
     };
     ws.apply(H, vec![group, inner, ungroup("a")]).unwrap();
     assert!(ws.read("brickie.toml").contains("name = \"z\""));
-    assert!(!ws.path("g/brickie.toml").exists());
+    assert!(!ws.has("g/brickie.toml"));
 }
 
 #[test]
@@ -85,7 +88,7 @@ fn group_leaves_no_self_rule() {
     };
     ws.apply(H, vec![add, mv("a"), mv("b")]).unwrap();
     let root = ws.read("brickie.toml");
-    assert!(!root.contains("[[deps.rule]]"), "{root}");
+    assert!(!root.contains("[[rule]]"), "{root}");
 }
 
 #[test]

@@ -33,25 +33,21 @@ members = ["brickie-change"]
 tags = ["flow"]
 desc = "Design change sessions: op log, review, preview over the loader, publish and scaffold"
 
-[deps]
-default = "deny"
-cycles = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "tag:flow"
 to = "facts"
 scope = "all"
 action = "allow"
 reason = "measure writes the cache, check reads it"
 
-[[deps.rule]]
+[[rule]]
 from = "tag:flow"
 to = "model"
 scope = "all"
 action = "allow"
 reason = "measure builds function trees, check produces diagnostics"
 
-[[deps.rule]]
+[[rule]]
 from = "change"
 to = "check"
 scope = "all"

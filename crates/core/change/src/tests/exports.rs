@@ -15,11 +15,10 @@ name = "z"
 members = ["pz"]
 "#;
 
-fn add(brick: &str, scope: Option<&str>) -> Op {
+fn add(brick: &str) -> Op {
     Op::AddExport {
         file: "g/brickie.toml".into(),
         brick: brick.into(),
-        scope: scope.map(String::from),
     }
 }
 
@@ -43,21 +42,16 @@ fn ws() -> Ws {
 #[test]
 fn several_exports_accumulate_in_one_batch() {
     let ws = ws();
-    let ops = vec![add("x", None), add("y", Some("prod")), add("z", None)];
-    ws.apply(H, ops).unwrap();
+    ws.apply(H, vec![add("x"), add("y"), add("z")]).unwrap();
     let text = ws.read("g/brickie.toml");
-    assert!(text.contains("\"x\"") && text.contains("\"z\""), "{text}");
-    assert!(text.contains("brick = \"y\"") && text.contains("scope = \"prod\""));
+    assert!(text.contains("exports = [\"x\", \"y\", \"z\"]"), "{text}");
 }
 
 #[test]
-fn add_replaces_the_scope_and_remove_keeps_the_rest() {
+fn add_is_idempotent_and_remove_keeps_the_rest() {
     let ws = ws();
-    ws.apply(H, vec![add("x", None), add("y", None)]).unwrap();
-    ws.apply(H, vec![add("x", Some("test")), rm("y"), rm("z")])
-        .unwrap();
+    ws.apply(H, vec![add("x"), add("y")]).unwrap();
+    ws.apply(H, vec![add("x"), rm("y"), rm("z")]).unwrap();
     let text = ws.read("g/brickie.toml");
-    assert!(text.contains("brick = \"x\"") && text.contains("scope = \"test\""));
-    assert!(!text.contains("\"y\"") || text.contains("name = \"y\""));
-    assert_eq!(text.matches("brick = \"x\"").count(), 1);
+    assert!(text.contains("exports = [\"x\"]"), "{text}");
 }

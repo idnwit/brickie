@@ -1,15 +1,14 @@
-//! `deps/deny` and `deps/default`: dependency rules between sibling bricks. A module edge is
-//! lifted to the lowest common ancestor of its leaf paths and checked against that level's
-//! rules; `deps/private` (see `private.rs`) checks the target's visibility on the same pass.
+//! `deps/deny`: dependency rules between sibling bricks. A module edge is lifted to the lowest
+//! common ancestor of its leaf paths and judged there by [`decide`]; `deps/private` (see
+//! `private.rs`) checks the target's visibility on the same pass.
 
-use super::independent::{Independent, independent_pair_allowed, independent_source};
 use super::lift::{hidden, lift};
 use super::private::Private;
 use super::{span, tags};
-use crate::config::{Action, Brick, Config, DepRule, Level, Resolved, Sel};
+use crate::config::{Action, Brick, Config, DepRule, Resolved, decide};
 use crate::diag::{Finding, Note, RuleRef, Span};
 use brickie_facts::{Cache, Evidence};
-use brickie_model::codes::{DEPS_DEFAULT, DEPS_DENY};
+use brickie_model::codes::DEPS_DENY;
 
 struct Dep {
     /// Level name of the common ancestor (`root/web`) and its config file.
@@ -21,71 +20,20 @@ struct Dep {
     to_module: String,
     kind: String,
     scope: String,
-    /// The child of `to` the edge enters through; `None` when `to` is a leaf.
+    /// The child of `to` the edge enters through, for a composite target.
     entered: Option<String>,
     evidence: Vec<Evidence>,
-    /// Index and rule that denied the edge; `None` when the default applied.
+    /// Index and rule that denied the edge; `None` when no rule allowed it.
     rule: Option<(usize, DepRule)>,
-}
-
-/// The most specific matching rule (brick 3 > tag 2 > `*` 1, summed over from and to); on a
-/// tie a deny rule wins. A rule with `via` matches only an edge entering `to` through one of
-/// those children and scores one more on the `to` side.
-fn pick_rule<'a>(
-    rules: &'a [DepRule],
-    from: &Brick,
-    to: &Brick,
-    entered: Option<&str>,
-    kind: &str,
-    scope: &str,
-) -> Option<(usize, &'a DepRule)> {
-    let mut best: Option<(u32, usize, &DepRule)> = None;
-    for (i, r) in rules.iter().enumerate() {
-        if !applies(r, to, kind, scope) {
-            continue;
-        }
-        let (Some(a), Some(b)) = (r.from.specificity(from), r.to_rank(to, entered)) else {
-            continue;
-        };
-        let rank = a + b;
-        let better = match best {
-            None => true,
-            Some((br, _, bp)) => {
-                rank > br || (rank == br && r.action == Action::Deny && bp.action == Action::Allow)
-            }
-        };
-        if better {
-            best = Some((rank, i, r));
-        }
-    }
-    best.map(|(_, i, r)| (i, r))
-}
-
-/// Kind and scope match, and a `*` deny is not applied to an independent target.
-fn applies(r: &DepRule, to: &Brick, kind: &str, scope: &str) -> bool {
-    let kind_ok = r.kinds.is_empty() || r.kinds.iter().any(|k| k == kind);
-    let star_deny = to.independent && r.action == Action::Deny && r.to == Sel::Any;
-    kind_ok && r.scope.matches(scope) && !star_deny
 }
 
 pub(super) fn deps(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Box<dyn Finding>>) {
     for e in cache.edges() {
-        let Some(p1) = res.path(&e.from) else {
-            continue;
-        };
-        if let Some(from) = independent_source(cfg, p1)
-            && res.path(&e.to).and_then(|p| p.first()) != p1.first()
-            && !independent_pair_allowed(cfg, from, res.path(&e.to), &e.kind, &e.scope)
-        {
-            let to = res.path(&e.to).and_then(|p| p.first()).unwrap_or(&e.to);
-            out.push(Box::new(Independent::new(from.name.clone(), to.clone(), e)));
-            continue;
-        }
-        let Some(p2) = res.path(&e.to) else {
+        let (Some(p1), Some(p2)) = (res.path(&e.from), res.path(&e.to)) else {
             continue;
         };
         let Some(l) = lift(cfg, p1, p2) else { continue };
-        if let Some((composite, child)) = hidden(cfg, p2, l.k, &e.scope) {
+        if let Some((composite, child)) = hidden(cfg, p2, l.k) {
             out.push(Box::new(Private {
                 level: composite.level(),
                 file: composite.file.clone(),
@@ -100,16 +48,9 @@ pub(super) fn deps(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Bo
                 evidence: e.evidence.clone(),
             }));
         }
-        let rules = &l.level.deps;
         let entered = p2.get(l.k + 1).map(String::as_str);
-        let rule = pick_rule(&rules.rules, l.from, l.to, entered, &e.kind, &e.scope);
-        // Edges into an independent brick are allowed unless a deny rule names it.
-        let action = match rule {
-            Some((_, r)) => r.action,
-            None if l.to.independent => Action::Allow,
-            None => rules.default,
-        };
-        if action == Action::Allow {
+        let d = decide(l.level, l.from, l.to, entered, &e.kind, &e.scope);
+        if d.action == Action::Allow {
             continue;
         }
         out.push(Box::new(Dep {
@@ -123,7 +64,7 @@ pub(super) fn deps(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Bo
             scope: e.scope,
             entered: entered.map(String::from),
             evidence: e.evidence,
-            rule: rule.map(|(i, r)| (i, r.clone())),
+            rule: d.rule.map(|(i, r)| (i, r.clone())),
         }));
     }
 }
@@ -160,19 +101,8 @@ pub fn dep_subject(from: &str, to: &str, kind: &str, scope: &str) -> String {
 }
 
 impl Finding for Dep {
-    fn weight(&self) -> u64 {
-        (self.evidence.len() as u64).max(1)
-    }
     fn code(&self) -> String {
-        if self.rule.is_some() {
-            DEPS_DENY
-        } else {
-            DEPS_DEFAULT
-        }
-        .into()
-    }
-    fn level(&self) -> Level {
-        Level::Error
+        DEPS_DENY.into()
     }
     fn subject(&self) -> String {
         dep_subject(&self.from_module, &self.to_module, &self.kind, &self.scope)
@@ -206,27 +136,26 @@ impl Finding for Dep {
         Some(match &self.rule {
             Some((i, r)) => RuleRef {
                 name: match &r.reason {
-                    Some(why) => format!("deps.rule[{i}] \"{why}\""),
-                    None => format!("deps.rule[{i}]"),
+                    Some(why) => format!("rule[{i}] \"{why}\""),
+                    None => format!("rule[{i}]"),
                 },
                 loc: Some(r.loc.clone()),
             },
             None => RuleRef {
-                name: "deps.default = \"deny\"".into(),
+                name: "no rule allows it".into(),
                 loc: Some(self.file.clone()),
             },
         })
     }
     fn help(&self) -> Option<String> {
         Some(match &self.rule {
-            Some((_, r)) if r.help.is_some() => r.help.clone().unwrap_or_default(),
             Some(_) => "remove the dependency, or change the rule if it is intended".into(),
-            None if self.scope == "test" => {
-                "remove the dependency, or ask the reviewer for a rule that covers tests \
-                 (`scope = \"test\"` or `\"all\"`)"
-                    .into()
+            None if self.from.independent => "remove the dependency: an independent brick may \
+                use only itself, other independent bricks and external crates"
+                .into(),
+            None => {
+                "remove the dependency, or ask the reviewer for a [[rule]] that allows it".into()
             }
-            None => "remove the dependency, or add a [[deps.rule]] that allows it".into(),
         })
     }
     fn bricks(&self) -> Vec<String> {

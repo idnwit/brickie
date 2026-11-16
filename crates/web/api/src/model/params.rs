@@ -8,10 +8,6 @@ use serde::{Deserialize, Serialize};
 pub struct Params {
     /// Brick name filter (diagnostics and functions).
     pub brick: String,
-    /// `error` | `warn`.
-    pub level: String,
-    /// `open` | `accepted`.
-    pub status: String,
     /// Diagnostic code, exact (`deps/deny`) or a family prefix (`complexity`).
     pub code: String,
     /// Function metric: cognitive (default), cyclomatic, nesting, paths, params, lines, name.
@@ -137,8 +133,6 @@ impl Params {
     pub fn query(&self) -> String {
         let pairs = [
             ("brick", self.brick.as_str(), ""),
-            ("level", &self.level, ""),
-            ("status", &self.status, ""),
             ("code", &self.code, ""),
             ("fn_sort", &self.fn_sort, "cognitive"),
             ("fn_dir", &self.fn_dir, "desc"),
@@ -183,8 +177,6 @@ impl Params {
                 "below" => p.below = v,
                 "bnd" => p.bnd = v,
                 "edit" => p.edit = v,
-                "level" => p.level = v,
-                "status" => p.status = v,
                 "code" => p.code = v,
                 "fn_sort" => p.fn_sort = v,
                 "fn_dir" => p.fn_dir = v,
@@ -245,10 +237,10 @@ mod tests {
 
     #[test]
     fn params_round_trip_and_omit_defaults() {
-        let p = Params::from_query("?brick=engine&level=error&code=deps%2Fdeny&fn_sort=cognitive");
+        let p = Params::from_query("?brick=engine&code=deps%2Fdeny&fn_sort=cognitive");
         assert_eq!(p.brick, "engine");
         assert_eq!(p.code, "deps/deny");
-        assert_eq!(p.query(), "brick=engine&level=error&code=deps/deny");
+        assert_eq!(p.query(), "brick=engine&code=deps/deny");
         assert_eq!(
             Params::from_query(&p.query()),
             p.with(|p| p.fn_sort.clear())

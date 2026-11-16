@@ -1,5 +1,5 @@
 //! Diagnostics as the webview receives them (the CLI's `Diagnostic` field for field), the cache
-//! header and the review request/reply.
+//! header.
 
 use super::{Params, encode};
 use serde::{Deserialize, Serialize};
@@ -86,8 +86,6 @@ pub struct Snippet {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DiagView {
     pub id: String,
-    /// `error` | `warn`.
-    pub level: String,
     pub code: String,
     pub message: String,
     pub span: Option<SpanView>,
@@ -99,24 +97,7 @@ pub struct DiagView {
     /// The level whose children `bricks` names (`root`, `root/web`); none for non-brick findings.
     #[serde(default)]
     pub brick_level: Option<String>,
-    pub accepted: bool,
-    pub accepted_reason: Option<String>,
     pub snippet: Option<Snippet>,
-}
-
-/// Reply of `POST /review`.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReviewReply {
-    pub id: String,
-    pub accepted: bool,
-    pub reason: Option<String>,
-}
-
-/// Body of `POST /review`: `reason: None` unaccepts.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ReviewRequest {
-    pub id: String,
-    pub reason: Option<String>,
 }
 
 /// A diagnostic code filter: empty, exact (`deps/deny`) or a family prefix (`complexity`).
@@ -154,19 +135,11 @@ pub fn group_sub(code: &str) -> (&'static str, String) {
     ("stale", sub.into())
 }
 
-/// Whether a diagnostic passes the filters. `accepted` is passed separately because the
-/// client changes it locally after a review.
-pub fn diag_visible(d: &DiagView, accepted: bool, p: &Params) -> bool {
-    let code_ok = code_matches(&d.code, &p.code);
-    (p.level.is_empty() || d.level == p.level)
-        && code_ok
+/// Whether a diagnostic passes the filters.
+pub fn diag_visible(d: &DiagView, p: &Params) -> bool {
+    code_matches(&d.code, &p.code)
         && (p.grp.is_empty() || group_sub(&d.code).0 == p.grp)
         && (p.brick.is_empty() || p.bricks().iter().any(|b| d.bricks.iter().any(|x| x == b)))
-        && match p.status.as_str() {
-            "open" => !accepted,
-            "accepted" => accepted,
-            _ => true,
-        }
 }
 
 #[cfg(test)]

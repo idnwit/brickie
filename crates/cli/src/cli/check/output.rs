@@ -7,22 +7,12 @@ use std::path::Path;
 
 pub fn json(filter: &Filter, found: &Filtered) -> Result<()> {
     let ds = &found.shown;
-    let s = diag::summarize(ds);
     let mut out = serde_json::json!({
-        "summary": {"errors": s.errors, "warnings": s.warnings, "accepted": s.accepted},
+        "summary": {"errors": ds.len()},
         "diagnostics": ds,
     });
     if filter.scoped() {
-        let o = found.outside;
-        out["outside_scope"] = serde_json::json!({"errors": o.errors, "warnings": o.warnings});
-    }
-    if filter.gating() {
-        let b = found.baselined;
-        out["baseline"] = serde_json::json!({"errors": b.errors, "warnings": b.warnings});
-    }
-    if filter.skipping() {
-        out["skipped"] =
-            serde_json::json!({"warnings": found.skipped, "codes": filter.skip_codes()});
+        out["outside_scope"] = serde_json::json!({"errors": found.outside});
     }
     println!("{}", serde_json::to_string_pretty(&out)?);
     Ok(())

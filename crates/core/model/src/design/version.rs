@@ -22,11 +22,42 @@ impl By {
     }
 }
 
+/// Which tree a version belongs to. `Published` is the real `brickie.toml` tree that `check`
+/// reads; `Draft` is the one draft under `.brickie/draft/` that every design edit writes.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
+)]
+#[serde(rename_all = "lowercase")]
+pub enum Track {
+    #[default]
+    Published,
+    Draft,
+}
+
+impl Track {
+    pub fn name(self) -> &'static str {
+        match self {
+            Track::Published => "published",
+            Track::Draft => "draft",
+        }
+    }
+}
+
 /// One line of `.brickie/history/log.jsonl`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Version {
     /// The version number, counting up from 1 for the whole design.
     pub v: u64,
+    /// The tree this version belongs to; version numbers are shared by both tracks.
+    #[serde(default)]
+    pub track: Track,
+    /// A draft version that starts a draft (fork or rebase): the published version it is
+    /// based on. Its snapshot is `full`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forked_from: Option<u64>,
+    /// An undo: the version whose file changes it reverts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reverts: Option<u64>,
     /// Hash of every config file of the tree (sorted path and bytes), hex.
     pub hash: String,
     /// The hash of the version before (`None` for the first).

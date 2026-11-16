@@ -1,15 +1,13 @@
-//! Matching a module against a brick member, with the specificity that picks the winner.
+//! Matching a module against a brick member.
 
 use brickie_facts::{Crate, Module};
 use std::path::{Component, Path, PathBuf};
 
-/// How specifically a member matches: the kind (`path:` 0 < package 1 < module prefix 2 < exact
-/// module 3), then its length (path components or `::` segments). Higher wins.
-pub type Spec = (u8, usize);
-
 /// Facts about one module that members are matched against.
 pub struct Subject<'a> {
     pub module: &'a Module,
+    /// Absolute source file of the module.
+    pub file: PathBuf,
     pub package: &'a str,
     /// Absolute package directory (workspace root joined with the crate's `dir`).
     pub dir: PathBuf,
@@ -19,6 +17,7 @@ impl<'a> Subject<'a> {
     pub fn new(module: &'a Module, krate: Option<&'a Crate>, ws_root: &Path) -> Self {
         Subject {
             module,
+            file: normalise(&ws_root.join(&module.file)),
             package: krate.map_or("", |c| c.package.as_str()),
             dir: normalise(&ws_root.join(krate.map_or("", |c| c.dir.as_str()))),
         }
@@ -40,24 +39,19 @@ pub fn normalise(p: &Path) -> PathBuf {
     out
 }
 
-/// The specificity of `member` (declared in a file under `base`) for `s`, or `None`.
-pub fn matches(member: &str, base: &Path, s: &Subject) -> Option<Spec> {
+/// Whether `member` (declared in a file under `base`) matches `s`: a package name (every module
+/// of it), a module prefix, or a `path:` (every module of a crate under it, or whose source file
+/// is under it, so `path:src/lib.rs` names one crate root).
+pub fn matches(member: &str, base: &Path, s: &Subject) -> bool {
     if let Some(dir) = member.strip_prefix("path:") {
         let dir = normalise(&base.join(dir));
-        return s
-            .dir
-            .starts_with(&dir)
-            .then(|| (0, dir.components().count()));
+        return s.dir.starts_with(&dir) || s.file.starts_with(&dir);
     }
     if member == s.package {
-        return Some((1, 0));
-    }
-    if let Some(id) = member.strip_prefix("module:") {
-        return (s.module.id == id).then(|| (3, id.matches("::").count()));
+        return true;
     }
     let id = &s.module.id;
-    let under = id == member || id.strip_prefix(member).is_some_and(|r| r.starts_with("::"));
-    under.then(|| (2, member.matches("::").count()))
+    id == member || id.strip_prefix(member).is_some_and(|r| r.starts_with("::"))
 }
 
 #[cfg(test)]
@@ -65,11 +59,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn specificity_orders_path_package_module() {
+    fn members_match_paths_packages_and_module_prefixes() {
         let m = Module {
             id: "web-api::routes::x".into(),
             krate: "web-api".into(),
-            file: String::new(),
+            file: "crates/web/api/src/routes/x.rs".into(),
             line: 1,
         };
         let c = Crate {
@@ -81,84 +75,22 @@ mod tests {
             root: "crates/web/api/src/lib.rs".into(),
             dir: "crates/web/api".into(),
         };
-        let ws = Path::new("/ws");
-        let s = Subject::new(&m, Some(&c), ws);
-        let base = Path::new("/ws");
-        let short = matches("path:crates/web/", base, &s).unwrap();
-        let long = matches("path:crates/web/api", base, &s).unwrap();
-        let pkg = matches("web-api", base, &s).unwrap();
-        let module = matches("web-api::routes", base, &s).unwrap();
-        assert!(short < long && long < pkg && pkg < module);
-        assert!(matches("path:crates/webx/", base, &s).is_none());
-        assert!(matches("path:../crates/web", Path::new("/ws/sub"), &s).is_some());
-        assert!(matches("web-api::route", base, &s).is_none());
-    }
-
-    #[test]
-    fn exact_module_matches_only_that_module() {
-        let root = Module {
-            id: "app".into(),
-            krate: "app".into(),
-            file: String::new(),
-            line: 1,
-        };
-        let child = Module {
-            id: "app::parent".into(),
-            krate: "app".into(),
-            file: String::new(),
-            line: 1,
-        };
-        let other_target = Module {
-            id: "app/bin/tool".into(),
-            krate: "app".into(),
-            file: String::new(),
-            line: 1,
-        };
-        let c = Crate {
-            id: "app".into(),
-            package: "app".into(),
-            version: "0".into(),
-            target: "app".into(),
-            kind: "lib".into(),
-            root: "crates/app/src/lib.rs".into(),
-            dir: "crates/app".into(),
-        };
-        let ws = Path::new("/ws");
-        let s = Subject::new(&root, Some(&c), ws);
-        assert_eq!(matches("module:app", ws, &s), Some((3, 0)));
-        assert!(matches("module:app::parent", ws, &s).is_none());
-        assert!(matches("app::parent", ws, &s).is_none());
-
-        let child_s = Subject::new(&child, Some(&c), ws);
-        assert_eq!(matches("module:app::parent", ws, &child_s), Some((3, 1)));
-        assert!(matches("module:app", ws, &child_s).is_none());
-        assert!(matches("module:app::parent", ws, &s).is_none());
-
-        let target_s = Subject::new(&other_target, Some(&c), ws);
-        assert!(matches("module:app", ws, &target_s).is_none());
-    }
-
-    #[test]
-    fn exact_module_beats_a_module_prefix() {
-        let m = Module {
-            id: "app::parent".into(),
-            krate: "app".into(),
-            file: String::new(),
-            line: 1,
-        };
-        let c = Crate {
-            id: "app".into(),
-            package: "app".into(),
-            version: "0".into(),
-            target: "app".into(),
-            kind: "lib".into(),
-            root: "src/lib.rs".into(),
-            dir: "".into(),
-        };
         let s = Subject::new(&m, Some(&c), Path::new("/ws"));
-        assert!(
-            matches("module:app::parent", Path::new("/ws"), &s).unwrap()
-                > matches("app::parent", Path::new("/ws"), &s).unwrap()
-        );
+        let base = Path::new("/ws");
+        for yes in [
+            "path:crates/web/",
+            "path:crates/web/api",
+            "web-api",
+            "web-api::routes",
+        ] {
+            assert!(matches(yes, base, &s), "{yes}");
+        }
+        assert!(!matches("path:crates/webx/", base, &s));
+        assert!(matches("path:../crates/web", Path::new("/ws/sub"), &s));
+        assert!(!matches("web-api::route", base, &s));
+        // A file or folder inside the crate matches by the module's source file.
+        assert!(matches("path:crates/web/api/src/routes/", base, &s));
+        assert!(matches("path:crates/web/api/src/routes/x.rs", base, &s));
+        assert!(!matches("path:crates/web/api/src/lib.rs", base, &s));
     }
 }

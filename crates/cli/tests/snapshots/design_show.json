@@ -1,7 +1,8 @@
 {
   "at": 0,
   "by": "agent",
-  "hash": "ac2302d2eca8cdd7",
+  "forked_from": 1,
+  "hash": "26966f456e398246",
   "root": {
     "bricks": [
       {
@@ -26,14 +27,11 @@
         "name": "store"
       }
     ],
-    "cycles": "allow",
-    "default": "deny",
     "file": "brickie.toml",
     "limits": [
       {
         "bricks": "*",
         "file": "brickie.toml",
-        "level": "warn",
         "metrics": {
           "cognitive": 20
         },
@@ -52,11 +50,7 @@
       }
     ]
   },
-  "todo": [
-    {
-      "kind": "config",
-      "text": "no measurements yet: run `brickie measure` to list what the code lacks"
-    }
-  ],
+  "todo": [],
+  "track": "draft",
   "v": 3
 }

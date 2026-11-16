@@ -18,7 +18,6 @@ pub struct Model {
     pub g: GraphView,
     pub layout: Layout,
     pub diags: Vec<DiagView>,
-    pub cards: Rc<Vec<Card>>,
     pub fns: Vec<FnRow>,
     /// The unused rule pairs routed by the layout, as layout edges
     /// `plan0 + i` (empty outside edit mode).
@@ -71,7 +70,7 @@ pub struct Cx {
     pub moved: Signal<bool>,
     pub m: Rc<Model>,
     pub eval: ReadSignal<Eval>,
-    /// Per brick score (open findings and complexity excess), follows accept/unaccept.
+    /// Per brick score (findings and complexity excess).
     pub scores: ReadSignal<Vec<BrickScore>>,
     /// Entry transition of the canvas: `zin`, `zout` or none.
     pub anim: &'static str,
@@ -109,16 +108,15 @@ fn level_layout(
     layout
 }
 
-/// The memoised evaluation and per-brick scores of a level; both follow accept/unaccept.
+/// The memoised evaluation and per-brick scores of a level; the eval follows the params.
 fn memos(m: &Rc<Model>, params: Signal<Params>) -> (ReadSignal<Eval>, ReadSignal<Vec<BrickScore>>) {
-    let accepted = |m: &Model| -> Vec<bool> { m.cards.iter().map(|c| c.accepted.get()).collect() };
     let eval = {
         let m = m.clone();
-        create_memo(move || params.with(|p| evaluate(&m.g, &m.diags, &accepted(&m), p)))
+        create_memo(move || params.with(|p| evaluate(&m.g, &m.diags, p)))
     };
     let scores = {
         let m = m.clone();
-        create_memo(move || brick_scores(&m.g, &m.diags, &accepted(&m)))
+        create_memo(move || brick_scores(&m.g, &m.diags))
     };
     (eval, scores)
 }
@@ -148,7 +146,6 @@ impl Cx {
             lv,
             layout,
             diags: sh.diags.clone(),
-            cards: sh.cards.clone(),
             fns: sh.fns.clone(),
             unused,
             plan0,
@@ -188,7 +185,7 @@ impl Cx {
         }
     }
 
-    /// Change the params. The page mirrors them into the URL (see `components::app`).
+    /// Change the params. The page mirrors them into the URL (see `app`).
     pub fn go(&self, p: Params) {
         self.params.set(p);
     }

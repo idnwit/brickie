@@ -8,8 +8,8 @@ use std::process::{Command, Output};
 const BIN: &str = env!("CARGO_BIN_EXE_brickie");
 
 const ROOT: &str = "# design\n[[brick]]\nname = \"a\"   # first\nmembers = [\"pa\"]\n\n\
-[[brick]]\nname = \"b\"\nmembers = [\"pb\"]\n\n[deps]\ndefault = \"deny\"\n\n\
-[[deps.rule]]\nfrom = \"a\"\nto = \"b\"\naction = \"allow\"\nreason = \"a reads b\"\n";
+[[brick]]\nname = \"b\"\nmembers = [\"pb\"]\n\n\
+[[rule]]\nfrom = \"a\"\nto = \"b\"\naction = \"allow\"\nreason = \"a reads b\"\n";
 
 fn ws() -> tempfile::TempDir {
     let tmp = tempfile::tempdir().unwrap();
@@ -29,7 +29,7 @@ fn run(dir: &Path, args: &[&str]) -> Output {
         .unwrap()
 }
 
-/// Run a write on base `v`; expect `ok: v<v+1>`.
+/// Run a write on base `v`; expect `ok: draft v<v+1>` (every write goes to the draft).
 fn ok(dir: &Path, v: u64, args: &[&str]) {
     let base = v.to_string();
     let mut all = args.to_vec();
@@ -39,13 +39,20 @@ fn ok(dir: &Path, v: u64, args: &[&str]) {
     let err = String::from_utf8_lossy(&out.stderr);
     assert!(out.status.success(), "{args:?}: {err}");
     assert!(
-        text.starts_with(&format!("ok: v{}", v + 1)),
+        text.starts_with(&format!("ok: draft v{}", v + 1)),
         "{args:?}: {text}"
     );
 }
 
+/// A config file of the working tree: the draft's copy when the draft has it.
 fn read(dir: &Path, rel: &str) -> String {
-    std::fs::read_to_string(dir.join(rel)).unwrap()
+    let draft = dir
+        .join(".brickie/draft/files")
+        .join(rel.replace("..", "^"));
+    match draft.is_file() {
+        true => std::fs::read_to_string(draft).unwrap(),
+        false => std::fs::read_to_string(dir.join(rel)).unwrap(),
+    }
 }
 
 fn json(dir: &Path, args: &[&str]) -> Value {
@@ -65,7 +72,7 @@ fn every_write_verb() {
     let tmp = ws();
     let d = tmp.path();
     let show = String::from_utf8_lossy(&run(d, &["show"]).stdout).to_string();
-    assert!(show.starts_with("design v1 "), "{show}");
+    assert!(show.starts_with("design published v1 "), "{show}");
     ok(
         d,
         1,
@@ -98,8 +105,12 @@ fn every_write_verb() {
         "{text}"
     );
     ok(d, 9, &["limit", "rm"]);
-    ok(d, 10, &["deps", "set", "--cycles", "deny"]);
-    std::fs::write(d.join("preset.toml"), "[deps]\ndefault = \"deny\"\n").unwrap();
+    ok(d, 10, &["brick", "set", "a", "--desc", "d"]);
+    std::fs::write(
+        d.join("preset.toml"),
+        "[[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\n",
+    )
+    .unwrap();
     ok(d, 11, &["include", "add", "preset.toml"]);
     ok(d, 12, &["include", "rm", "preset.toml"]);
     ok(d, 13, &["brick", "group", "app", "a", "b"]);
@@ -123,7 +134,7 @@ fn every_write_verb() {
     assert_eq!(diff, "+ brickie.toml: brick store\n");
     let since = String::from_utf8_lossy(&run(d, &["show", "--since", "19"]).stdout).to_string();
     assert!(
-        since.contains("v20  agent") && since.contains("undo v19"),
+        since.contains("v20  draft  agent") && since.contains("undo v19"),
         "{since}"
     );
 }
@@ -168,11 +179,7 @@ fn show_json_matches_the_golden_file() {
     let tmp = ws();
     let d = tmp.path();
     ok(d, 1, &["brick", "add", "store", "--kind", "crate"]);
-    ok(
-        d,
-        2,
-        &["limit", "add", "--cognitive", "20", "--level", "warn"],
-    );
+    ok(d, 2, &["limit", "add", "--cognitive", "20"]);
     let mut v = json(d, &["show"]);
     v["at"] = Value::from(0);
     let got = serde_json::to_string_pretty(&v).unwrap() + "\n";
@@ -219,7 +226,7 @@ fn apply_writes_all_ops_as_one_version() {
         "{}",
         String::from_utf8_lossy(&out.stderr)
     );
-    assert!(String::from_utf8_lossy(&out.stdout).starts_with("ok: v2"));
+    assert!(String::from_utf8_lossy(&out.stdout).starts_with("ok: draft v2"));
     let log = json(d, &["log"]);
     assert_eq!(log.as_array().unwrap().len(), 2, "one version");
     assert_eq!(log[1]["note"], "add store");
@@ -262,7 +269,8 @@ fn dry_run_prints_the_diff_and_writes_nothing() {
     );
     let text = String::from_utf8_lossy(&out.stdout);
     assert!(
-        text.contains("dry run on v1 (nothing written)") && text.contains("brick store"),
+        text.contains("dry run on v1, into the draft (nothing written)")
+            && text.contains("brick store"),
         "{text}"
     );
     let out = apply(d, &["--base", "1", "--dry-run"], "rule add b a allow\n");
@@ -304,20 +312,27 @@ fn show_starts_with_the_versions_after_the_agents_last() {
     let tmp = ws();
     let d = tmp.path();
     let plain = String::from_utf8_lossy(&run(d, &["show"]).stdout).to_string();
-    assert!(plain.starts_with("design v1"), "no agent version: {plain}");
+    assert!(
+        plain.starts_with("design published v1"),
+        "no agent version: {plain}"
+    );
     ok(d, 1, &["brick", "set", "a", "--desc", "x"]);
     let text = String::from_utf8_lossy(&run(d, &["show"]).stdout).to_string();
-    assert!(text.starts_with("design v2"), "nothing after agent: {text}");
+    assert!(
+        text.starts_with("design draft v2"),
+        "nothing after agent: {text}"
+    );
     assert!(json(d, &["show"]).get("since_agent").is_none());
-    let file = read(d, "brickie.toml") + "\n[[brick]]\nname = \"c\"\nmembers = [\"pc\"]\n";
+    // A hand edit of the published file.
+    let file = ROOT.to_string() + "\n[[brick]]\nname = \"c\"\nmembers = [\"pc\"]\n";
     std::fs::write(d.join("brickie.toml"), file).unwrap();
     let text = String::from_utf8_lossy(&run(d, &["show"]).stdout).to_string();
     assert!(
-        text.starts_with("since your last version (agent):\nv3  external"),
+        text.starts_with("since your last version (agent):\nv3  published  external"),
         "{text}"
     );
     assert!(
-        text.contains("brick c") && text.contains("design v3"),
+        text.contains("brick c") && text.contains("design draft v2 from published v1"),
         "{text}"
     );
     let v = json(d, &["show"]);
@@ -347,8 +362,15 @@ fn show_in_prints_only_that_level() {
 fn a_deleted_nested_file_does_not_block_show_log_or_undo() {
     let tmp = ws();
     let d = tmp.path();
-    ok(d, 1, &["brick", "add", "dom", "--kind", "group"]);
-    let nested = read(d, "dom/brickie.toml");
+    let nested = "[[brick]]\nname = \"x\"\nmembers = [\"px\"]\n";
+    std::fs::write(
+        d.join("brickie.toml"),
+        ROOT.replace("members = [\"pa\"]", "path = \"dom\""),
+    )
+    .unwrap();
+    std::fs::create_dir_all(d.join("dom")).unwrap();
+    std::fs::write(d.join("dom/brickie.toml"), nested).unwrap();
+    run(d, &["show"]);
     std::fs::remove_file(d.join("dom/brickie.toml")).unwrap();
     let out = run(d, &["show"]);
     let text = String::from_utf8_lossy(&out.stdout);
@@ -362,7 +384,13 @@ fn a_deleted_nested_file_does_not_block_show_log_or_undo() {
         "{text}"
     );
     assert!(run(d, &["log"]).status.success());
-    ok(d, 3, &["undo"]);
+    // The hand deletion is published v2; undo restores the published file.
+    let out = run(d, &["undo", "--base", "2"]);
+    assert!(
+        String::from_utf8_lossy(&out.stdout).starts_with("ok: published v3"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
     assert_eq!(read(d, "dom/brickie.toml"), nested);
     let text = String::from_utf8_lossy(&run(d, &["show"]).stdout).to_string();
     assert!(!text.contains("warning"), "{text}");
@@ -378,7 +406,7 @@ fn set_path_creates_the_nested_file_and_never_overwrites() {
         "{}",
         String::from_utf8_lossy(&out.stderr)
     );
-    assert!(d.join("ga/brickie.toml").is_file());
+    assert!(d.join(".brickie/draft/files/ga/brickie.toml").is_file());
     std::fs::create_dir_all(d.join("gb")).unwrap();
     std::fs::write(d.join("gb/brickie.toml"), "# mine\n").unwrap();
     ok(d, 2, &["brick", "set", "b", "--path", "gb"]);
@@ -448,7 +476,7 @@ fn grouped() -> tempfile::TempDir {
 fn apply_keeps_every_export_set_line() {
     let tmp = grouped();
     let d = tmp.path();
-    let script = "export set app/a\nexport set app/b --scope prod\nexport set app/c\n";
+    let script = "export set app/a\nexport set app/b\nexport set app/c\n";
     let out = apply(d, &["--base", "3"], script);
     assert!(
         out.status.success(),
@@ -456,7 +484,6 @@ fn apply_keeps_every_export_set_line() {
         String::from_utf8_lossy(&out.stderr)
     );
     assert_eq!(app_exports(d), ["a", "b", "c"]);
-    assert!(read(d, "app/brickie.toml").contains("scope = \"prod\""));
 }
 
 #[test]
@@ -606,22 +633,18 @@ fn apply_scaffold_covers_every_line_and_is_refused_inside_one() {
 }
 
 #[test]
-fn a_new_group_is_as_strict_as_its_parent() {
+fn a_new_group_starts_with_an_empty_file() {
     let tmp = ws();
     let d = tmp.path();
     run(d, &["show"]);
     ok(d, 1, &["brick", "add", "grp", "--kind", "group"]);
-    assert!(read(d, "grp/brickie.toml").contains("default = \"deny\""));
-    ok(d, 2, &["deps", "set", "--cycles", "deny"]);
-    ok(d, 3, &["brick", "group", "g2", "a", "b"]);
+    assert!(!read(d, "grp/brickie.toml").contains("[[rule]]"));
+    ok(d, 2, &["brick", "group", "g2", "a", "b"]);
     let text = read(d, "g2/brickie.toml");
-    assert!(
-        text.contains("default = \"deny\"") && text.contains("cycles = \"deny\""),
-        "{text}"
-    );
-    ok(d, 4, &["brick", "add", "k", "--members", "pk"]);
-    ok(d, 5, &["brick", "set", "k", "--path", "ga"]);
-    assert!(read(d, "ga/brickie.toml").contains("default = \"deny\""));
+    assert!(!text.contains("deny") && !text.contains("deps"), "{text}");
+    ok(d, 3, &["brick", "add", "k", "--members", "pk"]);
+    ok(d, 4, &["brick", "set", "k", "--path", "ga"]);
+    assert!(!read(d, "ga/brickie.toml").contains("[[rule]]"));
 }
 
 #[test]
@@ -630,24 +653,26 @@ fn a_rule_that_changes_nothing_prints_a_note() {
     let d = tmp.path();
     run(d, &["show"]);
     ok(d, 1, &["brick", "add", "grp", "--kind", "group"]);
-    // A nested file written by hand without `deps` is as loose as a level can be.
-    std::fs::write(d.join("grp/brickie.toml"), "# loose\n").unwrap();
     ok(
         d,
-        3,
+        2,
         &["brick", "add", "m", "--members", "pm", "--in", "grp"],
     );
     ok(
         d,
-        4,
+        3,
         &["brick", "add", "n", "--members", "pn", "--in", "grp"],
     );
+    // A rule that decides something new: no note.
+    ok(d, 4, &["rule", "add", "*", "*", "allow", "--in", "grp"]);
     let args = [
         "rule", "add", "m", "n", "allow", "--in", "grp", "--base", "5",
     ];
     let text = String::from_utf8_lossy(&run(d, &args).stdout).to_string();
-    let want = "ok: v6\nnote: rule m -> n allow changes nothing: already allowed by deps.default of grp/brickie.toml\n";
-    assert_eq!(text, want);
+    assert!(
+        text.starts_with("ok: draft v6\nnote: rule m -> n allow changes nothing: already allowed by grp/brickie.toml:"),
+        "{text}"
+    );
     let args = [
         "rule", "add", "n", "m", "allow", "--in", "grp", "--base", "6",
     ];
@@ -657,15 +682,57 @@ fn a_rule_that_changes_nothing_prints_a_note() {
         v["notes"][0].as_str().unwrap().contains("changes nothing"),
         "{v}"
     );
-    // Under `default = "deny"` the same rule changes the level: no note.
-    ok(d, 7, &["deps", "set", "--default", "deny", "--in", "grp"]);
-    ok(d, 8, &["rule", "rm", "m", "n", "--in", "grp"]);
+}
+
+#[test]
+fn publish_is_blocked_without_measurements_and_discard_drops_the_draft() {
+    let tmp = ws();
+    let d = tmp.path();
+    ok(d, 1, &["brick", "set", "a", "--desc", "x"]);
+    let v = json(d, &["publish", "--dry-run", "--base", "2"]);
+    assert_eq!(
+        (v["ready"].as_bool(), v["forked_from"].as_u64()),
+        (Some(false), Some(1))
+    );
+    assert_eq!(v["blocking"][0]["code"], "stale/measure", "{v}");
+    let out = run(d, &["publish", "--base", "2"]);
+    assert_eq!(out.status.code(), Some(4));
+    assert!(String::from_utf8_lossy(&out.stderr).starts_with("error[design/blocked]"));
+    assert!(read(d, "brickie.toml").contains("desc = \"x\""));
+    assert_eq!(
+        std::fs::read_to_string(d.join("brickie.toml")).unwrap(),
+        ROOT
+    );
+    let out = run(d, &["discard", "--base", "2"]);
+    assert!(String::from_utf8_lossy(&out.stdout).starts_with("ok: draft v3"));
+    assert_eq!(read(d, "brickie.toml"), ROOT);
+    assert_eq!(
+        run(d, &["rebase", "--base", "3"]).status.code(),
+        Some(2),
+        "no draft"
+    );
+}
+
+#[test]
+fn rule_via_is_written_and_an_empty_value_removes_it() {
+    let tmp = grouped();
+    let d = tmp.path();
+    ok(d, 3, &["export", "set", "app/a"]);
+    ok(
+        d,
+        4,
+        &["brick", "add", "d", "--kind", "crate", "--desc", "d"],
+    );
+    ok(d, 5, &["rule", "add", "d", "app", "allow", "--via", "a"]);
+    assert!(read(d, "brickie.toml").contains("via = [\"a\"]"));
+    ok(d, 6, &["rule", "set", "d", "app", "--via", ""]);
+    assert!(!read(d, "brickie.toml").contains("via"));
+    // A child that is not exported is refused.
     let out = run(
         d,
         &[
-            "rule", "add", "m", "n", "allow", "--in", "grp", "--base", "9",
+            "rule", "add", "d", "app", "deny", "--via", "b", "--base", "6",
         ],
     );
-    let text = String::from_utf8_lossy(&out.stdout);
-    assert_eq!(text, "ok: v10\n");
+    assert!(!out.status.success());
 }

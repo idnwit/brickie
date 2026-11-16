@@ -75,8 +75,6 @@ pub struct EdgeView {
     pub diags: Vec<String>,
     /// References (evidence sites) of the underlying module edges.
     pub count: usize,
-    /// Worst level of its findings: `error` | `warn` (none when allowed).
-    pub worst: Option<String>,
     /// A `deps/private` finding of this level from outside: drawn up to the frame wall.
     pub wall: bool,
     /// Client side only: when not empty, this edge aggregates these boundary edges for the

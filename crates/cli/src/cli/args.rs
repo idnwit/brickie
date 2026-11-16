@@ -69,19 +69,9 @@ pub struct CheckArgs {
     /// its descendants; findings without an owner always show. Repeatable.
     #[arg(long = "brick", value_name = "PATH")]
     pub bricks: Vec<String>,
-    /// Hide warnings with this code (repeatable or comma separated); errors still show.
-    #[arg(long, value_name = "CODE", value_delimiter = ',')]
-    pub skip: Vec<String>,
     /// Run measure first when the cache is missing, unreadable or has stale findings.
     #[arg(long)]
     pub measure: bool,
-    /// Write `.brickie/baseline.json` from the current findings (the exit code is as usual).
-    #[arg(long, conflicts_with = "new")]
-    pub save_baseline: bool,
-    /// Hide the findings in the saved baseline unless they got worse; fail when the rule
-    /// files changed since it was saved.
-    #[arg(long)]
-    pub new: bool,
 }
 
 #[derive(Clone, Copy, ValueEnum)]

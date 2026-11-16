@@ -1,4 +1,4 @@
-/* Correct vs violating (allowed < warn < error), for edges, bricks and the score widgets. The
+/* Correct vs violating (allowed < error), for edges, bricks and the score widgets. The
    colours are variables in theme.css; classes only change styles, never geometry. */
 .edge .vis{fill:none;stroke-width:calc(1.2px*var(--k,1))}
 .edge .halo{display:none;fill:none;stroke-linecap:round}
@@ -16,22 +16,16 @@
 .edge.err .vis{stroke:var(--e-err);stroke-width:calc(3.8px*var(--k,1))}
 .edge.err .halo{display:inline;stroke:var(--e-err);stroke-width:9;stroke-opacity:.2}
 .edge.err .mark{fill:var(--e-err)}
-.edge.warn .vis{stroke:var(--e-warn);stroke-width:calc(2.6px*var(--k,1))}
-.edge.warn .mark{fill:var(--e-warn)}
-.edge.acc .vis{stroke:var(--e-acc);stroke-width:calc(2px*var(--k,1));stroke-dasharray:6 4;opacity:.55}
-.edge.acc .mark{fill:var(--e-acc);opacity:.7}
 .edge.sel .vis,.edge.hot .vis{stroke-width:calc(3.4px*var(--k,1))}.edge.err.sel .vis,.edge.err.hot .vis{stroke-width:calc(4.4px*var(--k,1))}
 .edge.hov .halo{display:inline}
 
 .node .box{fill:var(--node);stroke:var(--b-ok);stroke-width:1.2}
 .node.bd-red .box{fill:var(--b-err-fill);stroke:var(--b-err);stroke-width:3.2}
-.node.bd-amber .box{fill:var(--b-warn-fill);stroke:var(--b-warn);stroke-width:2.4}
-.node.acc .box{stroke:var(--b-err);stroke-width:1.8;stroke-dasharray:6 3}
 .node.sel .box{stroke:var(--sel);stroke-width:2.8}
 
 /* score badge in the corner, heat bar under the name */
 .sbadge rect{stroke:none}.sbadge text{font-size:11px;font-weight:700;fill:#fff;pointer-events:none}
-.sbadge.clean rect{fill:var(--ok)}.sbadge.err rect{fill:var(--b-err)}.sbadge.warn rect{fill:var(--b-warn)}
+.sbadge.clean rect{fill:var(--ok)}.sbadge.err rect{fill:var(--b-err)}
 .heat .track{fill:var(--band);stroke:var(--line);stroke-width:.5}
 .heat .hbar{fill:var(--h0)}.heat.h1 .hbar{fill:var(--h1)}.heat.h2 .hbar{fill:var(--h2)}.heat.h3 .hbar{fill:var(--h3)}
 
@@ -43,7 +37,7 @@
 .scorecard table{margin:6px 0}.scorecard td:last-child,.scorecard th:last-child{text-align:right}
 .scorecard .hf{display:flex;gap:8px;align-items:baseline}.scorecard .hf .mono{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .scorecard .hf b{flex:none;color:var(--b-err);font-variant-numeric:tabular-nums}
-.item .sc{color:var(--muted);font-variant-numeric:tabular-nums}.item .sc.err{color:var(--b-err)}.item .sc.warn{color:var(--b-warn)}.item .sc.ok{color:var(--ok)}
+.item .sc{color:var(--muted);font-variant-numeric:tabular-nums}.item .sc.err{color:var(--b-err)}.item .sc.ok{color:var(--ok)}
 .sw{display:inline-block;width:14px;height:10px;border-radius:2px;vertical-align:middle}
 .iface{margin:3px 0;border-left:2px solid var(--line);padding-left:6px}.iface summary{cursor:pointer}
 .iface .doc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.iface .sig{display:block;white-space:pre-wrap;word-break:break-word;font-size:12px}

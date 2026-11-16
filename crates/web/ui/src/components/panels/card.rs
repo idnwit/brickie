@@ -1,6 +1,5 @@
-//! A diagnostic as a card (the same fields `brickie check` prints) with Accept / Unaccept.
+//! A diagnostic as a card (the same fields `brickie check` prints).
 
-use crate::components::call;
 use crate::state::*;
 use brickie_web_api::*;
 use sycamore::prelude::*;
@@ -11,19 +10,9 @@ fn span_link(modal: Signal<Option<String>>, s: &SpanView) -> View {
     src_link(modal, s.href(), s.loc(), "mono")
 }
 
-pub fn card_view(c: Card, modal: Signal<Option<String>>) -> View {
-    let d = c.d.clone();
-    let acc = c.accepted;
-    let base = format!("diag {}", d.level);
-    let cls = move || {
-        if acc.get() {
-            format!("{base} accepted")
-        } else {
-            base.clone()
-        }
-    };
+pub fn card_view(d: DiagView, modal: Signal<Option<String>>) -> View {
     let id = format!("d-{}", d.id);
-    let badge = badge_text(&d.level, &d.code);
+    let badge = format!("error[{}]", d.code);
     let message = d.message.clone();
     let primary = primary_view(&d, modal);
     let snippet = snippet_view(&d);
@@ -31,9 +20,8 @@ pub fn card_view(c: Card, modal: Signal<Option<String>>) -> View {
     let help = help_view(&d);
     let notes = notes_view(&d, modal);
     let more = more_view(&d, modal);
-    let review = review_view(c);
     view! {
-        article(id=id, class=cls) {
+        article(id=id, class="diag") {
             div(class="head") { span(class="badge") { (badge) } span { (message) } }
             (primary)
             (snippet)
@@ -41,17 +29,8 @@ pub fn card_view(c: Card, modal: Signal<Option<String>>) -> View {
             (help)
             (notes)
             (more)
-            (review)
         }
     }
-}
-
-/// The badge text: `error[code]`, every other level is a `warning[code]`.
-fn badge_text(level: &str, code: &str) -> String {
-    format!(
-        "{}[{code}]",
-        if level == "error" { "error" } else { "warning" }
-    )
 }
 
 /// The `at` line: the primary span and its label.
@@ -146,91 +125,4 @@ fn more_view(d: &DiagView, modal: Signal<Option<String>>) -> View {
     }
     let links = View::from(links);
     view! { details(class="kv") { summary { (summary) } (links) } }
-}
-
-fn review_view(c: Card) -> View {
-    let Card {
-        d,
-        accepted,
-        reason,
-        input,
-        note,
-        busy,
-    } = c;
-    let id_accept = d.id.clone();
-    let id_un = d.id;
-    let accept = move |_: Click| {
-        let r = input.get_clone().trim().to_string();
-        if r.is_empty() {
-            note.set("A reason is required to accept.".into());
-            return;
-        }
-        busy.set(true);
-        call::<Review>(
-            &ReviewRequest {
-                id: id_accept.clone(),
-                reason: Some(r),
-            },
-            move |res| {
-                busy.set(false);
-                match res {
-                    Ok(rep) => {
-                        reason.set(rep.reason.unwrap_or_default());
-                        accepted.set(rep.accepted);
-                        note.set(String::new());
-                    }
-                    Err(e) => note.set(e),
-                }
-            },
-        );
-    };
-    let unaccept = move |_: Click| {
-        busy.set(true);
-        call::<Review>(
-            &ReviewRequest {
-                id: id_un.clone(),
-                reason: None,
-            },
-            move |res| {
-                busy.set(false);
-                match res {
-                    Ok(rep) => {
-                        accepted.set(rep.accepted);
-                        note.set(String::new());
-                    }
-                    Err(e) => note.set(e),
-                }
-            },
-        );
-    };
-    let body = move || {
-        if accepted.get() {
-            let why = format!("Accepted: {}", reason.get_clone());
-            view! {
-                span(class="muted") { (why) }
-                button(on:click=unaccept.clone()) { "Unaccept" }
-            }
-        } else {
-            view! {
-                input(r#type="text", placeholder="reason (required)", bind:value=input)
-                button(class="go", on:click=accept.clone()) { "Accept" }
-            }
-        }
-    };
-    let err = move || note.get_clone();
-    view! { div(class="review") { (body) span(class="err-text") { (err) } } }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::badge_text;
-
-    #[test]
-    fn badge_names_errors_and_calls_the_rest_warnings() {
-        assert_eq!(badge_text("error", "deps/deny"), "error[deps/deny]");
-        assert_eq!(
-            badge_text("warn", "complexity/lines"),
-            "warning[complexity/lines]"
-        );
-    }
 }

@@ -1,5 +1,5 @@
 //! JSON endpoints that take the same params as the page. Typed by the `brickie-web-api`
-//! contract: `Diagnostics`, `Functions` and `Graph` (the design as a draft, marked, with `edit=1`).
+//! contract: `Diagnostics`, `Functions` and `Graph` (the working tree, marked, with `edit=1`).
 
 use super::view;
 use crate::{AppState, Failure};
@@ -15,7 +15,7 @@ pub async fn diagnostics(
     let out = data
         .diags
         .into_iter()
-        .filter(|d| brickie_web_api::diag_visible(d, d.accepted, &p))
+        .filter(|d| brickie_web_api::diag_visible(d, &p))
         .collect();
     Ok(Json(out))
 }

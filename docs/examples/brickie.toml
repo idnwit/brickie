@@ -1,14 +1,13 @@
 # Example brickie.toml: a port, an engine core, adapter backends and an assembling client.
 # A preset is just another file with the same schema:  include = ["presets/layered.toml"]
-# (paths are relative to the including file; includes are merged, the including file wins for
-# `deps.default` and `deps.cycles`).
+# (paths are relative to the including file; lists are concatenated).
 # Names, tags and rules are local to a file; see web/brickie.toml for a composite's own file.
 
 [[brick]]
 name = "audio"
 members = ["acme-audio"]          # package name: all its targets
 tags = ["port"]
-# independent = true               # root leaf bricks only: acts like an external library (uses only itself)
+# independent = true               # root bricks only: acts like an external library
 
 [[brick]]
 name = "engine"
@@ -17,7 +16,7 @@ tags = ["core"]
 
 [[brick]]
 name = "backends"
-members = ["acme-backends", "acme-engine::testing"]   # crate::module prefix; module:<id> is exact
+members = ["acme-backends"]                       # package | crate::module prefix | path:<dir>/
 tags = ["adapter"]
 
 [[brick]]
@@ -30,20 +29,26 @@ name = "web"
 path = "web"                       # composite: children in web/brickie.toml (required);
 tags = ["assembly"]                # members default to ["path:web/"] (crates under the folder)
 
-[deps]
-default = "allow"                  # for edges matching no rule: allow | deny
-cycles = "deny"                    # cycles between bricks (prod edges)
+# An edge no rule allows is denied; sibling cycles are always errors.
+[[rule]]
+from = "tag:assembly"              # brick name | tag:<tag> | *
+to = "*"
+action = "allow"
+reason = "assemblies wire everything together"
 
-[[deps.rule]]
-from = "tag:core"                  # brick name | tag:<tag> | *
+[[rule]]
+from = "tag:core"
 to = "tag:adapter"
-# via = ["ports-in"]               # optional: `to` is a composite brick; only edges entering it
-                                   # through these exported children match (+1 specificity)
 kinds = ["uses", "implements"]     # default: all kinds
 scope = "prod"                     # prod (default) | test | all
 action = "deny"
 reason = "core must not use adapter"
-help = "depend on the port trait in `audio` and receive the implementation from the assembly"
+
+[[rule]]
+from = "*"
+to = "tag:port"
+action = "allow"
+reason = "everyone may depend on the port traits"
 
 [[complexity]]
 bricks = "tag:core"                # default: *
@@ -51,4 +56,3 @@ cognitive = 15                     # a function fails when its value is above th
 nesting = 3
 paths = 200
 params = 5
-level = "error"                    # error (fails CI) | warn

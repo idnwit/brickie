@@ -1,41 +1,10 @@
 //! The links a brick may draw to its siblings, and whether a new rule would change anything
-//! (the editor refuses a drop that is already decided that way).
+//! (the editor refuses a drop that is already decided that way). Both ask `check::decide`.
 
 use super::Design;
 use anyhow::{Context, Result, bail};
-use brickie_check::config::{Action, Brick, Config, DepRule, KINDS, Scope, Sel};
+use brickie_check::config::{Action, Brick, Config, DepRule, KINDS, Scope, Sel, decide};
 use brickie_model::design::{LinkCheck, LinkOption};
-
-/// The rule deciding an edge `from -> to` of `kind` / `scope` at a level (highest
-/// specificity, deny on a tie), or `None` for `deps.default`.
-fn decide<'a>(
-    level: &'a Config,
-    from: &Brick,
-    to: &Brick,
-    kind: &str,
-    scope: &str,
-) -> Option<&'a DepRule> {
-    let mut best: Option<(u32, &DepRule)> = None;
-    for r in &level.deps.rules {
-        let kinds_ok = r.kinds.is_empty() || r.kinds.iter().any(|k| k == kind);
-        let (Some(a), Some(b)) = (r.from.specificity(from), r.to.specificity(to)) else {
-            continue;
-        };
-        if !kinds_ok || !r.scope.matches(scope) {
-            continue;
-        }
-        let better = match best {
-            None => true,
-            Some((s, cur)) => {
-                a + b > s || (a + b == s && r.action == Action::Deny && cur.action == Action::Allow)
-            }
-        };
-        if better {
-            best = Some((a + b, r));
-        }
-    }
-    best.map(|(_, r)| r)
-}
 
 fn past(action: &str) -> &'static str {
     if action == "allow" {
@@ -59,6 +28,59 @@ fn matching<'a>(level: &'a Config, s: &str) -> Result<Vec<&'a Brick>> {
         bail!("'{s}' names no brick of level {}", level.level());
     }
     Ok(out)
+}
+
+/// The level with `link` added as its last rule.
+fn with_rule(lv: &Config, link: &Link, action: Action, scope: Scope) -> Result<Config> {
+    let sel = |s: &str| Sel::try_from(s.to_string()).map_err(anyhow::Error::msg);
+    let mut with = lv.clone();
+    with.rules.push(DepRule {
+        from: sel(link.from)?,
+        to: sel(link.to)?,
+        via: None,
+        kinds: link.kinds.to_vec(),
+        scope,
+        action,
+        reason: None,
+        loc: String::new(),
+    });
+    Ok(with)
+}
+
+/// Every edge a new rule covers, decided without and with it.
+#[derive(Default)]
+struct Tally {
+    total: usize,
+    changed: usize,
+    /// Every covered pair goes from an independent brick to a normal one.
+    never: bool,
+    /// Rule locations deciding the covered edges now (`""`: the default).
+    deciders: std::collections::BTreeSet<String>,
+}
+
+impl Tally {
+    fn pair(
+        &mut self,
+        lv: &Config,
+        with: &Config,
+        (f, t): (&Brick, &Brick),
+        kinds: &[&str],
+        scopes: &[&str],
+    ) {
+        self.never &= f.independent && !t.independent;
+        for (k, s) in kinds
+            .iter()
+            .flat_map(|k| scopes.iter().map(move |s| (k, s)))
+        {
+            let before = decide(lv, f, t, None, k, s);
+            self.total += 1;
+            if decide(with, f, t, None, k, s).action != before.action {
+                self.changed += 1;
+            }
+            let by = before.rule.map_or_else(String::new, |(_, r)| r.loc.clone());
+            self.deciders.insert(by);
+        }
+    }
 }
 
 /// The rule as asked for: `from -> to`, `kinds` (empty: all), `scope` and `action`.
@@ -103,13 +125,13 @@ impl Design {
         for to in level.bricks.iter().filter(|b| b.name != from.name) {
             for kind in KINDS {
                 for scope in ["prod", "test"] {
-                    let r = decide(level, from, to, kind, scope);
+                    let d = decide(level, from, to, None, kind, scope);
                     out.push(LinkOption {
                         to: to.name.clone(),
                         kind: kind.into(),
                         scope: scope.into(),
-                        action: action(r.map_or(level.deps.default, |r| r.action)).into(),
-                        rule: r.map(|r| r.loc.clone()),
+                        action: action(d.action).into(),
+                        rule: d.rule.map(|(_, r)| r.loc.clone()),
                     });
                 }
             }
@@ -134,32 +156,34 @@ impl Design {
     }
 
     /// Where a decision comes from, as a note names it.
-    fn decider_name(&self, cfg: &Config, level: &[String], loc: Option<&str>) -> Result<String> {
-        Ok(match loc {
+    fn decider_name(&self, loc: Option<&str>) -> String {
+        match loc {
             None => "several rules".into(),
-            Some("deps.default") => format!("deps.default of {}", self.file_of(cfg, level)?),
+            Some("") => "the default (no rule)".into(),
             Some(l) => self.short_loc(l),
-        })
+        }
     }
 
     /// Whether adding `link` at `level` (brick names from the root; `[]`: the root) would
-    /// change what the level decides. Redundant when an equal rule exists, or when every edge
-    /// it covers (each matching pair, kind and scope) is already decided as `link.action`.
+    /// change what the level decides: every edge it covers (each matching pair, kind and scope)
+    /// is decided with and without it.
     pub fn link_check(&self, level: &[String], link: &Link) -> Result<LinkCheck> {
-        if !matches!(link.action, "allow" | "deny") {
-            bail!("action must be allow or deny, not '{}'", link.action);
-        }
-        let scopes: &[&str] = match link.scope {
-            "prod" => &["prod"],
-            "test" => &["test"],
-            "all" => &["prod", "test"],
+        let act = match link.action {
+            "allow" => Action::Allow,
+            "deny" => Action::Deny,
+            a => bail!("action must be allow or deny, not '{a}'"),
+        };
+        let (scope, scopes): (Scope, &[&str]) = match link.scope {
+            "prod" => (Scope::Prod, &["prod"]),
+            "test" => (Scope::Test, &["test"]),
+            "all" => (Scope::All, &["prod", "test"]),
             s => bail!("scope must be prod, test or all, not '{s}'"),
         };
         let cfg = self.config()?;
         let lv = cfg
             .node(level)
             .with_context(|| format!("no level {level:?}"))?;
-        if let Some(r) = lv.deps.rules.iter().find(|r| same_rule(r, link)) {
+        if let Some(r) = lv.rules.iter().find(|r| same_rule(r, link)) {
             return Ok(LinkCheck {
                 redundant: true,
                 why: format!("the same rule exists at {}", self.short_loc(&r.loc)),
@@ -167,28 +191,26 @@ impl Design {
             });
         }
         let (froms, tos) = (matching(lv, link.from)?, matching(lv, link.to)?);
+        let with = with_rule(lv, link, act, scope)?;
         let kinds: Vec<&str> = match link.kinds.is_empty() {
             true => KINDS.to_vec(),
             false => link.kinds.iter().map(String::as_str).collect(),
         };
-        let (mut total, mut changed) = (0, 0);
-        let mut deciders = std::collections::BTreeSet::new();
+        let mut t = Tally {
+            never: true,
+            ..Tally::default()
+        };
         for f in &froms {
-            for t in tos.iter().filter(|t| t.name != f.name) {
-                for (k, s) in kinds
-                    .iter()
-                    .flat_map(|k| scopes.iter().map(move |s| (k, s)))
-                {
-                    let r = decide(lv, f, t, k, s);
-                    total += 1;
-                    if action(r.map_or(lv.deps.default, |r| r.action)) != link.action {
-                        changed += 1;
-                    }
-                    deciders
-                        .insert(r.map_or_else(|| "deps.default".to_string(), |r| r.loc.clone()));
-                }
+            for to in tos.iter().filter(|t| t.name != f.name) {
+                t.pair(lv, &with, (f, to), &kinds, scopes);
             }
         }
+        let Tally {
+            total,
+            changed,
+            never,
+            mut deciders,
+        } = t;
         if changed > 0 {
             let why = format!("would {} {changed} of {total} edges", link.action);
             return Ok(LinkCheck {
@@ -197,14 +219,24 @@ impl Design {
                 rule: None,
             });
         }
+        if never && act == Action::Allow {
+            return Ok(LinkCheck {
+                redundant: true,
+                why: "an allow from an independent brick to a normal brick never applies".into(),
+                rule: None,
+            });
+        }
         let one = (deciders.len() == 1)
             .then(|| deciders.pop_first())
             .flatten();
-        let by = self.decider_name(&cfg, level, one.as_deref())?;
         Ok(LinkCheck {
             redundant: true,
-            why: format!("already {} by {by}", past(link.action)),
-            rule: one.filter(|d| d != "deps.default"),
+            why: format!(
+                "already {} by {}",
+                past(link.action),
+                self.decider_name(one.as_deref())
+            ),
+            rule: one.filter(|d| !d.is_empty()),
         })
     }
 }

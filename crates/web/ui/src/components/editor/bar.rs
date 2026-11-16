@@ -1,5 +1,6 @@
 //! The header's "Design" toggle (`E`), its "Auto layout" in edit mode, and the design bar (in
-//! place of the banner in edit mode): the version on screen and who made it, task chips that
+//! place of the banner in edit mode): the draft's state and actions ([`super::draft`]), the
+//! version on screen and who made it, task chips that
 //! act (planned -> select the planned bricks, no reason -> Rules tab), Undo / Redo and the last
 //! error.
 
@@ -15,8 +16,7 @@ pub fn design_button(cx: &Cx) -> View {
     let on = cx.editing();
     let c = cx.clone();
     let cls = if on { "on" } else { "" };
-    let tip =
-        "Design (E): edit bricks and rules on the canvas; every edit is a version of brickie.toml";
+    let tip = "Design (E): edit bricks and rules on the canvas; every edit is a version of the draft, published when the code matches";
     view! {
         button(id="design", class=cls, title=tip, on:click=move |_: Click| toggle_design(&c)) { "Design" }
     }
@@ -107,9 +107,11 @@ pub fn design_bar(cx: &Cx) -> View {
     };
     let ed = cx.ed;
     let (ver, chips, undo) = (version(cx, &ch), chips(cx, &ch), undo_redo(cx, &ch));
+    let draft = super::draft::draft_bar(cx, &ch);
     view! {
         div(id="cbar") {
             span(class="muted") { "design" }
+            (draft)
             (ver)
             (chips)
             (undo)

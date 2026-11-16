@@ -4,7 +4,7 @@
 use crate::cli::args::Format;
 pub use brick::{BrickCmd, Kind};
 use clap::{Args, Subcommand};
-pub use other::{DepsCmd, ExportCmd, IncludeCmd, LimitCmd, Limits};
+pub use other::{ExportCmd, IncludeCmd, LimitCmd, Limits};
 pub use rule::{RuleCmd, RuleSel};
 use std::path::PathBuf;
 
@@ -17,7 +17,9 @@ mod rule;
   brickie design show
   brickie design brick add store --kind crate --base 15
   brickie design rule add api store allow --reason \"reads data\" --base 16
-  brickie design undo --base 17")]
+  brickie design undo --base 17
+  brickie design publish --dry-run --base 17
+  brickie design publish --base 17")]
 pub struct DesignArgs {
     #[arg(long, default_value = "brickie.toml", global = true)]
     pub config: PathBuf,
@@ -30,7 +32,8 @@ pub struct DesignArgs {
 // Every write: the version it is based on, and why.
 #[derive(Args)]
 pub struct Write {
-    /// The version this edit is based on (from `design show`); refused when the design moved.
+    /// The version this edit is based on: the draft head (from `design show`), or the published
+    /// head when there is no draft yet; refused when it moved.
     #[arg(long, env = "BRICKIE_BASE")]
     pub base: u64,
     #[arg(long)]
@@ -59,7 +62,8 @@ pub struct Line {
 #[allow(clippy::large_enum_variant)]
 #[derive(Subcommand)]
 pub enum Cmd {
-    /// The design at the head: version, bricks, rules, limits and the todo list.
+    /// The working design (the draft, else the published one): version, bricks, rules, limits
+    /// and the todo list.
     Show {
         /// Only the versions after N, with what each changed.
         #[arg(long)]
@@ -72,7 +76,8 @@ pub enum Cmd {
     Log,
     /// What changed from version A to B (default: the head).
     Diff { a: u64, b: Option<u64> },
-    /// Revert the file changes of version V (default: the head) as a new version.
+    /// Revert the file changes of version V (default: the working head) as a new version of
+    /// its track (--base: that track's head).
     Undo {
         v: Option<u64>,
         #[arg(long, env = "BRICKIE_BASE")]
@@ -86,6 +91,30 @@ pub enum Cmd {
         scaffold: bool,
         #[command(flatten)]
         w: Write,
+    },
+    /// Copy the draft into the real files as one published version, once the code matches its
+    /// structure; --dry-run lists what blocks (the refactor checklist).
+    Publish {
+        /// The draft head.
+        #[arg(long, env = "BRICKIE_BASE")]
+        base: u64,
+        /// List the blocking items and the non-blocking dependency findings; write nothing.
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        note: Option<String>,
+    },
+    /// Replay the draft's ops onto the new published head (after the published design moved).
+    Rebase {
+        /// The draft head.
+        #[arg(long, env = "BRICKIE_BASE")]
+        base: u64,
+    },
+    /// Drop the draft; the published design stays as it is.
+    Discard {
+        /// The draft head.
+        #[arg(long, env = "BRICKIE_BASE")]
+        base: u64,
     },
     #[command(flatten)]
     Edit(Edit),
@@ -105,9 +134,6 @@ pub enum Edit {
     /// Add, change or remove complexity limits.
     #[command(subcommand)]
     Limit(LimitCmd),
-    /// Set the defaults for edges no rule matches.
-    #[command(subcommand)]
-    Deps(DepsCmd),
     /// Add or remove included preset files.
     #[command(subcommand)]
     Include(IncludeCmd),

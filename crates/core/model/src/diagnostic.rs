@@ -1,6 +1,5 @@
 //! The structured diagnostic every finding renders to (JSON output is its serialisation).
 
-use crate::Level;
 use serde::Serialize;
 
 /// A source location. `line == 0` means the whole file. `col` and `len` are 1-based UTF-8
@@ -38,7 +37,6 @@ pub struct DiagEdge {
 #[derive(Debug, Clone, Serialize)]
 pub struct Diagnostic {
     pub id: String,
-    pub level: Level,
     pub code: String,
     pub message: String,
     pub span: Option<Span>,
@@ -56,6 +54,4 @@ pub struct Diagnostic {
     /// Brick edges the finding is about (the hops of a cycle path); the webview draws them as
     /// violating. Empty for findings that are not about brick edges.
     pub edges: Vec<DiagEdge>,
-    pub accepted: bool,
-    pub accepted_reason: Option<String>,
 }

@@ -25,9 +25,5 @@ pub const CSS: &str = concat!(
 pub const APP_ID: &str = "app";
 pub const DATA_ID: &str = "brickie-data";
 
-/// Render the app for `params` to HTML (children of `#app`, with `data-hk` hydration keys).
 #[cfg(not(target_arch = "wasm32"))]
-pub fn render_page(data: &brickie_web_api::PageData, params: &brickie_web_api::Params) -> String {
-    let (data, params) = (data.clone(), params.clone());
-    sycamore::render_to_string(move || components::app(data, params))
-}
+pub use components::render_page;

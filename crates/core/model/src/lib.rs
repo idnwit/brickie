@@ -4,9 +4,7 @@
 pub mod codes;
 pub mod design;
 mod diagnostic;
-mod level;
 mod tree;
 
 pub use diagnostic::{DiagEdge, Diagnostic, Note, RuleRef, Span};
-pub use level::Level;
 pub use tree::{FnTree, TreeNode};

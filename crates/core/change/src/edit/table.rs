@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use std::collections::BTreeMap;
 use toml_edit::{Array, ArrayOfTables, DocumentMut, Item, Table, Value, value};
 
-/// The array of tables at `path` (`["brick"]`, `["deps", "rule"]`), created when absent.
+/// The array of tables at `path` (`["brick"]`, `["rule"]`), created when absent.
 pub fn aot_mut<'a>(doc: &'a mut DocumentMut, path: &[&str]) -> Result<&'a mut ArrayOfTables> {
     let (last, parents) = path.split_last().context("empty path")?;
     let mut t: &mut Table = doc.as_table_mut();

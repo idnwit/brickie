@@ -4,7 +4,7 @@
 #cbar{grid-column:1/4;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:5px 14px;background:var(--hl);border-bottom:1px solid var(--line);font-size:13px}
 #cbar .err-text{margin-left:auto}
 .chip{display:inline-block;padding:1px 8px;border:1px solid var(--line);border-radius:10px;font-size:12px;background:var(--panel)}
-.chip.conflict{border-color:var(--err);color:var(--err)}.chip.planned{border-style:dashed}
+.chip.conflict{border-color:var(--err);color:var(--err)}.chip.ready{border-color:var(--ok);color:var(--ok)}.chip.planned{border-style:dashed}
 /* Who made a version: agent violet, human blue, hand edit grey. */
 .chip.by-agent{border-color:var(--agent);color:var(--agent)}.chip.by-human{color:var(--sel);border-color:var(--sel)}.chip.by-external{color:var(--muted)}
 .hver{border:1px solid var(--line);border-left:3px solid var(--sel);border-radius:6px;padding:6px 8px;margin:6px 0;font-size:12px}

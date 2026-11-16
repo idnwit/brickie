@@ -1,5 +1,6 @@
 //! Unused links (allow rules no measured edge backs) are served on the levels with their filter
-//! text, in view mode and in the editor alike, also towards bricks without code.
+//! text, in view mode and in the editor alike, also towards bricks without code (a draft:
+//! the editor only).
 
 use super::*;
 
@@ -25,9 +26,16 @@ async fn a_rule_towards_a_brick_without_code_is_served_as_unused() {
     assert_eq!(edge["reason"], "engine fills the cache");
     assert!(r["design"].get("unused_links").is_none());
 
-    // View mode serves the same link, without the editor.
-    let (st, body) = s.get("/api/graph").await;
+    // Edit mode serves it from the draft; view mode shows the published design, without it.
+    let (st, body) = s.get("/api/graph?edit=1").await;
     assert_eq!(st, StatusCode::OK, "{body}");
     let v: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(v[0]["unused_links"][0], *edge);
+    let (st, body) = s.get("/api/graph").await;
+    assert_eq!(st, StatusCode::OK, "{body}");
+    let v: Value = serde_json::from_str(&body).unwrap();
+    assert!(
+        v[0]["unused_links"].as_array().is_none_or(|a| a.is_empty()),
+        "{v}"
+    );
 }

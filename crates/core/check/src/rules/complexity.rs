@@ -2,7 +2,7 @@
 //! path apply (each level's rules select its own child on the path); per metric the tightest
 //! limit wins, so a nested config can only tighten.
 
-use crate::config::{Brick, ComplexityRule, Config, Level, Resolved, level_name};
+use crate::config::{Brick, ComplexityRule, Config, Resolved, level_name};
 use crate::diag::{Finding, RuleRef, Span};
 use brickie_facts::Cache;
 use brickie_model::codes::METRICS;
@@ -44,7 +44,8 @@ fn metrics(func: &brickie_facts::Function) -> [Metric; 6] {
 
 /// The limit of a metric for a leaf path and scope: on each level of the path, the most
 /// specific rule of that level that sets it for the child on the path; across levels the
-/// lowest limit. Returns (limit, rule index within its file's level, rule).
+/// lowest limit (the outermost level on equal limits). Returns (limit, rule index within its
+/// file's level, rule).
 fn best_rule<'a>(
     cfg: &'a Config,
     path: &[String],
@@ -177,9 +178,6 @@ pub(super) fn complexity(
 }
 
 impl Finding for Cx {
-    fn weight(&self) -> u64 {
-        self.value
-    }
     fn bricks(&self) -> Vec<String> {
         vec![self.brick.clone()]
     }
@@ -188,9 +186,6 @@ impl Finding for Cx {
     }
     fn code(&self) -> String {
         format!("complexity/{}", self.metric)
-    }
-    fn level(&self) -> Level {
-        self.rule.level
     }
     fn subject(&self) -> String {
         format!("{}::{}::{}", self.file, self.qname, self.metric)
@@ -225,11 +220,11 @@ impl Finding for Cx {
     }
     fn help(&self) -> Option<String> {
         let over = self.value - self.limit;
-        Some(self.rule.help.clone().unwrap_or_else(|| match self.metric {
+        Some(match self.metric {
             "params" => format!("group {over} or more parameters into a struct"),
             "lines" => format!("split the function; it is {over} lines over the limit"),
             m => format!("return early or extract a function to cut {m} by at least {over}"),
-        }))
+        })
     }
 }
 

@@ -1,15 +1,13 @@
-//! Export, limit, deps and include commands.
+//! Export, limit and include commands.
 
 use super::Write;
 use clap::{Args, Subcommand};
 
 #[derive(Subcommand)]
 pub enum ExportCmd {
-    /// Export a child of a composite (add it, or change its scope).
+    /// Export a child of a composite.
     Set {
         brick: String,
-        #[arg(long)]
-        scope: Option<String>,
         #[command(flatten)]
         w: Write,
     },
@@ -36,9 +34,6 @@ pub struct Limits {
     pub params: Option<u64>,
     #[arg(long)]
     pub lines: Option<u64>,
-    /// error or warn.
-    #[arg(long)]
-    pub level: Option<String>,
     #[arg(long)]
     pub scope: Option<String>,
     #[arg(long = "in")]
@@ -66,21 +61,6 @@ pub enum LimitCmd {
     /// Remove a complexity limit.
     Rm {
         bricks: Option<String>,
-        #[arg(long = "in")]
-        level: Option<String>,
-        #[command(flatten)]
-        w: Write,
-    },
-}
-
-#[derive(Subcommand)]
-pub enum DepsCmd {
-    /// `deps.default` (edges no rule matches) and `deps.cycles`.
-    Set {
-        #[arg(long, value_parser = ["allow", "deny"])]
-        default: Option<String>,
-        #[arg(long, value_parser = ["allow", "deny"])]
-        cycles: Option<String>,
         #[arg(long = "in")]
         level: Option<String>,
         #[command(flatten)]

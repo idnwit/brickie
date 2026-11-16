@@ -30,7 +30,7 @@ Each reference gives one edge of one kind.
 | `test` | `#[cfg(test)]`, files under `tests/` and `benches/` |
 | `prod` | everything else |
 
-A `[[deps.rule]]` applies to `prod` by default. Cycles are checked on `prod` edges only.
+A `[[rule]]` applies to `prod` by default. Cycles are checked on `prod` edges only.
 
 ## Bricks and rules
 
@@ -38,7 +38,7 @@ Bricks group modules in `brickie.toml`. An edge between two bricks is checked ag
 their lowest common parent. Edges inside one brick, or touching unmapped modules, are ignored.
 
 ```toml
-[[deps.rule]]
+[[rule]]
 from = "tag:app"
 to = "tag:core"
 kinds = ["uses", "implements"]   # default: all three
@@ -47,15 +47,14 @@ action = "allow"                 # allow | deny
 ```
 
 The most specific rule wins (brick name 3, tag 2, `*` 1 per side, summed). Deny wins a tie. With
-no match, `deps.default` decides. Codes: `deps/deny`, `deps/default`, and `deps/private` when a
+no match, the edge is denied. Codes: `deps/deny`, and `deps/private` when a
 brick uses another brick's item that its parent does not export.
 
 ## Cycles between bricks
 
 Two or more sibling bricks that depend on each other, directly or through others, form a cycle.
 The check runs per level (among the children of one composite) over `prod` edges of all kinds. One
-`deps/cycle` error is reported per group of mutually dependent bricks. Config: `[deps] cycles =
-"deny"` (or `"allow"`).
+`deps/cycle` error is reported per group of mutually dependent bricks; cycles are always errors.
 
 ```rust
 // brick `parse`            // brick `model`

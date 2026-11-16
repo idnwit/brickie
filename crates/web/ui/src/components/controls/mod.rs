@@ -16,39 +16,22 @@ use presets::{presets, vscope};
 use sycamore::prelude::*;
 use toggles::layers_menu;
 
-fn plural(n: usize, noun: &str) -> String {
-    format!("{n} {noun}{}", if n == 1 { "" } else { "s" })
-}
-
-/// Open errors, warnings and accepted findings among the layers that are on.
+/// Findings among the layers that are on.
 fn counts(cx: &Cx) -> impl Fn() -> View + 'static {
     let cx = cx.clone();
     move || {
-        let (mut e, mut w, mut acc, mut shown) = (0, 0, 0, 0);
-        for (i, c) in cx.m.cards.iter().enumerate() {
-            if !cx.eval.with(|ev| ev.von[i]) {
-                continue;
-            }
-            shown += 1;
-            if c.accepted.get() {
-                acc += 1;
-            } else if c.d.level == "error" {
-                e += 1;
-            } else {
-                w += 1;
-            }
-        }
-        let total = cx.m.cards.len();
+        let shown = cx.eval.with(|ev| ev.von.iter().filter(|v| **v).count());
+        let total = cx.m.diags.len();
         let hidden = if shown < total {
             format!(" \u{00B7} {} hidden by layers", total - shown)
         } else {
             String::new()
         };
         let tip = format!(
-            "Findings of the data layers that are on ({shown} of {total}); accepted ones are not open. Brick badges count all layers."
+            "Findings of the data layers that are on ({shown} of {total}). Brick badges count all layers."
         );
         view! {
-            span(title=tip) { b(class="err") { (e.to_string()) } " open errors \u{00B7} " (plural(w, "warning")) " \u{00B7} " (acc.to_string()) " accepted" (hidden) }
+            span(title=tip) { b(class="err") { (shown.to_string()) } (if shown == 1 { " error" } else { " errors" }) (hidden) }
         }
     }
 }

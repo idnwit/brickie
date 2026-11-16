@@ -132,16 +132,8 @@ fn edge_states() -> View {
             legend_line("uses", "var(--e-ok)", false, 1.2, 1.0, None),
         ),
         (
-            "violating, error: dark red, thick, glow, mark \u{2717}",
+            "violating: dark red, thick, glow, mark \u{2717}",
             legend_line("uses", "var(--e-err)", true, 3.6, 1.0, Some("\u{2717}")),
-        ),
-        (
-            "violating, warning: orange, medium",
-            legend_line("uses", "var(--e-warn)", false, 2.6, 1.0, Some("\u{2717}")),
-        ),
-        (
-            "accepted violation: red, dashed, faded, \u{2713}",
-            legend_line("uses", "var(--e-acc)", false, 2.0, 0.55, Some("\u{2713}")),
         ),
         (
             "test-scope only (shown with the tests layer)",
@@ -158,9 +150,7 @@ fn edge_states() -> View {
 fn brick_bands() -> View {
     let bands: Vec<View> = [
         ("fill:var(--node);stroke:var(--b-ok);stroke-width:1.2", "correct: grey border, plain fill"),
-        ("fill:var(--b-err-fill);stroke:var(--b-err);stroke-width:3", "open error: thick red border, light red fill"),
-        ("fill:var(--b-warn-fill);stroke:var(--b-warn);stroke-width:2.4", "only open warnings: orange border and fill"),
-        ("fill:var(--node);stroke:var(--b-err);stroke-width:1.6;stroke-dasharray:6 3", "all findings accepted: dashed border"),
+        ("fill:var(--b-err-fill);stroke:var(--b-err);stroke-width:3", "finding: thick red border, light red fill"),
     ]
     .into_iter()
     .map(|(st, t)| {
@@ -173,8 +163,8 @@ fn brick_bands() -> View {
 /// What the corner badge and the heat bar show, and how the score adds up.
 fn score_help() -> View {
     view! {
-        div(class="k stat") { svg("viewBox"="0 0 56 16") { rect(x="2", y="1", width="26", height="14", rx="7", style="fill:var(--b-err)") rect(x="31", y="1", width="22", height="14", rx="7", style="fill:var(--ok)") } span { "corner badge: open errors/warnings (3E 1W), or a check when clean" } }
+        div(class="k stat") { svg("viewBox"="0 0 56 16") { rect(x="2", y="1", width="26", height="14", rx="7", style="fill:var(--b-err)") rect(x="31", y="1", width="22", height="14", rx="7", style="fill:var(--ok)") } span { "corner badge: findings (3E), or a check when clean" } }
         div(class="k stat") { svg("viewBox"="0 0 56 16") { rect(x="2", y="5", width="52", height="6", rx="3", style="fill:var(--band)") rect(x="2", y="5", width="34", height="6", rx="3", style="fill:var(--h2)") } span { "heat bar: worst function value/limit (full bar = 2x the limit)" } }
-        div(class="muted tiny") { "Score = errors + 0.25 x warnings + sum of (worst ratio - 1) over functions over a limit." }
+        div(class="muted tiny") { "Score = findings + sum of (worst ratio - 1) over functions over a limit." }
     }
 }

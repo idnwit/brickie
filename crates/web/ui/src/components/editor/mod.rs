@@ -9,6 +9,7 @@ mod bar;
 mod clip;
 mod complexity;
 mod connect;
+mod draft;
 mod drop;
 mod files;
 mod help;
@@ -107,6 +108,16 @@ where
 {
     req.rebase(base(cx));
     attempt::<E>(cx.clone(), req, toast, true, then);
+}
+
+/// Call a draft action (publish, rebase, discard) based on the version on screen; never
+/// retried on a newer head, since what it acts on may have changed.
+fn act<E>(cx: &Cx, req: ReqOf<E>, toast: String)
+where
+    E: Endpoint<Res = EditReply>,
+    ReqOf<E>: Based + Clone + 'static,
+{
+    attempt::<E>(cx.clone(), req, toast, false, |_, _| {});
 }
 
 fn attempt<E>(

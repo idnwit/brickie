@@ -1,13 +1,25 @@
 //! Text output of `brickie design`.
 
-use brickie_change::{BrickView, DesignView, LevelView, Outcome, Plan, PlanAction, Version, ago};
+use brickie_change::{
+    BrickView, DesignView, LevelView, Outcome, Plan, PlanAction, Track, Version, ago,
+};
 use std::fmt::Write;
 
-/// `ok: v16`, plus the code files scaffolded.
+/// `draft v16`, `draft v16 from published v15`, `published v15`.
+pub fn track(track: Track, v: u64, forked_from: Option<u64>) -> String {
+    match forked_from {
+        Some(f) => format!("{} v{v} from published v{f}", track.name()),
+        None => format!("{} v{v}", track.name()),
+    }
+}
+
+/// `ok: draft v16`, plus the code files scaffolded.
 pub fn outcome(o: &Outcome) -> String {
+    let v = &o.version;
+    let name = track(v.track, v.v, v.forked_from);
     let mut s = match o.changed {
-        true => format!("ok: {}\n", o.version.name()),
-        false => format!("ok: {} (no change)\n", o.version.name()),
+        true => format!("ok: {name}\n"),
+        false => format!("ok: {name} (no change)\n"),
     };
     for f in &o.scaffold {
         let what = match f.action {
@@ -61,7 +73,14 @@ fn version(s: &mut String, e: &Version) {
         .as_deref()
         .map(|n| format!("  {n}"))
         .unwrap_or_default();
-    let _ = writeln!(s, "{}  {}  {} ago{note}", e.name(), e.by.name(), ago(e.at));
+    let _ = writeln!(
+        s,
+        "{}  {}  {}  {} ago{note}",
+        e.name(),
+        e.track.name(),
+        e.by.name(),
+        ago(e.at)
+    );
     for d in &e.diff {
         let _ = writeln!(s, "    {d}");
     }
@@ -74,7 +93,11 @@ pub fn log(log: &[Version]) -> String {
 }
 
 pub fn since(head: &Version, n: u64, log: &[Version]) -> String {
-    let mut s = format!("design {} {}\n", head.name(), head.short());
+    let mut s = format!(
+        "design {} {}\n",
+        track(head.track, head.v, None),
+        head.short()
+    );
     if log.is_empty() {
         let _ = writeln!(s, "no changes since v{n}");
     }
@@ -95,7 +118,7 @@ pub fn since_agent(log: &[Version]) -> String {
 
 /// What a `--dry-run` would do.
 pub fn plan(head: u64, p: &Plan) -> String {
-    let mut s = format!("dry run on v{head} (nothing written)\n");
+    let mut s = format!("dry run on v{head}, into the draft (nothing written)\n");
     match p.diff.is_empty() {
         true => s.push_str("no change\n"),
         false => p.diff.iter().for_each(|l| {
@@ -129,8 +152,8 @@ pub fn plan_json(head: u64, p: &Plan) -> serde_json::Value {
 pub fn show(v: &DesignView) -> String {
     let short = &v.hash[..v.hash.len().min(8)];
     let mut s = format!(
-        "design v{} {short} (by {}, {} ago)\n",
-        v.v,
+        "design {} {short} (by {}, {} ago)\n",
+        track(v.track, v.v, v.forked_from),
         v.by.name(),
         ago(v.at)
     );
@@ -155,11 +178,9 @@ fn level(s: &mut String, l: &LevelView, depth: usize) {
     let pad = "  ".repeat(depth);
     let _ = writeln!(
         s,
-        "{pad}{} ({})  deps: default {}, cycles {}{}",
+        "{pad}{} ({}){}",
         l.path,
         l.file,
-        l.default,
-        l.cycles,
         list("exports", &l.exports)
     );
     for b in &l.bricks {
@@ -188,10 +209,9 @@ fn level(s: &mut String, l: &LevelView, depth: usize) {
         let metrics: Vec<String> = m.metrics.iter().map(|(k, v)| format!("{k} {v}")).collect();
         let _ = writeln!(
             s,
-            "{pad}  limit {}: {} ({}, {})",
+            "{pad}  limit {}: {} ({})",
             m.bricks,
             metrics.join(", "),
-            m.level,
             m.scope
         );
     }

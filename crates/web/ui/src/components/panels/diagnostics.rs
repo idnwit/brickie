@@ -18,26 +18,21 @@ pub fn gi_icon(g: &str) -> &'static str {
 
 /// `fRow`: one finding in the left list.
 pub fn finding_row(cx: &Cx, i: usize) -> View {
-    let card = cx.m.cards[i].clone();
-    let d = card.d.clone();
+    let d = cx.m.diags[i].clone();
     let (g, _) = group_sub(&d.code);
     let id = d.id.clone();
     let href = jump(&cx.params.get_clone(), &d).url();
     let (c0, c1, c2, c3) = (cx.clone(), cx.clone(), cx.clone(), cx.clone());
-    let acc = card.accepted;
     let cls = move || {
         let sel = c0.params.with(|p| p.item == id);
         format!("fi{}", if sel { " sel" } else { "" })
     };
-    let lv = format!("lv {}", d.level);
     let gcls = format!("gi {g}");
     let bricks = d.bricks.join(if d.code == "deps/cycle" {
         " \u{21C4} "
     } else {
         " \u{2192} "
     });
-    let dot = move || if acc.get() { "dot accepted" } else { "dot new" };
-    let st = move || if acc.get() { "accepted" } else { "open" };
     let tip = format!("{bricks}\n{}", d.message);
     let click = {
         let d1 = d.clone();
@@ -49,7 +44,7 @@ pub fn finding_row(cx: &Cx, i: usize) -> View {
             }
         }
     };
-    let (level, message) = (d.level.clone(), d.message.clone());
+    let message = d.message.clone();
     let at = d
         .brick_level
         .as_ref()
@@ -61,10 +56,8 @@ pub fn finding_row(cx: &Cx, i: usize) -> View {
             on:mouseleave=move |_: Click| c3.hover.set(None)) {
             div(class="l1") {
                 span(class=gcls) { (gi_icon(g)) }
-                span(class=lv) { (level) }
                 span(class="bk") { (bricks) }
                 span(class="at") { (at) }
-                span(class="st") { span(class=dot) {} (st) }
             }
             div(class="l2") { (message) }
         }
@@ -84,10 +77,9 @@ fn jump(p: &brickie_web_api::Params, d: &brickie_web_api::DiagView) -> brickie_w
 /// The findings the left list shows: layers, scope, filters and the text box.
 pub fn current_list(cx: &Cx) -> Vec<usize> {
     let p = cx.params.get_clone();
-    let acc: Vec<bool> = cx.m.cards.iter().map(|c| c.accepted.get()).collect();
     let idx = cx
         .eval
-        .with(|ev| list_findings(&cx.m.g, &cx.m.diags, &acc, &p, ev));
+        .with(|ev| list_findings(&cx.m.g, &cx.m.diags, &p, ev));
     let t = cx.q.get_clone().to_lowercase();
     idx.into_iter()
         .filter(|&i| {
@@ -138,7 +130,7 @@ fn scope_bar(cx: &Cx) -> impl Fn() -> View + 'static {
 /// A filter chip: its param `field` and the `value` it sets.
 type Chip = (&'static str, String, &'static str);
 
-/// The filter chip rows: group, level, levels, status and finding code.
+/// The filter chip rows: group, levels and finding code.
 fn filter_bar(cx: &Cx) -> View {
     let grp = chip_row(
         cx,
@@ -146,15 +138,6 @@ fn filter_bar(cx: &Cx) -> View {
         std::iter::once(("grp", "all".to_string(), ""))
             .chain(GROUPS.iter().map(|(g, n)| ("grp", n.to_string(), *g)))
             .collect(),
-    );
-    let lev = chip_row(
-        cx,
-        "level",
-        vec![
-            ("level", "all".into(), ""),
-            ("level", "error".into(), "error"),
-            ("level", "warn".into(), "warn"),
-        ],
     );
     let below = chip_row(
         cx,
@@ -164,21 +147,10 @@ fn filter_bar(cx: &Cx) -> View {
             ("below", "this level and below".into(), "1"),
         ],
     );
-    let status = chip_row(
-        cx,
-        "status",
-        vec![
-            ("status", "any".into(), ""),
-            ("status", "open".into(), "open"),
-            ("status", "accepted".into(), "accepted"),
-        ],
-    );
     let code_chips = code_chips(cx);
     view! {
         (grp)
-        (lev)
         (below)
-        (status)
         div(class="chips") { span(class="label") { "code" } (code_chips) }
     }
 }
@@ -205,9 +177,7 @@ fn chip_row(cx: &Cx, label: &'static str, opts: Vec<Chip>) -> View {
 fn chip_value<'a>(p: &'a Params, field: &str) -> &'a str {
     match field {
         "grp" => &p.grp,
-        "level" => &p.level,
-        "below" => &p.below,
-        _ => &p.status,
+        _ => &p.below,
     }
 }
 
@@ -215,9 +185,7 @@ fn chip_value<'a>(p: &'a Params, field: &str) -> &'a str {
 fn chip_slot<'a>(p: &'a mut Params, field: &str) -> &'a mut String {
     match field {
         "grp" => &mut p.grp,
-        "level" => &mut p.level,
-        "below" => &mut p.below,
-        _ => &mut p.status,
+        _ => &mut p.below,
     }
 }
 
@@ -290,17 +258,17 @@ mod tests {
 
     #[test]
     fn chip_reads_and_writes_the_same_param() {
-        for field in ["grp", "level", "below", "status"] {
+        for field in ["grp", "below"] {
             let mut p = Params::default();
             *chip_slot(&mut p, field) = "x".to_string();
             assert_eq!(chip_value(&p, field), "x");
         }
         let mut p = Params::default();
-        *chip_slot(&mut p, "level") = "warn".to_string();
-        assert_eq!((p.level.as_str(), p.grp.as_str()), ("warn", ""));
-        // An unknown field falls back to the status param.
-        *chip_slot(&mut p, "other") = "open".to_string();
-        assert_eq!(p.status, "open");
+        *chip_slot(&mut p, "grp") = "deps".to_string();
+        assert_eq!((p.grp.as_str(), p.below.as_str()), ("deps", ""));
+        // An unknown field falls back to the levels param.
+        *chip_slot(&mut p, "other") = "1".to_string();
+        assert_eq!(p.below, "1");
     }
 
     #[test]

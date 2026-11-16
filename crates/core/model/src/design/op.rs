@@ -34,15 +34,7 @@ pub struct BrickSpec {
     pub desc: Option<String>,
 }
 
-/// An `exports` entry: a plain name (`scope` `None`) or `{ brick, scope }`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ExportSpec {
-    pub brick: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub scope: Option<String>,
-}
-
-/// A `[[deps.rule]]` table; `None` and empty fields are omitted from the file.
+/// A `[[rule]]` table; `None` and empty fields are omitted from the file.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuleSpec {
     pub from: String,
@@ -57,11 +49,9 @@ pub struct RuleSpec {
     pub action: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub help: Option<String>,
 }
 
-/// Which `[[deps.rule]]` of a file an op means: `from` and `to` as written, narrowed by
+/// Which `[[rule]]` of a file an op means: `from` and `to` as written, narrowed by
 /// `kinds` (compared as a set) and `scope` (absent in the file means `prod`) when given. A rule's
 /// identity is `(file, from, to, kinds, scope)`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -74,22 +64,19 @@ pub struct RuleKey {
     pub scope: Option<String>,
 }
 
-/// The fields `set_rule` changes; `None` keeps a field, an empty `reason` / `help` / `via`
-/// removes it.
+/// The fields `set_rule` changes; `None` keeps a field, an empty `reason` / `via` removes it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RulePatch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub action: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub via: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub help: Option<String>,
+    pub reason: Option<String>,
 }
 
 /// A `[[complexity]]` table. As the patch of `set_complexity`, `None` keeps a field, `0`
-/// removes a metric and an empty string removes `level`, `scope` or `help`; `bricks` is
+/// removes a metric and an empty string removes `scope`; `bricks` is
 /// ignored there (it is the identity).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ComplexitySpec {
@@ -108,11 +95,7 @@ pub struct ComplexitySpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lines: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub level: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub help: Option<String>,
 }
 
 /// One design operation. JSON: `{"op": "add_brick", "file": "brickie.toml", ...}`.
@@ -172,12 +155,10 @@ pub enum Op {
         file: String,
         name: String,
     },
-    /// Export `brick` from the composite level in `file`, or replace its scope when already
-    /// exported. `None` scope means all.
+    /// Export `brick` from the composite level in `file` (nothing when already exported).
     AddExport {
         file: String,
         brick: String,
-        scope: Option<String>,
     },
     /// Stop exporting `brick` from the composite level in `file`.
     RemoveExport {
@@ -212,13 +193,6 @@ pub enum Op {
         bricks: Option<String>,
         set: ComplexitySpec,
     },
-    SetDeps {
-        file: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        default: Option<String>,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        cycles: Option<String>,
-    },
     AddInclude {
         file: String,
         path: String,
@@ -251,7 +225,6 @@ impl Op {
             | Op::AddComplexity { file, .. }
             | Op::RemoveComplexity { file, .. }
             | Op::SetComplexity { file, .. }
-            | Op::SetDeps { file, .. }
             | Op::AddInclude { file, .. }
             | Op::RemoveInclude { file, .. }
             | Op::CreateFile { file } => file,
@@ -276,7 +249,6 @@ impl Op {
             Op::AddComplexity { .. } => "add_complexity",
             Op::RemoveComplexity { .. } => "remove_complexity",
             Op::SetComplexity { .. } => "set_complexity",
-            Op::SetDeps { .. } => "set_deps",
             Op::AddInclude { .. } => "add_include",
             Op::RemoveInclude { .. } => "remove_include",
             Op::CreateFile { .. } => "create_file",

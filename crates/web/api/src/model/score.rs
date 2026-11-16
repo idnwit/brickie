@@ -1,12 +1,9 @@
 //! Brick scores: the one place that turns findings and function metrics into numbers. The
-//! server embeds the static part (per-function complexity ratios in `BrickView`); the open
-//! finding counts depend on review state, so the page computes them with [`brick_scores`].
+//! server embeds the static part (per-function complexity ratios in `BrickView`); the
+//! finding counts depend on the layers shown, so the page computes them with [`brick_scores`].
 
 use super::{BrickView, DiagView, GraphView};
 use serde::{Deserialize, Serialize};
-
-/// Weight of an open warning relative to an open error.
-const WARN_WEIGHT: f64 = 0.25;
 
 /// A function over its worst limit: the metric with the highest value/limit ratio.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -43,23 +40,22 @@ fn category(code: &str) -> usize {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct BrickScore {
     pub errors: u32,
-    pub warns: u32,
-    /// Open errors and warnings per [`CATEGORIES`].
+    /// Findings per [`CATEGORIES`].
     pub by_cat: [u32; 5],
     /// Sum over functions of `max(0, worst ratio - 1)`.
     pub excess: f64,
-    /// `errors + 0.25 * warns + excess`.
+    /// `errors + excess`.
     pub score: f64,
     pub edges_in: u32,
     pub edges_out: u32,
-    /// Edges with an open deps finding.
+    /// Edges with a finding.
     pub viol_in: u32,
     pub viol_out: u32,
 }
 
 impl BrickScore {
     pub fn clean(&self) -> bool {
-        self.errors == 0 && self.warns == 0
+        self.errors == 0
     }
 }
 
@@ -68,9 +64,8 @@ fn excess(b: &BrickView) -> f64 {
     b.hot.iter().map(|f| (f.ratio - 1.0).max(0.0)).sum()
 }
 
-/// Scores of all bricks; `accepted[i]` is the review state of `diags[i]`. Only open (not
-/// accepted) findings of level `error` or `warn` count, whatever layers are shown.
-pub fn brick_scores(g: &GraphView, diags: &[DiagView], accepted: &[bool]) -> Vec<BrickScore> {
+/// Scores of all bricks: every finding counts, whatever layers are shown.
+pub fn brick_scores(g: &GraphView, diags: &[DiagView]) -> Vec<BrickScore> {
     let mut out: Vec<BrickScore> = g
         .bricks
         .iter()
@@ -83,32 +78,17 @@ pub fn brick_scores(g: &GraphView, diags: &[DiagView], accepted: &[bool]) -> Vec
             }
         })
         .collect();
-    let open = |i: usize| !accepted.get(i).copied().unwrap_or(false);
-    for (i, d) in diags.iter().enumerate() {
-        let err = d.level == "error";
-        if !open(i) || !(err || d.level == "warn") {
-            continue;
-        }
+    for d in diags {
         for b in super::diag_bricks(g, d) {
             let s = &mut out[b];
-            if err {
-                s.errors += 1;
-                s.score += 1.0;
-            } else {
-                s.warns += 1;
-                s.score += WARN_WEIGHT;
-            }
+            s.errors += 1;
+            s.score += 1.0;
             s.by_cat[category(&d.code)] += 1;
         }
     }
     // Frame edges repeat boundary edges (another drawing of the same edges): not counted.
     for e in g.edges.iter().filter(|e| !e.frame()) {
-        let viol = e.diags.iter().any(|id| {
-            diags
-                .iter()
-                .position(|d| d.id == *id)
-                .is_some_and(|i| open(i) && matches!(diags[i].level.as_str(), "error" | "warn"))
-        });
+        let viol = e.diags.iter().any(|id| diags.iter().any(|d| d.id == *id));
         out[e.from].edges_out += 1;
         out[e.to].edges_in += 1;
         if viol {
@@ -157,10 +137,9 @@ mod tests {
         }
     }
 
-    fn diag(id: &str, code: &str, level: &str, bricks: &[&str]) -> DiagView {
+    fn diag(id: &str, code: &str, bricks: &[&str]) -> DiagView {
         DiagView {
             id: id.into(),
-            level: level.into(),
             code: code.into(),
             message: String::new(),
             span: None,
@@ -169,8 +148,6 @@ mod tests {
             help: None,
             notes: vec![],
             bricks: bricks.iter().map(|s| s.to_string()).collect(),
-            accepted: false,
-            accepted_reason: None,
             snippet: None,
             brick_level: None,
         }
@@ -208,30 +185,21 @@ mod tests {
     }
 
     #[test]
-    fn score_adds_errors_warnings_and_excess() {
+    fn score_adds_errors_and_excess() {
         let g = graph();
         let diags = vec![
-            diag("d1", "deps/deny", "error", &["a", "b"]),
-            diag("w1", "complexity/cognitive", "warn", &["a"]),
-            diag("c1", "deps/cycle", "error", &["a"]),
-            diag("i1", "stale/file", "info", &["a"]),
+            diag("d1", "deps/deny", &["a", "b"]),
+            diag("w1", "complexity/cognitive", &["a"]),
+            diag("c1", "deps/cycle", &["a"]),
+            diag("i1", "stale/file", &["a"]),
         ];
-        let s = brick_scores(&g, &diags, &[false; 4]);
-        assert_eq!((s[0].errors, s[0].warns), (2, 1));
-        assert_eq!(s[0].by_cat, [1, 1, 1, 0, 0]);
-        // 2 errors + 0.25 warn + (0.8 + 0.2) excess
-        assert!((s[0].score - 3.25).abs() < 1e-9);
+        let s = brick_scores(&g, &diags);
+        assert_eq!(s[0].errors, 4);
+        assert_eq!(s[0].by_cat, [1, 1, 1, 1, 0]);
+        // 4 findings + (0.8 + 0.2) excess
+        assert!((s[0].score - 5.0).abs() < 1e-9);
         assert_eq!((s[1].errors, s[1].score), (1, 1.0));
         assert_eq!((s[0].edges_out, s[0].viol_out, s[1].viol_in), (1, 1, 1));
-    }
-
-    #[test]
-    fn accepted_findings_do_not_count() {
-        let g = graph();
-        let diags = vec![diag("d1", "deps/deny", "error", &["a", "b"])];
-        let s = brick_scores(&g, &diags, &[true]);
-        assert!(s[1].clean() && s[1].score == 0.0 && s[1].viol_in == 0);
-        assert!((s[0].score - 1.0).abs() < 1e-9);
     }
 
     #[test]

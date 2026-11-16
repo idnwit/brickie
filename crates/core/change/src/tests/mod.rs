@@ -1,9 +1,11 @@
 //! Engine tests on a temporary workspace (no cache: config-level behaviour only).
 
+mod draft;
 mod exports;
 mod independent;
 mod keys;
 mod levels;
+mod publish;
 mod undo;
 mod ungroup;
 mod versions;
@@ -24,10 +26,7 @@ tags = ["core"]
 name = "b"
 members = ["pb"]
 
-[deps]
-default = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "a"
 to = "b"
 action = "allow"
@@ -61,8 +60,29 @@ impl Ws {
         std::fs::write(p, text).unwrap();
     }
 
+    /// A config file of the working tree: the draft's copy when a draft exists.
     pub fn read(&self, rel: &str) -> String {
+        std::fs::read_to_string(self.working(rel)).unwrap()
+    }
+
+    /// A published file on disk.
+    pub fn read_published(&self, rel: &str) -> String {
         std::fs::read_to_string(self.path(rel)).unwrap()
+    }
+
+    /// Whether the working tree holds `rel`.
+    pub fn has(&self, rel: &str) -> bool {
+        self.working(rel).exists()
+    }
+
+    fn working(&self, rel: &str) -> PathBuf {
+        let draft = self
+            .path(".brickie/draft/files")
+            .join(rel.replace("..", "^"));
+        match self.path(".brickie/draft/draft.json").exists() && draft.exists() {
+            true => draft,
+            false => self.path(rel),
+        }
     }
 
     pub fn design(&self) -> Design {

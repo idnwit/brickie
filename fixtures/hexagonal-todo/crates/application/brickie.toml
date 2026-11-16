@@ -14,7 +14,13 @@ desc = "Repositories and IdGenerator"
 
 [[brick]]
 name = "usecases"
-members = ["todo-application"]
+members = [
+    "path:src/lib.rs",
+    "path:src/ports/mod.rs",
+    "path:src/usecases/mod.rs",
+    "todo-application::usecases::tests",
+    "todo-application::usecases::view",
+]
 desc = "BoardInteractor: implements BoardService, delegates to feature functions"
 
 [[brick]]
@@ -27,39 +33,35 @@ name = "usecases-notes"
 members = ["todo-application::usecases::notes"]
 desc = "Note use cases"
 
-[deps]
-default = "deny"
-cycles = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "usecases"
 to = "*"
 scope = "all"
 action = "allow"
 reason = "the interactor wires feature use cases to ports"
 
-[[deps.rule]]
+[[rule]]
 from = "usecases-columns"
 to = "board-service"
 scope = "all"
 action = "allow"
 reason = "drafts and errors"
 
-[[deps.rule]]
+[[rule]]
 from = "usecases-columns"
 to = "board-storage"
 scope = "all"
 action = "allow"
 reason = "load and save through ports"
 
-[[deps.rule]]
+[[rule]]
 from = "usecases-notes"
 to = "board-service"
 scope = "all"
 action = "allow"
 reason = "drafts and errors"
 
-[[deps.rule]]
+[[rule]]
 from = "usecases-notes"
 to = "board-storage"
 scope = "all"

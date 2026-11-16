@@ -9,7 +9,8 @@ pub struct Link {
     pub level: Vec<String>,
     pub from: String,
     pub to: String,
-    pub via: Option<Vec<String>>,
+    /// Exported children of `to` the rule is limited to (empty: any entry).
+    pub via: Vec<String>,
     /// Empty means all kinds.
     pub kinds: Vec<String>,
     pub scope: Scope,
@@ -32,6 +33,12 @@ impl Link {
             Scope::All => "any scope".to_string(),
             s => format!("{} scope", s.name()),
         };
-        format!("no {kinds} in {scope}")
+        let via = if self.via.is_empty() {
+            String::new()
+        } else {
+            let v: Vec<String> = self.via.iter().map(|v| format!("`{v}`")).collect();
+            format!(" entering through {}", v.join(" or "))
+        };
+        format!("no {kinds}{via} in {scope}")
     }
 }

@@ -6,12 +6,11 @@ use super::*;
 use brickie_web_api::*;
 use std::collections::BTreeSet;
 
-/// Effective status of a drawn edge (`edgeOn`): `ok`, `debt` (violating) or `accepted`.
+/// Effective status of a drawn edge (`edgeOn`): `ok` or `debt` (violating).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EStat {
     Ok,
     Debt,
-    Accepted,
 }
 
 #[derive(Debug, Clone)]
@@ -21,10 +20,8 @@ pub struct Eval {
     pub von: Vec<bool>,
     /// Drawn status per edge, `None` when no enabled layer shows it.
     pub edge: Vec<Option<EStat>>,
-    /// Per brick: open findings counted by `vOn`, and whether one is an error.
-    pub node: Vec<(usize, bool)>,
-    /// Per brick: it has shown findings and all of them are accepted.
-    pub node_acc: Vec<bool>,
+    /// Per brick: findings counted by `vOn`.
+    pub node: Vec<usize>,
     pub focus: Option<Focus>,
 }
 
@@ -39,25 +36,19 @@ struct EdgeFacts {
     /// It carries findings, and at least one finding's layer is on.
     dbt: bool,
     dbt_on: bool,
-    all_accepted: bool,
 }
 
 impl EdgeFacts {
     /// The drawn status, `None` when the edge is hidden.
     fn stat(&self) -> Option<EStat> {
-        let marked = if self.all_accepted {
-            EStat::Accepted
-        } else {
-            EStat::Debt
-        };
         if self.viol_preset {
-            return self.in_viol.then_some(marked);
+            return self.in_viol.then_some(EStat::Debt);
         }
         let debt = self.dbt && self.dbt_on;
         if (self.test && !self.tests_on && !debt) || !(self.edges_on || debt) {
             return None;
         }
-        Some(if debt { marked } else { EStat::Ok })
+        Some(if debt { EStat::Debt } else { EStat::Ok })
     }
 }
 
@@ -65,23 +56,18 @@ impl EdgeFacts {
 struct EvalIn<'a> {
     g: &'a GraphView,
     diags: &'a [DiagView],
-    accepted: &'a [bool],
     p: &'a Params,
     lay: Lay,
     von: Vec<bool>,
 }
 
 impl<'a> EvalIn<'a> {
-    fn new(g: &'a GraphView, diags: &'a [DiagView], accepted: &'a [bool], p: &'a Params) -> Self {
+    fn new(g: &'a GraphView, diags: &'a [DiagView], p: &'a Params) -> Self {
         let lay = Lay::from_params(p);
-        let von = diags
-            .iter()
-            .map(|d| v_on(&lay, p, &d.code, &d.level))
-            .collect();
+        let von = diags.iter().map(|d| v_on(&lay, p, &d.code)).collect();
         EvalIn {
             g,
             diags,
-            accepted,
             p,
             lay,
             von,
@@ -129,55 +115,40 @@ impl<'a> EvalIn<'a> {
             edges_on: self.lay.on("edges"),
             dbt: !cards.is_empty(),
             dbt_on: cards.iter().any(|&c| f_on(&self.lay, &self.diags[c].code)),
-            all_accepted: !cards.is_empty() && cards.iter().all(|&c| self.accepted[c]),
         }
         .stat()
     }
 
-    /// Per brick: open shown findings and whether one is an error, and whether it has shown
-    /// findings that are all accepted.
-    fn node_counts(&self) -> (Vec<(usize, bool)>, Vec<bool>) {
-        let mut node = vec![(0usize, false); self.g.bricks.len()];
-        let mut node_acc = vec![false; self.g.bricks.len()];
-        for (c, d) in self.diags.iter().enumerate().filter(|&(c, _)| self.von[c]) {
+    /// Per brick: shown findings.
+    fn node_counts(&self) -> Vec<usize> {
+        let mut node = vec![0usize; self.g.bricks.len()];
+        for (d, _) in self.diags.iter().zip(&self.von).filter(|(_, v)| **v) {
             for b in diag_bricks(self.g, d) {
-                if self.accepted[c] {
-                    node_acc[b] = true;
-                } else {
-                    node[b].0 += 1;
-                    node[b].1 |= d.level == "error";
-                }
+                node[b] += 1;
             }
         }
-        (node, node_acc)
+        node
     }
 }
 
-pub fn evaluate(g: &GraphView, diags: &[DiagView], accepted: &[bool], p: &Params) -> Eval {
-    let ev = EvalIn::new(g, diags, accepted, p);
+pub fn evaluate(g: &GraphView, diags: &[DiagView], p: &Params) -> Eval {
+    let ev = EvalIn::new(g, diags, p);
     let sel = Sel::from_params(p, g);
     let viol = ev.viol_edges();
     let edge = (0..g.edges.len()).map(|i| ev.edge_stat(i, &viol)).collect();
-    let (node, node_acc) = ev.node_counts();
+    let node = ev.node_counts();
     let focus = focus_of(g, &sel, p, diags);
     Eval {
         sel,
         von: ev.von,
         edge,
         node,
-        node_acc,
         focus,
     }
 }
 
 /// `listFindings` (without the text filter): the diagnostics shown in the left list.
-pub fn list_findings(
-    g: &GraphView,
-    diags: &[DiagView],
-    accepted: &[bool],
-    p: &Params,
-    ev: &Eval,
-) -> Vec<usize> {
+pub fn list_findings(g: &GraphView, diags: &[DiagView], p: &Params, ev: &Eval) -> Vec<usize> {
     let scope = ev.sel.scope(g);
     (0..diags.len())
         .filter(|&i| {
@@ -190,12 +161,6 @@ pub fn list_findings(
                     || under(d.brick_level.as_deref().unwrap_or("root"), p.level_path()))
                 && (p.grp.is_empty() || group_sub(&d.code).0 == p.grp)
                 && code_matches(&d.code, &p.code)
-                && (p.level.is_empty() || d.level == p.level)
-                && match p.status.as_str() {
-                    "open" => !accepted[i],
-                    "accepted" => accepted[i],
-                    _ => true,
-                }
         })
         .collect()
 }
@@ -204,10 +169,9 @@ pub fn list_findings(
 mod tests {
     use super::*;
 
-    fn diag(id: &str, code: &str, level: &str, bricks: &[&str]) -> DiagView {
+    fn diag(id: &str, code: &str, bricks: &[&str]) -> DiagView {
         DiagView {
             id: id.into(),
-            level: level.into(),
             code: code.into(),
             message: String::new(),
             span: None,
@@ -216,8 +180,6 @@ mod tests {
             help: None,
             notes: vec![],
             bricks: bricks.iter().map(|s| s.to_string()).collect(),
-            accepted: false,
-            accepted_reason: None,
             snippet: None,
             brick_level: None,
         }
@@ -249,64 +211,50 @@ mod tests {
         }
     }
 
-    /// One edge a -> b (kind `uses`) with the given findings (level, accepted) on it.
-    fn edge_stat_of(q: &str, test: bool, found: &[(&str, bool)]) -> Option<EStat> {
+    /// One edge a -> b (kind `uses`) with `found` findings on it.
+    fn edge_stat_of(q: &str, test: bool, found: usize) -> Option<EStat> {
         let mut g = graph();
         g.edges = vec![EdgeView {
             test,
-            diags: (0..found.len()).map(|i| format!("d{i}")).collect(),
+            diags: (0..found).map(|i| format!("d{i}")).collect(),
             ..graph().edges[1].clone()
         }];
-        let diags: Vec<DiagView> = found
-            .iter()
-            .enumerate()
-            .map(|(i, (lv, _))| diag(&format!("d{i}"), "deps/deny", lv, &["a", "b"]))
+        let diags: Vec<DiagView> = (0..found)
+            .map(|i| diag(&format!("d{i}"), "deps/deny", &["a", "b"]))
             .collect();
-        let acc: Vec<bool> = found.iter().map(|f| f.1).collect();
-        evaluate(&g, &diags, &acc, &Params::from_query(q)).edge[0]
+        evaluate(&g, &diags, &Params::from_query(q)).edge[0]
     }
 
     #[test]
     fn edge_status_table() {
-        use EStat::{Accepted as A, Debt as D, Ok as O};
-        let err = ("error", false);
-        let acc = ("error", true);
-        let warn = ("warn", false);
-        // (query, test-only edge, findings on the edge, drawn status)
+        use EStat::{Debt as D, Ok as O};
+        // (query, test-only edge, number of findings on the edge, drawn status)
         let table = [
-            ("", false, vec![], Some(O)),
-            ("", true, vec![], None),
-            ("lay=%2Btests", true, vec![], Some(O)),
-            ("", true, vec![err], Some(D)),
-            ("", true, vec![acc], Some(A)),
-            ("", false, vec![warn], Some(D)),
-            ("", false, vec![acc, err], Some(D)),
-            ("", false, vec![acc, acc], Some(A)),
-            ("lay=-edges", false, vec![], None),
-            ("lay=-edges", false, vec![err], Some(D)),
-            ("lay=-deps", false, vec![err], Some(O)),
-            ("lay=-deps", true, vec![err], None),
-            ("lay=-deps,-edges", false, vec![err], None),
-            ("lay=-k-uses", false, vec![err], None),
-            ("p=all", true, vec![], None),
-            ("p=all", false, vec![warn], Some(D)),
-            ("p=viol", false, vec![], None),
-            ("p=viol", false, vec![err], Some(D)),
-            ("p=viol", true, vec![err], Some(D)),
-            ("p=viol", false, vec![acc], Some(A)),
-            ("p=viol", false, vec![acc, err], Some(D)),
-            ("p=viol", false, vec![warn], None),
-            ("p=viol&level=warn", false, vec![warn], Some(D)),
-            ("p=viol&vs=cx", false, vec![err], None),
-            ("p=viol&vs=deps", false, vec![err], Some(D)),
-            ("p=viol&lay=-deps", false, vec![err], None),
-            ("p=viol&lay=-k-uses", false, vec![err], None),
+            ("", false, 0, Some(O)),
+            ("", true, 0, None),
+            ("lay=%2Btests", true, 0, Some(O)),
+            ("", true, 1, Some(D)),
+            ("", false, 2, Some(D)),
+            ("lay=-edges", false, 0, None),
+            ("lay=-edges", false, 1, Some(D)),
+            ("lay=-deps", false, 1, Some(O)),
+            ("lay=-deps", true, 1, None),
+            ("lay=-deps,-edges", false, 1, None),
+            ("lay=-k-uses", false, 1, None),
+            ("p=all", true, 0, None),
+            ("p=viol", false, 0, None),
+            ("p=viol", false, 1, Some(D)),
+            ("p=viol", true, 1, Some(D)),
+            ("p=viol&vs=cx", false, 1, None),
+            ("p=viol&vs=deps", false, 1, Some(D)),
+            ("p=viol&lay=-deps", false, 1, None),
+            ("p=viol&lay=-k-uses", false, 1, None),
         ];
         for (q, test, found, want) in table {
             assert_eq!(
-                edge_stat_of(q, test, &found),
+                edge_stat_of(q, test, found),
                 want,
-                "{q} test={test} {found:?}"
+                "{q} test={test} found={found}"
             );
         }
     }
@@ -324,7 +272,7 @@ mod tests {
         };
         // 0: inner edge, 1: boundary edge to the children, 2: aggregated edge to the frame.
         g.edges = vec![e(0, 1, vec![]), e(1, 2, vec![]), e(2, 1, vec![1])];
-        let drawn = |q: &str| evaluate(&g, &[], &[], &Params::from_query(q)).edge;
+        let drawn = |q: &str| evaluate(&g, &[], &Params::from_query(q)).edge;
         let ok = Some(EStat::Ok);
         assert_eq!(drawn(""), vec![ok, ok, None]);
         assert_eq!(drawn("bnd=frame"), vec![ok, None, ok]);
@@ -333,20 +281,18 @@ mod tests {
     #[test]
     fn architecture_shows_all_edges_with_violating_ones_marked() {
         let g = graph();
-        let diags = vec![diag("d1", "deps/deny", "error", &["a", "b"])];
-        let arch = evaluate(&g, &diags, &[false], &Params::default());
+        let diags = vec![diag("d1", "deps/deny", &["a", "b"])];
+        let arch = evaluate(&g, &diags, &Params::default());
         // Architecture draws every edge and marks the violating one; complexity and stale
         // findings stay hidden.
         assert_eq!(
             arch.edge,
             vec![Some(EStat::Debt), Some(EStat::Ok), Some(EStat::Ok)]
         );
-        assert_eq!(arch.node, vec![(1, true), (1, true), (0, false)]);
-        let viol = evaluate(&g, &diags, &[false], &Params::from_query("p=viol"));
+        assert_eq!(arch.node, vec![1, 1, 0]);
+        let viol = evaluate(&g, &diags, &Params::from_query("p=viol"));
         assert_eq!(viol.edge, vec![Some(EStat::Debt), None, None]);
-        assert_eq!(viol.node, vec![(1, true), (1, true), (0, false)]);
-        let all = evaluate(&g, &diags, &[true], &Params::from_query("p=all"));
-        assert_eq!(all.edge[0], Some(EStat::Accepted));
+        assert_eq!(viol.node, vec![1, 1, 0]);
     }
 
     #[test]
@@ -369,19 +315,19 @@ mod tests {
             ],
             ..graph()
         };
-        let diags = vec![diag("cy", "deps/cycle", "error", &["a", "b", "c"])];
+        let diags = vec![diag("cy", "deps/cycle", &["a", "b", "c"])];
         for q in ["p=viol", "p=all", ""] {
-            let ev = evaluate(&g, &diags, &[false], &Params::from_query(q));
+            let ev = evaluate(&g, &diags, &Params::from_query(q));
             assert_eq!(ev.edge[0], Some(EStat::Debt), "{q}");
             assert_eq!(ev.edge[2], Some(EStat::Debt), "{q}");
             assert_ne!(ev.edge[1], Some(EStat::Debt), "{q}");
         }
-        let viol = evaluate(&g, &diags, &[false], &Params::from_query("p=viol"));
+        let viol = evaluate(&g, &diags, &Params::from_query("p=viol"));
         assert_eq!(viol.edge[1], None);
-        let s = brickie_web_api::brick_scores(&g, &diags, &[false]);
+        let s = brickie_web_api::brick_scores(&g, &diags);
         assert_eq!((s[0].viol_in, s[0].viol_out), (1, 1));
         assert_eq!((s[1].viol_in, s[1].viol_out), (1, 0));
-        let f = evaluate(&g, &diags, &[false], &Params::from_query("item=cy"))
+        let f = evaluate(&g, &diags, &Params::from_query("item=cy"))
             .focus
             .unwrap();
         assert_eq!(f.hot, [0, 2].into());
@@ -390,12 +336,12 @@ mod tests {
     #[test]
     fn selecting_a_brick_keeps_its_edges_and_a_finding_wins() {
         let g = graph();
-        let diags = vec![diag("d1", "deps/deny", "error", &["a", "b"])];
+        let diags = vec![diag("d1", "deps/deny", &["a", "b"])];
         let p = Params::from_query("brick=c");
-        let f = evaluate(&g, &diags, &[false], &p).focus.unwrap();
+        let f = evaluate(&g, &diags, &p).focus.unwrap();
         assert_eq!(f.keep, [1, 2].into());
         let p = Params::from_query("brick=c&item=d1");
-        let f = evaluate(&g, &diags, &[false], &p).focus.unwrap();
+        let f = evaluate(&g, &diags, &p).focus.unwrap();
         assert!(f.finding && f.keep == [0].into() && f.bricks == [0, 1].into());
     }
 
@@ -403,17 +349,14 @@ mod tests {
     fn findings_list_is_scoped_by_selection() {
         let g = graph();
         let diags = vec![
-            diag("d1", "deps/deny", "error", &["a", "b"]),
-            diag("c1", "complexity/cognitive", "error", &["c"]),
+            diag("d1", "deps/deny", &["a", "b"]),
+            diag("c1", "complexity/cognitive", &["c"]),
         ];
         let p = Params::from_query("p=all");
-        let ev = evaluate(&g, &diags, &[false, false], &p);
-        assert_eq!(
-            list_findings(&g, &diags, &[false, false], &p, &ev),
-            vec![0, 1]
-        );
+        let ev = evaluate(&g, &diags, &p);
+        assert_eq!(list_findings(&g, &diags, &p, &ev), vec![0, 1]);
         let p = Params::from_query("p=all&brick=c");
-        let ev = evaluate(&g, &diags, &[false, false], &p);
-        assert_eq!(list_findings(&g, &diags, &[false, false], &p, &ev), vec![1]);
+        let ev = evaluate(&g, &diags, &p);
+        assert_eq!(list_findings(&g, &diags, &p, &ev), vec![1]);
     }
 }

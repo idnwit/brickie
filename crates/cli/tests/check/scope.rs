@@ -1,4 +1,4 @@
-//! Check tests: `--brick` ownership, the footers, the exit code, and `--skip`.
+//! Check tests: `--brick` ownership, the footer and the exit code.
 
 use super::nested::{ROOT, WEB, tree};
 use super::support::*;
@@ -78,49 +78,4 @@ fn text_footer_reports_outside_scope() {
     let o = run(&config, &["--brick", "web/api", "--color", "never"]);
     assert_eq!(o.code, 0, "{}", o.stdout);
     assert!(o.stdout.contains("outside scope: "), "{}", o.stdout);
-    assert!(o.stdout.trim_end().ends_with("warnings"), "{}", o.stdout);
-}
-
-#[test]
-fn skip_hides_warnings_only() {
-    let w = world(|_| {});
-    let warn = with_bricks("[[complexity]]\nbricks = \"*\"\ncognitive = 15\nlevel = \"warn\"\n");
-    let config = w.save(&warn);
-    let o = run(
-        &config,
-        &["--format", "json", "--skip", "complexity/cognitive"],
-    );
-    assert!(codes(&o, "complexity").is_empty(), "{}", o.stdout);
-    assert_eq!(o.json["skipped"]["warnings"], 2);
-    assert_eq!(o.json["skipped"]["codes"][0], "complexity/cognitive");
-    let o = run(
-        &config,
-        &["--skip", "complexity/cognitive", "--color", "never"],
-    );
-    assert!(
-        o.stdout
-            .contains("skipped: 2 warnings (complexity/cognitive)"),
-        "{}",
-        o.stdout
-    );
-
-    // The same code at level error is not hidden and still fails the run.
-    let err = with_bricks("[[complexity]]\nbricks = \"tag:core\"\ncognitive = 15\n");
-    let config = w.save(&err);
-    let o = run(
-        &config,
-        &[
-            "--format",
-            "json",
-            "--skip",
-            "complexity/cognitive,bricks/unmapped",
-        ],
-    );
-    assert_eq!(o.code, 1, "{}", o.stdout);
-    assert_eq!(codes(&o, "complexity").len(), 1);
-    assert!(codes(&o, "bricks/unmapped").is_empty());
-    assert_eq!(o.json["skipped"]["warnings"], 1);
-
-    let o = run(&config, &["--skip", "nope/x"]);
-    assert_eq!(o.code, 2);
 }

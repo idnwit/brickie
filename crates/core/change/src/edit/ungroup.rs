@@ -1,5 +1,5 @@
 //! `ungroup`: undo a composite. Its children are lifted into the parent file (`path` and
-//! `path:` members rebased), with the child level's `[[deps.rule]]` and `[[complexity]]`
+//! `path:` members rebased), with the child level's `[[rule]]` and `[[complexity]]`
 //! entries (their selectors name the same bricks, now siblings); the brick stays as a leaf
 //! without `path`. The child level's `exports` no longer mean anything and are dropped. The
 //! child file leaves the design: publish lists it for deletion by hand (it never deletes).
@@ -30,21 +30,6 @@ pub fn ungroup(docs: &mut Docs, file: &str, name: &str) -> Result<()> {
     if doc.contains_key("include") {
         bail!("{child} has `include`: remove it before ungrouping '{name}'");
     }
-    // The lifted bricks fall under the parent's `deps`: only a value that differs from it
-    // would be lost (a level copied from its parent at creation loses nothing).
-    let dep = |d: &toml_edit::DocumentMut, k: &str| -> Option<String> {
-        let v = d.get("deps").and_then(|t| t.get(k)).and_then(Item::as_str);
-        v.map(String::from)
-    };
-    let parent_doc = docs.get(file).context("level file is not in the change")?;
-    if ["default", "cycles"]
-        .iter()
-        .any(|k| dep(&doc, k).is_some_and(|v| v != dep(parent_doc, k).unwrap_or("allow".into())))
-    {
-        bail!(
-            "{child} sets [deps] default/cycles differently from {file}: align or remove them before ungrouping '{name}'"
-        );
-    }
     let (from, to) = (dir_of(&child), dir_of(file));
     let lifted = |path: &[&str]| -> Vec<Table> {
         aot(&doc, path).map_or_else(Vec::new, |a| a.iter().cloned().collect())
@@ -54,7 +39,7 @@ pub fn ungroup(docs: &mut Docs, file: &str, name: &str) -> Result<()> {
         rebase(&mut b, &from, &to);
         insert(parent, b).with_context(|| format!("ungroup '{name}'"))?;
     }
-    for path in [&["deps", "rule"][..], &["complexity"]] {
+    for path in [&["rule"][..], &["complexity"]] {
         for t in lifted(path) {
             aot_mut(parent, path)?.push(t);
         }

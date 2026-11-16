@@ -1,5 +1,5 @@
 //! Names to files: writers address bricks by path (`web/api`) and levels by the brick that
-//! owns them; ops need the physical config file. Read from the files on disk.
+//! owns them; ops need the physical config file. Read from the working tree (the draft, if any).
 
 use super::Design;
 use crate::edit::{Docs, find_rule};
@@ -7,7 +7,7 @@ use crate::paths::{join_rel, to_rel};
 use anyhow::{Context, Result, bail};
 use brickie_check::config::{self, Config};
 use brickie_model::codes::DESIGN_NO_MATCH;
-use brickie_model::design::{ExportSpec, Op, RuleKey};
+use brickie_model::design::{Op, RuleKey};
 use toml_edit::Item;
 
 /// `root/web/api`, `web/api` -> `["web", "api"]`; `root`, `.`, `` -> `[]`.
@@ -23,9 +23,13 @@ pub fn brick_path(s: &str) -> Vec<String> {
 }
 
 impl Design {
-    /// The design on disk, loaded and validated.
+    /// The working tree (the draft when one exists, else the published files), loaded and
+    /// validated.
     pub fn config(&self) -> Result<Config> {
-        config::load(&self.config_path())
+        match self.draft()? {
+            Some(d) => self.preview(&d.files)?.load_config(),
+            None => config::load(&self.config_path()),
+        }
     }
 
     /// The config file of the level below brick `level` (`[]`: the root level).
@@ -73,27 +77,12 @@ impl Design {
     }
 
     /// The exports of a level file as written.
-    pub fn exports(&self, file: &str) -> Result<Vec<ExportSpec>> {
+    pub fn exports(&self, file: &str) -> Result<Vec<String>> {
         let docs = Docs::from_base(&self.files()?, None)?;
         let doc = docs
             .get(file)
             .with_context(|| format!("{file} is not in the design"))?;
-        let list = doc.get("exports").and_then(Item::as_array);
-        Ok(list
-            .into_iter()
-            .flat_map(|a| a.iter())
-            .filter_map(|v| match v {
-                toml_edit::Value::String(s) => Some(ExportSpec {
-                    brick: s.value().clone(),
-                    scope: None,
-                }),
-                toml_edit::Value::InlineTable(t) => Some(ExportSpec {
-                    brick: t.get("brick")?.as_str()?.to_string(),
-                    scope: t.get("scope").and_then(|s| s.as_str()).map(String::from),
-                }),
-                _ => None,
-            })
-            .collect())
+        Ok(crate::edit::read_exports(doc))
     }
 
     /// The file holding the rule `key` among the level file and what it includes; the level

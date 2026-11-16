@@ -17,15 +17,11 @@ desc = "Browser wrappers (location, history, DOM, fetch) that are no-ops during 
 
 [[brick]]
 name = "components"
-members = ["brickie-ui"]              # the crate root, wasm entry and `components`; folders win
+members = ["brickie-ui::components", "brickie-ui::wasm", "path:src/lib.rs"]   # `components`, the wasm entry and the crate root
 tags = ["view"]
 desc = "Sycamore components (canvas, controls, panels, source) and the crate entry points"
 
-[deps]
-default = "deny"
-cycles = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "components"
 to = "*"
 scope = "all"

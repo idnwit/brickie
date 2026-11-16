@@ -1,14 +1,13 @@
-//! `brickie check`: print the diagnostics, exit non-zero when an unaccepted error exists.
+//! `brickie check`: print the diagnostics, exit non-zero when a finding exists.
 //!
-//! Exit code: 0 clean, 1 unaccepted error findings, 2 config, cache or baseline problem.
+//! Exit code: 0 clean, 1 findings, 2 config or cache problem.
 
 mod output;
 
 use super::args::{CheckArgs, ColorArg, Format};
 use anyhow::Result;
-use brickie_check::check::{self, Baseline, Filter, Loaded};
+use brickie_check::check::{self, Filter, Loaded};
 use brickie_check::diag::Color;
-use brickie_model::Level;
 
 pub fn run(args: CheckArgs) -> i32 {
     match check(&args) {
@@ -31,11 +30,7 @@ fn load(args: &CheckArgs) -> Result<Loaded> {
 
 fn check(args: &CheckArgs) -> Result<i32> {
     let loaded = load(args)?;
-    let mut filter = Filter::new(&loaded.cfg, &args.bricks, &args.skip)?;
-    if args.new {
-        let base = Baseline::read(&args.config)?;
-        filter = filter.with_baseline(&args.config, base)?;
-    }
+    let filter = Filter::new(&loaded.cfg, &args.bricks)?;
     let found = filter.apply(&loaded);
     let color = match args.color {
         ColorArg::Auto => Color::Auto,
@@ -47,12 +42,5 @@ fn check(args: &CheckArgs) -> Result<i32> {
         Format::Short => output::short(&loaded, &filter, &found),
         Format::Text => output::text(&loaded, &filter, &found, color),
     }
-    if args.save_baseline {
-        let path = Baseline::capture(&loaded, &args.config)?.write(&args.config)?;
-        eprintln!("brickie: wrote {}", path.display());
-    }
-    let ds = &found.shown;
-    Ok(i32::from(
-        ds.iter().any(|d| d.level == Level::Error && !d.accepted),
-    ))
+    Ok(i32::from(!found.shown.is_empty()))
 }

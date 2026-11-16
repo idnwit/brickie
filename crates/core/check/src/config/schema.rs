@@ -6,8 +6,7 @@ use serde::Deserialize;
 use std::path::PathBuf;
 
 /// A named group of modules. `members` are package names (all targets of the package), module
-/// prefixes such as `my-engine::a::b` (the module and everything below it), exact module ids such
-/// as `module:my-engine::a::b` (that module only), or `path:<dir>/` (crates whose manifest is
+/// prefixes such as `my-engine::a::b` (the module and everything below it), or `path:<dir>/` (crates whose manifest is
 /// under the folder, relative to the declaring file). A brick with `path` is a composite: its
 /// children are in `<path>/brickie.toml` (`sub`), and its members default to `path:<path>/`.
 #[derive(Debug, Clone, Deserialize)]
@@ -21,8 +20,7 @@ pub struct Brick {
     pub path: Option<String>,
     /// One-line description shown in the viewer; no effect on checks.
     pub desc: Option<String>,
-    /// The brick acts like an external library (root level, leaf bricks only): it may use only
-    /// itself and external crates, and edges into it are allowed unless a deny rule names it.
+    /// The brick acts like an external library (root level only); see `rules::decide`.
     #[serde(default)]
     pub independent: bool,
     /// Canonical directory of the declaring file; `path:` members are relative to it.
@@ -33,53 +31,12 @@ pub struct Brick {
     pub sub: Option<Box<Config>>,
 }
 
-/// An entry of a composite's `exports`: a direct child visible from outside, for edges of
-/// `scope` (`all` for a plain name).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Export {
-    pub brick: String,
-    pub scope: Scope,
-}
-
-impl<'de> Deserialize<'de> for Export {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        #[derive(Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct Scoped {
-            brick: String,
-            #[serde(default = "all")]
-            scope: Scope,
-        }
-        fn all() -> Scope {
-            Scope::All
-        }
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum Raw {
-            Name(String),
-            Scoped(Scoped),
-        }
-        Ok(match Raw::deserialize(d)? {
-            Raw::Name(brick) => Export {
-                brick,
-                scope: Scope::All,
-            },
-            Raw::Scoped(s) => Export {
-                brick: s.brick,
-                scope: s.scope,
-            },
-        })
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Action {
     Allow,
     Deny,
 }
-
-pub use brickie_model::Level;
 
 /// Which code a rule looks at; the default is production code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
@@ -110,16 +67,12 @@ impl Scope {
 }
 
 impl DepRule {
-    /// Specificity of the `to` side for a target brick entered through child `entered`
-    /// (`None` for a leaf target): a `via` rule needs the child in `via` and scores one more.
-    pub fn to_rank(&self, to: &Brick, entered: Option<&str>) -> Option<u32> {
-        let base = self.to.specificity(to)?;
-        match &self.via {
-            None => Some(base),
-            Some(via) => entered
-                .is_some_and(|e| via.iter().any(|v| v == e))
-                .then_some(base + 1),
-        }
+    /// Whether the rule applies to an edge entering its `to` brick through child `entered`
+    /// (`None` for a leaf target): a `via` rule needs the child in `via`.
+    pub fn enters(&self, entered: Option<&str>) -> bool {
+        self.via
+            .as_ref()
+            .is_none_or(|via| entered.is_some_and(|e| via.iter().any(|v| v == e)))
     }
 }
 
@@ -139,7 +92,6 @@ pub struct DepRule {
     pub scope: Scope,
     pub action: Action,
     pub reason: Option<String>,
-    pub help: Option<String>,
     /// `file:line` of the rule header, filled in while loading.
     #[serde(skip)]
     pub loc: String,
@@ -156,36 +108,10 @@ pub struct ComplexityRule {
     pub paths: Option<u64>,
     pub params: Option<u32>,
     pub lines: Option<u32>,
-    #[serde(default = "default_level")]
-    pub level: Level,
     #[serde(default)]
     pub scope: Scope,
-    pub help: Option<String>,
     #[serde(skip)]
     pub loc: String,
-}
-
-fn default_level() -> Level {
-    Level::Error
-}
-
-#[derive(Debug, Clone)]
-pub struct Deps {
-    /// For edges matching no rule.
-    pub default: Action,
-    /// `Deny` reports cycles between bricks.
-    pub cycles: Action,
-    pub rules: Vec<DepRule>,
-}
-
-impl Default for Deps {
-    fn default() -> Self {
-        Deps {
-            default: Action::Allow,
-            cycles: Action::Allow,
-            rules: Vec::new(),
-        }
-    }
 }
 
 /// One level of the brick tree: a `brickie.toml` plus everything it includes. The root config
@@ -198,8 +124,9 @@ pub struct Config {
     pub file: String,
     pub bricks: Vec<Brick>,
     /// Children visible from outside this composite (unused at the root).
-    pub exports: Vec<Export>,
-    pub deps: Deps,
+    pub exports: Vec<String>,
+    /// `[[rule]]`: dependency rules between this level's children.
+    pub rules: Vec<DepRule>,
     pub complexity: Vec<ComplexityRule>,
     /// `[measure]`; only the root level may set it.
     pub measure: super::MeasureCfg,
@@ -230,11 +157,9 @@ impl Config {
         self.bricks.iter().find(|b| b.name == name)
     }
 
-    /// Whether child `name` is exported for edges of `scope` (`prod` or `test`).
-    pub fn exports_to(&self, name: &str, scope: &str) -> bool {
-        self.exports
-            .iter()
-            .any(|e| e.brick == name && e.scope.matches(scope))
+    /// Whether child `name` is visible from outside this composite.
+    pub fn exports(&self, name: &str) -> bool {
+        self.exports.iter().any(|e| e == name)
     }
 }
 

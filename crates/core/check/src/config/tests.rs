@@ -1,8 +1,8 @@
 //! Tree resolution and partition checks on a two-level fixture (configs on disk, cache facts
 //! built in code). `fixture` is shared with the rule tests.
 
-use super::{Config, Mode, Resolved, load, resolve};
-use brickie_facts::{Cache, Crate, Module};
+use super::{Config, Partition, Resolved, load, resolve};
+use brickie_facts::Cache;
 use serde_json::{Value, json};
 use std::path::Path;
 
@@ -17,11 +17,7 @@ name = "core"
 members = ["core"]
 tags = ["core"]
 
-[deps]
-default = "deny"
-cycles = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "tag:app"
 to = "tag:core"
 action = "allow"
@@ -31,7 +27,7 @@ cognitive = 20
 "#;
 
 pub(crate) const WEB: &str = r#"
-exports = ["api", { brick = "ui", scope = "test" }]
+exports = ["api"]
 
 [[brick]]
 name = "api"
@@ -45,21 +41,17 @@ members = ["web-ui"]
 name = "shared"
 members = ["web-shared"]
 
-[deps]
-default = "deny"
-cycles = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "*"
 to = "shared"
 action = "allow"
 
-[[deps.rule]]
+[[rule]]
 from = "ui"
 to = "api"
 action = "allow"
 
-[[deps.rule]]
+[[rule]]
 from = "api"
 to = "ui"
 action = "allow"
@@ -129,13 +121,9 @@ pub(crate) fn fixture(root: &str, web: &str) -> (tempfile::TempDir, Config) {
 }
 
 pub(crate) fn resolved(dir: &Path, cfg: &Config) -> anyhow::Result<Resolved> {
-    resolved_as(dir, cfg, Mode::Strict)
-}
-
-fn resolved_as(dir: &Path, cfg: &Config, mode: Mode) -> anyhow::Result<Resolved> {
     let ws = dir.canonicalize().unwrap();
     let c = cache(&ws, &[]);
-    resolve(cfg, &c.crates, &c.modules, &ws, mode)
+    resolve(cfg, &c.crates, &c.modules, &ws)
 }
 
 #[test]
@@ -171,109 +159,52 @@ fn partition_errors() {
 }
 
 #[test]
-fn draft_collects_partition_errors() {
-    let codes = |web: &str| {
+fn resolve_lists_every_partition_error() {
+    let issues = |web: &str| {
         let (dir, cfg) = fixture(ROOT, web);
-        let r = resolved_as(dir.path(), &cfg, Mode::Draft).unwrap();
-        (r.pending.iter().map(|p| p.code).collect::<Vec<_>>(), r)
+        let e = resolved(dir.path(), &cfg).unwrap_err();
+        e.downcast::<Partition>().unwrap().0
     };
-    let (c, r) = codes(&WEB.replace("members = [\"web-shared\"]", "members = []"));
-    assert_eq!(c, ["config/unassigned"]);
-    assert_eq!(r.unassigned(&["web".to_string()]), ["web-shared::m"]);
-    assert_eq!(r.path("web-api::m").unwrap(), ["web", "api"]);
-    let web = WEB.replace(
-        "members = [\"web-ui\"]",
-        "members = [\"web-ui\", \"web-api\"]",
-    );
-    let (c, r) = codes(&web);
-    assert_eq!(c, ["config/overlap"]);
-    assert!(r.path("web-api::m").is_some());
+    let web = WEB
+        .replace("members = [\"web-shared\"]", "members = []")
+        .replace(
+            "members = [\"web-ui\"]",
+            "members = [\"web-ui\", \"web-api\"]",
+        );
+    let found = issues(&web);
+    let codes: Vec<_> = found.iter().map(|i| i.code).collect();
+    assert_eq!(codes, ["config/overlap", "config/unassigned"], "{found:?}");
+    let un = &found[1];
+    assert_eq!(un.module.as_deref(), Some("web-shared::m"));
+    assert_eq!(un.level, ["web"]);
+    assert!(un.file.ends_with("crates/web/brickie.toml"), "{}", un.file);
+    assert_eq!(found[0].member.as_deref(), Some("web-api"));
 }
 
 #[test]
-fn longer_path_member_beats_shorter() {
+fn nested_members_are_an_overlap_not_a_longest_match() {
+    // A folder and a folder inside it both match `web-api::m`, whatever their lengths.
     let web = WEB
         .replace("members = [\"web-api\"]", "members = [\"path:api\"]")
         .replace("members = [\"web-ui\"]", "members = [\"path:./\"]")
         .replace("members = [\"web-shared\"]", "members = [\"path:shared/\"]");
     let (dir, cfg) = fixture(ROOT, &web);
-    let r = resolved(dir.path(), &cfg).unwrap();
-    assert_eq!(r.path("web-api::m").unwrap(), ["web", "api"]);
-    assert_eq!(r.path("web-ui::m").unwrap(), ["web", "ui"]);
-    assert_eq!(r.path("web-shared::m").unwrap(), ["web", "shared"]);
-}
-
-#[test]
-fn exact_module_member_allows_parent_composite_with_root_sibling_descendant() {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(dir.path().join("crates/app")).unwrap();
-    std::fs::write(
-        dir.path().join("brickie.toml"),
-        r#"
-[[brick]]
-name = "parent"
-path = "crates/app"
-
-[[brick]]
-name = "root"
-members = ["module:app"]
-
-[[brick]]
-name = "descendant"
-members = ["module:app::parent::child"]
-"#,
-    )
-    .unwrap();
-    std::fs::write(
-        dir.path().join("crates/app/brickie.toml"),
-        r#"
-[[brick]]
-name = "leaf"
-members = ["module:app::parent"]
-"#,
-    )
-    .unwrap();
-    let cfg = load(&dir.path().join("brickie.toml")).unwrap();
-    let krate = Crate {
-        id: "app".into(),
-        package: "app".into(),
-        version: "0".into(),
-        target: "app".into(),
-        kind: "lib".into(),
-        root: "crates/app/src/lib.rs".into(),
-        dir: "crates/app".into(),
-    };
-    let modules = vec![
-        Module {
-            id: "app".into(),
-            krate: "app".into(),
-            file: "crates/app/src/lib.rs".into(),
-            line: 1,
-        },
-        Module {
-            id: "app::parent".into(),
-            krate: "app".into(),
-            file: "crates/app/src/parent.rs".into(),
-            line: 1,
-        },
-        Module {
-            id: "app::parent::child".into(),
-            krate: "app".into(),
-            file: "crates/app/src/parent/child.rs".into(),
-            line: 1,
-        },
-    ];
-    let ws = dir.path().canonicalize().unwrap();
-    let resolved = resolve(&cfg, &[krate], &modules, &ws, Mode::Strict).unwrap();
-    assert_eq!(resolved.path("app").unwrap(), ["root"]);
-    assert_eq!(resolved.path("app::parent").unwrap(), ["parent", "leaf"]);
-    assert_eq!(resolved.path("app::parent::child").unwrap(), ["descendant"]);
+    let msg = format!("{:#}", resolved(dir.path(), &cfg).unwrap_err());
+    assert!(msg.contains("config/overlap"), "{msg}");
+    // A package and a module prefix inside it overlap too.
+    let web = WEB.replace("members = [\"web-ui\"]", "members = [\"web-api::routes\"]");
+    let (dir, cfg) = fixture(ROOT, &web);
+    let msg = format!("{:#}", resolved(dir.path(), &cfg).unwrap_err());
+    assert!(
+        msg.contains("config/overlap") || msg.contains("config/unassigned"),
+        "{msg}"
+    );
 }
 
 #[test]
 fn via_must_name_exports_of_a_composite() {
     let root = |rule: &str| {
-        format!("{ROOT}\n[[deps.rule]]\nfrom = \"core\"\nto = {rule}\naction = \"allow\"\n")
+        format!("{ROOT}\n[[rule]]\nfrom = \"core\"\nto = {rule}\naction = \"allow\"\n")
     };
     let cases = [
         ("\"web\"\nvia = [\"api\"]", None),
@@ -315,25 +246,23 @@ fn via_must_name_exports_of_a_composite() {
 }
 
 #[test]
-fn outside_parent_names_the_outer_brick_that_took_the_module() {
-    let err = |root: &str, web: &str| {
-        let (dir, cfg) = fixture(root, web);
-        format!("{:#}", resolved(dir.path(), &cfg).unwrap_err())
-    };
-    // A root brick with a more specific member takes a module from inside `web`.
+fn outer_brick_matching_a_composite_module_is_an_overlap() {
+    // `claim` matches a module that `web` (a composite owning it) also matches: always an overlap.
     let root = format!("{ROOT}\n[[brick]]\nname = \"claim\"\nmembers = [\"web-api::m\"]\n");
-    let msg = err(&root, WEB);
-    assert!(msg.contains("config/member-outside-parent"), "{msg}");
-    assert!(msg.contains("brick 'claim' of level root took it"), "{msg}");
-    assert!(msg.contains("child brick of 'web'"), "{msg}");
-    // The plain case keeps the short message.
+    let (dir, cfg) = fixture(&root, WEB);
+    let msg = format!("{:#}", resolved(dir.path(), &cfg).unwrap_err());
+    assert!(msg.contains("config/overlap"), "{msg}");
+    assert!(msg.contains("'web' and 'claim'"), "{msg}");
+    // The plain outside-member case.
     let web = WEB.replace(
         "members = [\"web-shared\"]",
         "members = [\"web-shared\", \"core\"]",
     );
-    let msg = err(ROOT, &web);
+    let (dir, cfg) = fixture(ROOT, &web);
+    let msg = format!("{:#}", resolved(dir.path(), &cfg).unwrap_err());
     assert!(
-        msg.contains("which is outside composite 'web' (level"),
+        msg.contains("config/member-outside-parent")
+            && msg.contains("which is outside composite 'web'"),
         "{msg}"
     );
 }

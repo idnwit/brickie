@@ -21,18 +21,18 @@ Serves: P3, P13, P15, P16.
 ![Overview of the root level](screenshots/overview.png)
 
 - Four regions. Centre: the bricks of the current level, grouped by tag, with their edges.
-  Left: filters (group, level, status, code, free text) and the bricks listed by tag. Right:
+  Left: filters (group, levels, code, free text) and the bricks listed by tag. Right:
   with nothing selected, findings by group and the functions table (click a column to sort);
   with a selection, its score, findings, worst functions, edges, interface and a Code button.
   Header: presets, the Data layers menu, Fit, Auto layout, Reload, Design and Measure.
-- A brick shows its name, tag, a heat bar and a badge with open errors and warnings; the tooltip
-  reads `score S (nE nW, complexity excess X)`. The score is `open errors + 0.25 x open warnings
-  + sum over functions of max(0, worst ratio - 1)`, where open means not accepted. It is computed
+- A brick shows its name, tag, a heat bar and a badge with its finding count; the tooltip
+  reads `score S (N finding(s), complexity excess X)`. The score is `findings
+  + sum over functions of max(0, worst ratio - 1)`. It is computed
   only in `crates/web/api/src/model/score.rs`.
 - The heat bar fills `worst ratio / 2` and has four levels: below 0.8, below 1, up to 1.5, above
   1.5 of the limit.
-- Presets: Architecture (default; edges and `deps` findings), Violations (error findings only,
-  with a sub-filter: all, deps, complexity, stale, interface), All, and Custom (entered only by
+- Presets: Architecture (default; edges and `deps` findings), Violations (only edges and bricks
+  with findings, with a sub-filter: all, deps, complexity, stale, interface), All, and Custom (entered only by
   changing a data layer).
 
 ## Nested bricks
@@ -55,9 +55,9 @@ Serves: P3, P17.
 
 ![All findings listed in the left panel](screenshots/findings.png)
 
-The All preset lists every finding (here 49 `interface/unused` and `stale/file` warnings). Each
-row shows severity, brick, level and status; click one for details and the source location.
-The Violations preset shows only errors; this workspace has none, so that view is empty.
+The All preset lists every finding (here 49 `interface/unused` and `stale/file` findings). Each
+row shows the group, bricks and level; click one for details and the source location.
+The Violations preset keeps only edges and bricks that carry a finding in the chosen scope.
 
 ## Brick detail
 
@@ -77,14 +77,14 @@ viewer is read-only and does not depend on bricks, rules or the cache.
 Serves: P12, P13.
 
 A measured edge shows an abbreviation of its kind at the middle and, at the same place, a cross
-when it is debt or a check when accepted. Width follows its count; `reexports` has a tail mark.
+when it is debt. Width follows its count; `reexports` has a tail mark.
 
 An allow rule that no measured edge backs draws as a link in both modes, one line per brick pair
 (the tooltip lists every rule with its reason and what it waits for). Dash is the edge kind.
 
 | Look | Meaning |
 | --- | --- |
-| warning-colour line with `!` | unused: no measured edge matches the rule (`deps/unused`) |
+| warning-colour line with `!` | unused: the rule decides no measured edge yet (a design todo) |
 | warning-colour `?` | the rule has no reason |
 | `A` | an agent added the rule |
 | dashed outline, planned colour | planned brick: no code yet |
@@ -98,10 +98,16 @@ selects.
 
 Serves: P1, P2, P4, P5, P6, P7, P8, P9, P10.
 
-`Design` (or `E`, `edit=1`) makes the canvas edit the live design. Every edit is written to the
-`brickie.toml` files at once as a new version (`v12`); there is nothing to review or publish.
+`Design` (or `E`, `edit=1`) makes the canvas show and edit the draft (the published design while
+there is none). Every edit is a new version (`v12`) of the draft; publishing makes it the
+published design once the code matches it
+([design/editor.md](design/editor.md#draft-and-publish)). Outside Design mode the canvas shows
+the published design.
 
-- A bar under the header shows `v<N> . <author>` (opens History; agent violet, you, hand edit),
+- A bar under the header shows `published v<N>`; with a draft, `draft v<N> . from v<M>`, its
+  state (`behind: rebase`, `<n> blocking` with each item in the tooltip, or `ready to publish`)
+  and Publish (enabled when ready), Rebase (enabled when behind) and Discard (asks first). Then
+  `v<N> . <author>` (opens History; agent violet, you, hand edit),
   task chips (planned bricks, rules without a reason, each acts on click), an error chip when the
   design does not load, and Undo and Redo with tooltips naming what they would do.
 - Toolbar, one row: Select and Hand; brick tiles Crate, Module, Group; link types; the scope of
@@ -179,7 +185,7 @@ JavaScript the server renders the full page read-only from the same components a
 | `p` | preset: `arch`, `viol`, `all`, `custom` | `arch` |
 | `lay` | layer differences from the preset, `-cx,+tests` | none |
 | `vs` | Violations scope: `deps`, `cx`, `stale`, `iface` | `all` |
-| `grp`, `level`, `status`, `code` | findings group, severity, open or accepted, code or family | none |
+| `grp`, `code` | findings group, code or family | none |
 | `below` | `1`: findings of this level and below only | off |
 | `bnd` | outside edges: `children` or `frame` | `children` |
 | `fn_sort`, `fn_dir`, `fn_scope`, `fn_limit` | function table sort, direction, scope, rows | cognitive, desc, prod, 50 |
@@ -203,7 +209,7 @@ width, never size or position.
 | `--c-debt` (`--err`) | violation, error | `#c0261f` | `#ff6a5f` |
 | `--bd-amber` (`--warn`) | warning, unused link | `#a67c00` | `#f1d98a` |
 | `--bd-green`, `--ok` | within limit, allow | `#2e8b57` | `#5fc88a` |
-| `--c-acc` | accepted finding | `#b8962e` | `#d9b648` |
+| `--c-acc` | stale-findings icon | `#b8962e` | `#d9b648` |
 | `--agent` | agent author and mark | `#7e4bb0` | `#b98af0` |
 | `--planned` | planned brick | `#7d858d` | `#9aa3ab` |
 | `--h0` .. `--h3` | heat levels | `#5fb37f` `#d6b83a` `#e8892a` `#c0261f` | `#4aa56e` `#c9ab3a` `#e8892a` `#ff6a5f` |

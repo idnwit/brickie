@@ -25,9 +25,7 @@ fn columns() -> Vec<(&'static str, Set)> {
         ("paths", n(|s| &mut s.paths)),
         ("params", n(|s| &mut s.params)),
         ("lines", n(|s| &mut s.lines)),
-        ("level", t(|s| &mut s.level)),
         ("scope", t(|s| &mut s.scope)),
-        ("help", t(|s| &mut s.help)),
     ]
 }
 
@@ -41,9 +39,7 @@ fn value(s: &ComplexitySpec, col: &str) -> String {
         "paths" => n(s.paths),
         "params" => n(s.params),
         "lines" => n(s.lines),
-        "level" => s.level.clone().unwrap_or_default(),
-        "scope" => s.scope.clone().unwrap_or_default(),
-        _ => s.help.clone().unwrap_or_default(),
+        _ => s.scope.clone().unwrap_or_default(),
     }
 }
 

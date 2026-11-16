@@ -24,7 +24,3 @@ name = "metrics"
 members = ["brickie-metrics"]
 tags = ["lib"]
 desc = "Cognitive, cyclomatic, NPath and nesting of Rust functions (tree-sitter)"
-
-[deps]
-default = "deny"
-cycles = "deny"

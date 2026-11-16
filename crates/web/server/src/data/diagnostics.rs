@@ -1,7 +1,6 @@
 //! Diagnostics: the check's `Diagnostic` converted field by field, with the source line of the
 //! primary span cut around it.
 
-use brickie_check::config::Level;
 use brickie_check::diag::{Diagnostic, Span};
 use brickie_web_api::*;
 use std::collections::HashMap;
@@ -59,11 +58,6 @@ pub fn diag_view(d: &Diagnostic, lines: &mut Lines) -> DiagView {
     });
     DiagView {
         id: d.id.clone(),
-        level: match d.level {
-            Level::Error => "error",
-            Level::Warn => "warn",
-        }
-        .into(),
         code: d.code.clone(),
         message: d.message.clone(),
         span: d.span.as_ref().map(span_view),
@@ -83,8 +77,6 @@ pub fn diag_view(d: &Diagnostic, lines: &mut Lines) -> DiagView {
             .collect(),
         bricks: d.bricks.clone(),
         brick_level: d.brick_level.clone(),
-        accepted: d.accepted,
-        accepted_reason: d.accepted_reason.clone(),
         snippet,
     }
 }

@@ -70,15 +70,13 @@ pub(super) fn brick_detail(cx: &Cx, b: usize) -> View {
     }
 }
 
-/// The scorecard of a brick: score, open findings per group, worst functions, edge counts.
+/// The scorecard of a brick: score, findings per group, worst functions, edge counts.
 fn scorecard(cx: &Cx, b: usize) -> View {
     let s = cx.scores.with(|s| s[b].clone());
     let brick = &cx.m.g.bricks[b];
-    let badge = match (s.errors, s.warns) {
-        (0, 0) => view! { span(class="pill clean") { "\u{2713} clean" } },
-        (e, 0) => view! { span(class="pill") { (format!("{e}E")) } },
-        (0, w) => view! { span(class="pill warn") { (format!("{w}W")) } },
-        (e, w) => view! { span(class="pill") { (format!("{e}E {w}W")) } },
+    let badge = match s.errors {
+        0 => view! { span(class="pill clean") { "\u{2713} clean" } },
+        e => view! { span(class="pill") { (format!("{e}E")) } },
     };
     let rows: Vec<View> = CATEGORIES
         .iter()
@@ -121,13 +119,13 @@ fn scorecard(cx: &Cx, b: usize) -> View {
     );
     view! {
         div(class="scorecard") {
-            div(class="big", title="score = open errors + 0.25 x open warnings + complexity excess (any layer). A cycle counts once for each brick in it.") { span { (score) } small { "score" } (badge) }
+            div(class="big", title="score = findings + complexity excess (any layer). A cycle counts once for each brick in it.") { span { (score) } small { "score" } (badge) }
             div(class="muted small") { (worst) }
-            table { tr { th { "open findings" } th { "n" } } (rows) }
+            table { tr { th { "findings" } th { "n" } } (rows) }
             h4 { "Worst functions" }
             (fns)
             h4 { "Edges" }
-            div(class="small", title="Edges to and from this brick; violating = the edge carries an open deps finding (a deny or default rule, or a cycle through it)") { (edges) }
+            div(class="small", title="Edges to and from this brick; violating = the edge carries a deps finding (a deny or default rule, or a cycle through it)") { (edges) }
         }
     }
 }

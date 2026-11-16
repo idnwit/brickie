@@ -2,6 +2,7 @@
 //! it targets (`via = ["ports-in"]`). Ops on the child level must keep those names valid.
 
 use super::Docs;
+use super::rules::RULES;
 use super::table::{aot, aot_mut};
 use crate::paths::join_rel;
 use anyhow::{Result, bail};
@@ -39,7 +40,7 @@ fn names(t: &toml_edit::Table, via: &str) -> bool {
 /// `child_file` (a child brick was renamed).
 pub fn rename(docs: &mut Docs, child_file: &str, from: &str, to: &str) -> Result<()> {
     for (file, composite) in owners(docs, child_file) {
-        let rules = aot_mut(docs.get_mut(&file)?, &["deps", "rule"])?;
+        let rules = aot_mut(docs.get_mut(&file)?, RULES)?;
         for t in rules.iter_mut() {
             if t.get("to").and_then(Item::as_str) != Some(composite.as_str()) {
                 continue;
@@ -59,7 +60,7 @@ pub fn rename(docs: &mut Docs, child_file: &str, from: &str, to: &str) -> Result
 /// is about to leave that level's exports (`why` says how).
 pub fn guard_child(docs: &Docs, child_file: &str, child: &str, why: &str) -> Result<()> {
     for (file, composite) in owners(docs, child_file) {
-        let Some(rules) = docs.get(&file).and_then(|d| aot(d, &["deps", "rule"])) else {
+        let Some(rules) = docs.get(&file).and_then(|d| aot(d, RULES)) else {
             continue;
         };
         for (i, t) in rules.iter().enumerate() {
@@ -78,7 +79,7 @@ pub fn guard_child(docs: &Docs, child_file: &str, child: &str, why: &str) -> Res
 /// Fail when a rule of `file` with `via` targets composite `name` (it is about to become a
 /// leaf).
 pub fn guard_composite(docs: &Docs, file: &str, name: &str, why: &str) -> Result<()> {
-    let Some(rules) = docs.get(file).and_then(|d| aot(d, &["deps", "rule"])) else {
+    let Some(rules) = docs.get(file).and_then(|d| aot(d, RULES)) else {
         return Ok(());
     };
     for (i, t) in rules.iter().enumerate() {

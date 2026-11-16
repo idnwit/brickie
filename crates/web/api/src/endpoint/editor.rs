@@ -1,13 +1,13 @@
-//! The design editor's endpoints (`/api/design/*`). Writes (`edit`, `move`, `undo`, `layout`,
-//! `relayout`) pass the server's write guard (loopback bind, same-origin request). A write based
-//! on another version than the head answers 409 with the `design/stale` text (header
+//! The design editor's endpoints (`/api/design/*`). Writes (`edit`, `move`, `undo`, `publish`,
+//! `rebase`, `discard`, `layout`, `relayout`) pass the server's write guard (loopback bind,
+//! same-origin request). Edits go to the draft. A write based on another version than the head answers 409 with the `design/stale` text (header
 //! `x-brickie-head`: the head version); the page reloads the design and retries.
 
 use super::Endpoint;
 use crate::design::{LinkCheck, LinkOption};
 use crate::{
-    DesignState, EditReply, EditRequest, LayoutRequest, LevelView, LevelsRequest, LinkCheckRequest,
-    LinksRequest, MoveRequest, RelayoutRequest, UndoRequest,
+    DesignState, DraftRequest, EditReply, EditRequest, LayoutRequest, LevelView, LevelsRequest,
+    LinkCheckRequest, LinksRequest, MoveRequest, PublishRequest, RelayoutRequest, UndoRequest,
 };
 
 /// `GET /api/design`: the design at its head.
@@ -81,4 +81,30 @@ impl Endpoint for DesignRelayout {
     const PATH: &'static str = "/api/design/relayout";
     type Req = RelayoutRequest;
     type Res = ();
+}
+
+/// `POST /api/design/publish`: copy the draft into the real files as one published version.
+/// Refused (409, `design/blocked`, nothing written) while the gate has blocking items;
+/// `dry_run` only answers the design with its gate.
+pub struct DesignPublish;
+impl Endpoint for DesignPublish {
+    const PATH: &'static str = "/api/design/publish";
+    type Req = PublishRequest;
+    type Res = EditReply;
+}
+
+/// `POST /api/design/rebase`: replay the draft's ops onto the published head.
+pub struct DesignRebase;
+impl Endpoint for DesignRebase {
+    const PATH: &'static str = "/api/design/rebase";
+    type Req = DraftRequest;
+    type Res = EditReply;
+}
+
+/// `POST /api/design/discard`: drop the draft (the history keeps a `discard draft` version).
+pub struct DesignDiscard;
+impl Endpoint for DesignDiscard {
+    const PATH: &'static str = "/api/design/discard";
+    type Req = DraftRequest;
+    type Res = EditReply;
 }

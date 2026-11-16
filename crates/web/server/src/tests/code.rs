@@ -12,9 +12,10 @@ fn site() -> Site {
     let s = Site::new();
     let dir = s.config().parent().unwrap().to_path_buf();
     std::fs::write(dir.join("ws/crates/eng/src/y.rs"), USER).unwrap();
-    let cfg = format!(
-        "{CONFIG}\n[[brick]]\nname = \"app\"\ntags = [\"svc\"]\nmembers = [\"eng::y\"]\n\n[deps]\ndefault = \"deny\"\n"
-    );
+    // `engine` lists its module: a package member would overlap `app`.
+    let engine = CONFIG.replace("members = [\"eng\"]", "members = [\"eng::x\"]");
+    let cfg =
+        format!("{engine}\n[[brick]]\nname = \"app\"\ntags = [\"svc\"]\nmembers = [\"eng::y\"]\n");
     std::fs::write(s.config(), cfg).unwrap();
     let path = dir.join(".brickie/cache.json");
     let mut cache: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
@@ -73,8 +74,8 @@ async fn trees_group_files_by_brick_and_folder() {
     let files: Vec<&str> = src.children.iter().map(|f| f.label.as_str()).collect();
     assert_eq!(files, ["link.rs", "x.rs"]);
     assert!(src.children.iter().all(|f| f.kind == NodeKind::File));
-    // The complexity error on `busy` is counted on the file and summed up the tree.
-    assert_eq!(engine.badge.as_ref().unwrap().errors, 1);
+    // The complexity error on `busy` and `interface/unused` on `quiet` are summed up the tree.
+    assert_eq!(engine.badge.as_ref().unwrap().errors, 2);
     let app = &views[0].roots[1];
     assert_eq!(app.tags, ["svc"]);
     // Nested folders: crate -> src -> deep -> z.rs, with y.rs beside `deep`.

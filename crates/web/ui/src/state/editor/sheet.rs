@@ -49,7 +49,7 @@ fn rows<T: Clone>(ch: &DesignState, lv: &str, pick: impl Fn(&FileSheet) -> &Vec<
     out
 }
 
-/// The `[[deps.rule]]` rows that apply at level `lv`.
+/// The `[[rule]]` rows that apply at level `lv`.
 pub fn level_rules(ch: &DesignState, lv: &str) -> Vec<Row<RuleSpec>> {
     rows(ch, lv, |s| &s.rules)
 }
@@ -96,7 +96,7 @@ pub fn references(ch: &DesignState, lv: &str, name: &str) -> Vec<String> {
         .map(|r| format!("rule {} \u{2192} {} ({})", r.item.from, r.item.to, r.file))
         .collect();
     let own = ch.files.get(lv).and_then(|f| ch.sheets.get(f));
-    if own.is_some_and(|s| s.exports.iter().any(|e| e.brick == name)) {
+    if own.is_some_and(|s| s.exports.iter().any(|e| e == name)) {
         out.push("this level's exports".into());
     }
     out
@@ -105,7 +105,7 @@ pub fn references(ch: &DesignState, lv: &str, name: &str) -> Vec<String> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use brickie_web_api::design::{By, ExportSpec};
+    use brickie_web_api::design::By;
     use std::collections::BTreeMap;
 
     fn rule(from: &str, to: &str, kinds: &[&str]) -> RuleSpec {
@@ -121,10 +121,7 @@ pub(crate) mod tests {
     pub fn change() -> DesignState {
         let own = FileSheet {
             rules: vec![rule("api", "ui", &["uses"])],
-            exports: vec![ExportSpec {
-                brick: "api".into(),
-                scope: None,
-            }],
+            exports: vec!["api".into()],
             include_files: vec!["shared.toml".into()],
             ..Default::default()
         };
@@ -134,6 +131,9 @@ pub(crate) mod tests {
         };
         DesignState {
             v: 1,
+            published: 1,
+            forked_from: None,
+            gate: None,
             hash: String::new(),
             by: By::External,
             history: vec![],

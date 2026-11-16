@@ -1,12 +1,11 @@
 //! How a finding becomes a [`Diagnostic`] (the value types live in `brickie-model`).
 
 use brickie_facts::sha256_hex;
-pub use brickie_model::{DiagEdge, Diagnostic, Level, Note, RuleRef, Span};
+pub use brickie_model::{DiagEdge, Diagnostic, Note, RuleRef, Span};
 
 /// One rule type's finding. Implementations only describe the parts; `diagnostic` assembles.
 pub trait Finding {
     fn code(&self) -> String;
-    fn level(&self) -> Level;
     /// Stable identity within the code; the id is a hash of code and subject.
     fn subject(&self) -> String;
     fn message(&self) -> String;
@@ -25,11 +24,6 @@ pub trait Finding {
     }
     fn brick_level(&self) -> Option<String> {
         None
-    }
-    /// How bad the finding is, for comparing against a saved baseline: the measured value of
-    /// a complexity finding, the number of reference sites of a dependency finding, else 1.
-    fn weight(&self) -> u64 {
-        1
     }
     /// Full level paths (`root/web/api`) of the bricks that own the finding, for scoped checks.
     /// Default: every brick in `bricks` at `brick_level`; none without a level.
@@ -52,7 +46,6 @@ pub fn diagnostic(f: &dyn Finding) -> Diagnostic {
     let mut spans = f.spans().into_iter();
     Diagnostic {
         id: finding_id(&code, &f.subject()),
-        level: f.level(),
         code,
         message: f.message(),
         span: spans.next(),
@@ -63,7 +56,5 @@ pub fn diagnostic(f: &dyn Finding) -> Diagnostic {
         bricks: f.bricks(),
         brick_level: f.brick_level(),
         edges: f.edges(),
-        accepted: false,
-        accepted_reason: None,
     }
 }

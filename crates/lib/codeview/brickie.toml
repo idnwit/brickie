@@ -18,18 +18,14 @@ name = "host"
 members = ["codeview-host"]
 desc = "axum router over a provider: serves the bundle and the port endpoints"
 
-[deps]
-default = "deny"
-cycles = "deny"
-
-[[deps.rule]]
+[[rule]]
 from = "app"
 to = "port"
 scope = "all"
 action = "allow"
 reason = "the UI speaks the port's endpoints and messages"
 
-[[deps.rule]]
+[[rule]]
 from = "host"
 to = "port"
 scope = "all"

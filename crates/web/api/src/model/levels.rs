@@ -84,7 +84,6 @@ mod tests {
         };
         let d = |lv: Option<&str>, bricks: &[&str]| DiagView {
             id: "x".into(),
-            level: "error".into(),
             code: "deps/deny".into(),
             message: String::new(),
             span: None,
@@ -94,8 +93,6 @@ mod tests {
             notes: vec![],
             bricks: bricks.iter().map(|s| s.to_string()).collect(),
             brick_level: lv.map(str::to_string),
-            accepted: false,
-            accepted_reason: None,
             snippet: None,
         };
         assert_eq!(

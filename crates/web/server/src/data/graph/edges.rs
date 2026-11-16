@@ -22,12 +22,7 @@ pub struct ModEdge {
 /// Module edges between mapped modules of different leaves.
 pub fn mod_edges(l: &Loaded) -> Vec<ModEdge> {
     let found: BTreeSet<&str> = l.diagnostics.iter().map(|d| d.id.as_str()).collect();
-    let codes = [
-        rules::DEPS_DENY,
-        rules::DEPS_DEFAULT,
-        rules::DEPS_PRIVATE,
-        brickie_model::codes::DEPS_INDEPENDENT,
-    ];
+    let codes = [rules::DEPS_DENY, rules::DEPS_PRIVATE];
     let independent = |p: &[String]| {
         p.first()
             .and_then(|name| l.cfg.brick(name))

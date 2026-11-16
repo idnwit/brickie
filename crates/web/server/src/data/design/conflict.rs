@@ -13,7 +13,7 @@ enum Ident {
     Named(String),
     Rule(String, RuleKey),
     Limit(String, String),
-    /// File-level settings: exports, deps defaults, includes, the file itself.
+    /// File-level settings: exports, includes, the file itself.
     File(String),
 }
 
@@ -114,7 +114,6 @@ fn touched(op: &Op) -> Vec<Ident> {
         }
         Op::AddExport { file, .. }
         | Op::RemoveExport { file, .. }
-        | Op::SetDeps { file, .. }
         | Op::AddInclude { file, .. }
         | Op::RemoveInclude { file, .. }
         | Op::CreateFile { file } => vec![Ident::File(file.clone())],
@@ -148,6 +147,9 @@ mod tests {
     fn ver(v: u64, by: By, ops: Vec<Op>) -> Version {
         Version {
             v,
+            track: Default::default(),
+            forked_from: None,
+            reverts: None,
             hash: String::new(),
             prev: None,
             by,

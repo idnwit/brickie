@@ -122,7 +122,10 @@ fn now_lines(ed: Edit) -> View {
                         format!("{} {}", o.kind, o.scope),
                         o.action.clone(),
                     );
-                    let by = o.rule.clone().unwrap_or_else(|| "deps.default".into());
+                    let by = o
+                        .rule
+                        .clone()
+                        .unwrap_or_else(|| "the default (no rule)".into());
                     view! { tr(title=by) { td { (to) } td { (k) } td(class=cls) { (a) } } }
                 })
                 .collect()

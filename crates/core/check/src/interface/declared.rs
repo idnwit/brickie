@@ -25,7 +25,7 @@ pub(super) fn leaves_of(cfg: &Config, path: &[String]) -> Vec<Vec<String>> {
     let Some(sub) = &b.sub else {
         return vec![path.to_vec()];
     };
-    let names: BTreeSet<&str> = sub.exports.iter().map(|e| e.brick.as_str()).collect();
+    let names: BTreeSet<&str> = sub.exports.iter().map(String::as_str).collect();
     names
         .into_iter()
         .flat_map(|n| {

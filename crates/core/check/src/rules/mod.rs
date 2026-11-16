@@ -1,7 +1,7 @@
 //! Rule evaluation over the cache: dependency rules, brick cycles, complexity limits and
 //! unmapped modules. Each finding type implements [`Finding`] (see `diag.rs`).
 
-use crate::config::{Action, Brick, Config, Resolved};
+use crate::config::{Brick, Config, Resolved};
 use crate::diag::{Finding, Span};
 use brickie_facts::{Cache, Evidence};
 use std::path::Path;
@@ -30,16 +30,12 @@ pub fn evaluate(cache: &Cache, cfg: &Config, res: &Resolved, root: &Path) -> Vec
     deps::deps(cache, cfg, res, &mut out);
     cycles::cycles(cache, cfg, res, &mut out);
     complexity::complexity(cache, cfg, res, root, &mut out);
-    out.extend(unused_link::unused_links(&links::unused_links(
-        cache, cfg, res,
-    )));
     for m in &cache.modules {
         if res.path(&m.id).is_none() {
             out.push(Box::new(Unmapped {
                 module: m.id.clone(),
                 file: m.file.clone(),
                 line: m.line,
-                deny_default: cfg.deps.default == Action::Deny,
             }));
         }
     }
@@ -49,12 +45,10 @@ pub fn evaluate(cache: &Cache, cfg: &Config, res: &Resolved, root: &Path) -> Vec
 mod complexity;
 mod cycles;
 mod deps;
-mod independent;
 mod lift;
 mod links;
 mod private;
 mod unmapped;
-mod unused_link;
 
 #[cfg(test)]
 mod independent_tests;

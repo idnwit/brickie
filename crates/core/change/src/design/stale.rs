@@ -55,26 +55,56 @@ pub fn check(entries: &[Version], base: u64) -> Result<(), Stale> {
         "Re-read with `brickie design show`, then retry with --base {}.",
         head.v
     );
-    let known = entries.first().is_some_and(|f| f.v <= base) && base < head.v;
+    let known = base < head.v;
     let message = if known {
-        let mut lines = format!(
-            "{at}, your edit was based on v{base}. Nothing was written.\nChanges since v{base}:\n"
-        );
-        for e in entries.iter().filter(|e| e.v > base) {
-            let note = e
-                .note
-                .as_deref()
-                .map(|n| format!(" ({n})"))
-                .unwrap_or_default();
-            lines.push_str(&format!("  v{} by {}{note}:\n", e.v, e.by.name()));
-            for d in &e.diff {
-                lines.push_str(&format!("    {d}\n"));
-            }
-        }
-        format!("{lines}{retry}")
+        format!(
+            "{at}, your edit was based on v{base}. Nothing was written.\n{}{retry}",
+            since(entries, base)
+        )
     } else {
         format!("{at}; base v{base} is unknown. Nothing was written.\n{retry}")
     };
+    Err(Stale {
+        message,
+        head: head.v,
+    })
+}
+
+/// `Changes since vN:` and each later version of `entries` with its diff.
+fn since(entries: &[Version], base: u64) -> String {
+    let mut lines = format!("Changes since v{base}:\n");
+    for e in entries.iter().filter(|e| e.v > base) {
+        let note = e
+            .note
+            .as_deref()
+            .map(|n| format!(" ({n})"))
+            .unwrap_or_default();
+        lines.push_str(&format!("  v{} by {}{note}:\n", e.v, e.by.name()));
+        for d in &e.diff {
+            lines.push_str(&format!("    {d}\n"));
+        }
+    }
+    lines
+}
+
+/// `Ok` when the published head (last of `published`) is the draft's base `forked_from`;
+/// otherwise the stale error of a publish, naming the published versions since the fork.
+pub fn published(published: &[Version], forked_from: u64, draft: u64) -> Result<(), Stale> {
+    let Some(head) = published.last() else {
+        return Ok(());
+    };
+    if head.v == forked_from {
+        return Ok(());
+    }
+    let message = format!(
+        "error[{DESIGN_STALE}]: the published design is at v{} (by {}, {} ago), the draft was \
+         forked from v{forked_from}. Nothing was published.\n{}Replay the draft on it with \
+         `brickie design rebase --base {draft}`, then publish again.",
+        head.v,
+        head.by.name(),
+        ago(head.at),
+        since(published, forked_from)
+    );
     Err(Stale {
         message,
         head: head.v,

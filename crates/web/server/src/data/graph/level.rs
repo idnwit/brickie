@@ -5,7 +5,7 @@ use super::edges::{End, ModEdge, end, mod_edges};
 use super::heat::heat;
 use brickie_check::check as rules;
 use brickie_check::check::Loaded;
-use brickie_check::config::{Config, Level, level_name};
+use brickie_check::config::{Config, level_name};
 use brickie_check::diag::Diagnostic;
 use brickie_web_api::*;
 use std::collections::{BTreeMap, BTreeSet};
@@ -13,18 +13,6 @@ use std::collections::{BTreeMap, BTreeSet};
 /// Row captions of the outside neighbours: sources first, targets last.
 pub const OUT_SOURCES: &str = "inbound";
 pub const OUT_TARGETS: &str = "outbound";
-/// Name and row of the draft placeholder for unassigned modules.
-pub const UNASSIGNED: &str = "(unassigned)";
-
-/// The fewest module prefixes that cover `mods` (a module under another listed one is dropped).
-fn covering(mods: &[&str]) -> Vec<String> {
-    let under = |m: &str, p: &str| m.strip_prefix(p).is_some_and(|r| r.starts_with("::"));
-    (mods.iter())
-        .filter(|m| !mods.iter().any(|p| under(m, p)))
-        .map(|m| m.to_string())
-        .collect()
-}
-
 /// What every level needs, computed once per page.
 pub struct Ctx<'a> {
     l: &'a Loaded,
@@ -119,7 +107,6 @@ impl<'a> Ctx<'a> {
         let mut bricks = self.children(cfg, &agg, &mut rows);
         bricks.extend(self.ghosts(&mut rows, &sources, &outside));
         let index = index_of(&bricks, &outside, cfg.bricks.len());
-        bricks.extend(self.unassigned(cfg, &mut rows));
         let hops = cycle_hops(&self.l.diagnostics, &name, &index);
         let edges = (agg.edges.into_iter())
             .map(|(key, acc)| self.edge_view(key, acc, &index, &hops, &name))
@@ -131,7 +118,7 @@ impl<'a> Ctx<'a> {
         LevelView {
             path: name,
             file: cfg.file.clone(),
-            exports: cfg.exports.iter().map(|e| e.brick.clone()).collect(),
+            exports: cfg.exports.clone(),
             graph: GraphView {
                 rows,
                 bricks,
@@ -154,7 +141,7 @@ impl<'a> Ctx<'a> {
                 tags: b.tags.clone(),
                 members: b.members.clone(),
                 hidden_in: (agg.hidden.get(&End::Child(b.name.clone()))).map_or(0, |s| s.len()),
-                exported: cfg.exports.iter().any(|x| x.brick == b.name),
+                exported: cfg.exports(&b.name),
                 ..self.node(&path, b.name.clone())
             }
         };
@@ -204,11 +191,6 @@ impl<'a> Ctx<'a> {
             && found
                 .iter()
                 .any(|d| d.code == rules::DEPS_PRIVATE && d.brick_level.as_deref() == Some(level));
-        let worst = if found.iter().any(|d| d.level == Level::Error) {
-            Some("error".to_string())
-        } else {
-            (!found.is_empty()).then(|| "warn".to_string())
-        };
         EdgeView {
             from,
             to,
@@ -216,34 +198,9 @@ impl<'a> Ctx<'a> {
             test: !acc.prod,
             diags: acc.ids.into_iter().collect(),
             count: acc.refs,
-            worst,
             wall,
             under: Vec::new(),
         }
-    }
-
-    /// The placeholder of the modules no brick of composite `cfg` claims yet (draft only).
-    fn unassigned(&self, cfg: &Config, rows: &mut Vec<String>) -> Option<BrickView> {
-        let mods = self.l.resolved.unassigned(&cfg.path);
-        if mods.is_empty() {
-            return None;
-        }
-        let row = row_of(rows, UNASSIGNED);
-        let mut path = cfg.path.clone();
-        path.push(UNASSIGNED.into());
-        Some(BrickView {
-            name: UNASSIGNED.into(),
-            path: level_name(&path),
-            desc: Some(format!(
-                "{} module(s) in none of this composite's bricks; drop onto a brick to add them",
-                mods.len()
-            )),
-            tag: UNASSIGNED.into(),
-            row,
-            members: covering(&mods),
-            unassigned: true,
-            ..Default::default()
-        })
     }
 
     /// The tree node at `path` as a brick named `name` (row and tags filled by the caller).
@@ -262,9 +219,7 @@ impl<'a> Ctx<'a> {
             children: sub
                 .map(|s| s.bricks.iter().map(|b| b.name.clone()).collect())
                 .unwrap_or_default(),
-            exports: sub
-                .map(|s| s.exports.iter().map(|e| e.brick.clone()).collect())
-                .unwrap_or_default(),
+            exports: sub.map(|s| s.exports.clone()).unwrap_or_default(),
             file: sub.map(|s| s.file.clone()),
             ..Default::default()
         }

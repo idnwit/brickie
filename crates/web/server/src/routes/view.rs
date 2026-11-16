@@ -1,11 +1,10 @@
-//! The page data of a request: the design as checked. In edit mode (`edit=1`) the design is
-//! loaded as a draft (bricks without code yet do not fail it), marked with planned bricks, and the page carries the [`DesignState`](brickie_web_api::DesignState).
+//! The page data of a request: the published design as checked. In edit mode (`edit=1`) it is
+//! the working tree (the draft when one exists) marked with planned bricks, and the page carries the [`DesignState`](brickie_web_api::DesignState).
 
 use crate::{AppState, Failure, data};
 use axum::http::StatusCode;
 use brickie_change::Design;
-use brickie_check::check::{self, Loaded};
-use brickie_check::config;
+use brickie_check::check::Loaded;
 use brickie_web_api::{DesignState, LevelView, PageData, Params};
 
 pub fn fail(e: anyhow::Error) -> Failure {
@@ -16,10 +15,11 @@ pub fn design(st: &AppState) -> Result<Design, Failure> {
     Design::at(&st.config()).map_err(fail)
 }
 
-/// The design loaded as a draft, with its state.
+/// The working tree (the draft, else the published design) loaded, with its state.
 fn draft(st: &AppState) -> Result<(Loaded, DesignState), Failure> {
-    let state = data::design::state(&design(st)?).map_err(fail)?;
-    let l = check::load_draft_from(&config::Disk, &st.config()).map_err(fail)?;
+    let d = design(st)?;
+    let state = data::design::state(&d).map_err(fail)?;
+    let l = d.load_working().map_err(fail)?;
     Ok((l, state))
 }
 

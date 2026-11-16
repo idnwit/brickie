@@ -39,19 +39,15 @@ members = ["acme-engine"]    # a package, module prefix or path
 name = "app"
 members = ["acme-app"]
 
-[deps]
-default = "allow"            # edges matching no rule
-
-[[deps.rule]]
-from = "engine"
-to = "app"
-action = "deny"
-reason = "the engine must not depend on the app"
+[[rule]]                     # an edge no rule allows is denied
+from = "app"
+to = "engine"
+action = "allow"
+reason = "the app drives the engine"
 
 [[complexity]]
 bricks = "*"
 cognitive = 15               # a function above this fails
-level = "error"
 ```
 
 Then:
