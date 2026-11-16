@@ -493,7 +493,7 @@ and `.`.
 Each rule below holds for every level and has one reason.
 
 1. Bricks: a brick is a named group of modules; its members are packages, module prefixes or
-   `path:<dir>/`. Reason: the architecture is drawn over code that already exists.
+   `path:<dir-or-file>` (`path:src/lib.rs` names one crate root). Reason: the architecture is drawn over code that already exists.
 2. Membership: at every level each module belongs to exactly one brick. A module that matches
    members of two bricks of one file is `config/overlap`, whatever the members' specificity (a
    package and a module prefix inside it overlap; list the modules explicitly instead). A module in
