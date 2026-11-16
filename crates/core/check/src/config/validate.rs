@@ -73,19 +73,12 @@ pub fn validate_via(cfg: &Config) -> Result<()> {
     Ok(())
 }
 
-/// `independent` is root-only and for leaf bricks; no allow rule may start at an independent brick.
+/// `independent` is root-only (a leaf or a composite); no allow rule may start at an independent brick.
 fn independent(cfg: &Config) -> Result<()> {
     for b in cfg.bricks.iter().filter(|b| b.independent) {
         if !cfg.path.is_empty() {
             bail!(
                 "{CONFIG_INDEPENDENT_NESTED}: brick '{}' in {} is independent, which is only allowed in the root brickie.toml",
-                b.name,
-                cfg.file
-            );
-        }
-        if b.path.is_some() {
-            bail!(
-                "{CONFIG_INDEPENDENT_NESTED}: brick '{}' in {} is a composite and cannot be independent",
                 b.name,
                 cfg.file
             );
