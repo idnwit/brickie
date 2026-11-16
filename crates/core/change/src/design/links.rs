@@ -168,6 +168,16 @@ impl Design {
     /// change what the level decides: every edge it covers (each matching pair, kind and scope)
     /// is decided with and without it.
     pub fn link_check(&self, level: &[String], link: &Link) -> Result<LinkCheck> {
+        self.link_check_in(&self.config()?, level, link)
+    }
+
+    /// [`Design::link_check`] against `cfg` instead of the working design.
+    pub(super) fn link_check_in(
+        &self,
+        cfg: &Config,
+        level: &[String],
+        link: &Link,
+    ) -> Result<LinkCheck> {
         let act = match link.action {
             "allow" => Action::Allow,
             "deny" => Action::Deny,
@@ -179,7 +189,6 @@ impl Design {
             "all" => (Scope::All, &["prod", "test"]),
             s => bail!("scope must be prod, test or all, not '{s}'"),
         };
-        let cfg = self.config()?;
         let lv = cfg
             .node(level)
             .with_context(|| format!("no level {level:?}"))?;
