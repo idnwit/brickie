@@ -16,6 +16,7 @@ resolution: [check.md](check.md).
 | Outer brick taking a module from inside a composite | `config/member-outside-parent`, naming the outer brick | it would bypass `exports`; fix: make it a child and export it |
 | Re-exports | grant no access; move the item into an exported child | `exports` is not derived from `pub` |
 | Brick mapping | not in the cache | editing config never needs a re-measure |
+| `independent` brick flag | root level and leaf bricks only | lifting an edge to the common ancestor hides the flag below the root, and inbound edges would hit `deps/private` of a composite |
 | Cycles | per composite | names are local to a level |
 
 Decision: a rule's `via` names exported children of its `to` composite, so a root rule can say
@@ -35,3 +36,9 @@ wheel-driven semantic zoom.
   (from, to, kind). Outside neighbours are faded rows. Code: `crates/web/server/src/data/graph/`.
 - Outside edges (`bnd`): `children` draws each to the child it reaches; `frame` aggregates to
   the frame wall on the client. Scores and edge lists ignore frame edges.
+- Independent libs (`independent = true`) sit in their tag row like any brick, marked by the text
+  "independent lib", a dashed box and a tooltip. Server-side (`ModEdge.hidden`), a clean edge into
+  one from a non-independent brick is not served: no edge, no ghost, no fan-in or score effect.
+  Edges carrying any finding (deny, `deps/independent`) and all outbound edges are drawn. The
+  inspector says "used by N more brick(s); edges hidden: independent lib" (`BrickView.hidden_in`),
+  so a missing line never reads as "no dependency".

@@ -16,7 +16,9 @@
           ],
           "file": "<site>/ws/crates/web/brickie.toml",
           "ghost": false,
+          "hidden_in": 0,
           "hot": [],
+          "independent": false,
           "members": [
             "path:ws/crates/web/"
           ],
@@ -38,7 +40,9 @@
           "exports": [],
           "file": null,
           "ghost": false,
+          "hidden_in": 0,
           "hot": [],
+          "independent": false,
           "members": [
             "core"
           ],
@@ -60,7 +64,9 @@
           "exports": [],
           "file": null,
           "ghost": false,
+          "hidden_in": 0,
           "hot": [],
+          "independent": false,
           "members": [
             "client"
           ],
@@ -133,7 +139,9 @@
           "exports": [],
           "file": null,
           "ghost": false,
+          "hidden_in": 0,
           "hot": [],
+          "independent": false,
           "members": [
             "web-api"
           ],
@@ -153,7 +161,9 @@
           "exports": [],
           "file": null,
           "ghost": false,
+          "hidden_in": 0,
           "hot": [],
+          "independent": false,
           "members": [
             "web-ui"
           ],
@@ -173,7 +183,9 @@
           "exports": [],
           "file": null,
           "ghost": true,
+          "hidden_in": 0,
           "hot": [],
+          "independent": false,
           "members": [],
           "name": "root/client",
           "path": "root/client",
@@ -191,7 +203,9 @@
           "exports": [],
           "file": null,
           "ghost": true,
+          "hidden_in": 0,
           "hot": [],
+          "independent": false,
           "members": [],
           "name": "root/core",
           "path": "root/core",

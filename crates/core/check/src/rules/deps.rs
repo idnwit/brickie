@@ -2,10 +2,11 @@
 //! lifted to the lowest common ancestor of its leaf paths and checked against that level's
 //! rules; `deps/private` (see `private.rs`) checks the target's visibility on the same pass.
 
+use super::independent::{Independent, independent_pair_allowed, independent_source};
 use super::lift::{hidden, lift};
 use super::private::Private;
 use super::{span, tags};
-use crate::config::{Action, Brick, Config, DepRule, Level, Resolved};
+use crate::config::{Action, Brick, Config, DepRule, Level, Resolved, Sel};
 use crate::diag::{Finding, Note, RuleRef, Span};
 use brickie_facts::{Cache, Evidence};
 use brickie_model::codes::{DEPS_DEFAULT, DEPS_DENY};
@@ -40,7 +41,7 @@ fn pick_rule<'a>(
 ) -> Option<(usize, &'a DepRule)> {
     let mut best: Option<(u32, usize, &DepRule)> = None;
     for (i, r) in rules.iter().enumerate() {
-        if !(r.kinds.is_empty() || r.kinds.iter().any(|k| k == kind)) || !r.scope.matches(scope) {
+        if !applies(r, to, kind, scope) {
             continue;
         }
         let (Some(a), Some(b)) = (r.from.specificity(from), r.to_rank(to, entered)) else {
@@ -60,9 +61,27 @@ fn pick_rule<'a>(
     best.map(|(_, i, r)| (i, r))
 }
 
+/// Kind and scope match, and a `*` deny is not applied to an independent target.
+fn applies(r: &DepRule, to: &Brick, kind: &str, scope: &str) -> bool {
+    let kind_ok = r.kinds.is_empty() || r.kinds.iter().any(|k| k == kind);
+    let star_deny = to.independent && r.action == Action::Deny && r.to == Sel::Any;
+    kind_ok && r.scope.matches(scope) && !star_deny
+}
+
 pub(super) fn deps(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Box<dyn Finding>>) {
     for e in cache.edges() {
-        let (Some(p1), Some(p2)) = (res.path(&e.from), res.path(&e.to)) else {
+        let Some(p1) = res.path(&e.from) else {
+            continue;
+        };
+        if let Some(from) = independent_source(cfg, p1)
+            && res.path(&e.to) != Some(p1)
+            && !independent_pair_allowed(cfg, from, res.path(&e.to), &e.kind, &e.scope)
+        {
+            let to = res.path(&e.to).and_then(|p| p.first()).unwrap_or(&e.to);
+            out.push(Box::new(Independent::new(from.name.clone(), to.clone(), e)));
+            continue;
+        }
+        let Some(p2) = res.path(&e.to) else {
             continue;
         };
         let Some(l) = lift(cfg, p1, p2) else { continue };
@@ -84,7 +103,13 @@ pub(super) fn deps(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Bo
         let rules = &l.level.deps;
         let entered = p2.get(l.k + 1).map(String::as_str);
         let rule = pick_rule(&rules.rules, l.from, l.to, entered, &e.kind, &e.scope);
-        if rule.map_or(rules.default, |(_, r)| r.action) == Action::Allow {
+        // Edges into an independent brick are allowed unless a deny rule names it.
+        let action = match rule {
+            Some((_, r)) => r.action,
+            None if l.to.independent => Action::Allow,
+            None => rules.default,
+        };
+        if action == Action::Allow {
             continue;
         }
         out.push(Box::new(Dep {

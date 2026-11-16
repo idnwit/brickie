@@ -369,6 +369,17 @@ example "no `uses` edge in test scope"); the location is the rule. While writing
 if the rule's `kinds` or `scope` are wrong, report it; the maintainers change or remove the rule
 (`brickie design rule set` / `rule rm`). Do not edit the rule yourself to silence it.
 
+### deps/independent (error)
+
+A brick marked `independent = true` uses a module outside itself: a non-independent brick, a
+workspace module that is in no brick, or another independent brick that no explicit allow rule
+(brick name or tag on both sides, not `*`) permits. It acts like an external library, so it may use
+only its own modules and external crates. No rule, `--skip` or `[[accept]]` silences it. Fix:
+remove the dependency; move the shared code into the independent brick or into a separate crate
+it may depend on as an external crate. If the brick should not be independent, report it for a
+human reviewer; do not edit the flag. Edges into an independent brick are not reported unless a
+deny rule names it by brick or tag.
+
 ### baseline/rules-changed (error)
 
 With `check --new`: a brickie.toml or brickie.review.toml differs from the saved baseline. Never
@@ -381,7 +392,7 @@ An `[[accept]]` in `brickie.review.toml` whose id matches no current finding. Th
 finding has a new id: a human reviews it again) or it was fixed (the entry should go). Not shown
 while the cache is stale. Report it for a human reviewer; never edit the review file yourself.
 
-### config/missing, config/overlap, config/unassigned, config/member-outside-parent, config/unknown-export, config/unknown-via
+### config/missing, config/overlap, config/unassigned, config/member-outside-parent, config/unknown-export, config/unknown-via, config/independent-nested, config/independent-rule
 
 Configuration errors (exit 2, printed on stderr with the code first; no findings are reported):
 
@@ -395,6 +406,11 @@ Configuration errors (exit 2, printed on stderr with the code first; no findings
 - `config/unknown-via`: a rule's `via` is an empty list, `to` is not a composite brick name (a tag,
   `*` or a leaf), or `via` names a child the `to` composite does not export. Fix `via` to list only
   names in that composite's `exports`.
+- `config/independent-nested`: `independent = true` is on a brick of a nested level file, or on a
+  composite (a brick with `path`). It is allowed only on leaf bricks of the root file.
+- `config/independent-rule`: an `allow` rule goes from an independent brick to a non-independent
+  brick. Independent bricks may use only other independent bricks, so remove the rule (or the
+  flag, if a human decides so).
 
 These are brick-structure decisions: report them rather than editing the config to silence them.
 
@@ -442,6 +458,16 @@ members = ["my-engine", "my-app::api", "module:my-app::entry", "path:crates/engi
                                # across bricks is an error. Default: none
 tags = ["core"]                # optional labels for rule selectors
 desc = "Rule evaluation"       # optional one-liner shown in the viewer; no effect on checks
+independent = false            # true: acts like an external library (root file, leaf bricks
+                               # only). It may use only itself and external crates (an edge to
+                               # a non-independent brick or an unmapped module is always
+                               # `deps/independent`; one to another independent brick is too,
+                               # unless an allow rule names both by brick or tag, never `*`).
+                               # Edges into it are allowed even under `deps.default = "deny"`
+                               # unless a deny rule names it by brick or tag (`to = "*"` never
+                               # denies it). An allow rule from an independent brick to a
+                               # non-independent brick is `config/independent-rule`; allow rules
+                               # into it from non-independent bricks are never `deps/unused`. Default false
 
 [[brick]]
 name = "app"

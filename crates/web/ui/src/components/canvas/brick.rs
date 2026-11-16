@@ -5,7 +5,7 @@
 use super::style::{Badge, Heat, NodeFlags, fit_name};
 use crate::layout::Rect;
 use crate::state::*;
-use brickie_web_api::{BrickScore, BrickView, fmt_score};
+use brickie_web_api::{BrickScore, BrickView, INDEPENDENT_LABEL, INDEPENDENT_TIP, fmt_score};
 use sycamore::prelude::*;
 
 /// One brick: box, name, heat bar, tag line and the score badge (`renderGraph` node part).
@@ -51,11 +51,7 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
     let (w, h) = (r0.w.to_string(), r0.h.to_string());
     // The box width follows the name up to a cap; a longer name is cut (the tooltip has it all).
     let name = fit_name(&brick.name, r0.w);
-    let tag = if brick.composite() {
-        format!("{} \u{00B7} {} bricks", brick.tag, brick.children.len())
-    } else {
-        brick.tag.clone()
-    };
+    let tag = tag_line(&brick);
     let (c1, c2) = (cx.clone(), cx.clone());
     let down = move |e: Click| press(&c1, b, &e);
     let target = zoom_target(&brick);
@@ -89,11 +85,28 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
     }
 }
 
+/// The sub line: tag, child count of a composite, and the independent lib mark.
+fn tag_line(b: &BrickView) -> String {
+    let mut tag = b.tag.clone();
+    if b.composite() {
+        tag = format!("{tag} \u{00B7} {} bricks", b.children.len());
+    }
+    if b.independent {
+        tag = format!("{tag} \u{00B7} {INDEPENDENT_LABEL}");
+    }
+    tag
+}
+
 /// The hover text: name, tag, description, score and the peek.
 fn brick_tip(b: &BrickView, s: &BrickScore) -> String {
     let desc = b.desc.as_ref().map_or(String::new(), |d| format!("\n{d}"));
+    let indep = if b.independent {
+        format!("\n{INDEPENDENT_TIP}")
+    } else {
+        String::new()
+    };
     format!(
-        "{} [{}]{desc}\nscore {} ({}E {}W, complexity excess {}){}",
+        "{} [{}]{desc}{indep}\nscore {} ({}E {}W, complexity excess {}){}",
         b.name,
         b.tag,
         fmt_score(s.score),
@@ -139,9 +152,10 @@ fn kind_class(b: &BrickView) -> String {
         (_, true) => " comp",
         _ => "",
     };
+    let independent = if b.independent { " independent" } else { "" };
     let planned = if b.planned { " planned" } else { "" };
     let unassigned = if b.unassigned { " unassigned" } else { "" };
-    format!("{kind}{planned}{unassigned}")
+    format!("{kind}{independent}{planned}{unassigned}")
 }
 
 /// A press on brick `b` starts a drag when it grabs the brick.

@@ -119,6 +119,7 @@ fn leaf_target_never_matches_a_via_rule() {
         tags: vec![],
         path: None,
         desc: None,
+        independent: false,
         base: Default::default(),
         sub: None,
     };

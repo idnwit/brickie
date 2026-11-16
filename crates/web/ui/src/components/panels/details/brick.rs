@@ -36,6 +36,21 @@ pub(super) fn brick_detail(cx: &Cx, b: usize) -> View {
         .map(|t| view! { span(class="tag") { (t) } })
         .collect();
     let tags = View::from(tags);
+    let used_by = format!("Used by ({ni})");
+    let hidden = if br.independent && br.hidden_in > 0 {
+        let note = format!(
+            "used by {} more brick(s); edges hidden: independent lib, no rule violated",
+            br.hidden_in
+        );
+        view! { div(class="muted small", title=INDEPENDENT_TIP) { (note) } }
+    } else {
+        View::default()
+    };
+    let mark = if br.independent {
+        view! { span(class="tag", title=INDEPENDENT_TIP) { (INDEPENDENT_LABEL) } }
+    } else {
+        View::default()
+    };
     let desc = super::super::node::desc(&br);
     let members = super::super::node::tree_info(cx, &br);
     let card = scorecard(cx, b);
@@ -43,12 +58,13 @@ pub(super) fn brick_detail(cx: &Cx, b: usize) -> View {
     view! {
         div(class="dhead") { h2 { (name) } span(title="Open this brick's code") { (open_code) } }
         (desc)
-        div { (tags) }
+        div { (tags) (mark) }
         (card)
         (members)
         h4 { (format!("Depends on ({no})")) }
         (out)
-        h4 { (format!("Used by ({ni})")) }
+        h4 { (used_by) }
+        (hidden)
         (inn)
         (iface)
     }

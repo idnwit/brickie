@@ -1,8 +1,10 @@
 //! Validation of one level: rule selectors and exports name this file's own bricks and tags.
 
-use super::{Config, KINDS, Sel};
+use super::{Action, Config, KINDS, Sel};
 use anyhow::{Result, bail};
-use brickie_model::codes::{CONFIG_UNKNOWN_EXPORT, CONFIG_UNKNOWN_VIA};
+use brickie_model::codes::{
+    CONFIG_INDEPENDENT_NESTED, CONFIG_INDEPENDENT_RULE, CONFIG_UNKNOWN_EXPORT, CONFIG_UNKNOWN_VIA,
+};
 use std::collections::BTreeSet;
 
 pub fn validate(cfg: &Config) -> Result<()> {
@@ -26,6 +28,7 @@ pub fn validate(cfg: &Config) -> Result<()> {
             bail!("{}: unknown kind '{k}' (expected one of {KINDS:?})", r.loc);
         }
     }
+    independent(cfg)?;
     for r in &cfg.complexity {
         check(&r.bricks, &r.loc)?;
     }
@@ -65,6 +68,38 @@ pub fn validate_via(cfg: &Config) -> Result<()> {
             .find(|v| !sub.exports.iter().any(|e| &e.brick == *v))
         {
             return bad(format!("'{v}' is not exported by '{}'", r.to));
+        }
+    }
+    Ok(())
+}
+
+/// `independent` is root-only and for leaf bricks; no allow rule may start at an independent brick.
+fn independent(cfg: &Config) -> Result<()> {
+    for b in cfg.bricks.iter().filter(|b| b.independent) {
+        if !cfg.path.is_empty() {
+            bail!(
+                "{CONFIG_INDEPENDENT_NESTED}: brick '{}' in {} is independent, which is only allowed in the root brickie.toml",
+                b.name,
+                cfg.file
+            );
+        }
+        if b.path.is_some() {
+            bail!(
+                "{CONFIG_INDEPENDENT_NESTED}: brick '{}' in {} is a composite and cannot be independent",
+                b.name,
+                cfg.file
+            );
+        }
+    }
+    for r in &cfg.deps.rules {
+        let Sel::Brick(n) = &r.from else { continue };
+        let Sel::Brick(t) = &r.to else { continue };
+        let indep = |n: &str| cfg.brick(n).is_some_and(|b| b.independent);
+        if r.action == Action::Allow && indep(n) && cfg.brick(t).is_some() && !indep(t) {
+            bail!(
+                "{CONFIG_INDEPENDENT_RULE}: {}: '{n}' is independent and may use only other independent bricks, so an allow rule to '{t}' is not allowed",
+                r.loc
+            );
         }
     }
     Ok(())
