@@ -406,8 +406,9 @@ Configuration errors (exit 2, printed on stderr with the code first; no findings
 - `config/unknown-via`: a rule's `via` is an empty list, `to` is not a composite brick name (a tag,
   `*` or a leaf), or `via` names a child the `to` composite does not export. Fix `via` to list only
   names in that composite's `exports`.
-- `config/independent-nested`: `independent = true` is on a brick of a nested level file, or on a
-  composite (a brick with `path`). It is allowed only on leaf bricks of the root file.
+- `config/independent-nested`: `independent = true` is on a brick of a nested level file. It is
+  allowed only on bricks of the root file (a leaf or a composite; a composite counts as one lib,
+  and its `exports` still limit what others may use).
 - `config/independent-rule`: an `allow` rule goes from an independent brick to a non-independent
   brick. Independent bricks may use only other independent bricks, so remove the rule (or the
   flag, if a human decides so).

@@ -74,7 +74,7 @@ pub(super) fn deps(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Bo
             continue;
         };
         if let Some(from) = independent_source(cfg, p1)
-            && res.path(&e.to) != Some(p1)
+            && res.path(&e.to).and_then(|p| p.first()) != p1.first()
             && !independent_pair_allowed(cfg, from, res.path(&e.to), &e.kind, &e.scope)
         {
             let to = res.path(&e.to).and_then(|p| p.first()).unwrap_or(&e.to);

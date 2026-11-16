@@ -26,7 +26,12 @@ fn root(deps: &str) -> String {
 }
 
 fn run(root: &str, edges: &[(&str, &str)]) -> Vec<(String, String)> {
-    let (dir, cfg) = fixture(root, "");
+    run_in(root, "", edges)
+}
+
+/// Like `run`, with `web` as the nested `crates/web/brickie.toml`.
+fn run_in(root: &str, web: &str, edges: &[(&str, &str)]) -> Vec<(String, String)> {
+    let (dir, cfg) = fixture(root, web);
     let res = resolved(dir.path(), &cfg).unwrap();
     let ws = dir.path().canonicalize().unwrap();
     let mut per = Vec::new();
@@ -148,10 +153,22 @@ fn independent_in_a_nested_level_is_a_config_error() {
 }
 
 #[test]
-fn independent_composite_is_a_config_error() {
-    let root = "[[brick]]\nname = \"web\"\npath = \"crates/web\"\nindependent = true\n";
-    let web = "[[brick]]\nname = \"api\"\nmembers = [\"web-api\"]\n";
-    assert!(load_err(root, web).contains("config/independent-nested"));
+fn independent_root_composite_acts_as_one_lib() {
+    let root = "[[brick]]\nname = \"app\"\nmembers = [\"core\"]\n\
+        [[brick]]\nname = \"web\"\npath = \"crates/web\"\nindependent = true\n\
+        [deps]\ndefault = \"deny\"\n";
+    let web = "exports = [\"api\"]\n\
+        [[brick]]\nname = \"api\"\nmembers = [\"web-api\"]\n\
+        [[brick]]\nname = \"ui\"\nmembers = [\"web-ui\"]\n\
+        [[brick]]\nname = \"shared\"\nmembers = [\"web-shared\"]\n\
+        [deps]\ndefault = \"allow\"\n";
+    // Inside the composite: its own level rules decide; inbound into an export: allowed.
+    let f = run_in(root, web, &[("web-ui", "web-shared"), ("core", "web-api")]);
+    assert!(f.is_empty(), "{f:#?}");
+    // Outbound from any child: `deps/independent` naming the composite.
+    let f = run_in(root, web, &[("web-api", "core")]);
+    assert_eq!(codes(&f), ["deps/independent"], "{f:#?}");
+    assert_eq!(f[0].1, "`web` is independent and uses `app`");
 }
 
 #[test]

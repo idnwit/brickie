@@ -7,9 +7,10 @@ use crate::diag::{Finding, RuleRef, Span};
 use brickie_facts::{Edge, Evidence};
 use brickie_model::codes::DEPS_INDEPENDENT;
 
-/// The independent root brick whose leaf path is `p1`, if any.
+/// The independent root brick that holds leaf path `p1` (itself or, for a composite, an
+/// ancestor), if any.
 pub(super) fn independent_source<'a>(cfg: &'a Config, p1: &[String]) -> Option<&'a Brick> {
-    let [name] = p1 else { return None };
+    let name = p1.first()?;
     cfg.brick(name).filter(|b| b.independent)
 }
 

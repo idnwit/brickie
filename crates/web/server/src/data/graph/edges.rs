@@ -28,9 +28,10 @@ pub fn mod_edges(l: &Loaded) -> Vec<ModEdge> {
         rules::DEPS_PRIVATE,
         brickie_model::codes::DEPS_INDEPENDENT,
     ];
-    let independent = |p: &[String]| match p {
-        [name] => l.cfg.brick(name).is_some_and(|b| b.independent),
-        _ => false,
+    let independent = |p: &[String]| {
+        p.first()
+            .and_then(|name| l.cfg.brick(name))
+            .is_some_and(|b| b.independent)
     };
     let mut out = Vec::new();
     for e in l.cache.edges() {
@@ -46,7 +47,7 @@ pub fn mod_edges(l: &Loaded) -> Vec<ModEdge> {
             .map(|c| diag::finding_id(c, &subject))
             .filter(|id| found.contains(id.as_str()))
             .collect::<Vec<String>>();
-        let hidden = independent(to) && !independent(from) && diags.is_empty();
+        let hidden = independent(to) && from.first() != to.first() && diags.is_empty();
         out.push(ModEdge {
             from: from.to_vec(),
             to: to.to_vec(),
