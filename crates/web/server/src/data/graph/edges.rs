@@ -23,10 +23,15 @@ pub struct ModEdge {
 pub fn mod_edges(l: &Loaded) -> Vec<ModEdge> {
     let found: BTreeSet<&str> = l.diagnostics.iter().map(|d| d.id.as_str()).collect();
     let codes = [rules::DEPS_UNLINKED, rules::DEPS_PRIVATE];
-    let independent = |p: &[String]| {
-        p.first()
-            .and_then(|name| l.cfg.brick(name))
-            .is_some_and(|b| b.independent)
+    // An edge from inside the parent's subtree into an independent lib at any depth, from
+    // outside that lib.
+    let into_lib = |from: &[String], to: &[String]| {
+        (1..=to.len()).any(|k| {
+            from.len() >= k
+                && from[..k - 1] == to[..k - 1]
+                && from[k - 1] != to[k - 1]
+                && l.cfg.brick_at(&to[..k]).is_some_and(|b| b.independent)
+        })
     };
     let mut out = Vec::new();
     for e in l.cache.edges() {
@@ -42,7 +47,7 @@ pub fn mod_edges(l: &Loaded) -> Vec<ModEdge> {
             .map(|c| diag::finding_id(c, &subject))
             .filter(|id| found.contains(id.as_str()))
             .collect::<Vec<String>>();
-        let hidden = independent(to) && from.first() != to.first() && diags.is_empty();
+        let hidden = into_lib(from, to) && diags.is_empty();
         out.push(ModEdge {
             from: from.to_vec(),
             to: to.to_vec(),

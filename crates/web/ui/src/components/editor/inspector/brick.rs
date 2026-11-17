@@ -61,8 +61,8 @@ fn fields(cx: &Cx, file: String, b: &BrickView) -> View {
             move |p| set(&c, &f, &b0, Field::Path(p)),
         )
     });
-    // `independent` is allowed on root-level bricks only.
-    let lib = (cx.level().path == "root").then(|| {
+    // `independent` is allowed at any level.
+    let lib = {
         let (c, f, b0) = (cx.clone(), file.clone(), b.clone());
         view! {
             label(title=INDEPENDENT_TIP) {
@@ -75,7 +75,7 @@ fn fields(cx: &Cx, file: String, b: &BrickView) -> View {
                 (INDEPENDENT_LABEL)
             }
         }
-    });
+    };
     view! { div(class="form") { (name) (desc) (tags) (members) (path) (lib) } }
 }
 
