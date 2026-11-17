@@ -58,6 +58,7 @@ pub fn brick(d: &Design, c: BrickCmd) -> Result<(Vec<Op>, Write)> {
                 tags: f.tags,
                 members: f.members,
                 path: f.path,
+                independent: f.independent,
             };
             (vec![op], w)
         }

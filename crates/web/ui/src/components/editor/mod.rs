@@ -150,6 +150,10 @@ fn attempt<E>(
                 Err(e) => ed.msg.set(e),
             }),
             Refusal::Show(why) => {
+                // A blocked publish keeps its blocking items on screen.
+                if why.contains("design/blocked") {
+                    ed.msg.set(why.clone());
+                }
                 self::toast(ed, why);
                 // The page may be behind another writer: catch up.
                 live::refresh_soon();

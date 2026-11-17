@@ -51,6 +51,7 @@ pub enum Field {
     Tags(Vec<String>),
     Members(Vec<String>),
     Path(String),
+    Independent(bool),
 }
 
 /// `set_brick` with the one changed field; `None` when it equals what `b` has.
@@ -62,12 +63,14 @@ pub fn set_field(file: &str, b: &BrickView, f: Field) -> Option<Op> {
         tags: None,
         members: None,
         path: None,
+        independent: None,
     };
     let Op::SetBrick {
         desc,
         tags,
         members,
         path,
+        independent,
         ..
     } = &mut op
     else {
@@ -81,6 +84,7 @@ pub fn set_field(file: &str, b: &BrickView, f: Field) -> Option<Op> {
         Field::Members(m) if m != b.members => *members = Some(m),
         // The view does not carry the written `path`: any non-empty value is sent.
         Field::Path(p) if !p.trim().is_empty() => *path = Some(p.trim().to_string()),
+        Field::Independent(on) if on != b.independent => *independent = Some(on),
         _ => return None,
     }
     Some(op)
@@ -155,6 +159,22 @@ mod tests {
         assert!(level_brick_path("root").is_empty());
         assert_eq!(layout_key("root/web", "api"), "root/web/api");
         assert_eq!(split_list(" a, ,b "), vec!["a", "b"]);
+    }
+
+    #[test]
+    fn independent_toggle_sends_only_a_change() {
+        let mut b = BrickView {
+            name: "lib".into(),
+            ..Default::default()
+        };
+        let Some(Op::SetBrick { independent, .. }) =
+            set_field("b.toml", &b, Field::Independent(true))
+        else {
+            panic!("a change sends set_brick");
+        };
+        assert_eq!(independent, Some(true));
+        b.independent = true;
+        assert!(set_field("b.toml", &b, Field::Independent(true)).is_none());
     }
 
     #[test]

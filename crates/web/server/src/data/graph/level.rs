@@ -86,13 +86,14 @@ impl Agg {
 }
 
 impl<'a> Ctx<'a> {
-    pub fn new(l: &'a Loaded) -> Ctx<'a> {
+    /// `links`: the rule links to draw ([`super::links::served`] or [`super::links::rules`]).
+    pub fn new(l: &'a Loaded, links: Vec<(String, UnusedLink)>) -> Ctx<'a> {
         Ctx {
             l,
             edges: mod_edges(l),
             heat: heat(l),
             diags: l.diagnostics.iter().map(|d| (d.id.as_str(), d)).collect(),
-            links: super::links::served(l),
+            links,
         }
     }
 

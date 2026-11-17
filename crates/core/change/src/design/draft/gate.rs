@@ -1,6 +1,7 @@
 //! The publish gate: the code must match the draft's structure. Strict resolve of the draft
 //! over a fresh cache: no partition error, no planned brick, no stale cache. Dependency and
-//! rule findings never block; they are reported as information.
+//! rule findings never block; they are reported as information, with the allow rules no
+//! measured edge uses yet.
 
 use super::super::Design;
 use super::super::tree::Files;
@@ -66,6 +67,15 @@ impl Design {
                 true => g.blocking.push(item(&d.code, d.message.clone())),
                 false => g.info.push(format!("{}: {}", d.code, d.message)),
             }
+        }
+        for link in check::unused_links(l) {
+            g.info.push(format!(
+                "unused rule: {} -> {} in {} decides no edge yet ({}); write the code",
+                link.from,
+                link.to,
+                level_name(&link.level),
+                link.filter_text(),
+            ));
         }
         for path in planned(&l.cfg, &l.resolved) {
             let Some(b) = l.cfg.brick_at(&path) else {

@@ -48,7 +48,10 @@ impl Pair<'_> {
     pub fn tip(&self) -> String {
         let line = |e: &UnusedLink| {
             let why = e.reason.as_deref().unwrap_or("no reason yet");
-            format!("{} \u{2192} {} {why} ({})", e.from, e.to, e.filter)
+            format!(
+                "{} {} \u{2192} {} {why} ({})",
+                e.action, e.from, e.to, e.filter
+            )
         };
         self.rules
             .iter()

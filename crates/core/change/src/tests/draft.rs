@@ -21,7 +21,7 @@ fn the_first_write_forks_a_draft_and_leaves_the_published_files() {
     let d = ws.design();
     assert_eq!(d.forked_from().unwrap(), Some(1));
     assert_eq!((d.head().unwrap().v, d.published_head().unwrap().v), (2, 1));
-    let show = d.show().unwrap();
+    let show = d.show_design().unwrap();
     assert_eq!(
         (show.track, show.forked_from, show.v),
         (Track::Draft, Some(1), 2)
@@ -47,6 +47,7 @@ fn a_write_that_changes_nothing_creates_no_draft() {
         tags: None,
         members: Some(vec!["pb".into()]),
         path: None,
+        independent: None,
     };
     assert!(!ws.apply(A, vec![same]).unwrap().changed);
     assert_eq!(ws.design().forked_from().unwrap(), None);

@@ -194,14 +194,9 @@ fn level(s: &mut String, l: &LevelView, depth: usize) {
             .as_deref()
             .map(|x| format!("  \"{x}\""))
             .unwrap_or_default();
-        let todo = if r.todo {
-            "  [todo: no code uses it]"
-        } else {
-            ""
-        };
         let _ = writeln!(
             s,
-            "{pad}  rule {} -> {}{via}{kinds} ({}) {}{reason}{todo}",
+            "{pad}  rule {} -> {}{via}{kinds} ({}) {}{reason}",
             r.from, r.to, r.scope, r.action
         );
     }
@@ -224,10 +219,10 @@ fn brick(s: &mut String, b: &BrickView, depth: usize) {
         .as_deref()
         .map(|d| format!("  \"{d}\""))
         .unwrap_or_default();
-    let todo = if b.todo { "  [todo: no code yet]" } else { "" };
+    let lib = if b.independent { " independent" } else { "" };
     let _ = writeln!(
         s,
-        "{pad}brick {} {}{}{}{desc}{todo}",
+        "{pad}brick {} {}{lib}{}{}{desc}",
         b.name,
         b.kind,
         list("members", &b.members),

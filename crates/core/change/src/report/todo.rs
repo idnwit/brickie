@@ -1,67 +1,19 @@
-//! Tasks for the coding agent (and the human): what the design asks that the code lacks,
-//! computed against the live design and the measured cache.
+//! The design's own todo list: config self-consistency, read from the design files alone.
+//! What the code lacks is `design check`.
 
-use crate::preview::{cache_mismatch, planned};
-use brickie_check::check::{Loaded, unused_links};
-use brickie_check::config::{Config, level_name};
-use brickie_model::codes::{DESIGN_NO_REASON, DESIGN_PLANNED};
+use brickie_check::config::Config;
+use brickie_model::codes::DESIGN_NO_REASON;
 use brickie_model::design::{Task, TaskKind};
-use std::path::Path;
 
 fn task(kind: TaskKind, text: String) -> Task {
     Task { kind, text }
 }
 
-/// Everything to do, plus the planned brick paths and unbacked rule locations for marking the
-/// tree. `loaded` is the check of the published design (`Err`: why it does not check).
-pub struct Todo {
-    pub tasks: Vec<Task>,
-    pub planned: Vec<Vec<String>>,
-    pub unbacked: Vec<String>,
-}
-
-pub fn todo(root: &Path, cfg: &Config, loaded: Result<&Loaded, String>) -> Todo {
-    let mut t = Todo {
-        tasks: Vec::new(),
-        planned: Vec::new(),
-        unbacked: Vec::new(),
-    };
-    match loaded {
-        Err(e) => t.tasks.push(task(TaskKind::Config, e)),
-        Ok(l) => match cache_mismatch(root, l) {
-            Some(m) => t.tasks.push(task(TaskKind::Config, m)),
-            None => measured(l, &mut t),
-        },
-    }
-    reasonless(cfg, &mut t.tasks);
-    t
-}
-
-/// The todo list of a draft: config self-consistency only (the draft is never resolved
-/// against the code; `design publish --dry-run` lists what the code lacks).
-pub fn draft_todo(cfg: &Config) -> Vec<Task> {
+/// The todo list of a design held as files: rules without a reason.
+pub fn design_todo(cfg: &Config) -> Vec<Task> {
     let mut out = Vec::new();
     reasonless(cfg, &mut out);
     out
-}
-
-fn measured(l: &Loaded, t: &mut Todo) {
-    t.planned = planned(&l.cfg, &l.resolved);
-    for p in &t.planned {
-        let text = format!("{DESIGN_PLANNED}: {}", planned_text(&l.cfg, p));
-        t.tasks.push(task(TaskKind::Planned, text));
-    }
-    for link in unused_links(l) {
-        let text = format!(
-            "unused rule: {} -> {} in {} decides no edge yet ({}); write the code",
-            link.from,
-            link.to,
-            level_name(&link.level),
-            link.filter_text(),
-        );
-        t.unbacked.push(link.loc);
-        t.tasks.push(task(TaskKind::Unused, text));
-    }
 }
 
 /// One task per rule without a reason (a preset's rule once).
@@ -85,20 +37,4 @@ fn reasonless(level: &Config, out: &mut Vec<Task>) {
             reasonless(sub, out);
         }
     }
-}
-
-/// `brick root/x has no measured module yet; create the code for members [..]`.
-fn planned_text(cfg: &Config, path: &[String]) -> String {
-    let Some(b) = cfg.brick_at(path) else {
-        return level_name(path);
-    };
-    let what = match &b.path {
-        Some(p) => format!("composite at {p}/ (create its children's code)"),
-        None if b.members.is_empty() => "no members: set its members".to_string(),
-        None => format!("create the code for members {:?}", b.members),
-    };
-    format!(
-        "brick {} has no measured module yet; {what}",
-        level_name(path)
-    )
 }

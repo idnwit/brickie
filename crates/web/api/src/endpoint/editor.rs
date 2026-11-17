@@ -85,7 +85,8 @@ impl Endpoint for DesignRelayout {
 
 /// `POST /api/design/publish`: copy the draft into the real files as one published version.
 /// Refused (409, `design/blocked`, nothing written) while the gate has blocking items;
-/// `dry_run` only answers the design with its gate.
+/// `dry_run` runs the gate only: refused the same way, else the design unchanged. The only
+/// place Design mode compares code with the design.
 pub struct DesignPublish;
 impl Endpoint for DesignPublish {
     const PATH: &'static str = "/api/design/publish";

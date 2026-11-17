@@ -1,4 +1,4 @@
-//! The Inspector tab: the selected rule edge, brick or measured edge with its full editable
+//! The Inspector tab: the selected rule or brick with its full editable
 //! schema, or the level's properties when nothing is selected.
 
 mod brick;
@@ -16,7 +16,6 @@ pub fn inspector(cx: &Cx) -> View {
         untrack(|| match (rule, sel) {
             (Some(r), _) => edge::rule_view(&c, r),
             (None, Sel::Brick(b)) if !c.m.g.bricks[b].ghost => brick::brick_view(&c, b),
-            (None, Sel::Edge(e)) => edge::measured_view(&c, e),
             _ => level::level_view(&c),
         })
     };

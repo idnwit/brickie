@@ -31,8 +31,8 @@ wheel-driven semantic zoom.
   (from, to, kind). Outside neighbours are faded rows. Code: `crates/web/server/src/data/graph/`.
 - Outside edges (`bnd`): `children` draws each to the child it reaches; `frame` aggregates to
   the frame wall on the client. Scores and edge lists ignore frame edges.
-- Independent libs (`independent = true`) sit in their tag row like any brick, marked by the text
-  "independent lib", a dashed box and a tooltip. Server-side (`ModEdge.hidden`), a clean edge into
+- Independent libs (`independent = true`) sit in their tag row like any brick, marked by a small book
+  icon before the name (titled with the tooltip), a dashed box and a tooltip, in both modes. Server-side (`ModEdge.hidden`), a clean edge into
   one from a non-independent brick is not served: no edge, no ghost, no fan-in or score effect.
   Edges carrying any finding and all outbound edges are drawn. The
   inspector says "used by N more brick(s); edges hidden: independent lib" (`BrickView.hidden_in`),

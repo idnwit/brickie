@@ -18,7 +18,7 @@ mod rule;
   brickie design brick add store --kind crate --base 15
   brickie design rule add api store allow --reason \"reads data\" --base 16
   brickie design undo --base 17
-  brickie design publish --dry-run --base 17
+  brickie design check
   brickie design publish --base 17")]
 pub struct DesignArgs {
     #[arg(long, default_value = "brickie.toml", global = true)]
@@ -62,8 +62,8 @@ pub struct Line {
 #[allow(clippy::large_enum_variant)]
 #[derive(Subcommand)]
 pub enum Cmd {
-    /// The working design (the draft, else the published one): version, bricks, rules, limits
-    /// and the todo list.
+    /// The working design (the draft, else the published one) from its files alone: version,
+    /// bricks, rules, limits and the config todo list. Never reads the code.
     Show {
         /// Only the versions after N, with what each changed.
         #[arg(long)]
@@ -92,15 +92,15 @@ pub enum Cmd {
         #[command(flatten)]
         w: Write,
     },
+    /// Compare the code with the working design (the draft, else the published one): the items
+    /// that block a publish, plus the findings that do not. Exit 4 when blocked.
+    Check,
     /// Copy the draft into the real files as one published version, once the code matches its
-    /// structure; --dry-run lists what blocks (the refactor checklist).
+    /// structure (`check` lists what blocks).
     Publish {
         /// The draft head.
         #[arg(long, env = "BRICKIE_BASE")]
         base: u64,
-        /// List the blocking items and the non-blocking dependency findings; write nothing.
-        #[arg(long)]
-        dry_run: bool,
         #[arg(long)]
         note: Option<String>,
     },

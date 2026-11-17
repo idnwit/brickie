@@ -35,6 +35,7 @@ pre{background:var(--band);padding:8px;border-radius:4px;overflow:auto;font:12px
 #legend .k{cursor:pointer;display:flex;gap:6px;align-items:center}#legend .k.off{opacity:.4}#legend .k:hover{background:var(--band)}#legend h5{margin:6px 0 2px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}#legend svg{width:56px;height:16px;flex:none}#legend div{margin:2px 0}
 .node text{fill:var(--ink);pointer-events:none}.node{cursor:pointer}
 .node{transition:opacity .15s}.node.dh{opacity:.25}.lay{transition:opacity .15s}.node .sub{fill:var(--muted);font-size:13px}
+.node .indep-ico path{fill:none;stroke:var(--muted);stroke-width:1.3;stroke-linejoin:round}
 .zone{stroke:var(--line);stroke-width:1}.zone.dash{stroke-dasharray:6 4;stroke:var(--muted)}.zone.bold{stroke:var(--muted);stroke-width:2}.zlab{fill:var(--muted);font-size:12px;font-weight:700;letter-spacing:.08em}@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .zone{fill-opacity:.13}}
 .grp{fill:var(--band);opacity:.55;stroke:none}.glab{fill:var(--muted);font-size:13px;letter-spacing:.04em;text-transform:uppercase}.rcap{fill:var(--muted);font-size:12px;font-weight:600;opacity:1}.rlab{fill:var(--muted);font-size:15px}
 .rowline{stroke:var(--line);stroke-dasharray:2 6}

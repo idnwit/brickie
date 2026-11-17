@@ -5,7 +5,7 @@
 use super::style::{Badge, Heat, NodeFlags, fit_name};
 use crate::layout::Rect;
 use crate::state::*;
-use brickie_web_api::{BrickScore, BrickView, INDEPENDENT_LABEL, INDEPENDENT_TIP, fmt_score};
+use brickie_web_api::{BrickScore, BrickView, INDEPENDENT_TIP, fmt_score};
 use sycamore::prelude::*;
 
 /// One brick: box, name, heat bar, tag line and the score badge (`renderGraph` node part).
@@ -49,8 +49,7 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
         }
     };
     let (w, h) = (r0.w.to_string(), r0.h.to_string());
-    // The box width follows the name up to a cap; a longer name is cut (the tooltip has it all).
-    let name = fit_name(&brick.name, r0.w);
+    let name = name_view(&brick, r0.w);
     let tag = tag_line(&brick);
     let (c1, c2) = (cx.clone(), cx.clone());
     let down = move |e: Click| press(&c1, b, &e);
@@ -76,7 +75,7 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
             rect(class="box", width=w, height=h, rx="6")
             (inner)
             (ports)
-            text(x="8", y="22", "font-size"="15", "font-weight"="600") { (name) }
+            (name)
             (heat)
             text(x=tag_x.to_string(), y="48", class="sub") { (tag) }
             (badge)
@@ -85,14 +84,32 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
     }
 }
 
-/// The sub line: tag, child count of a composite, and the independent lib mark.
+/// The name, after a small book on an independent lib (a design flag, shown in both modes). The
+/// box width follows the name up to a cap; a longer name is cut (the tooltip has it all).
+fn name_view(b: &BrickView, w: f64) -> View {
+    let (book, x, room) = match b.independent {
+        true => (book_icon(), "24", w - 16.0),
+        false => (View::default(), "8", w),
+    };
+    let name = fit_name(&b.name, room);
+    view! { (book) text(x=x, y="22", "font-size"="15", "font-weight"="600") { (name) } }
+}
+
+/// The independent lib mark: an open book (12 x 10) left of the name, titled with the tip.
+fn book_icon() -> View {
+    view! {
+        g(class="indep-ico", transform="translate(8,11)") {
+            svg_title { (INDEPENDENT_TIP) }
+            path(d="M6 2C4.5 0.8 2.5 0.5 0.5 0.8V9.3C2.5 9 4.5 9.3 6 10.5C7.5 9.3 9.5 9 11.5 9.3V0.8C9.5 0.5 7.5 0.8 6 2ZM6 2V10.5")
+        }
+    }
+}
+
+/// The sub line: tag and child count of a composite.
 fn tag_line(b: &BrickView) -> String {
     let mut tag = b.tag.clone();
     if b.composite() {
         tag = format!("{tag} \u{00B7} {} bricks", b.children.len());
-    }
-    if b.independent {
-        tag = format!("{tag} \u{00B7} {INDEPENDENT_LABEL}");
     }
     tag
 }
@@ -142,7 +159,7 @@ fn node_flags(cx: &Cx, b: usize) -> NodeFlags {
     })
 }
 
-/// The box classes of a brick's kind, with the edit-mode mark: planned (no code yet).
+/// The box classes of a brick's kind.
 fn kind_class(b: &BrickView) -> String {
     let kind = match (b.ghost, b.composite()) {
         (true, _) => " ghost",
@@ -150,9 +167,8 @@ fn kind_class(b: &BrickView) -> String {
         _ => "",
     };
     let independent = if b.independent { " independent" } else { "" };
-    let planned = if b.planned { " planned" } else { "" };
     let unassigned = if b.unassigned { " unassigned" } else { "" };
-    format!("{kind}{independent}{planned}{unassigned}")
+    format!("{kind}{independent}{unassigned}")
 }
 
 /// A press on brick `b` starts a drag when it grabs the brick.

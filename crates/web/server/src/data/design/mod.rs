@@ -1,5 +1,5 @@
-//! The versioned design as the editor shows it ([`DesignState`]) and the edit-mode marks of
-//! the levels: planned bricks (no measured module yet).
+//! The versioned design as the editor shows it ([`DesignState`]), read from the design files
+//! alone: no measured code (the publish gate alone compares code with the design).
 
 mod conflict;
 mod layout;
@@ -9,26 +9,22 @@ pub use layout::{clear_level, read_layout, set_hint};
 
 use anyhow::Result;
 use brickie_change::{Design, DesignView};
-use brickie_check::check::Loaded;
-use brickie_check::config::level_name;
 use brickie_web_api::design::LevelView as DesignLevel;
-use brickie_web_api::{DesignState, HISTORY, LevelInfo, LevelView};
-use std::collections::{BTreeMap, BTreeSet};
+use brickie_web_api::{DesignState, HISTORY, LevelInfo};
+use std::collections::BTreeMap;
 
-/// The design at the head of its working track, with the draft's state and gate. `error` says why the tree does not show (`files` is then empty).
+/// The design at the head of its working track, with the draft's state. `error` says why the
+/// tree does not show (`files` is then empty).
 pub fn state(d: &Design) -> Result<DesignState> {
     let log = d.log()?;
     let head = d.head()?;
     let published = d.published_head()?.v;
     let forked_from = d.forked_from()?;
-    // A draft behind the published head has no gate (the check refuses it): rebase first.
-    let gate = forked_from.and_then(|_| d.publish_check(head.v).ok());
     let skip = log.len().saturating_sub(HISTORY);
     let mut out = DesignState {
         v: head.v,
         published,
         forked_from,
-        gate,
         hash: head.hash,
         by: head.by,
         history: log.into_iter().skip(skip).collect(),
@@ -39,7 +35,7 @@ pub fn state(d: &Design) -> Result<DesignState> {
         sheets: d.sheets()?,
         error: None,
     };
-    match d.show() {
+    match d.show_design() {
         Ok(view) => fill(&mut out, &view),
         Err(e) => out.error = Some(format!("{e:#}")),
     }
@@ -72,16 +68,5 @@ fn level_info(lv: &DesignLevel) -> LevelInfo {
         bricks,
         tags,
         selectors,
-    }
-}
-
-/// Mark planned bricks on the levels.
-pub fn mark(levels: &mut [LevelView], l: &Loaded) {
-    let planned: BTreeSet<String> = brickie_change::planned(&l.cfg, &l.resolved)
-        .iter()
-        .map(|p| level_name(p))
-        .collect();
-    for b in levels.iter_mut().flat_map(|lv| lv.graph.bricks.iter_mut()) {
-        b.planned = !b.ghost && planned.contains(&b.path);
     }
 }

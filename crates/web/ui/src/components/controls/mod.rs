@@ -56,10 +56,17 @@ pub fn header(cx: &Cx) -> View {
             c.view.set(c.fit(s));
         }
     };
-    let counts = counts(cx);
+    // Design mode reads the design files alone: no finding counts, presets or measure controls.
+    let code = !cx.editing();
+    let counts = if code {
+        View::from(counts(cx))
+    } else {
+        View::default()
+    };
     let design = crate::components::editor::design_button(cx);
-    let measure = measure::measure(&cx.m.cache, cx.bus.job);
-    let pill = measure::pill(cx.bus.pill);
+    let measure = code.then(|| measure::measure(&cx.m.cache, cx.bus.job));
+    let pill = code.then(|| measure::pill(cx.bus.pill));
+    let presets = code.then_some(presets);
     view! {
         header {
             b { "brickie" }

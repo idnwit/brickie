@@ -22,7 +22,7 @@ impl fmt::Display for Blocked {
         write!(
             f,
             "error[{DESIGN_BLOCKED}]: the code does not match the draft yet ({} item(s)); \
-             nothing was published. See `brickie design publish --dry-run --base N`.",
+             nothing was published. See `brickie design check`.",
             self.gate.blocking.len()
         )?;
         for b in &self.gate.blocking {
@@ -58,6 +58,12 @@ impl Design {
             draft,
             v: base,
         })
+    }
+
+    /// The gate of the working design (the draft, else the published files) against the
+    /// code: exactly what `publish` would check. Nothing is written.
+    pub fn check_working(&self) -> Result<Gate> {
+        self.gate(&self.files()?)
     }
 
     /// The publish checklist of the draft at `base` (nothing is written).

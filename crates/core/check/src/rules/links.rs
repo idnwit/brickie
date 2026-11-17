@@ -1,5 +1,6 @@
-//! The unused allow rules between two named bricks: [`decide`] picks them for no measured edge,
-//! whether or not the ends have code yet. They are design todos, not findings.
+//! Rules between two named bricks: the unused allow rules ([`decide`] picks them for no measured
+//! edge, whether or not the ends have code yet; design todos, not findings) and every rule as
+//! Design mode draws it.
 
 use crate::config::{Action, Config, DepRule, Link, Resolved, Sel, decide};
 use brickie_facts::Cache;
@@ -54,22 +55,30 @@ fn backed(lv: &Config, r: &DepRule, measured: &BTreeSet<Hop>) -> bool {
 pub fn unused_links(cache: &Cache, cfg: &Config, res: &Resolved) -> Vec<Link> {
     let hops = lifted(cache, res);
     let mut out = Vec::new();
-    walk(cfg, &hops, &mut out);
+    walk(cfg, &mut out, &|level, r, from, to| {
+        // An allow between a normal and an independent brick never changes a decision.
+        let indep = |n: &str| level.brick(n).is_some_and(|b| b.independent);
+        indep(to) == indep(from) && r.action == Action::Allow && !backed(level, r, &hops)
+    });
     out
 }
 
-fn walk(level: &Config, hops: &BTreeSet<Hop>, out: &mut Vec<Link>) {
+/// Every rule between named bricks (allow or deny), in tree order, one per rule location:
+/// what Design mode draws from the design files alone.
+pub fn rule_links(cfg: &Config) -> Vec<Link> {
+    let mut out = Vec::new();
+    walk(cfg, &mut out, &|_, _, _, _| true);
+    out
+}
+
+type Keep<'a> = dyn Fn(&Config, &DepRule, &str, &str) -> bool + 'a;
+
+fn walk(level: &Config, out: &mut Vec<Link>, keep: &Keep) {
     for r in &level.rules {
         let (Sel::Brick(from), Sel::Brick(to)) = (&r.from, &r.to) else {
             continue;
         };
-        // An allow between a normal and an independent brick never changes a decision.
-        let indep = |n: &str| level.brick(n).is_some_and(|b| b.independent);
-        if indep(to) != indep(from) {
-            continue;
-        }
-        if r.action != Action::Allow || backed(level, r, hops) || out.iter().any(|l| l.loc == r.loc)
-        {
+        if !keep(level, r, from, to) || out.iter().any(|l| l.loc == r.loc) {
             continue;
         }
         out.push(Link {
@@ -79,6 +88,7 @@ fn walk(level: &Config, hops: &BTreeSet<Hop>, out: &mut Vec<Link>) {
             via: r.via.clone().unwrap_or_default(),
             kinds: r.kinds.clone(),
             scope: r.scope,
+            action: r.action,
             file: level.file.clone(),
             loc: r.loc.clone(),
             reason: r.reason.clone(),
@@ -86,7 +96,7 @@ fn walk(level: &Config, hops: &BTreeSet<Hop>, out: &mut Vec<Link>) {
     }
     for b in &level.bricks {
         if let Some(sub) = &b.sub {
-            walk(sub, hops, out);
+            walk(sub, out, keep);
         }
     }
 }

@@ -36,9 +36,6 @@ pub fn delete_selection(cx: &Cx) {
         Sel::Brick(b) if !cx.m.g.bricks[b].ghost && !cx.m.g.bricks[b].unassigned => {
             ed.confirm.set(true)
         }
-        Sel::Edge(_) => ed
-            .msg
-            .set("A measured edge is code: change the code to remove it.".into()),
         _ => {}
     }
 }

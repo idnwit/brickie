@@ -98,12 +98,14 @@ hand; use `brickie design`.
 1. `brickie design show`: with a draft it prints `design draft v42 from published v37 ...`,
    without one `design published v37 ...`. Use the version it prints as `--base`.
 2. Edit the draft (`apply` or the write commands). The draft is free-style: only config syntax
-   and self-consistency are checked (`design/invalid`), never the code. Its `show` todo lists
-   only config items such as `design/no-reason`.
-3. `brickie design publish --dry-run --base N` prints the refactor checklist: every blocking
-   item (`config/unassigned`, `config/overlap`, `config/member-outside-parent`, `design/planned`,
-   a stale or missing cache) with its draft file and member selector, plus the dependency
-   findings of the draft as not blocking.
+   and self-consistency are checked (`design/invalid`), never the code. Only `design check` and
+   `design publish` look at the code; every other `design` command reads the design files alone.
+3. `brickie design check` compares the code with the working design (the draft, else the
+   published tree) and prints the refactor checklist: every blocking item (`config/unassigned`,
+   `config/overlap`, `config/member-outside-parent`, `design/planned`, a stale or missing cache)
+   with its design file and member selector, plus the findings that do not block (dependency
+   findings and allow rules no measured edge uses yet). It exits 0 when a publish would pass and
+   4 (`design/blocked`) when not.
 4. Refactor the code until the checklist is empty, running `brickie measure` after each change.
    Code written for bricks that exist only in the draft shows as `bricks/unmapped` in
    `brickie check` until the publish; that is expected. `--scaffold` is allowed and creates the
@@ -124,7 +126,7 @@ Concurrency contract (a human may edit at the same time):
 - Run `brickie design show` at the start of every design task and use the base it prints (the
   draft head, or the published head when there is no draft yet); never
   reuse a base you remember. Any read or write may record a pending hand edit as an `external`
-  version first, so the head can move under you (`--dry-run` prints the head it ran on).
+  version first, so the head can move under you (a `--dry-run` prints the head it ran on).
 - Every write takes `--base N` (or set `BRICKIE_BASE`) and `--note "why"`, which the human reads
   in the log. When the design has moved on, nothing is
   written and the command exits 3:
@@ -155,9 +157,12 @@ Concurrency contract (a human may edit at the same time):
 - `show` prints `design draft v16 from published v15 <hash>` (or `design published v15 <hash>`)
   and the tree: each level
   with its file, bricks (kind, members, tags, children), rules `from -> to (scope)
-  allow|deny "reason"` and limits, then a `todo` list. `--since N` prints only the
+  allow|deny "reason"` and limits, then a `todo` list. It reads the design files only (no
+  measure needed). `--since N` prints only the
   versions after N, each with its author, note and diff lines. `--in P` prints only the level
   owned by composite P and its subtree (use it on a large design).
+- `check` prints `design check: <track> v<N>`, then `ready: ...` or `blocked: N item(s)` with
+  one line per blocking item, then the `not blocking` findings.
 - A write prints `ok: draft v16` (`ok: draft v16 from published v15` when it started the draft,
   `... (no change)` when nothing changed), lists the design files
   and any code it created, then one `note: ...` line per fact worth knowing. A write that would leave the design invalid writes nothing (`design/invalid`).
@@ -189,11 +194,12 @@ Commands (each write also takes `--base N`, `--note` and `--dry-run`; `undo`, `r
 
 ```
 brickie design show [--since N] [--in P] [--format json]
+brickie design check [--format json]
 brickie design log | diff A [B] | undo [V]
 brickie design apply [--scaffold]   (ops on stdin, one per line)
-brickie design publish --base N [--dry-run] [--note W] | rebase --base N | discard --base N
+brickie design publish --base N [--note W] | rebase --base N | discard --base N
 brickie design brick add NAME [--in P] [--kind crate|module|group] [--members a,b] [--tags a,b] [--desc D] [--path DIR] [--scaffold]
-brickie design brick set PATH [--members] [--tags] [--desc] [--path]   (empty --desc/--path removes)
+brickie design brick set PATH [--members] [--tags] [--desc] [--path] [--independent true|false]   (empty --desc/--path removes; --independent only on root bricks, false removes the key)
 brickie design brick rename PATH NEW | move PATH --into P|root | rm PATH
 brickie design brick group NAME CHILD... | ungroup PATH
 brickie design rule add FROM TO allow|deny [--via A,B] [--kind K]... [--scope S] [--reason R] [--in P]
@@ -220,7 +226,7 @@ brickie design include add|rm FILE [--in P]
   `<name>/` next to its parent file, with a new `brickie.toml`. Pass `--path` or `--members` to
   choose. `brick set NAME --path P` makes a module composite and creates
   `P/brickie.toml` when it is absent. brickie writes no source code unless asked: the brick
-  shows as a `planned` todo until you write the code. `--scaffold` (on `brick add`, or on `apply`
+  is a `design/planned` item of `design check` until you write the code. `--scaffold` (on `brick add`, or on `apply`
   for every line; not allowed inside a line) also creates the missing code (folder, crate
   `Cargo.toml` and `src/lib.rs` plus a workspace member, or a module file plus `pub mod` in the
   crate root; the write lists what it created); existing files are never overwritten. The
@@ -235,22 +241,18 @@ brickie design include add|rm FILE [--in P]
   `ungroup` lifts the children, their rules and limits back up (the child file stays on disk).
   `brick move` rebases `path:` members; it moves no code.
 - `brick rename` also renames the brick in the rules, limit selectors and exports of its file.
-- After code changes run `brickie measure`, then `brickie design publish --dry-run` (while a draft
-  exists) or `brickie design show` (the todo list), and `brickie check`.
+- After code changes run `brickie measure`, then `brickie design check` and `brickie check`.
 - `--format json`: `show` also has `since_agent: [version...]` when there are versions after your
   last one; `--dry-run` prints `{dry_run, diff, new_todo, scaffold, notes}`; a write prints its version, plus `notes: [text]` when there are notes. `show` prints `{v, track, forked_from, hash, by, at, root: {path, file, bricks: [{name, kind,
-  members, tags, desc, todo, children}], exports, rules: [{file, from, to, via,
-  kinds, scope, action, reason, todo}], limits: [{file, bricks, metrics, scope}]}, todo:
+  members, tags, desc, independent, children}], exports, rules: [{file, from, to, via,
+  kinds, scope, action, reason}], limits: [{file, bricks, metrics, scope}]}, todo:
   [{kind, text}]}`; `log` a list of versions `{v, track, forked_from, reverts, hash, prev, by, at, note,
-  ops, diff, files, removed}`; a write prints its version; `publish --dry-run` prints
-  `{dry_run, draft, forked_from, ready, blocking: [{code, message, file, brick, member,
+  ops, diff, files, removed}`; a write prints its version; `check` prints
+  `{v, track, forked_from, ready, blocking: [{code, message, file, brick, member,
   module}], info: [text]}`.
 
-The todo list of the published design (`kind`): `planned` a brick with no measured module
-(`design/planned`), `unused` an allow rule between named bricks no measured edge uses
-(it decides no edge yet), `reason` a rule without a reason (`design/no-reason`), `config` a partition
-error or a cache problem. A draft's todo list has `reason` items only; what its code lacks is
-the `publish --dry-run` checklist.
+The todo list of `show` (`kind`) has `reason` items only: a rule without a reason
+(`design/no-reason`). What the code lacks is the `check` checklist.
 
 ## Reading a diagnostic
 
@@ -400,7 +402,7 @@ that member from the outer brick and make it a child brick of the composite; add
 composite's `exports` if outside code uses it. A `path:` member matches a package whose directory
 is under it, and a module whose source file is under it, so `path:src/lib.rs` names a crate root.
 
-In a draft these are the blocking items of `brickie design publish --dry-run`: either change
+In a draft these are the blocking items of `brickie design check`: either change
 the code to the drawn structure, or change the draft. Give each unassigned module to one of
 the composite's bricks (`brick set --members`), make overlapping members distinct, keep child
 members inside their composite. `check` lists every partition error at once.
@@ -409,7 +411,7 @@ members inside their composite. `check` lists every partition error at once.
 
 The design (see "Editing the design"):
 
-- `design/planned` (todo `planned`, a blocking item of `publish`): a brick has no measured
+- `design/planned` (a blocking item of `check` and `publish`): a brick has no measured
   module. Create its code as its members say, then `brickie measure`.
 - `design/no-reason` (todo `reason`): a rule has no `reason`. Add a one-line reason with
   `brickie design rule set FROM TO --reason "..."`.
@@ -419,9 +421,9 @@ The design (see "Editing the design"):
 - `design/stale` (exit code 3): your `--base` is not the head; nothing was written. Follow the
   concurrency contract in "Editing the design". From `publish`: the published tree moved since
   the draft's fork; run `brickie design rebase --base N`, then publish again.
-- `design/blocked` (exit code 4): `publish` refused because the code does not match the draft's
+- `design/blocked` (exit code 4): `check` or `publish` refused because the code does not match the draft's
   structure yet; nothing was published. The message lists the items; work through
-  `brickie design publish --dry-run --base N` (see "Draft workflow").
+  `brickie design check` (see "Draft workflow").
 - `design/no-match`: no rule or limit matches what you named, or several rules `FROM -> TO` match.
   The message lists the candidates; name an existing one, or add `--kind` and `--scope` to pick
   one. For bricks, check the path with `brickie design show`.

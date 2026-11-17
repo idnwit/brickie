@@ -1,6 +1,5 @@
-//! The edge inspector: a rule (kinds, scope, action, reason, help; its file and who shares
-//! it; each change one version, the rule named by identity), and a measured edge with the
-//! rules deciding it.
+//! The rule inspector: kinds, scope, action, reason, help; its file and who shares it; each
+//! change one version, the rule named by identity. Design mode has no measured edge.
 
 use super::super::widgets::{seg, text_field};
 use super::super::{keys::delete_selection, ops_then};
@@ -110,43 +109,5 @@ pub fn rule_view(cx: &Cx, r: RuleRef) -> View {
         (shared)
         div(class="form") { (t) (missing) (k) (ch2) }
         div(class="row acts") { button(class="danger", on:click=move |_: Click| delete_selection(&c)) { "Delete rule" } }
-    }
-}
-
-pub fn measured_view(cx: &Cx, e: usize) -> View {
-    let g = &cx.m.g;
-    let x = &g.edges[e];
-    let (from, to) = (&g.bricks[x.from], &g.bricks[x.to]);
-    let title = format!("{} \u{2192} {}", from.name, to.name);
-    let sub = format!(
-        "measured {} edge, {} reference(s){}",
-        x.kind,
-        x.count,
-        if x.test { ", test" } else { "" }
-    );
-    let rules =
-        cx.m.design
-            .as_deref()
-            .map(|ch| level_rules(ch, &cx.level().path))
-            .unwrap_or_default();
-    let ed = cx.ed;
-    let rows: Vec<View> = deciding(&rules, from, to, &x.kind)
-        .into_iter()
-        .map(|r| {
-            let t = format!("{} {} \u{2192} {} ({})", r.item.action, r.item.from, r.item.to, r.file);
-            let rr = r.rule_ref();
-            view! { li { a(href="#", on:click=move |ev: Click| { ev.prevent_default(); ed.rule.set(Some(rr.clone())); }) { (t) } } }
-        })
-        .collect();
-    let none = rows
-        .is_empty()
-        .then(|| view! { li(class="muted") { "no rule: the default decides" } });
-    let rows = View::from(rows);
-    view! {
-        h2 { (title) }
-        p(class="muted") { (sub) }
-        h4 { "Deciding rules" }
-        ul { (rows) (none) }
-        p(class="muted") { "A measured edge is code: Del does not remove it. Drag a port to add a rule." }
     }
 }

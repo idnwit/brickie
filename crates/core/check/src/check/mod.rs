@@ -65,6 +65,18 @@ pub fn load_from(src: &dyn config::FileSource, config: &Path) -> Result<Loaded> 
     })
 }
 
+/// The config tree read from `src` alone: no cache, no module, no finding. Design mode shows
+/// this; code is compared with the design only by the publish gate.
+pub fn load_design(src: &dyn config::FileSource, config: &Path) -> Result<Loaded> {
+    Ok(Loaded {
+        cfg: config::load_from(src, config)?,
+        cache: Cache::default(),
+        resolved: Resolved::default(),
+        diagnostics: Vec::new(),
+        owners: BTreeMap::new(),
+    })
+}
+
 /// Whether `brickie measure` would help: the cache is missing, unreadable or of another schema,
 /// its files changed (judged from the cache alone, so a config error that old facts cause, such
 /// as `config/unassigned` for a crate that is gone, does not block the re-measure), or the

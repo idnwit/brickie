@@ -186,6 +186,7 @@ pub fn assign_op(file: &str, into: &BrickView, placeholder: &BrickView) -> Op {
         tags: None,
         members: Some(members),
         path: None,
+        independent: None,
     }
 }
 
@@ -210,6 +211,7 @@ pub fn retag_op(file: &str, b: &BrickView, lane: Option<&str>) -> Option<Op> {
         tags: Some(tags),
         members: None,
         path: None,
+        independent: None,
     })
 }
 

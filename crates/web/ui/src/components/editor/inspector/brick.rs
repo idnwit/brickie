@@ -7,8 +7,9 @@ use super::super::widgets::{chips_field, text_field};
 use crate::components::call::call;
 use crate::state::*;
 use brickie_web_api::design::Op;
-use brickie_web_api::{BrickView, DesignLinks, LinksRequest};
+use brickie_web_api::{BrickView, DesignLinks, INDEPENDENT_LABEL, INDEPENDENT_TIP, LinksRequest};
 use sycamore::prelude::*;
+use web_sys::wasm_bindgen::JsCast;
 
 /// Fetch the link options of the brick at `path` into `ed.links`.
 fn fetch_links(ed: Edit, path: Vec<String>) {
@@ -60,7 +61,22 @@ fn fields(cx: &Cx, file: String, b: &BrickView) -> View {
             move |p| set(&c, &f, &b0, Field::Path(p)),
         )
     });
-    view! { div(class="form") { (name) (desc) (tags) (members) (path) } }
+    // `independent` is allowed on root-level bricks only.
+    let lib = (cx.level().path == "root").then(|| {
+        let (c, f, b0) = (cx.clone(), file.clone(), b.clone());
+        view! {
+            label(title=INDEPENDENT_TIP) {
+                input(r#type="checkbox", id="brick-independent", prop:checked=b.independent, on:change=move |e: web_sys::Event| {
+                    let on = e.target()
+                        .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
+                        .is_some_and(|i| i.checked());
+                    set(&c, &f, &b0, Field::Independent(on))
+                })
+                (INDEPENDENT_LABEL)
+            }
+        }
+    });
+    view! { div(class="form") { (name) (desc) (tags) (members) (path) (lib) } }
 }
 
 /// A composite, or a group just added (its level exists, still empty).
@@ -142,15 +158,11 @@ pub fn brick_view(cx: &Cx, b: usize) -> View {
     let Some(file) = cx.level_file() else {
         return view! { p(class="err-text") { "This level is not in the design." } };
     };
-    let state = match brick.planned {
-        true => "planned: no measured code yet (measure after writing it)",
-        false => "built",
-    };
     let zoom = is_group(cx, &brick).then(|| {
         let (c, target) = (cx.clone(), layout_key(&lv, &brick.name));
         view! { button(on:click=move |_: Click| c.go(c.params.with(|p| p.at_level(&target)))) { "Open its level" } }
     });
-    let sub = format!("{state} \u{00B7} in {file}");
+    let sub = format!("in {file}");
     let title = brick.name.clone();
     let copy = super::copy_ref(brick_ref(&lv, &brick.name));
     let (f, a) = (fields(cx, file.clone(), &brick), actions(cx, file, &brick));

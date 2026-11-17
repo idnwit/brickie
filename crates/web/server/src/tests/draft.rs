@@ -42,12 +42,13 @@ async fn a_draft_with_planned_bricks_is_blocked_and_the_dry_run_lists_why() {
             json!({"base": base, "dry_run": true}),
         )
         .await;
-    assert_eq!(st, StatusCode::OK, "{text}");
-    let r: Value = serde_json::from_str(&text).unwrap();
-    assert_eq!(r["changed"], false);
-    let blocking = &r["design"]["gate"]["blocking"];
-    assert_eq!(blocking[0]["code"], "design/planned", "{blocking}");
-    assert_eq!(blocking[0]["brick"], "root/cache");
+    assert_eq!(st, StatusCode::CONFLICT, "{text}");
+    assert!(
+        text.contains("design/blocked")
+            && text.contains("design/planned")
+            && text.contains("cache"),
+        "the dry run lists the blocking items: {text}"
+    );
 
     let (st, text) = s.post("/api/design/publish", json!({"base": base})).await;
     assert_eq!(st, StatusCode::CONFLICT);
@@ -62,8 +63,15 @@ async fn a_draft_with_planned_bricks_is_blocked_and_the_dry_run_lists_why() {
 async fn a_ready_draft_is_published_and_dropped() {
     let s = measured();
     let d = edit(&s, 1, rename()).await;
-    assert_eq!(d["gate"]["blocking"], json!([]), "{d}");
+    assert!(d.get("gate").is_none(), "no gate before Publish: {d}");
     let base = d["v"].as_u64().unwrap();
+    let (st, text) = s
+        .post(
+            "/api/design/publish",
+            json!({"base": base, "dry_run": true}),
+        )
+        .await;
+    assert_eq!(st, StatusCode::OK, "the dry run passes: {text}");
 
     let (st, text) = s
         .post("/api/design/publish", json!({"base": base, "note": "ship"}))
@@ -73,10 +81,7 @@ async fn a_ready_draft_is_published_and_dropped() {
     let d = &r["design"];
     assert_eq!(r["changed"], true);
     assert_eq!(d["v"], d["published"], "the published head is the head");
-    assert!(
-        d.get("forked_from").is_none() && d.get("gate").is_none(),
-        "{d}"
-    );
+    assert!(d.get("forked_from").is_none(), "{d}");
     assert!(published(&s).contains("\"core\""));
 
     // View mode now shows the published rename.
@@ -96,7 +101,6 @@ async fn a_draft_behind_the_published_head_is_rebased() {
     let d: Value = serde_json::from_str(&text).unwrap();
     let head = d["published"].as_u64().unwrap();
     assert!(head > 1 && d["forked_from"] == 1, "behind: {d}");
-    assert!(d.get("gate").is_none(), "no gate while behind: {d}");
     let (st, _) = s.post("/api/design/publish", json!({"base": base})).await;
     assert_eq!(st, StatusCode::CONFLICT, "a draft behind is not published");
 
@@ -104,7 +108,6 @@ async fn a_draft_behind_the_published_head_is_rebased() {
     assert_eq!(st, StatusCode::OK, "{text}");
     let d = &serde_json::from_str::<Value>(&text).unwrap()["design"];
     assert_eq!(d["forked_from"].as_u64(), Some(head), "{d}");
-    assert_eq!(d["gate"]["blocking"], json!([]), "{d}");
     let draft = s
         .config()
         .with_file_name(".brickie/draft/files/brickie.toml");

@@ -1,23 +1,33 @@
-//! The unused links of a level: the allow rules between named bricks that no measured edge
-//! backs (`unused_links`). The viewer
-//! draws them in view mode and in the editor alike.
+//! The rule links of a level (`unused_links` of a `LevelView`): in view mode the allow rules
+//! between named bricks that no measured edge backs; in Design mode every rule between named
+//! bricks, allow or deny, read from the design files alone.
 
-use brickie_check::check::{Loaded, unused_links};
-use brickie_check::config::Link;
+use brickie_check::check::{Loaded, rule_links, unused_links};
 use brickie_check::config::level_name;
+use brickie_check::config::{Action, Link};
 use brickie_web_api::UnusedLink;
 use std::path::{Path, PathBuf};
 
 /// Every unused link of the design as a served edge, in tree order.
 pub fn served(l: &Loaded) -> Vec<(String, UnusedLink)> {
+    as_served(l, &unused_links(l), Link::filter_text)
+}
+
+/// Every rule between named bricks of the design as a served edge, in tree order.
+pub fn rules(l: &Loaded) -> Vec<(String, UnusedLink)> {
+    as_served(l, &rule_links(&l.cfg), Link::match_text)
+}
+
+/// `links` as served edges; `filter` writes each one's filter text.
+fn as_served(l: &Loaded, links: &[Link], filter: fn(&Link) -> String) -> Vec<(String, UnusedLink)> {
     let root = root_dir(&l.cfg.file);
-    unused_links(l)
+    links
         .iter()
-        .map(|k| (level_name(&k.level), edge(k, &root)))
+        .map(|k| (level_name(&k.level), edge(k, &root, filter)))
         .collect()
 }
 
-fn edge(k: &Link, root: &Path) -> UnusedLink {
+fn edge(k: &Link, root: &Path, filter: fn(&Link) -> String) -> UnusedLink {
     UnusedLink {
         level: level_name(&k.level),
         file: rel(root, &k.loc),
@@ -25,9 +35,13 @@ fn edge(k: &Link, root: &Path) -> UnusedLink {
         to: k.to.clone(),
         kinds: k.kinds.clone(),
         scope: k.scope.name().to_string(),
-        action: "allow".into(),
+        action: match k.action {
+            Action::Allow => "allow",
+            Action::Deny => "deny",
+        }
+        .into(),
         reason: k.reason.clone().filter(|s| !s.trim().is_empty()),
-        filter: k.filter_text(),
+        filter: filter(k),
     }
 }
 

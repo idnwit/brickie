@@ -9,7 +9,7 @@
 //! Every partition error of the tree is collected (best effort goes on: an unassigned module
 //! stays unmapped, an overlap goes to the first brick, a member reaching outside is ignored);
 //! any of them fails the resolve with a [`Partition`] error listing them all, so `design
-//! publish --dry-run` can show the whole checklist.
+//! check` can show the whole checklist.
 
 use super::Config;
 use super::member::{Subject, matches};

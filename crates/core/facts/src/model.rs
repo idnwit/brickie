@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 
 pub const SCHEMA_VERSION: u32 = 7;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Cache {
     pub schema_version: u32,
     pub tool_version: String,

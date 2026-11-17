@@ -79,16 +79,18 @@ Serves: P12, P13.
 A measured edge shows an abbreviation of its kind at the middle and, at the same place, a cross
 when it is debt. Width follows its count; `reexports` has a tail mark.
 
-An allow rule that no measured edge backs draws as a link in both modes, one line per brick pair
-(the tooltip lists every rule with its reason and what it waits for). Dash is the edge kind.
+In view mode an allow rule that no measured edge backs draws as a link, one line per brick pair
+(the tooltip lists every rule with its reason and what it waits for). In Design mode every rule
+between named bricks draws as a link: allow in the colour of its kind, deny red and dashed (the
+tooltip lists action, ends, reason, kinds, `via` and scope). Dash is the edge kind.
 
 | Look | Meaning |
 | --- | --- |
-| warning-colour line with `!` | unused: the rule decides no measured edge yet (a design todo) |
+| warning-colour line with `!` | view mode, unused: the rule decides no measured edge yet (a design todo) |
 | warning-colour `?` | the rule has no reason |
 | `A` | an agent added the rule |
-| dashed outline, planned colour | planned brick: no code yet |
 | short-dash outline, warning colour | unassigned brick |
+| book icon before the name, dashed box | independent lib (tooltip says what it means) |
 
 Marks sit at the route point nearest the middle that is clear of boxes and other marks. A reason
 shows (cut to 40 characters, full text in the tooltip) on hover or selection only; on touch a tap
@@ -100,15 +102,17 @@ Serves: P1, P2, P4, P5, P6, P7, P8, P9, P10.
 
 `Design` (or `E`, `edit=1`) makes the canvas show and edit the draft (the published design while
 there is none). Every edit is a new version (`v12`) of the draft; publishing makes it the
-published design once the code matches it
-([design/editor.md](design/editor.md#draft-and-publish)). Outside Design mode the canvas shows
-the published design.
+published design once the code matches it. Design mode shows the design files only and compares
+code with the design only when Publish is clicked
+([the two rules](design/editor.md#draft-and-publish)): no measured edges, findings, scores,
+measure button or presets. Outside Design mode the canvas shows the published design with the
+measured code.
 
 - A bar under the header shows `published v<N>`; with a draft, `draft v<N> . from v<M>`, its
-  state (`behind: rebase`, `<n> blocking` with each item in the tooltip, or `ready to publish`)
-  and Publish (enabled when ready), Rebase (enabled when behind) and Discard (asks first). Then
-  `v<N> . <author>` (opens History; agent violet, you, hand edit),
-  task chips (planned bricks, rules without a reason, each acts on click), an error chip when the
+  `behind: rebase` when the published head moved, and Publish (runs the gate; disabled when
+  behind), Rebase (enabled when behind) and Discard (asks first). A blocked publish lists its
+  blocking items in the bar's message. Then `v<N> . <author>` (opens History; agent violet, you,
+  hand edit), the chip of rules without a reason (opens Rules), an error chip when the
   design does not load, and Undo and Redo with tooltips naming what they would do.
 - Toolbar, one row: Select and Hand; brick tiles Crate, Module, Group; link types; the scope of
   new rules; Delete and `?`. It never wraps: below 1280 px labels give way to glyphs with
@@ -126,8 +130,9 @@ the published design.
   clears the hints of the level on screen, lays it out again and fits.
 - The copy icon "Copy ref for the agent" in the inspector copies the CLI name (`web/api`,
   `rule web -> store (prod)`).
-- Delete asks for confirmation for a brick, removes a selected rule at once, and refuses a
-  measured edge with a message that the code must change.
+- Click a rule link to select its rule (again: the next rule of the pair) and edit or delete it in
+  the Inspector.
+- Delete asks for confirmation for a brick and removes a selected rule at once.
 
 ## Live updates and toasts
 

@@ -80,6 +80,7 @@ pub struct Fields<'a> {
     pub tags: Option<&'a [String]>,
     pub members: Option<&'a [String]>,
     pub path: Option<&'a str>,
+    pub independent: Option<bool>,
 }
 
 pub fn set(doc: &mut DocumentMut, name: &str, f: Fields) -> Result<()> {
@@ -89,6 +90,13 @@ pub fn set(doc: &mut DocumentMut, name: &str, f: Fields) -> Result<()> {
     }
     if let Some(p) = f.path {
         set_opt(t, "path", Some(p));
+    }
+    match f.independent {
+        Some(true) => t["independent"] = value(true),
+        Some(false) => {
+            t.remove("independent");
+        }
+        None => {}
     }
     if let Some(v) = f.tags {
         set_list(t, "tags", v);
