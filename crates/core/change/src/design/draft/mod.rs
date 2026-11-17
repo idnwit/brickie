@@ -47,12 +47,12 @@ impl Design {
         Ok(Some(Draft { forked_from, files }))
     }
 
-    /// The working tree loaded over the measured cache, as `check` would load it: the draft when
-    /// one exists, else the published design. The design editor shows it.
+    /// The working tree from the design files alone (no measured code): the draft when one
+    /// exists, else the published design. Design mode shows it.
     pub fn load_working(&self) -> Result<Loaded> {
         match self.draft()? {
-            Some(d) => check::load_from(&self.preview(&d.files)?, &self.config_path()),
-            None => check::load(&self.config_path()),
+            Some(d) => check::load_design(&self.preview(&d.files)?, &self.config_path()),
+            None => check::load_design(&brickie_check::config::Disk, &self.config_path()),
         }
     }
 

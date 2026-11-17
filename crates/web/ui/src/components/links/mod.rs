@@ -1,5 +1,6 @@
-//! Unused links on the canvas, in view mode and in the editor: one line per (from, to) brick
-//! pair, dashed like the edge kind, in the warning colour with a `!`. A yellow `?` marks a rule without a reason, `A` an agent's rule.
+//! Rule links on the canvas, one line per (from, to) brick pair, dashed like the edge kind. View
+//! mode: the unused allow rules, in the warning colour with a `!`. Design mode: every rule of the
+//! level from the design files, allow by kind colour, deny red. A yellow `?` marks a rule without a reason, `A` an agent's rule.
 //! The reason shows as a label on hover or selection only. In the editor a click selects the
 //! rule; in view mode it picks the link (a tap on touch).
 
@@ -58,9 +59,10 @@ fn glyph(x: f64, y: f64, g: &str) -> View {
     view! { g(class="qmark") { circle(cx=px2, cy=py, r="8") text(x=px, y=ty, "text-anchor"="middle") { (g) } } }
 }
 
-/// The marks of one link (`!`, `?`, `A`) in a row from `at`, and the hover label after them.
-fn marks_of(pr: &Pair, at: Pt, agent: bool) -> (Vec<View>, Option<View>) {
-    let mut glyphs = vec!["!"];
+/// The marks of one link (`!` in view mode, `?`, `A`) in a row from `at`, and the hover label after them.
+fn marks_of(pr: &Pair, at: Pt, agent: bool, editing: bool) -> (Vec<View>, Option<View>) {
+    // `!` (unused: no code backs it) is view mode only; Design mode never reads code.
+    let mut glyphs = if editing { vec![] } else { vec!["!"] };
     if pr.no_reason() {
         glyphs.push("?");
     }
@@ -117,7 +119,7 @@ fn draw(
     let route = path_of(cx, pr.a, pr.b, p);
     let d = route.d();
     let at = mark_spot(&route, p, marks);
-    let (shown, label) = marks_of(pr, at, agent);
+    let (shown, label) = marks_of(pr, at, agent, cx.editing());
     let refs: Vec<RuleRef> = pr
         .rules
         .iter()

@@ -3,7 +3,7 @@
 //! types are `brickie_model::design`, re-exported as [`design`](crate::design).
 
 use crate::LevelView;
-use crate::design::{By, FileSheet, Gate, Op, Task, Version};
+use crate::design::{By, FileSheet, Op, Task, Version};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -21,9 +21,6 @@ pub struct DesignState {
     /// starts one).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub forked_from: Option<u64>,
-    /// The publish gate of the draft; `None` without a draft or while it is behind.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub gate: Option<Gate>,
     pub hash: String,
     pub by: By,
     /// The latest versions, oldest first (at most [`HISTORY`]).
@@ -63,8 +60,9 @@ pub struct LayoutHint {
     pub y: f64,
 }
 
-/// An allow rule between named bricks that no measured edge backs: the canvas draws it as an
-/// unused link. Named by identity (`file`, `from`, `to`, `kinds`, `scope`).
+/// A rule link the canvas draws. View mode: an allow rule between named bricks that no measured
+/// edge backs (an unused link). Design mode: every rule between named bricks, allow or deny.
+/// Named by identity (`file`, `from`, `to`, `kinds`, `scope`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UnusedLink {
     /// Level path the rule applies to (`root`, `root/web`).
@@ -81,7 +79,8 @@ pub struct UnusedLink {
     pub action: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
-    /// What the rule still waits for, for example "no `uses` edge in test scope".
+    /// View mode: what the rule still waits for ("no `uses` edge in test scope"); Design mode:
+    /// what it matches ("`uses` edge in test scope").
     pub filter: String,
 }
 

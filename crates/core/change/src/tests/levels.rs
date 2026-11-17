@@ -40,6 +40,7 @@ fn an_existing_level_file_is_never_changed() {
         tags: None,
         members: None,
         path: Some("g".into()),
+        independent: None,
     };
     ws.apply(A, vec![set]).unwrap();
     assert_eq!(ws.read("g/brickie.toml"), "# mine\n");

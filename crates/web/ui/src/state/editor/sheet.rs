@@ -1,9 +1,9 @@
 //! Reading the design's file sheets for a level: the files that make it up (its own file and
 //! what it includes), their rule and complexity rows, who shares a file, and what names a brick.
 
-use super::{RuleRef, names, rule_key};
+use super::{RuleRef, rule_key};
+use brickie_web_api::DesignState;
 use brickie_web_api::design::{ComplexitySpec, FileSheet, RuleSpec};
-use brickie_web_api::{BrickView, DesignState};
 
 /// A row of a level's table: the physical file and the row.
 #[derive(Debug, Clone, PartialEq)]
@@ -73,21 +73,6 @@ pub fn sharers(ch: &DesignState, file: &str) -> usize {
         .count()
 }
 
-/// Rules of the level naming `from -> to` (by name, tag or `*`), and covering `kind`.
-pub fn deciding(
-    rules: &[Row<RuleSpec>],
-    from: &BrickView,
-    to: &BrickView,
-    kind: &str,
-) -> Vec<Row<RuleSpec>> {
-    rules
-        .iter()
-        .filter(|r| names(&r.item.from, from) && names(&r.item.to, to))
-        .filter(|r| r.item.kinds.is_empty() || r.item.kinds.iter().any(|k| k == kind))
-        .cloned()
-        .collect()
-}
-
 /// What refers to brick `name` at level `lv`: rules naming it and the level's exports.
 pub fn references(ch: &DesignState, lv: &str, name: &str) -> Vec<String> {
     let mut out: Vec<String> = level_rules(ch, lv)
@@ -133,7 +118,6 @@ pub(crate) mod tests {
             v: 1,
             published: 1,
             forked_from: None,
-            gate: None,
             hash: String::new(),
             by: By::External,
             history: vec![],
@@ -177,24 +161,5 @@ pub(crate) mod tests {
         };
         assert_eq!(rule_at(&ch, &gone), None);
         assert_eq!(references(&ch, "root/web", "api").len(), 2);
-    }
-
-    #[test]
-    fn deciding_rules_match_selectors_and_kinds() {
-        let ch = change();
-        let rules = level_rules(&ch, "root/web");
-        let b = |n: &str, tags: &[&str]| BrickView {
-            name: n.into(),
-            tags: tags.iter().map(|t| t.to_string()).collect(),
-            ..Default::default()
-        };
-        assert_eq!(
-            deciding(&rules, &b("api", &[]), &b("ui", &["io"]), "uses").len(),
-            2
-        );
-        assert_eq!(
-            deciding(&rules, &b("api", &[]), &b("ui", &[]), "implements").len(),
-            0
-        );
     }
 }

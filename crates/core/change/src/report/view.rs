@@ -1,34 +1,22 @@
-//! `design show`: the working tree (the draft, else the published design) as a tree. The
-//! published design is marked with what the code lacks; a draft lists config items only.
+//! `design show`: the working tree (the draft, else the published design) as a tree, read from
+//! the design files alone.
 
-use super::todo::{Todo, draft_todo, todo};
+use super::todo::design_todo;
 use crate::design::Design;
 use crate::paths::to_rel;
 use anyhow::Result;
-use brickie_check::check;
-use brickie_check::config::{Action, Brick, Config, Scope, level_name};
+use brickie_check::config::{Action, Brick, Config, Scope};
 use brickie_model::design::{BrickView, DesignView, LevelView, LimitView, RuleView, Task};
 use std::collections::BTreeMap;
 use std::path::Path;
-
-struct Marks<'a> {
-    root: &'a Path,
-    planned: Vec<String>,
-    unbacked: Vec<String>,
-}
 
 impl Design {
     /// The todo list of a draft held in memory: config self-consistency only.
     pub(crate) fn todo_of(&self, src: &crate::preview::Preview) -> Vec<Task> {
         match src.load_config() {
-            Ok(cfg) => draft_todo(&cfg),
+            Ok(cfg) => design_todo(&cfg),
             Err(_) => Vec::new(),
         }
-    }
-
-    /// The design at the head; fails when it does not load.
-    pub fn show(&self) -> Result<DesignView> {
-        Ok(self.show_checked()?.0)
     }
 
     /// The config tree for `show`. A missing nested file is read as an empty level and named in
@@ -55,44 +43,27 @@ impl Design {
         Ok((cfg, warnings))
     }
 
-    /// `show` plus warnings about config files that are missing.
+    /// The design at the head from its files alone (no measured code), plus warnings about
+    /// config files that are missing. Config tasks only: what the code lacks is `design check`.
     pub fn show_checked(&self) -> Result<(DesignView, Vec<String>)> {
         let head = self.head()?;
-        let forked_from = self.forked_from()?;
         let (cfg, warnings) = self.config_lenient()?;
-        let t = match forked_from {
-            Some(_) => Todo {
-                tasks: draft_todo(&cfg),
-                planned: Vec::new(),
-                unbacked: Vec::new(),
-            },
-            None => {
-                let loaded = match self.root().join(".brickie/cache.json").is_file() {
-                    true => check::load(&self.config_path()).map_err(|e| format!("{e:#}")),
-                    false => Err(
-                        "no measurements yet: run `brickie measure` to list what the code lacks"
-                            .into(),
-                    ),
-                };
-                todo(self.root(), &cfg, loaded.as_ref().map_err(String::clone))
-            }
-        };
-        let marks = Marks {
-            root: self.root(),
-            planned: t.planned.iter().map(|p| level_name(p)).collect(),
-            unbacked: t.unbacked,
-        };
         let view = DesignView {
             v: head.v,
             track: head.track,
-            forked_from,
+            forked_from: self.forked_from()?,
             hash: head.hash.clone(),
             by: head.by,
             at: head.at,
-            root: level(&cfg, &marks),
-            todo: t.tasks,
+            root: level(&cfg, self.root()),
+            todo: design_todo(&cfg),
         };
         Ok((view, warnings))
+    }
+
+    /// [`Design::show_checked`] without the warnings: what the viewer's Design mode shows.
+    pub fn show_design(&self) -> Result<DesignView> {
+        Ok(self.show_checked()?.0)
     }
 }
 
@@ -124,9 +95,9 @@ fn scope(s: Scope) -> String {
     .into()
 }
 
-fn level(cfg: &Config, m: &Marks) -> LevelView {
+fn level(cfg: &Config, root: &Path) -> LevelView {
     let rules = cfg.rules.iter().map(|r| RuleView {
-        file: rel(m.root, &r.loc),
+        file: rel(root, &r.loc),
         from: r.from.to_string(),
         to: r.to.to_string(),
         via: r.via.clone().unwrap_or_default(),
@@ -134,7 +105,6 @@ fn level(cfg: &Config, m: &Marks) -> LevelView {
         scope: scope(r.scope),
         action: action(r.action),
         reason: r.reason.clone().filter(|s| !s.trim().is_empty()),
-        todo: m.unbacked.contains(&r.loc),
     });
     let limits = cfg.complexity.iter().map(|c| {
         let all = [
@@ -149,7 +119,7 @@ fn level(cfg: &Config, m: &Marks) -> LevelView {
             .filter_map(|(k, v)| Some((k.to_string(), v?)))
             .collect();
         LimitView {
-            file: rel(m.root, &c.loc),
+            file: rel(root, &c.loc),
             bricks: c.bricks.to_string(),
             metrics,
             scope: scope(c.scope),
@@ -157,15 +127,15 @@ fn level(cfg: &Config, m: &Marks) -> LevelView {
     });
     LevelView {
         path: cfg.level(),
-        file: rel(m.root, &cfg.file),
-        bricks: cfg.bricks.iter().map(|b| brick(cfg, b, m)).collect(),
+        file: rel(root, &cfg.file),
+        bricks: cfg.bricks.iter().map(|b| brick(cfg, b, root)).collect(),
         exports: cfg.exports.clone(),
         rules: rules.collect(),
         limits: limits.collect(),
     }
 }
 
-fn brick(cfg: &Config, b: &Brick, m: &Marks) -> BrickView {
+fn brick(cfg: &Config, b: &Brick, root: &Path) -> BrickView {
     let kind = match (&b.sub, b.members.iter().all(|x| x.starts_with("path:"))) {
         (Some(_), _) => "group",
         (None, true) if !b.members.is_empty() => "crate",
@@ -179,7 +149,7 @@ fn brick(cfg: &Config, b: &Brick, m: &Marks) -> BrickView {
         members: b.members.clone(),
         tags: b.tags.clone(),
         desc: b.desc.clone(),
-        todo: m.planned.contains(&level_name(&path)),
-        children: b.sub.as_ref().map(|s| Box::new(level(s, m))),
+        independent: b.independent,
+        children: b.sub.as_ref().map(|s| Box::new(level(s, root))),
     }
 }

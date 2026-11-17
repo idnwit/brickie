@@ -23,4 +23,3 @@ mod tests;
 
 pub use brickie_model::design::*;
 pub use design::{Blocked, CAP, Design, Link, Outcome, Plan, Stale, ago, brick_path};
-pub use preview::planned;

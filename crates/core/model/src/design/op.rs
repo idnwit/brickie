@@ -125,6 +125,9 @@ pub enum Op {
         members: Option<Vec<String>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         path: Option<String>,
+        /// `true` writes `independent = true`, `false` removes the key (root bricks only).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        independent: Option<bool>,
     },
     RenameBrick {
         file: String,

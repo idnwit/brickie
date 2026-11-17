@@ -4,7 +4,8 @@
 use crate::Based;
 use serde::{Deserialize, Serialize};
 
-/// Publish the draft at `base`. `dry_run`: write nothing; the reply's design carries the gate.
+/// Publish the draft at `base`. `dry_run`: run the gate and write nothing
+/// (refused like a real publish while it blocks).
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublishRequest {
     pub base: u64,

@@ -45,7 +45,7 @@ subtree; an equal length in two bricks stays an error.
 - Resolution is strict and has one path: it collects every partition error (an overlap goes to
   the first brick, an unassigned module stays unmapped, an outside member is ignored, so later
   errors are still found) and then fails with all of them. `check` never reads the design draft;
-  `brickie design publish --dry-run` resolves the draft the same way and lists the errors as its
+  `brickie design check` resolves the working design the same way and lists the errors as its
   checklist ([editor.md](editor.md#draft-and-publish)).
 
 ## Rules
@@ -61,7 +61,7 @@ The rules themselves are stated once in `docs/llms.txt` ("Rules"). Decisions beh
 | Exports are a plain list (scoped exports cut); `via` kept | `via` narrows a rule to an exported entry point (ports in a hexagon); scoped exports duplicated what scope on rules does |
 | Rule `help` and complexity `help` / `level` cut | every finding is an error; the fix text is per code in llms.txt |
 | `independent`: `*` never matches it; inbound allowed unless a deny names it; outbound only to another independent brick under an allow naming both; an allow to a normal brick never applies (a `rule add` note says it changes nothing) | a library knows nothing of its users; no special code or config error needed |
-| Unused allow rules are design todos only (`deps/unused` cut as a finding); a rule is used when `decide` picks it for a measured edge | an unwritten edge is planned work, not a violation |
+| Unused allow rules are information of `design check` only (`deps/unused` cut as a finding); a rule is used when `decide` picks it for a measured edge | an unwritten edge is planned work, not a violation |
 
 Other rule facts: an edge lifts to the lowest common ancestor `L` (O(depth)); `deps/private` is
 checked for every lifted edge and is independent of rules; one finding per module edge (from, to,

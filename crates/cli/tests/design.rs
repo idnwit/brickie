@@ -414,6 +414,20 @@ fn set_path_creates_the_nested_file_and_never_overwrites() {
 }
 
 #[test]
+fn set_independent_shows_in_the_design_and_toggles_off() {
+    let tmp = ws();
+    let d = tmp.path();
+    ok(d, 1, &["brick", "set", "b", "--independent", "true"]);
+    assert!(read(d, "brickie.toml").contains("independent = true"));
+    let text = String::from_utf8_lossy(&run(d, &["show"]).stdout).to_string();
+    assert!(text.contains("brick b module independent"), "{text}");
+    let v = json(d, &["show"]);
+    assert!(v.to_string().contains("\"independent\":true"), "{v}");
+    ok(d, 2, &["brick", "set", "b", "--independent", "false"]);
+    assert!(!read(d, "brickie.toml").contains("independent"));
+}
+
+#[test]
 fn add_and_group_print_the_chosen_folder() {
     let tmp = ws();
     let d = tmp.path();
@@ -689,7 +703,12 @@ fn publish_is_blocked_without_measurements_and_discard_drops_the_draft() {
     let tmp = ws();
     let d = tmp.path();
     ok(d, 1, &["brick", "set", "a", "--desc", "x"]);
-    let v = json(d, &["publish", "--dry-run", "--base", "2"]);
+    // `show` reads the design only; `check` is the gate and exits like publish.
+    assert!(!d.join(".brickie/cache.json").exists());
+    assert!(run(d, &["show"]).status.success());
+    let out = run(d, &["check", "--format", "json"]);
+    assert_eq!(out.status.code(), Some(4));
+    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(
         (v["ready"].as_bool(), v["forked_from"].as_u64()),
         (Some(false), Some(1))

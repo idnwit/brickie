@@ -22,6 +22,9 @@ pub struct BrickFields {
     /// Folder of a composite (its brickie.toml), relative to the level file.
     #[arg(long)]
     pub path: Option<String>,
+    /// Act like an external library (root bricks only); `false` removes the key.
+    #[arg(long)]
+    pub independent: Option<bool>,
 }
 
 #[derive(Subcommand)]

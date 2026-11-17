@@ -41,8 +41,6 @@ pub struct BrickView {
     pub exported: bool,
     /// A faded neighbour outside the current level, with edges crossing its boundary.
     pub ghost: bool,
-    /// Edit mode: in the design, but no measured module maps to it yet.
-    pub planned: bool,
     /// An independent lib (`independent = true`): used like an external library. Inbound edges
     /// that are not violations are not drawn; see `hidden_in`.
     pub independent: bool,

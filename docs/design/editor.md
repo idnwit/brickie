@@ -16,15 +16,26 @@ planned bricks) and needed a tolerant `Mode::Draft` resolve everywhere. Publish 
 approval step: it waits only for the code to match the drawn target, then the target becomes
 the gated design. User-approved; reviewed by two independent reviewers.
 
+Two rules of the viewer's Design mode (user decision):
+
+1. Design mode shows only what the design files say: the draft when one exists, else the
+   published design. No measured code: no measured edges, scores, metrics, findings, module
+   lists or counts, code panels, measure controls or notices, and no planned or unmapped
+   markers. Members show as declared (selectors as text). Reason: the draft is a target drawn
+   ahead of the code; mixing in code made the canvas show a state that is neither.
+2. Code is compared with the design only by the publish gate, when Publish is clicked (a dry
+   run or the real publish). Reason: one place decides "the code now has this structure".
+
 | Topic | Decision | Reason |
 | --- | --- | --- |
 | Two trees | published = the real files, read by `check`, the gate and the viewer's normal mode, which never read `.brickie/draft/`; draft = the target being drawn | the gate stays green while a refactor is planned |
 | Where edits go | every `brickie design` write, `apply` and the undo of a draft version write the draft; no flag writes the published tree; the first write forks the draft from the published head (a write that changes nothing creates none) | one path; the published tree changes only by `publish`, by hand (`external`) and by undoing a published version |
 | Storage | `.brickie/draft/draft.json` (`{forked_from}`) and `files/` mirroring the relative config paths (`..` as `^`); read through the `Preview` overlay, so `path =` and includes resolve as for real files | a `Files` snapshot, no op log to replay on read |
 | History | one shared version counter; each version has `track` (`draft` or `published`); a fork or rebase version carries `forked_from` and a full snapshot; an undo carries `reverts`; states replay their own track only; compaction keeps each track's head and makes the first kept version of each track full | one log, one undo model; `--base` and stale checks use the head of the track written |
-| Free-style draft | a draft write validates config syntax and self-consistency only (`load_config`), never against the code; draft `show` todo lists only config items (`design/no-reason`); headers name the track (`draft v42 from published v37`) | the target may be far from the code |
+| Free-style draft | a draft write validates config syntax and self-consistency only (`load_config`), never against the code; `show` todo lists only config items (`design/no-reason`); headers name the track (`draft v42 from published v37`) | the target may be far from the code |
 | Publish gate | `design publish --base N` strictly resolves the draft over the cache on disk: blocked (`design/blocked`, exit 4) by `config/unassigned`, `config/overlap`, `config/member-outside-parent`, `design/planned`, a missing, mismatched or stale cache; dependency and rule findings never block; no partial publish | publish means "the code now has this structure" |
-| Checklist | `publish --dry-run` lists every blocking item (JSON: `code, message, file, brick, member, module`) and the draft's dependency findings as `info` | the agent's refactor checklist |
+| Checklist | `design check` runs the gate on the working design (draft, else published) and lists every blocking item (JSON: `code, message, file, brick, member, module`) plus `info` (dependency findings, allow rules no measured edge uses); exit 4 `design/blocked` when blocked; the viewer's `publish` with `dry_run` calls the same `Design::publish_check` gate | the agent's refactor checklist |
+| Code reading | only `design check` and `design publish` read the code; `show` and every other command read design files alone (`Design::show_design`, no cache needed) and list config todos only | one rule, same as the viewer's Design mode |
 | Publish write | one published version (author: who runs it, note `publish draft vN`), files left only by ungroup stay on disk, the draft is removed; undoable by restoring bytes like any published version | same write path as before |
 | Stale publish | published head != `forked_from`: `design/stale` listing the published versions since the fork; `design rebase --base N` replays the live ops of the draft (undone versions skipped) onto the new head as one draft version, failing on a clash through the ops' own identity errors; no TOML merge | no silent merge |
 | Discard | `design discard --base N` removes the draft and appends a draft-track marker | history stays append-only |
@@ -58,7 +69,7 @@ the gated design. User-approved; reviewed by two independent reviewers.
 
 ## CLI
 
-`brickie design show [--since N] [--in P] | log | diff | undo | apply | publish [--dry-run] | rebase | discard | brick | rule | export | limit | deps | include`; see
+`brickie design show [--since N] [--in P] | log | diff | undo | apply | check | publish | rebase | discard | brick | rule | export | limit | deps | include`; see
 `brickie design --help` and "Editing the design" in [../llms.txt](../llms.txt). Code:
 `crates/core/change` (`design/` versions, history, lock, writes, `design/draft/` draft store,
 publish gate, rebase and discard; `edit/` ops; `report/` diff, show, todo) and `crates/cli/src/cli/design/`.
@@ -71,10 +82,11 @@ User guide: [../webui.md](../webui.md#design-mode).
 
 | Topic | Decision | Reason |
 | --- | --- | --- |
-| Endpoints | `GET /api/design` (`DesignState`: working head `v`, `published` head, `forked_from` and publish `gate` of the draft, `by`, last 50 versions, todo, level files and selectors, per-file sheets, layout hints); `POST /api/design/{edit, move, undo}` (one human draft version each, `base` required); `POST /api/design/{publish, rebase, discard}` (`base` = draft head; `publish` takes `dry_run` and `note`, a blocked publish is 409 `design/blocked`); `links`, `link-check`, `levels` (read only); `layout`, `relayout` (hints) | one current path over `brickie_change::Design`, shared with the CLI |
-| Draft in the viewer | Design mode (`edit=1`) loads the working tree (`Design::load_working`: the draft, else the published files) and serves `gate` from `Design::publish_check` (absent while behind); view mode loads the published files only; publish, rebase and discard call the engine and are never re-sent on a newer head | the gate and the rules stay in the engine; an action on a changed draft must be seen first |
+| Endpoints | `GET /api/design` (`DesignState`: working head `v`, `published` head, `forked_from` of the draft, `by`, last 50 versions, todo, level files and selectors, per-file sheets, layout hints); `POST /api/design/{edit, move, undo}` (one human draft version each, `base` required); `POST /api/design/{publish, rebase, discard}` (`base` = draft head; `publish` takes `dry_run` and `note`; a blocked publish or dry run is 409 `design/blocked` listing every blocking item); `links`, `link-check`, `levels` (read only); `layout`, `relayout` (hints) | one current path over `brickie_change::Design`, shared with the CLI |
+| Draft in the viewer | Design mode (`edit=1`) reads the working tree from its files alone (`Design::load_working`, `Design::show_design`: no cache read, so it works before any measure); its levels carry the bricks and every rule between named bricks as a link (`rule_links`; allow by kind colour, deny red); the todo lists config items only; nothing runs the gate until Publish ([rules](#draft-and-publish)); view mode loads the published files and the cache; publish, rebase and discard call the engine and are never re-sent on a newer head | the gate and the rules stay in the engine; an action on a changed draft must be seen first |
 | Author | every viewer write is `human`; no field in the request | the surface decides, as in the CLI |
 | Stale base | 409 with the `design/stale` text and header `x-brickie-head`; the page reloads the design and re-sends the same request once on the new head only when no version since its base touched an identity of the request (brick by name, rule by file and key, limit by file and `bricks`; a rule op also touches the bricks it names `from`/`to`, so a rename or removal of one stales it; a version without ops touches all); the server checks this and answers a clash with `<author> v<N> changed <identity>` (no stale text), shown as `Not applied: <that>` | an edit by identity must not override another writer's change to the same thing |
+| Independent | `set_brick.independent` (`brick set --independent true|false`) writes or removes `independent = true`; a nested brick is rejected by the normal config load (`design/invalid`). `design show` marks it (`independent` in text, `"independent": true` in JSON); the web inspector shows an "independent lib" checkbox on root-level bricks only | one validation path (`config/invalid`), no second check in the editor |
 | Copy ref | an icon button in the brick and rule inspector copies the CLI name (`web/api`, `rule web -> store (prod)`; `[kinds]` only when another rule of the file has the same ends and scope); tooltip "Copy ref for the agent" | the human pastes it into the agent's chat |
 | Identity in the UI | a selected rule is `(file, RuleKey)`; editing kinds, scope or target is `remove_rule` + `add_rule` in one version, other fields a `set_rule` patch; complexity rows by `bricks` | no index can point at another rule after a concurrent edit |
 | Gestures | the ops of one gesture (a tile into a leaf brick: `make_composite` + `add_brick`) are one version | one `Ctrl+Z` per gesture |
@@ -98,6 +110,6 @@ automated tests: the toolbar's look at narrow widths and drag gestures end to en
 ## UX principles (viewer)
 
 Canvas first (create, connect, move, delete, rename are gestures); one selection, one inspector;
-every edit is a version with Undo; never lose place; design vs reality stays legible (planned bricks
-dashed, unused links and drift amber, agent versions marked). Connecting is type first: one port per link type,
+every edit is a version with Undo; never lose place; design vs reality stays legible in view mode (unused links
+and drift amber); agent versions marked. Connecting is type first: one port per link type,
 nothing to fill in after the drop. A brick is a folder: dropping a brick on a brick nests it.

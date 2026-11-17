@@ -121,6 +121,7 @@ pub fn desc(name: &str, d: &str) -> Op {
         tags: None,
         members: None,
         path: None,
+        independent: None,
     }
 }
 

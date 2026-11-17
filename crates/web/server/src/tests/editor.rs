@@ -61,7 +61,10 @@ async fn an_edit_is_a_version_and_a_stale_base_is_refused() {
         .iter()
         .find(|b| b["name"] == "cache")
         .unwrap();
-    assert_eq!(cache["planned"], true, "no code yet: planned");
+    assert!(
+        cache.get("planned").is_none(),
+        "Design mode marks nothing from code"
+    );
     // The edit started a draft forked from v1; the published file is untouched.
     assert_eq!(
         (
@@ -70,11 +73,7 @@ async fn an_edit_is_a_version_and_a_stale_base_is_refused() {
         ),
         (Some(1), Some(1))
     );
-    let blocking = r["design"]["gate"]["blocking"].as_array().unwrap();
-    assert!(
-        blocking.iter().any(|b| b["code"] == "design/planned"),
-        "{blocking:?}"
-    );
+    assert!(r["design"].get("gate").is_none(), "no gate before Publish");
     assert!(
         !std::fs::read_to_string(s.config())
             .unwrap()

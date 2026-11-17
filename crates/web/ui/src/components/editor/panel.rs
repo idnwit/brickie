@@ -30,7 +30,7 @@ fn tabs(cx: &Cx) -> View {
 /// The right column in edit mode.
 pub fn panel(cx: &Cx) -> View {
     let ed = cx.ed;
-    // Selecting a brick or a measured edge ends a rule selection.
+    // Selecting a brick ends a rule selection.
     let params = cx.params;
     create_effect(move || {
         let any = params.with(|p| !p.brick.is_empty() || !p.edge.is_empty());

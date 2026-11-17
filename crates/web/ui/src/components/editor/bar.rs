@@ -1,8 +1,7 @@
 //! The header's "Design" toggle (`E`), its "Auto layout" in edit mode, and the design bar (in
 //! place of the banner in edit mode): the draft's state and actions ([`super::draft`]), the
-//! version on screen and who made it, task chips that
-//! act (planned -> select the planned bricks, no reason -> Rules tab), Undo / Redo and the last
-//! error.
+//! version on screen and who made it, the task chip (no reason -> Rules tab), Undo / Redo and
+//! the last error (a blocked publish lists its blocking items there).
 
 use super::keys::toggle_design;
 use super::send;
@@ -56,25 +55,6 @@ fn chip(text: String, cls: &'static str, tip: String, act: impl Fn() + 'static) 
 
 fn chips(cx: &Cx, ch: &DesignState) -> View {
     let mut out = Vec::new();
-    let planned = count(ch, TaskKind::Planned);
-    if planned > 0 {
-        let c = cx.clone();
-        let tip = "Bricks with no code yet: select them".to_string();
-        out.push(chip(
-            format!("{planned} planned"),
-            "planned",
-            tip,
-            move || {
-                let bricks: Vec<usize> = (0..c.m.g.bricks.len())
-                    .filter(|&i| c.m.g.bricks[i].planned)
-                    .collect();
-                c.select(Sel::Group {
-                    tags: vec![],
-                    bricks,
-                });
-            },
-        ));
-    }
     let reasons = count(ch, TaskKind::Reason);
     if reasons > 0 {
         let ed = cx.ed;

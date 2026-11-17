@@ -79,6 +79,7 @@ fn apply_to_doc(doc: &mut DocumentMut, op: &Op) -> Result<()> {
             tags,
             members,
             path,
+            independent,
             ..
         } => brick::set(
             doc,
@@ -88,6 +89,7 @@ fn apply_to_doc(doc: &mut DocumentMut, op: &Op) -> Result<()> {
                 tags: tags.as_deref(),
                 members: members.as_deref(),
                 path: path.as_deref(),
+                independent: *independent,
             },
         ),
         Op::AddRule { file, rule } => {

@@ -59,7 +59,7 @@ mod via_tests;
 
 pub use complexity::limits as complexity_limits;
 pub use deps::dep_subject;
-pub use links::unused_links;
+pub use links::{rule_links, unused_links};
 use unmapped::Unmapped;
 mod members;
 mod stale;

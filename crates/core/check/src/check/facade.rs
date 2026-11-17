@@ -12,6 +12,11 @@ pub fn unused_links(l: &super::Loaded) -> Vec<Link> {
     rules::unused_links(&l.cache, &l.cfg, &l.resolved)
 }
 
+/// Every rule between named bricks of `cfg`, allow or deny (no code read).
+pub fn rule_links(cfg: &Config) -> Vec<Link> {
+    rules::rule_links(cfg)
+}
+
 /// The subject of a dependency finding: `from->to:kind:scope` over module ids.
 pub fn dep_subject(from: &str, to: &str, kind: &str, scope: &str) -> String {
     rules::dep_subject(from, to, kind, scope)

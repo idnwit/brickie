@@ -1,18 +1,15 @@
-//! `design publish`, `rebase` and `discard`: the draft's way into the published tree.
+//! `design check`, `publish`, `rebase` and `discard`: the draft's way into the published tree.
 
 use super::render;
 use anyhow::Result;
-use brickie_change::{By, Design, Gate};
+use brickie_change::{Blocked, By, Design, Gate};
 use std::fmt::Write;
 
-/// The checklist of `publish --dry-run`: what blocks, and the dependency findings that do not.
-pub fn checklist(base: u64, published: u64, g: &Gate) -> String {
-    let mut s = format!(
-        "publish dry run: {} (nothing written)\n",
-        render::track(brickie_change::Track::Draft, base, Some(published))
-    );
+/// The text of `design check`: what blocks a publish, and the findings that do not.
+pub fn checklist(head: &str, g: &Gate) -> String {
+    let mut s = format!("design check: {head}\n");
     match g.ok() {
-        true => s.push_str("ready: the code matches the draft's structure\n"),
+        true => s.push_str("ready: the code matches the design's structure\n"),
         false => {
             let _ = writeln!(s, "blocked: {} item(s) to do in the code", g.blocking.len());
             for b in &g.blocking {
@@ -30,7 +27,7 @@ pub fn checklist(base: u64, published: u64, g: &Gate) -> String {
         }
     }
     if !g.info.is_empty() {
-        let _ = writeln!(s, "not blocking: {} dependency finding(s)", g.info.len());
+        let _ = writeln!(s, "not blocking: {} finding(s)", g.info.len());
         for i in &g.info {
             let _ = writeln!(s, "  - {i}");
         }
@@ -38,22 +35,23 @@ pub fn checklist(base: u64, published: u64, g: &Gate) -> String {
     s
 }
 
-pub fn publish(
-    d: &Design,
-    json: bool,
-    base: u64,
-    dry_run: bool,
-    note: Option<String>,
-) -> Result<()> {
-    if dry_run {
-        let g = d.publish_check(base)?;
-        let published = d.published_head()?.v;
-        let value = serde_json::json!({
-            "dry_run": true, "draft": base, "forked_from": published,
-            "ready": g.ok(), "blocking": g.blocking, "info": g.info,
-        });
-        return super::print(json, &value, || checklist(base, published, &g));
+/// Compare the code with the working design; blocked (exit 4) exactly when publish would be.
+pub fn check(d: &Design, json: bool) -> Result<()> {
+    let head = d.head()?;
+    let g = d.check_working()?;
+    let value = serde_json::json!({
+        "v": head.v, "track": head.track, "forked_from": head.forked_from,
+        "ready": g.ok(), "blocking": g.blocking, "info": g.info,
+    });
+    let name = render::track(head.track, head.v, head.forked_from);
+    super::print(json, &value, || checklist(&name, &g))?;
+    match g.ok() {
+        true => Ok(()),
+        false => Err(Blocked { gate: g }.into()),
     }
+}
+
+pub fn publish(d: &Design, json: bool, base: u64, note: Option<String>) -> Result<()> {
     let out = d.publish(base, By::Agent, note)?;
     super::print(json, &render::outcome_json(&out), || render::outcome(&out))
 }

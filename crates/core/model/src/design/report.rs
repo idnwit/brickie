@@ -1,4 +1,4 @@
-//! What `design show` reports: the tree, its rules and limits, and the todo list.
+//! What `design show` reports: the tree, its rules and limits, and the config todo list.
 
 use super::{By, Track};
 use serde::{Deserialize, Serialize};
@@ -7,12 +7,6 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TaskKind {
-    /// A brick with no measured module yet: create its code.
-    Planned,
-    /// The design does not check (an unfinished partition, a cache problem).
-    Config,
-    /// An allow rule between two named bricks that decides no measured edge.
-    Unused,
     /// A rule without a `reason`.
     Reason,
 }
@@ -66,9 +60,9 @@ pub struct BrickView {
     pub tags: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub desc: Option<String>,
-    /// No measured module maps to the brick yet.
+    /// An independent lib (`independent = true`, root bricks only).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub todo: bool,
+    pub independent: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub children: Option<Box<LevelView>>,
 }
@@ -87,9 +81,6 @@ pub struct RuleView {
     pub action: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
-    /// An allow rule between named bricks that no measured edge uses yet.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub todo: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

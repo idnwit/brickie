@@ -11,7 +11,7 @@ use axum::Json;
 use axum::extract::State;
 use axum::http::{HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use brickie_change::{By, Design, Link, Op, Outcome, Stale, brick_path};
+use brickie_change::{Blocked, By, Design, Link, Op, Outcome, Stale, brick_path};
 use brickie_web_api::*;
 
 type Res<E> = Result<Json<ResOf<E>>, Failure>;
@@ -115,7 +115,10 @@ pub async fn publish(
 ) -> Result<Json<EditReply>, Refused> {
     let d = design(&st)?;
     if req.dry_run {
-        d.publish_check(req.base).map_err(Refused)?;
+        let gate = d.publish_check(req.base).map_err(Refused)?;
+        if !gate.ok() {
+            return Err(Refused(Blocked { gate }.into()));
+        }
         return reply(&st, unchanged(&d)?);
     }
     let out = d.publish(req.base, By::Human, req.note).map_err(Refused)?;
