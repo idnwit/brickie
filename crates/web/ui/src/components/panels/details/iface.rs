@@ -122,10 +122,12 @@ fn edge_item_view(cx: &Cx, it: &EdgeItemView) -> View {
     }
 }
 
-/// Every reference site from the brick at `from` into the brick at `to`, by used item.
-pub(super) fn edge_section(cx: &Cx, from: String, to: String) -> View {
+/// Every reference site of kind `kind` from the brick at `from` into the brick at `to`, by used item.
+pub(super) fn edge_section(cx: &Cx, from: String, to: String, kind: String) -> View {
     let data: Signal<Option<Result<Vec<EdgeItemView>, String>>> = create_signal(None);
-    call::<EdgeUses>(&EdgeUsesRequest { from, to }, move |r| data.set(Some(r)));
+    call::<EdgeUses>(&EdgeUsesRequest { from, to, kind }, move |r| {
+        data.set(Some(r))
+    });
     let cx = cx.clone();
     let body = move || match data.get_clone() {
         None => view! { div(class="muted small") { "loading\u{2026}" } },

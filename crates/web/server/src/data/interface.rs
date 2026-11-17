@@ -60,11 +60,22 @@ pub fn interface(l: &Loaded, brick: &str) -> anyhow::Result<InterfaceView> {
 }
 
 /// Every reference site from brick `from` into brick `to`, by used item.
-pub fn edge_uses(l: &Loaded, from: &str, to: &str) -> anyhow::Result<Vec<EdgeItemView>> {
+/// Every site of kind `kind` from brick `from` into brick `to`, by used item; items left
+/// without a site of that kind are dropped.
+pub fn edge_uses(
+    l: &Loaded,
+    from: &str,
+    to: &str,
+    kind: &str,
+) -> anyhow::Result<Vec<EdgeItemView>> {
     let a = interface::parse_path(&l.cfg, from)?;
     let b = interface::parse_path(&l.cfg, to)?;
     Ok(interface::edge_uses(&l.cache, &l.resolved, &a, &b)
         .iter()
         .map(edge_item)
+        .filter_map(|mut it| {
+            it.sites.retain(|s| s.kind == kind);
+            (!it.sites.is_empty()).then_some(it)
+        })
         .collect())
 }

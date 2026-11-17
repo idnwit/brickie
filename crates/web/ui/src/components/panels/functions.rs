@@ -1,4 +1,4 @@
-//! The functions table scoped to the selection.
+//! The functions table scoped to the selected brick (hidden while a link is selected).
 
 use crate::state::*;
 use brickie_web_api::*;
@@ -81,23 +81,22 @@ fn resort(p: &Params, m: &str) -> Params {
     })
 }
 
-/// Functions of the selected bricks (by tree path; no selection: the whole level), through
+/// Functions of the selected brick (by tree path; no selection: the whole level), through
 /// the same filter the JSON API uses.
 fn scoped(cx: &Cx) -> Params {
     let p = cx.params.get_clone();
-    let names: Option<Vec<String>> = cx.eval.with(|ev| ev.sel.scope(&cx.m.g)).map(|s| {
-        s.into_iter()
-            .map(|b| cx.m.g.bricks[b].path.clone())
-            .collect()
-    });
-    with_bricks(&p, names, cx.level().path.clone())
+    let name = cx
+        .eval
+        .with(|ev| ev.sel.brick())
+        .map(|b| cx.m.g.bricks[b].path.clone());
+    with_bricks(&p, name, cx.level().path.clone())
 }
 
-/// `p` limited to the `names` of the selected bricks, or else to the `level` path (the root
+/// `p` limited to the selected brick `name`, or else to the `level` path (the root
 /// level means no limit).
-fn with_bricks(p: &Params, names: Option<Vec<String>>, level: String) -> Params {
-    match names {
-        Some(n) => p.with(|p| p.brick = n.join(",")),
+fn with_bricks(p: &Params, name: Option<String>, level: String) -> Params {
+    match name {
+        Some(n) => p.with(|p| p.brick = n),
         None if level == "root" => p.with(|p| p.brick.clear()),
         None => p.with(|p| p.brick = level),
     }
@@ -182,11 +181,8 @@ mod tests {
             brick: "old".into(),
             ..Default::default()
         };
-        let sel = Some(vec!["root/a".to_string(), "root/b".to_string()]);
-        assert_eq!(
-            with_bricks(&base, sel, "root/x".into()).brick,
-            "root/a,root/b"
-        );
+        let sel = Some("root/a".to_string());
+        assert_eq!(with_bricks(&base, sel, "root/x".into()).brick, "root/a");
         assert_eq!(with_bricks(&base, None, "root".into()).brick, "");
         assert_eq!(with_bricks(&base, None, "root/x".into()).brick, "root/x");
     }

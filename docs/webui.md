@@ -65,8 +65,9 @@ Serves: P3, P17.
 
 ![Detail panel of the web brick](screenshots/brick-detail.png)
 
-Click a brick, an edge or a tag row to scope every list to it (Shift adds or removes one; Esc
-clears). The right panel shows the score, open findings by group, the worst functions, the
+Click a brick or an edge to scope the lists to it (one selection at a time; clicking it again
+or Esc clears). A link scopes the findings list to its own findings and hides the Functions
+table. The right panel shows the score, open findings by group, the worst functions, the
 edges in and out, what the brick depends on and who uses it, and its declared interface with
 uses per item. Every `file:line` link and the Code button open the source popup: an iframe of
 `/code/` with "open in a tab", full-screen and close buttons; `Esc` closes it first. The code
@@ -172,7 +173,6 @@ Serves: P4, P18.
 | `Ctrl+Z`; `Ctrl+Shift+Z` or `Ctrl+Y` | Undo; Redo | Design mode |
 | `+` `-` `0` | zoom in, out, fit | Design mode |
 | `?` | shortcut sheet (closed by `Esc` or `?`) | Design mode |
-| Shift+click, Shift+drag | add to the selection, box select | canvas, lists |
 
 Keys never fire while a text field has focus, and the Design key handler takes a key before the
 page handler. Every brick is focusable and shows an outline in the selection colour.
@@ -183,13 +183,13 @@ Serves: P11, P15, P17.
 
 The query holds the view with defaults omitted and keys in a fixed order, so equal views have
 equal URLs. Links that change the view have a real `href`; a plain click updates the view without
-a page load. Changing the level clears the brick, group, edge and finding selections. Without
+a page load. Changing the level clears the brick, edge and finding selections. Without
 JavaScript the server renders the full page read-only from the same components and query.
 
 | Parameter | Meaning | Default |
 | --- | --- | --- |
 | `lv` | level path, such as `root/web` | `root` |
-| `brick`, `group`, `edge`, `item` | selected bricks, tag rows, edge `from>to>kind`, finding | none |
+| `brick`, `edge`, `item` | selected brick, edge `from>to>kind`, finding | none |
 | `p` | preset: `arch`, `viol`, `all`, `custom` | `arch` |
 | `lay` | layer differences from the preset, `-cx,+tests` | none |
 | `vs` | Violations scope: `deps`, `cx`, `stale`, `iface` | `all` |

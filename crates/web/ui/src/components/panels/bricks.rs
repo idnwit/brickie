@@ -1,4 +1,4 @@
-//! The brick index by tag (the original's "bricks by family"): a tag header selects the row.
+//! The brick index by tag (the original's "bricks by family"): a click selects a brick.
 
 use crate::state::*;
 use brickie_web_api::{BrickScore, BrickView, GraphView, fmt_score};
@@ -6,15 +6,16 @@ use sycamore::prelude::*;
 
 const TIP: &str = "findings (E) of any layer, then the score = findings + complexity excess; a cycle counts once for each brick in it";
 
-/// The brick index by tag (the original's "bricks by family"): a tag header selects the row.
+/// The brick index by tag (the original's "bricks by family"); a click selects a brick.
 pub fn brick_index(cx: &Cx) -> View {
     let g = &cx.m.g;
     let initial = cx.scores.get_clone_untracked();
     let mut out: Vec<View> = vec![
-        view! { h3(class="idx") { "Bricks by tag " span(class="muted") { "(click a tag: select the row, Shift: add)" } } },
+        view! { h3(class="idx") { "Bricks by tag " span(class="muted") { "(click a brick to select it)" } } },
     ];
     for tag in &g.rows {
-        out.push(tag_header(cx, tag));
+        let label = tag.clone();
+        out.push(view! { h3(class="tag-h") { (label) } });
         for (b, brick) in members_sorted(g, tag, &initial) {
             out.push(brick_row(cx, b, brick));
         }
@@ -22,47 +23,16 @@ pub fn brick_index(cx: &Cx) -> View {
     View::from(out)
 }
 
-/// The header of one tag: highlighted while the tag is in the group selection.
-fn tag_header(cx: &Cx, tag: &str) -> View {
-    let (c1, c2, t) = (cx.clone(), cx.clone(), tag.to_string());
-    let t2 = t.clone();
-    let cls = move || {
-        let on = c1
-            .eval
-            .with(|ev| matches!(&ev.sel, Sel::Group { tags, .. } if tags.contains(&t2)));
-        if on { "tag-h on" } else { "tag-h" }
-    };
-    let href = Sel::None
-        .select_tag(tag, false)
-        .apply(&cx.params.get_clone(), &cx.m.g)
-        .url();
-    let label = tag.to_string();
-    view! {
-        h3(class=cls, "data-g"=t.clone()) {
-            a(href=href, on:click={
-                let t = t.clone();
-                move |e: Click| {
-                    e.prevent_default();
-                    let sel = c2.eval.with(|ev| ev.sel.clone());
-                    c2.select(sel.select_tag(&t, e.shift_key()));
-                }
-            }) { (label) }
-        }
-    }
-}
-
 /// One brick of the index: name, live score and members; a click selects it.
 fn brick_row(cx: &Cx, b: usize, brick: &BrickView) -> View {
     let (c1, c2, c3) = (cx.clone(), cx.clone(), cx.clone());
+    // Only a selected brick is marked; a selected link marks none.
     let on = move || {
-        let inside = c1.eval.with(|ev| {
-            ev.sel.set(&c1.m.g).contains(&b)
-                || ev
-                    .sel
-                    .scope(&c1.m.g)
-                    .is_some_and(|s| s.contains(&b) && matches!(ev.sel, Sel::Edge(_)))
-        });
-        if inside { "item sel" } else { "item" }
+        if c1.eval.with(|ev| ev.sel.brick() == Some(b)) {
+            "item sel"
+        } else {
+            "item"
+        }
     };
     let score = move || c2.scores.with(|s| score_label(&s[b]));
     let sc_cls = {
@@ -76,7 +46,7 @@ fn brick_row(cx: &Cx, b: usize, brick: &BrickView) -> View {
         a(class=on, href=href, "data-b"=name2, on:click=move |e: Click| {
             e.prevent_default();
             let sel = c3.eval.with(|ev| ev.sel.clone());
-            c3.select(click_target(sel, e.shift_key(), b));
+            c3.select(sel.click(b));
         }) {
             (name) " " span(class=sc_cls, title=TIP) { (score) }
             br()
@@ -120,15 +90,6 @@ fn score_class(s: &BrickScore) -> &'static str {
     if s.errors == 0 { "sc ok" } else { "sc err" }
 }
 
-/// The selection after a click on brick `b`: Shift adds it to a brick or group selection.
-fn click_target(sel: Sel, shift: bool, b: usize) -> Sel {
-    if shift && matches!(sel, Sel::Brick(_) | Sel::Group { .. }) {
-        sel.add_brick(b)
-    } else {
-        Sel::Brick(b)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -162,20 +123,5 @@ mod tests {
         sort_worst_first(&mut m, &initial);
         let order: Vec<usize> = m.iter().map(|x| x.0).collect();
         assert_eq!(order, [1, 0, 2]);
-    }
-
-    #[test]
-    fn click_replaces_unless_shift_on_brick_or_group() {
-        assert_eq!(click_target(Sel::Brick(1), false, 2), Sel::Brick(2));
-        assert_eq!(click_target(Sel::None, true, 2), Sel::Brick(2));
-        assert_eq!(click_target(Sel::Edge(0), true, 2), Sel::Brick(2));
-        assert_eq!(
-            click_target(Sel::Brick(1), true, 2),
-            Sel::Group {
-                tags: vec![],
-                bricks: vec![1, 2]
-            }
-        );
-        assert_eq!(click_target(Sel::Brick(1), true, 1), Sel::None);
     }
 }

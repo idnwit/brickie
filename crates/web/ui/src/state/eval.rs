@@ -149,20 +149,27 @@ pub fn evaluate(g: &GraphView, diags: &[DiagView], p: &Params) -> Eval {
 
 /// `listFindings` (without the text filter): the diagnostics shown in the left list.
 pub fn list_findings(g: &GraphView, diags: &[DiagView], p: &Params, ev: &Eval) -> Vec<usize> {
-    let scope = ev.sel.scope(g);
     (0..diags.len())
         .filter(|&i| {
             let d = &diags[i];
             ev.von[i]
-                && scope
-                    .as_ref()
-                    .is_none_or(|s| diag_bricks(g, d).iter().any(|b| s.contains(b)))
+                && in_selection(g, d, &ev.sel)
                 && (p.below.is_empty()
                     || under(d.brick_level.as_deref().unwrap_or("root"), p.level_path()))
                 && (p.grp.is_empty() || group_sub(&d.code).0 == p.grp)
                 && code_matches(&d.code, &p.code)
         })
         .collect()
+}
+
+/// Whether finding `d` belongs to the selection: a brick scopes to the findings touching it, a
+/// link to its own findings only, nothing to every finding.
+fn in_selection(g: &GraphView, d: &DiagView, sel: &Sel) -> bool {
+    match sel {
+        Sel::None => true,
+        Sel::Brick(b) => diag_bricks(g, d).contains(b),
+        Sel::Edge(e) => g.edges[*e].diags.contains(&d.id),
+    }
 }
 
 #[cfg(test)]
@@ -257,6 +264,25 @@ mod tests {
                 "{q} test={test} found={found}"
             );
         }
+    }
+
+    #[test]
+    fn a_selected_link_lists_only_its_own_findings() {
+        let g = graph();
+        // d2 touches both ends of link 0 but is not one of its findings.
+        let diags = vec![
+            diag("d1", "deps/unlinked", &["a", "b"]),
+            diag("d2", "deps/unlinked", &["a", "b"]),
+        ];
+        let list = |sel: Sel| {
+            let p = sel.apply(&Params::default(), &g);
+            let ev = evaluate(&g, &diags, &p);
+            list_findings(&g, &diags, &p, &ev)
+        };
+        assert_eq!(list(Sel::None), vec![0, 1]);
+        assert_eq!(list(Sel::Brick(0)), vec![0, 1]);
+        assert_eq!(list(Sel::Edge(0)), vec![0]);
+        assert!(list(Sel::Edge(1)).is_empty());
     }
 
     #[test]

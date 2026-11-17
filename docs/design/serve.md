@@ -12,6 +12,7 @@ Scope: `brickie serve` webview, its decisions, the layout port, the embedded cod
 | Page JSON holds all diagnostics, levels and functions; nothing is filtered on the server | filters and presets are client-only |
 | Layout runs once per level from the full edge set; presets and selection only change styles | no relayout, no flicker. The layout is not cached |
 | View state lives in the URL query (`Params`), links keep real `href`s | back/forward and shared links render the same view |
+| Selection is single: nothing, one brick or one link (no multi-select, tag-row or box selection). A link scopes the findings list to its own findings and hides the Functions table; a brick scopes both to itself | one rule per list, no union of scopes to explain |
 | All writing endpoints pass one guard: loopback bind, loopback `Host`, same `Origin` | CSRF and DNS rebinding |
 | Change detection by an mtime watcher feeding SSE (`/api/events`), not the `notify` crate | no new dependency, no inotify limits, same on every filesystem |
 | New SSE connections get current state first | `EventSource` reconnect resyncs without replay |

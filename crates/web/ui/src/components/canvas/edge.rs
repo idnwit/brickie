@@ -35,7 +35,7 @@ fn edge_flags(cx: &Cx, ei: usize) -> EdgeFlags {
             wall: edge.wall,
             arch,
             hot: focus.is_some_and(|f| f.hot.contains(&ei)),
-            lab: focus.is_some_and(|f| !f.group),
+            lab: focus.is_some(),
             sel: ev.sel == Sel::Edge(ei) && !item,
             hov: cx
                 .hover

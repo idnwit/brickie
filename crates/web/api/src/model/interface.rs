@@ -65,11 +65,13 @@ pub struct SiteView {
     pub symbol: String,
 }
 
-/// Body of `POST /api/edge-uses`: brick paths of the edge's ends.
+/// Body of `POST /api/edge-uses`: brick paths of the edge's ends and the edge kind
+/// (`uses`, `implements` or `reexports`); only sites of that kind are returned.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EdgeUsesRequest {
     pub from: String,
     pub to: String,
+    pub kind: String,
 }
 
 /// One used item of the edge's target and every site that uses it.

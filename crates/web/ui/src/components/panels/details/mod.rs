@@ -1,4 +1,4 @@
-//! The right panel (`renderDetail`): overview, brick, group, edge or finding details, then the
+//! The right panel (`renderDetail`): overview, brick, edge or finding details, then the
 //! scoped functions table and the legend.
 
 mod brick;
@@ -10,7 +10,7 @@ mod summary;
 use super::{functions::functions_view, legend::legend};
 use crate::state::*;
 use brick::brick_detail;
-use item::{edge_detail, finding_detail, group_detail};
+use item::{edge_detail, finding_detail};
 use summary::summary;
 use sycamore::prelude::*;
 
@@ -31,12 +31,21 @@ pub fn detail(cx: &Cx) -> View {
             match cx.eval.with(|ev| ev.sel.clone()) {
                 Sel::None => summary(&cx),
                 Sel::Brick(b) => brick_detail(&cx, b),
-                Sel::Group { .. } => group_detail(&cx),
                 Sel::Edge(e) => edge_detail(&cx, e),
             }
         }
     };
-    let fns = functions_view(cx);
+    // A link scopes the lists to itself: the Functions table is hidden then.
+    let fns = {
+        let cx = cx.clone();
+        move || {
+            if cx.eval.with(|ev| matches!(ev.sel, Sel::Edge(_))) {
+                View::default()
+            } else {
+                functions_view(&cx)
+            }
+        }
+    };
     let leg = legend(cx);
     view! {
         aside(id="detail") {
