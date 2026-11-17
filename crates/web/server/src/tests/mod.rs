@@ -134,7 +134,7 @@ impl Site {
 
     /// The id of the single diagnostic, as `brickie check` computes it.
     pub(crate) fn diag_id(&self) -> String {
-        let l = check::load(&self.config()).unwrap();
+        let l = brickie_check::check::load(&self.config()).unwrap();
         let d: Vec<_> = l
             .diagnostics
             .iter()

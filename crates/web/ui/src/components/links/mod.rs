@@ -1,8 +1,8 @@
 //! `[[link]]`s on the canvas, one line per (from, to) brick pair, dashed like the edge kind.
 //! View mode: the planned links (no code uses them yet), in the warning colour with a `!`.
-//! Design mode: every link of the level, by kind colour; a link no rule allows is red with a
-//! `\u{2715}` (the tooltip says why), one on a cycle of links carries `\u{21BB}`, an agent's
-//! link `A`. The reason shows as a label on hover or selection only. In the editor a click
+//! Design mode: every link of the level, by kind colour (planned ones still carry the `!`); a
+//! link no rule allows is red with a `\u{2715}` (the tooltip says why), one on a cycle of links
+//! carries `\u{21BB}`, an agent's link `A`. The reason shows as a label on hover or selection only. In the editor a click
 //! selects the link; in view mode it picks it (a tap on touch).
 
 mod pair;
@@ -60,10 +60,10 @@ fn glyph(x: f64, y: f64, g: &str) -> View {
     view! { g(class="qmark") { circle(cx=px2, cy=py, r="8") text(x=px, y=ty, "text-anchor"="middle") { (g) } } }
 }
 
-/// The marks of one link (`!` in view mode, denied, cycle, `A`) in a row from `at`, and the hover label after them.
-fn marks_of(pr: &Pair, at: Pt, agent: bool, editing: bool) -> (Vec<View>, Option<View>) {
-    // `!` (planned: no code uses it) is view mode only; Design mode never reads code.
-    let mut glyphs = if editing { vec![] } else { vec!["!"] };
+/// The marks of one link (`!` planned, denied, cycle, `A`) in a row from `at`, and the hover label after them.
+fn marks_of(pr: &Pair, at: Pt, agent: bool) -> (Vec<View>, Option<View>) {
+    // `!`: planned, no code uses the link yet.
+    let mut glyphs = if pr.planned() { vec!["!"] } else { vec![] };
     if pr.denied() {
         glyphs.push("\u{2715}");
     }
@@ -128,7 +128,7 @@ fn draw(
     let route = path_of(cx, pr.a, pr.b, p);
     let d = route.d();
     let at = mark_spot(&route, p, marks);
-    let (shown, label) = marks_of(pr, at, agent, cx.editing());
+    let (shown, label) = marks_of(pr, at, agent);
     let refs: Vec<RuleRef> = pr.rules.iter().map(|e| RuleRef::served(e)).collect();
     let (ed, editing, key) = (cx.ed, cx.editing(), (pr.a, pr.b));
     let (sel_refs, dash) = (refs.clone(), kind_dash(lead));

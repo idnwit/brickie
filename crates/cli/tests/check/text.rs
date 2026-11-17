@@ -44,7 +44,8 @@ cognitive = 15
     assert_eq!(o.code, 1);
     let path = cfg.display();
     let expected = format!(
-        "error[complexity/cognitive]: `busy` has cognitive 20 (limit 15)
+        "working: published
+error[complexity/cognitive]: `busy` has cognitive 20 (limit 15)
  --> crates/eng/src/x.rs:5:8
   |
 5 | pub fn busy() {{}}

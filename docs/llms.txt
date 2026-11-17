@@ -8,8 +8,10 @@
 
 1. `brickie measure` reads the code (cargo metadata, rust-analyzer, tree-sitter) and writes
    `.brickie/cache.json` next to `brickie.toml`. It is slow: run it once per round of edits.
-2. `brickie check` reads the cache and rules, prints diagnostics, and exits non-zero on a
-   finding. It is fast and never runs rust-analyzer unless you pass `--measure`. It
+2. `brickie check` reads the cache and the working design (the draft in `.brickie/draft/` when
+   one exists, else `brickie.toml`; the first line names it), prints diagnostics, and exits
+   non-zero on a finding. Planned work (a brick with no code yet, a link no code uses yet) is
+   printed as `todo`, never a finding. It is fast and never runs rust-analyzer unless you pass `--measure`. It
    checks structure (edges, complexity), not runtime behaviour: pair it with the project's own
    tests.
 3. Fix the code each diagnostic points at.
@@ -23,7 +25,7 @@
   change re-measure before trusting `check`. Config edits never need a re-measure.
 - `--measure` needs `rust-analyzer` on `PATH`; when the measure fails, `check` exits 2 and
   prints the reason.
-- `brickie check --format json` prints `{summary, diagnostics}`; each finding has `id`, `code`,
+- `brickie check --format json` prints `{summary, diagnostics, todo, working}` (`working` names the source, for example `draft v42 from published v37`; text and short output start with the line `working: ...`); each finding has `id`, `code`,
   `brick_level`, `message`, `span`, `spans`, `rule`, `help`, `notes`, `bricks`, `edges`. Read the text form, loop over the JSON.
 - `brickie check --brick PATH` (repeatable; path from the root such as `web/api`, includes
   descendants) shows only findings owned by that brick: the source brick of `deps/*` edges, all
@@ -43,8 +45,9 @@
 - `brickie serve` is a web viewer for humans; you do not need it.
 - Every command accepts `--config path/to/brickie.toml` (default `./brickie.toml`).
 
-Exit codes of `brickie check`: 0 clean, 1 at least one finding (a stale cache included), 2
-configuration, cache or argument problem (for example no cache: run `brickie measure`). `brickie interface` exits 2 on
+Exit codes of `brickie check`: 0 clean (a todo may remain), 1 at least one finding (a stale
+cache and a structure error such as `config/missing` included), 2 a config file that cannot be
+read or parsed, an include or `path` cycle, a cache or argument problem (for example no cache: run `brickie measure`). `brickie interface` exits 2 on
 any error; `brickie design` exits 3 on a stale base and 4 when `publish` is blocked.
 
 ## Features and targets
@@ -85,9 +88,10 @@ report that the target is not installed (`rustup target add <target>`).
 
 ## Editing the design
 
-The design has two trees. The published tree is the real `brickie.toml` files: `brickie check`
-and the gate read only it. The draft (`.brickie/draft/`, one at a time) is where every
-`brickie design` edit goes; the first edit creates it, forked from the published head. The
+The design has two trees. The published tree is the real `brickie.toml` files. The draft
+(`.brickie/draft/`, one at a time) is where every `brickie design` edit goes; the first edit
+creates it, forked from the published head. Every command reads one working design, like a git
+working tree: the draft when one exists, else the published tree; no flag picks another. The
 published tree changes only by `brickie design publish`, which copies the draft into the real
 files once the code matches the draft's structure. Versions are numbered once for both trees
 (`v15`), each tagged with its track (`draft` or `published`); `.brickie/history/` keeps the last
@@ -99,24 +103,16 @@ hand; use `brickie design`.
 
 1. `brickie design show`: with a draft it prints `design draft v42 from published v37 ...`,
    without one `design published v37 ...`. Use the version it prints as `--base`.
-2. Edit the draft (`apply` or the write commands). The draft is free-style: only config syntax
-   and self-consistency are checked (`design/invalid`), never the code. Only `design check` and
-   `design publish` look at the code; every other `design` command reads the design files alone.
-3. `brickie design check` compares the code with the working design (the draft, else the
-   published tree) and prints the refactor checklist: every blocking item (`config/unassigned`,
-   `config/overlap`, `config/member-outside-parent`, `design/planned`, a stale or missing cache)
-   with its design file and member selector, plus the findings that do not block (dependency
-   findings and planned links: links no measured edge uses yet). It exits 0 when a publish would pass and
-   4 (`design/blocked`) when not.
-4. Refactor the code until the checklist is empty, running `brickie measure` after each change.
-   Code written for bricks that exist only in the draft shows as `bricks/unmapped` in
-   `brickie check` until the publish; that is expected. `--scaffold` is allowed and creates the
-   code of draft bricks.
-5. `brickie design publish --base N` writes the draft as ONE published version and removes the
-   draft. It exits 4 (`design/blocked`) while any item remains and publishes nothing; there is
-   no partial publish. A link that no rule allows (`design/link-denied`) also blocks; the design
-   files alone decide that, no code is read. Dependency findings (unlinked, private, cycles,
-   limits) never block: `brickie check` reports them after the publish.
+2. Edit the draft (`apply` or the write commands). Writes check only config syntax and
+   self-consistency (`design/invalid`), never the code.
+3. `brickie check` now compares the code with the draft: its findings and its `todo` (planned
+   bricks and links) are the refactor checklist. Refactor bottom-up in as many steps as needed,
+   running `brickie measure` after each change; the draft may still change on the way.
+   `--scaffold` is allowed and creates the code of draft bricks.
+4. `brickie design publish --base N` writes the draft as ONE published version and removes the
+   draft. It exits 4 (`design/blocked`) and publishes nothing while `check` has a finding, a
+   planned brick or a `design/link-denied` link, or the cache is missing or stale; there is no
+   partial publish.
 
 If the published tree moved since the fork (a hand edit, an undo of a published version),
 `publish` exits 3 (`design/stale`) and lists those versions: run
@@ -165,8 +161,6 @@ Concurrency contract (a human may edit at the same time):
   measure needed). `--since N` prints only the
   versions after N, each with its author, note and diff lines. `--in P` prints only the level
   owned by composite P and its subtree (use it on a large design).
-- `check` prints `design check: <track> v<N>`, then `ready: ...` or `blocked: N item(s)` with
-  one line per blocking item, then the `not blocking` findings.
 - A write prints `ok: draft v16` (`ok: draft v16 from published v15` when it started the draft,
   `... (no change)` when nothing changed), lists the design files
   and any code it created, then one `note: ...` line per fact worth knowing. A write that would leave the design invalid writes nothing (`design/invalid`).
@@ -198,7 +192,6 @@ Commands (each write also takes `--base N`, `--note` and `--dry-run`; `undo`, `r
 
 ```
 brickie design show [--since N] [--in P] [--format json]
-brickie design check [--format json]
 brickie design log | diff A [B] | undo [V]
 brickie design apply [--scaffold]   (ops on stdin, one per line)
 brickie design publish --base N [--note W] | rebase --base N | discard --base N
@@ -230,7 +223,7 @@ brickie design include add|rm FILE [--in P]
   `<name>/` next to its parent file, with a new `brickie.toml`. Pass `--path` or `--members` to
   choose. `brick set NAME --path P` makes a module composite and creates
   `P/brickie.toml` when it is absent. brickie writes no source code unless asked: the brick
-  is a `design/planned` item of `design check` until you write the code. `--scaffold` (on `brick add`, or on `apply`
+  is a `design/planned` todo of `check` until you write the code. `--scaffold` (on `brick add`, or on `apply`
   for every line; not allowed inside a line) also creates the missing code (folder, crate
   `Cargo.toml` and `src/lib.rs` plus a workspace member, or a module file plus `pub mod` in the
   crate root; the write lists what it created); existing files are never overwritten. The
@@ -243,7 +236,7 @@ brickie design include add|rm FILE [--in P]
   `ungroup` lifts the children, their rules and limits back up (the child file stays on disk).
   `brick move` rebases `path:` members; it moves no code.
 - `brick rename` also renames the brick in the rules, limit selectors and exports of its file.
-- After code changes run `brickie measure`, then `brickie design check` and `brickie check`.
+- After code changes run `brickie measure`, then `brickie check`.
 - `--format json`: `show` also has `since_agent: [version...]` when there are versions after your
   last one; `--dry-run` prints `{dry_run, diff, new_todo, scaffold, notes}`; a write prints its version, plus `notes: [text]` when there are notes. `show` prints `{v, track, forked_from, hash, by, at, root: {path, file, bricks: [{name, kind,
   members, tags, desc, independent, children}], exports, rules: [{file, from, to, kinds, scope,
@@ -388,9 +381,12 @@ not uses.
 
 ### config/missing, config/invalid, config/overlap, config/unassigned, config/member-outside-parent
 
-Configuration errors (exit 2, printed on stderr with the code first; no findings are reported):
+`config/invalid` is a configuration error (exit 2, printed on stderr; no findings are
+reported). The others are findings (exit 1) and the rest of the tree is still checked:
 
-- `config/missing`: a brick has `path = "<dir>"` but `<dir>/brickie.toml` does not exist.
+- `config/missing`: a brick has `path = "<dir>"` but `<dir>/brickie.toml` does not exist; the
+  brick is checked as a leaf. Usually the code moved ahead of the design: draw the new structure
+  in the draft (`brickie design`), or ask a human to fix `path`.
 - `config/invalid`: a file does not follow the schema: a rule or limit names a brick or tag the
   file lacks, an unknown kind, `exports` names something that is not a brick of that file, a rule
   has an empty `reason`, or a link is bad (unknown brick, a link to itself, `composite/child` on
@@ -408,8 +404,8 @@ that member from the outer brick and make it a child brick of the composite; add
 composite's `exports` if outside code uses it. A `path:` member matches a package whose directory
 is under it, and a module whose source file is under it, so `path:src/lib.rs` names a crate root.
 
-In a draft these are the blocking items of `brickie design check`: either change
-the code to the drawn structure, or change the draft. Give each unassigned module to one of
+With a draft they also block `publish`: either change the code to the drawn structure, or
+change the draft. Give each unassigned module to one of
 the composite's bricks (`brick set --members`), make overlapping members distinct, keep child
 members inside their composite. `check` lists every partition error at once.
 
@@ -417,9 +413,9 @@ members inside their composite. `check` lists every partition error at once.
 
 The design (see "Editing the design"):
 
-- `design/planned` (a blocking item of `check` and `publish`): a brick has no measured
-  module. Create its code as its members say, then `brickie measure`.
-- `design/link-denied` (todo `link_denied`; blocks `publish`, listed by `check`): no rule of the
+- `design/planned` (a `todo` of `check`, not a finding; blocks `publish`): a brick has no
+  measured module. Create its code as its members say, then `brickie measure`.
+- `design/link-denied` (a finding of `check`; todo `link_denied` of `design show`; blocks `publish`): no rule of the
   level allows a link, for some kind and scope it names (the message says which). It is read from
   the design files alone. A draft may hold it; fix it by removing the link
   (`brickie design link rm`) or, for a human, by adding a rule that allows it
@@ -431,9 +427,9 @@ The design (see "Editing the design"):
 - `design/stale` (exit code 3): your `--base` is not the head; nothing was written. Follow the
   concurrency contract in "Editing the design". From `publish`: the published tree moved since
   the draft's fork; run `brickie design rebase --base N`, then publish again.
-- `design/blocked` (exit code 4): `check` or `publish` refused because the code does not match the draft's
+- `design/blocked` (exit code 4): `publish` refused because the code does not match the draft's
   structure yet; nothing was published. The message lists the items; work through
-  `brickie design check` (see "Draft workflow").
+  `brickie check` (see "Draft workflow").
 - `design/no-match`: no rule, link or limit matches what you named, or several `FROM -> TO` match.
   The message lists the candidates; name an existing one, or add `--kind` and `--scope` to pick
   one. For bricks, check the path with `brickie design show`.
@@ -513,7 +509,7 @@ To let brick A use brick B (only when asked to change the design):
    human must add the rule: report that.
 2. `brickie design link add A B --kind K --scope S --reason "why" --base N --note "..."`. To use
    an exported child of a composite, name it `composite/child`.
-3. `brickie design check`, then `brickie design publish --base N` once the code matches.
+3. `brickie check`, then `brickie design publish --base N` once the code matches.
 
 ## Rules
 
@@ -542,7 +538,7 @@ Each rule below holds for every level and has one reason.
    or to `composite/child` where child is in that composite's `exports` (no grandchildren), with
    `kinds`, `scope` (default all) and a required reason. A link is valid only if, for every kind
    and scope it names, some rule of its level allows it; otherwise it is `design/link-denied`
-   (it may be drafted, never published). A measured edge is allowed only if a valid link covers
+   (it may be drafted, never published; with a draft `check` reports it). A measured edge is allowed only if a valid link covers
    it (bricks, entered child, kind, scope); otherwise it is `deps/unlinked`. A link no code uses
    yet is planned, not a finding. Links may form cycles (information only). Reason: each
    dependency is reviewable on one line, and rules stay few.

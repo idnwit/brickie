@@ -15,16 +15,7 @@ use brickie_web_api::LevelView;
 
 /// Every level, the root first, then depth first in config order.
 pub(super) fn levels(l: &Loaded) -> Vec<LevelView> {
-    walk_all(l, level::Ctx::new(l, links::served(l)))
-}
-
-/// Every level of the design files alone ([`brickie_change::Design::load_working`]): bricks and
-/// every declared link; no measured edge, score or finding.
-pub fn design_levels(l: &Loaded) -> Vec<LevelView> {
-    walk_all(l, level::Ctx::new(l, links::design(l)))
-}
-
-fn walk_all(l: &Loaded, ctx: level::Ctx) -> Vec<LevelView> {
+    let ctx = level::Ctx::new(l, links::served(l));
     let mut out = Vec::new();
     walk(&l.cfg, &ctx, &mut out);
     out

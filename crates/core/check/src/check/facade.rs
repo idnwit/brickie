@@ -6,9 +6,9 @@ use std::path::{Path, PathBuf};
 
 pub use brickie_model::codes::{DEPS_CYCLE, DEPS_PRIVATE, DEPS_UNLINKED};
 
-/// The valid links no measured edge uses yet (information for `design check` and the viewer).
-pub fn planned_links(l: &super::Loaded) -> Vec<LinkState> {
-    rules::planned_links(&l.cache, &l.cfg, &l.resolved)
+/// The message of a denied link (`design/link-denied`).
+pub fn denied_text(s: &LinkState, why: &str) -> String {
+    rules::denied_text(s, why)
 }
 
 /// Every link of the design, with `planned` set (information for the viewer).

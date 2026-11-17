@@ -3,7 +3,7 @@
 
 mod planned;
 
-pub use planned::{cache_mismatch, planned};
+pub use planned::cache_mismatch;
 
 use crate::edit::Docs;
 use crate::paths::{normalize, to_rel};

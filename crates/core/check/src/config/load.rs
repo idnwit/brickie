@@ -4,7 +4,7 @@
 use super::MeasureCfg;
 use super::source::{Disk, FileSource};
 use super::validate::{validate, validate_links};
-use super::{Brick, ComplexityRule, Config, Link, Rule};
+use super::{Brick, ComplexityRule, Config, Issue, Link, Rule};
 use anyhow::{Context, Result, bail};
 use brickie_model::codes::CONFIG_MISSING;
 use serde::Deserialize;
@@ -46,7 +46,10 @@ pub fn load(path: &Path) -> Result<Config> {
 
 /// `load` over another file source (a change's preview).
 pub fn load_from(src: &dyn FileSource, path: &Path) -> Result<Config> {
-    load_level(src, path, Vec::new(), &mut Vec::new(), false)
+    let mut missing = Vec::new();
+    let mut cfg = load_level(src, path, Vec::new(), &mut Vec::new(), false, &mut missing)?;
+    cfg.missing = missing;
+    Ok(cfg)
 }
 
 /// Only the `[measure]` table of the root config (and its includes): `measure` needs it even
@@ -56,7 +59,15 @@ pub fn load_measure(path: &Path) -> Result<MeasureCfg> {
     if !path.exists() {
         return Ok(MeasureCfg::default());
     }
-    Ok(load_level(&Disk, path, Vec::new(), &mut Vec::new(), true)?.measure)
+    Ok(load_level(
+        &Disk,
+        path,
+        Vec::new(),
+        &mut Vec::new(),
+        true,
+        &mut Vec::new(),
+    )?
+    .measure)
 }
 
 /// One level: the file and its includes, validated, then the levels of its composites.
@@ -67,6 +78,7 @@ fn load_level(
     level: Vec<String>,
     ancestors: &mut Vec<PathBuf>,
     measure_only: bool,
+    missing: &mut Vec<Issue>,
 ) -> Result<Config> {
     let mut cfg = Config {
         path: level,
@@ -99,21 +111,33 @@ fn load_level(
     for b in &mut cfg.bricks {
         let Some(dir) = b.path.clone() else { continue };
         let file = b.base.join(&dir).join("brickie.toml");
-        if !src.is_file(&file) {
-            bail!(
-                "{CONFIG_MISSING}: brick '{}' (level {}, {}) has path = \"{dir}\" but {} does not exist",
-                b.name,
-                cfg_level(&cfg.path),
-                cfg.file,
-                file.display()
-            );
+        let exists = src.is_file(&file);
+        if !exists {
+            // Not fatal: the brick stays a leaf and the missing file is a finding.
+            missing.push(Issue {
+                code: CONFIG_MISSING,
+                message: format!(
+                    "{CONFIG_MISSING}: brick '{}' (level {}, {}) has path = \"{dir}\" but {} does not exist",
+                    b.name,
+                    cfg_level(&cfg.path),
+                    cfg.file,
+                    file.display()
+                ),
+                level: cfg.path.clone(),
+                file: cfg.file.clone(),
+                module: None,
+                member: None,
+            });
         }
         if b.members.is_empty() {
             b.members.push(format!("path:{dir}/"));
         }
+        if !exists {
+            continue;
+        }
         let mut below = cfg.path.clone();
         below.push(b.name.clone());
-        let sub = load_level(src, &file, below, ancestors, false)
+        let sub = load_level(src, &file, below, ancestors, false, missing)
             .with_context(|| format!("brick '{}' in {}", b.name, cfg.file))?;
         b.sub = Some(Box::new(sub));
     }
@@ -239,7 +263,7 @@ mod tests {
         assert_eq!(sub.level(), "root/web");
         assert!(sub.exports("api"));
         assert!(!sub.exports("ui"));
-        // A missing composite config and an unknown export are errors.
+        // An unknown export is an error.
         write(
             dir.path(),
             "crates/web/brickie.toml",
@@ -247,13 +271,20 @@ mod tests {
         );
         let e = format!("{:#}", load(&root).unwrap_err());
         assert!(e.contains("config/invalid"), "{e}");
+        // A missing composite config is a recorded issue; the brick stays a leaf.
         write(
             dir.path(),
             "brickie.toml",
             "[[brick]]\nname=\"x\"\npath=\"nowhere\"\n",
         );
-        let e = format!("{:#}", load(&root).unwrap_err());
-        assert!(e.contains("config/missing"), "{e}");
+        let c = load(&root).unwrap();
+        assert_eq!(c.missing.len(), 1);
+        assert_eq!(c.missing[0].code, "config/missing");
+        assert!(c.brick("x").unwrap().sub.is_none());
+        assert_eq!(
+            c.brick("x").unwrap().members,
+            vec!["path:nowhere/".to_string()]
+        );
         // A path cycle.
         write(
             dir.path(),

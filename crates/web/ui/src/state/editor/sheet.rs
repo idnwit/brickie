@@ -156,6 +156,7 @@ pub(crate) mod tests {
                     },
                 ),
             ]),
+            notice: None,
             error: None,
         }
     }

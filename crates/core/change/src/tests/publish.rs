@@ -1,4 +1,4 @@
-//! `publish`: blocked by structure items only, never by dependency findings.
+//! `publish` runs `check` on the draft: any error, planned brick or stale cache blocks.
 
 use super::*;
 use crate::{Blocked, Track};
@@ -21,6 +21,11 @@ members = ["pa"]
 /// A measured workspace: crate `pa` in `g/pa` (composite `a`), `pb` in `crates/pb`, and an
 /// edge pb -> pa that no rule allows.
 fn measured() -> Ws {
+    measured_with(true)
+}
+
+/// `measured`, with or without the edge no rule allows.
+fn measured_with(edge_pb_pa: bool) -> Ws {
     let ws = Ws::new();
     ws.write("brickie.toml", PUB_ROOT);
     ws.write("g/brickie.toml", PUB_G);
@@ -33,7 +38,15 @@ fn measured() -> Ws {
     let mut files = serde_json::Map::new();
     for (p, dir, edges) in [
         ("pa", "g/pa", json!([])),
-        ("pb", "crates/pb", edge("pb", "pa")),
+        (
+            "pb",
+            "crates/pb",
+            if edge_pb_pa {
+                edge("pb", "pa")
+            } else {
+                json!([])
+            },
+        ),
     ] {
         let src = format!("{dir}/src/lib.rs");
         let text = format!("// {p}\n");
@@ -92,17 +105,20 @@ fn blocked(ws: &Ws, ops: Vec<Op>) -> Vec<String> {
 }
 
 #[test]
-fn deps_findings_never_block_and_publish_writes_one_version() {
+fn a_dependency_error_blocks() {
     let ws = measured();
+    let codes = blocked(&ws, vec![desc("b", "the b")]);
+    assert!(codes.iter().all(|c| c.starts_with("deps/")), "{codes:?}");
+    assert!(!codes.is_empty());
+}
+
+#[test]
+fn a_clean_draft_publishes_one_version() {
+    let ws = measured_with(false);
     let base = ws.apply(A, vec![desc("b", "the b")]).unwrap().version.v;
     let d = ws.design();
     let gate = d.publish_check(base).unwrap();
     assert!(gate.ok(), "{:?}", gate.blocking);
-    assert!(
-        gate.info.iter().any(|i| i.starts_with("deps/")),
-        "{:?}",
-        gate.info
-    );
     let out = d.publish(base, H, None).unwrap().version;
     assert_eq!((out.v, out.track, out.by), (3, Track::Published, H));
     assert!(
@@ -117,14 +133,18 @@ fn deps_findings_never_block_and_publish_writes_one_version() {
 
 #[test]
 fn a_planned_brick_blocks() {
-    let ws = measured();
+    let ws = measured_with(false);
     assert_eq!(blocked(&ws, vec![add("c", &["pc"])]), ["design/planned"]);
 }
 
 #[test]
 fn an_overlap_blocks() {
-    let ws = measured();
-    assert_eq!(blocked(&ws, vec![add("c", &["pb"])]), ["config/overlap"]);
+    let ws = measured_with(false);
+    // The overlapping module stays with the first brick, so the new one is also planned.
+    assert_eq!(
+        blocked(&ws, vec![add("c", &["pb"])]),
+        ["config/overlap", "design/planned"]
+    );
 }
 
 #[test]
@@ -156,7 +176,7 @@ fn a_member_outside_the_parent_blocks() {
 
 #[test]
 fn a_stale_cache_blocks() {
-    let ws = measured();
+    let ws = measured_with(false);
     ws.write("g/pa/src/lib.rs", "// changed\n");
     assert_eq!(blocked(&ws, vec![desc("b", "y")]), ["stale/file"]);
 }

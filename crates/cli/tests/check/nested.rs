@@ -189,15 +189,23 @@ fn findings_carry_level_and_owning_file() {
 }
 
 #[test]
-fn partition_and_missing_config_exit_2() {
+fn missing_nested_config_is_a_finding_and_the_rest_still_checks() {
     let w = tree();
     let o = check(&w, ROOT);
-    assert_eq!(o.code, 2);
-    assert!(o.stderr.contains("config/missing"), "{}", o.stderr);
+    assert_eq!(o.code, 1, "{}", o.stderr);
+    assert!(o.stdout.contains("config/missing"), "{}", o.stdout);
+    // The rest of the tree is still checked: `core` is not linked to `web`.
+    assert!(o.stdout.contains("deps/unlinked"), "{}", o.stdout);
+}
+
+#[test]
+fn partition_errors_are_findings_and_invalid_config_exits_2() {
+    let w = tree();
     let cases = [
         (
             WEB.replace("members = [\"web-shared\"]", "members = []"),
             "config/unassigned",
+            1,
         ),
         (
             WEB.replace(
@@ -205,6 +213,7 @@ fn partition_and_missing_config_exit_2() {
                 "members = [\"web-shared\", \"core\"]",
             ),
             "config/member-outside-parent",
+            1,
         ),
         (
             WEB.replace(
@@ -212,20 +221,40 @@ fn partition_and_missing_config_exit_2() {
                 "members = [\"web-ui\", \"web-api\"]",
             ),
             "config/overlap",
+            1,
         ),
         (
             WEB.replace("exports = [\"api\"", "exports = [\"ghost\""),
             "config/invalid",
+            2,
         ),
         (
             WEB.replace("to = \"shared\"", "to = \"core\""),
             "unknown brick 'core'",
+            2,
         ),
     ];
-    for (web, needle) in cases {
+    for (web, needle, code) in cases {
         w.write("ws/crates/web/brickie.toml", &web);
         let o = check(&w, ROOT);
-        assert_eq!(o.code, 2, "{needle}");
-        assert!(o.stderr.contains(needle), "{needle} not in {}", o.stderr);
+        assert_eq!(o.code, code, "{needle}");
+        let out = if code == 2 { &o.stderr } else { &o.stdout };
+        assert!(out.contains(needle), "{needle} not in {out}");
     }
+}
+
+#[test]
+fn planned_bricks_are_a_todo_never_a_finding() {
+    let w = tree();
+    w.write("ws/crates/web/brickie.toml", WEB);
+    let root = format!("{ROOT}\n[[brick]]\nname = \"ghost\"\nmembers = [\"nothing\"]\n");
+    let o = check(&w, &root);
+    assert!(codes(&o, "design/planned").is_empty());
+    assert_eq!(o.json["todo"]["planned_bricks"], json!(["root/ghost"]));
+    let path = w.save(&root);
+    let text = run(&path, &["--format", "short"]).stdout;
+    assert!(
+        text.contains("todo:") && text.contains("root/ghost"),
+        "{text}"
+    );
 }

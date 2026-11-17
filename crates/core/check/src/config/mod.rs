@@ -19,7 +19,7 @@ pub use decide::{Why, covering_link, free, judge_link, kinds_of, link_cycles, ru
 pub use link::LinkState;
 pub use load::{load, load_from, load_measure};
 pub use measure::MeasureCfg;
-pub use resolve::{Issue, Partition, Resolved, resolve};
+pub use resolve::{Issue, Resolved, resolve};
 pub use schema::{Brick, ComplexityRule, Config, KINDS, Link, Rule, Scope, level_name};
 pub use selector::Sel;
 pub use source::{Disk, FileSource};

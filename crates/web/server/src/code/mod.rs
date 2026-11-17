@@ -10,7 +10,7 @@ mod nav;
 mod read;
 mod views;
 
-use brickie_check::check::{self, Loaded};
+use brickie_check::check::Loaded;
 use codeview_port::{Band, FileText, Location, Mark, Pos, Provider, View};
 use std::path::PathBuf;
 
@@ -26,7 +26,9 @@ impl CodeProvider {
 
     /// Config, cache and diagnostics; `None` (an empty viewer) when they cannot be loaded.
     fn load(&self) -> Option<Loaded> {
-        check::load(&self.config).ok()
+        brickie_change::working::load(&self.config)
+            .ok()
+            .map(|(l, _)| l)
     }
 }
 

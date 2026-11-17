@@ -21,12 +21,15 @@ impl fmt::Display for Blocked {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "error[{DESIGN_BLOCKED}]: the code does not match the draft yet ({} item(s)); \
-             nothing was published. See `brickie design check`.",
+            "error[{DESIGN_BLOCKED}]: the draft does not pass check yet ({} item(s)); \
+             nothing was published. Run `brickie check` to see them.",
             self.gate.blocking.len()
         )?;
         for b in &self.gate.blocking {
-            write!(f, "\n  {}", b.message)?;
+            match b.message.starts_with(&b.code) {
+                true => write!(f, "\n  {}", b.message)?,
+                false => write!(f, "\n  {}: {}", b.code, b.message)?,
+            }
         }
         Ok(())
     }
@@ -58,12 +61,6 @@ impl Design {
             draft,
             v: base,
         })
-    }
-
-    /// The gate of the working design (the draft, else the published files) against the
-    /// code: exactly what `publish` would check. Nothing is written.
-    pub fn check_working(&self) -> Result<Gate> {
-        self.gate(&self.files()?)
     }
 
     /// The publish checklist of the draft at `base` (nothing is written).

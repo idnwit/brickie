@@ -16,7 +16,7 @@ mod tests;
 use anyhow::{Context, Result};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use brickie_check::check::{self, Loaded};
+use brickie_check::check::Loaded;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -75,7 +75,8 @@ impl AppState {
     }
 
     fn load(&self) -> Result<Loaded, Failure> {
-        check::load(&self.config)
+        brickie_change::working::load(&self.config)
+            .map(|(l, _)| l)
             .map_err(|e| Failure(StatusCode::INTERNAL_SERVER_ERROR, format!("{e:#}")))
     }
 
@@ -111,7 +112,7 @@ impl IntoResponse for Failure {
 pub fn run(opts: &Options) -> Result<()> {
     let state = AppState::new(opts.config.clone()).bound(&opts.bind, opts.port);
     // Fail early on a missing cache or config instead of on the first request.
-    check::load(&opts.config)?;
+    brickie_change::working::load(&opts.config)?;
     let addr = format!("{}:{}", opts.bind, opts.port);
     let rt = tokio::runtime::Runtime::new().context("start tokio")?;
     rt.block_on(async {

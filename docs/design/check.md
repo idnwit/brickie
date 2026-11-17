@@ -42,11 +42,12 @@ subtree; an equal length in two bricks stays an error.
   `config/overlap` at that level (no longest-match tie-break, so nothing can bypass `exports`);
   the fix is to make the module a child brick of the composite and export it if outside code
   uses it.
-- Resolution is strict and has one path: it collects every partition error (an overlap goes to
-  the first brick, an unassigned module stays unmapped, an outside member is ignored, so later
-  errors are still found) and then fails with all of them. `check` never reads the design draft;
-  `brickie design check` resolves the working design the same way and lists the errors as its
-  checklist ([editor.md](editor.md#draft-and-publish)).
+- Resolution has one path and never fails on structure: every partition error and a missing
+  nested `brickie.toml` (`config/missing`; the brick stays a leaf) is a finding (an overlap goes
+  to the first brick, an unassigned module stays unmapped, an outside member is ignored), and
+  the tree is always returned. Only unreadable or unparsable files and include or `path`
+  cycles stop the load. `check` resolves the working design (the draft, else the published
+  tree) ([editor.md](editor.md#working-design)).
 
 ## Rules
 
@@ -59,7 +60,7 @@ reasons and the open questions: [links.md](links.md). Check-specific decisions:
 | A measured edge is allowed only by a valid link (`deps/unlinked`; `deps/deny`, `deps/default`, `deps/independent` merged into it); the `rule` line says whether no link covers it or a covering link is denied | one fix per code: remove the edge or declare the link |
 | Sibling code cycles are always errors (`deps.cycles` cut); cycles among links are information | code cycles are a defect; a drawn cycle is a plan to review |
 | Exports are a plain list, checked after links (`deps/private` ignores rules and links) | a composite's internals stay private whatever is declared |
-| Planned links (valid, no measured edge) are information of `design check` only (`deps/unused` cut) | an unwritten edge is planned work, not a violation |
+| Planned bricks (`design/planned`) and planned links (valid, no measured edge) are the todo of `check`, never findings (`deps/unused` cut) | unwritten code is planned work, not a violation |
 
 Other rule facts: an edge lifts to the lowest common ancestor `L` (O(depth)); `deps/private` is
 checked for every lifted edge and is independent of rules; one finding per module edge (from, to,

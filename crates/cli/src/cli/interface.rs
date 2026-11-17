@@ -2,7 +2,8 @@
 //! one edge into it) as text or JSON, for coding agents and reviewers.
 
 use anyhow::Result;
-use brickie_check::check::{self, Loaded};
+use brickie_change::working;
+use brickie_check::check::Loaded;
 use brickie_check::interface::{self, EdgeItem, Interface, Site};
 use std::fmt::Write;
 use std::path::Path;
@@ -24,7 +25,7 @@ fn print(config: &Path, brick: &str, from: Option<&str>, json: bool) -> Result<(
         cache,
         resolved,
         ..
-    } = check::load(config)?;
+    } = working::load(config)?.0;
     let path = interface::parse_path(&cfg, brick)?;
     let out = match from {
         Some(a) => {

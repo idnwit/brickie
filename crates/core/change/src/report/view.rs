@@ -21,32 +21,26 @@ impl Design {
         }
     }
 
-    /// The config tree for `show`. A missing nested file is read as an empty level and named in
+    /// The config tree for `show`. A missing nested file leaves its brick a leaf and is named in
     /// the warnings, so the rest of the design still shows.
     fn config_lenient(&self) -> Result<(Config, Vec<String>)> {
-        let err = match self.config() {
-            Ok(cfg) => return Ok((cfg, Vec::new())),
-            Err(e) => e,
+        let cfg = self.config()?;
+        let warnings = match cfg.missing.is_empty() {
+            true => Vec::new(),
+            false => crate::design::missing(self.root(), &self.files()?),
         };
-        let mut files = self.files()?;
-        let missing = crate::design::missing(self.root(), &files);
-        if missing.is_empty() {
-            return Err(err);
-        }
-        for m in &missing {
-            files.insert(m.clone(), Vec::new());
-        }
-        let docs = crate::edit::Docs::from_base(&files, None)?;
-        let preview = crate::preview::Preview::new(self.root(), self.config_name(), &docs);
-        let cfg = preview.load_config().map_err(|_| err)?;
-        let warnings = (missing.iter())
-            .map(|m| format!("missing file {m}: shown as empty; `brickie design undo` restores it"))
+        let warnings = (warnings.iter())
+            .map(|m| {
+                format!(
+                    "missing file {m}: its brick shows as a leaf; `brickie design undo` restores it"
+                )
+            })
             .collect();
         Ok((cfg, warnings))
     }
 
     /// The design at the head from its files alone (no measured code), plus warnings about
-    /// config files that are missing. Config tasks only: what the code lacks is `design check`.
+    /// config files that are missing. Config tasks only: what the code lacks is `brickie check`'s todo.
     pub fn show_checked(&self) -> Result<(DesignView, Vec<String>)> {
         let head = self.head()?;
         let (cfg, warnings) = self.config_lenient()?;

@@ -1,6 +1,7 @@
 //! Links on the levels. View mode: every declared link, the ones no measured edge uses marked
-//! planned. Design mode (the editor): every link from the design files alone, judged by the
-//! rules (denied, cycle), also towards bricks without code, and with no measured cache at all.
+//! planned. Design mode (the editor) serves the same tree and draws every link, judged by the
+//! rules (denied, cycle), also towards bricks without code; with no cache it falls back to the
+//! design files with a notice.
 
 use super::*;
 
@@ -38,25 +39,19 @@ async fn design_mode_draws_every_link_towards_a_brick_without_code() {
     let back = link(&r["levels"], "cache", "engine");
     assert!(back["denied"].is_string(), "{back}");
     assert_eq!(back["cycle"], true, "{back}");
-    assert!(
-        (r["levels"].as_array().unwrap().iter())
-            .all(|lv| lv["graph"]["edges"].as_array().is_none_or(|a| a.is_empty())),
-        "no measured edge in Design mode: {}",
-        r["levels"]
-    );
 
-    // Edit mode serves it from the draft; view mode shows the published design, without it.
+    // Edit mode and view mode both serve the draft (the working design).
     let (st, body) = s.get("/api/graph?edit=1").await;
     assert_eq!(st, StatusCode::OK, "{body}");
     let v: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(link(&v, "engine", "cache"), edge);
     let (st, body) = s.get("/api/graph").await;
     assert_eq!(st, StatusCode::OK, "{body}");
-    assert!(!body.contains("\"cache\""), "{body}");
+    assert!(body.contains("\"cache\""), "{body}");
 }
 
 #[tokio::test]
-async fn design_mode_never_reads_the_measured_cache() {
+async fn design_mode_without_a_cache_falls_back_to_the_design_files_with_a_notice() {
     let s = Site::new();
     std::fs::remove_file(s.config().with_file_name(".brickie/cache.json")).unwrap();
     let (st, text) = s.get("/api/design").await;
@@ -68,29 +63,11 @@ async fn design_mode_never_reads_the_measured_cache() {
     assert!(body.contains("\"engine\""), "{body}");
     let (st, html) = s.get("/?edit=1").await;
     assert_eq!(st, StatusCode::OK, "{html}");
-    // The page shows the design only: no findings, filters, scores or heat. Styles and the
-    // hydration state are not shown text, so only the markup between them is read.
-    assert!(html.contains("Bricks (as declared)"), "{html}");
-    let html = shown(&html);
-    assert!(
-        html.contains("data-id=\"engine\""),
-        "the canvas is rendered: {html}"
-    );
-    assert!(html.contains("Data layers"), "{html}");
-    for code in [
-        "id=\"q\"",
-        "Bricks by tag",
-        "filter text",
-        "class=\"scope\"",
-        "finding",
-        "score",
-        "complexity excess",
-        "stale",
-        "Findings",
-        "no complexity limit",
-    ] {
-        assert!(!html.contains(code), "{code} in Design mode: {html}");
-    }
+    assert!(html.contains("showing the design only"), "{html}");
+    assert!(shown(&html).contains("data-id=\"engine\""), "{html}");
+    // View mode has nothing to show without a cache.
+    let (st, _) = s.get("/api/graph").await;
+    assert_ne!(st, StatusCode::OK);
     let add = json!({"op": "add_brick", "file": "brickie.toml", "brick": {"name": "cache"}});
     let (st, text) = s
         .post("/api/design/edit", json!({"base": 1, "ops": [add]}))

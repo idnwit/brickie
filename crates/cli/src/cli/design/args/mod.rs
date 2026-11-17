@@ -19,7 +19,6 @@ mod rule;
   brickie design rule add api store --reason \"api may read data\" --base 16
   brickie design link add api store --kind uses --reason \"reads orders\" --base 17
   brickie design undo --base 17
-  brickie design check
   brickie design publish --base 17")]
 pub struct DesignArgs {
     #[arg(long, default_value = "brickie.toml", global = true)]
@@ -93,11 +92,8 @@ pub enum Cmd {
         #[command(flatten)]
         w: Write,
     },
-    /// Compare the code with the working design (the draft, else the published one): the items
-    /// that block a publish, plus the findings that do not. Exit 4 when blocked.
-    Check,
     /// Copy the draft into the real files as one published version, once the code matches its
-    /// structure (`check` lists what blocks).
+    /// structure (`brickie check` lists what blocks).
     Publish {
         /// The draft head.
         #[arg(long, env = "BRICKIE_BASE")]

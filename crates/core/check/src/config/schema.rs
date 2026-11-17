@@ -148,6 +148,9 @@ pub struct Config {
     pub complexity: Vec<ComplexityRule>,
     /// `[measure]`; only the root level may set it.
     pub measure: super::MeasureCfg,
+    /// Root only: `config/missing` issues of the whole tree (a brick whose `path` file does
+    /// not exist stays a leaf).
+    pub missing: Vec<super::Issue>,
 }
 
 impl Config {
