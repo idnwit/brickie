@@ -12,8 +12,6 @@ pub struct Focus {
     pub keep: BTreeSet<usize>,
     /// Edges drawn emphasised.
     pub hot: BTreeSet<usize>,
-    /// A group selection (edge labels stay hidden).
-    pub group: bool,
     /// The focus comes from a selected finding.
     pub finding: bool,
     /// Bricks drawn at full strength (the rest is dimmed): the focus plus, for a brick or
@@ -50,7 +48,6 @@ pub fn finding_focus(g: &GraphView, d: &DiagView) -> Focus {
         bricks: set,
         keep,
         hot,
-        group: false,
         finding: true,
     }
 }
@@ -63,7 +60,7 @@ fn with_lit(g: &GraphView, mut f: Focus) -> Focus {
     f
 }
 
-/// `focusSpec`: a selected finding wins over the brick/edge/group selection.
+/// `focusSpec`: a selected finding wins over the brick/edge selection.
 pub(super) fn focus_of(g: &GraphView, sel: &Sel, p: &Params, diags: &[DiagView]) -> Option<Focus> {
     if let Some(d) = diags.iter().find(|d| !p.item.is_empty() && d.id == p.item) {
         return Some(finding_focus(g, d));
@@ -85,21 +82,9 @@ pub(super) fn focus_of(g: &GraphView, sel: &Sel, p: &Params, diags: &[DiagView])
                     bricks: set,
                     keep: k.clone(),
                     hot: k,
-                    group: false,
                     finding: false,
                 },
             ))
-        }
-        Sel::Group { .. } => {
-            let set = sel.set(g);
-            Some(Focus {
-                keep: touching(&set),
-                lit: set.clone(),
-                bricks: set,
-                hot: BTreeSet::new(),
-                group: true,
-                finding: false,
-            })
         }
         Sel::Edge(e) => Some(with_lit(
             g,
@@ -108,7 +93,6 @@ pub(super) fn focus_of(g: &GraphView, sel: &Sel, p: &Params, diags: &[DiagView])
                 bricks: edge_bricks(g, *e),
                 keep: [*e].into(),
                 hot: BTreeSet::new(),
-                group: false,
                 finding: false,
             },
         )),

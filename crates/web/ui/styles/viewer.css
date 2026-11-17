@@ -39,7 +39,7 @@ pre{background:var(--band);padding:8px;border-radius:4px;overflow:auto;font:12px
 .zone{stroke:var(--line);stroke-width:1}.zone.dash{stroke-dasharray:6 4;stroke:var(--muted)}.zone.bold{stroke:var(--muted);stroke-width:2}.zlab{fill:var(--muted);font-size:12px;font-weight:700;letter-spacing:.08em}@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .zone{fill-opacity:.13}}
 .grp{fill:var(--band);opacity:.55;stroke:none}.glab{fill:var(--muted);font-size:13px;letter-spacing:.04em;text-transform:uppercase}.rcap{fill:var(--muted);font-size:12px;font-weight:600;opacity:1}.rlab{fill:var(--muted);font-size:15px}
 .rowline{stroke:var(--line);stroke-dasharray:2 6}
-.gsel{cursor:pointer}.gsel:hover{text-decoration:underline}.zf{opacity:.25;transition:opacity .15s}#left h3[data-g]{cursor:pointer}#left h3[data-g]:hover{color:var(--ink)}
+.zf{opacity:.25;transition:opacity .15s}
 
 .edge text{display:none;font-size:14px;fill:var(--muted);paint-order:stroke;stroke:var(--bg);stroke-width:3px;pointer-events:none}
 .edge.lab text,.edge:hover text,.edge.sel text,.edge.hot text{display:inline}
@@ -92,10 +92,10 @@ code,.mono{font:12px ui-monospace,monospace}
 .ddm.off{display:none}.ddm .dd{display:flex}
 .err{color:var(--c-debt)}.cnt b.err{color:var(--c-debt)}
 .edge.off{display:none}
-#stage{display:block}.selbox{position:absolute;border:1px dashed var(--sel);background:rgba(47,111,179,.12);pointer-events:none}
+#stage{display:block}
 .gi.stale{background:var(--c-acc)}.gi.iface{background:var(--muted)}
 .pad{padding:8px 12px}.small{font-size:11px}.tiny{font-size:11px;margin-top:4px}
-#left h3.tag-h a{color:inherit}#left h3.tag-h.on{color:var(--sel)}#left h3.idx{margin-top:14px}
+#left h3.idx{margin-top:14px}
 .sh{margin-bottom:4px}.tagrow{margin-top:6px}
 #functions{margin-top:12px;overflow-x:auto}table.fns .mono{word-break:normal;white-space:nowrap}table.fns td,table.fns th{white-space:nowrap}table.fns th,table.fns td{text-align:right}table.fns th:first-child,table.fns td:first-child,table.fns td.brick,table.fns th.brick{text-align:left}
 table.fns th a.on{color:var(--ink);font-weight:700}

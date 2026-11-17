@@ -212,12 +212,7 @@ fn click_brick(cx: &Cx, b: usize, target: Option<&str>, e: &Click) {
         return;
     }
     let sel = cx.eval.with(|ev| ev.sel.clone());
-    let next = if e.shift_key() && matches!(sel, Sel::Brick(_) | Sel::Group { .. }) {
-        sel.add_brick(b)
-    } else {
-        sel.click(b)
-    };
-    cx.select(next);
+    cx.select(sel.click(b));
 }
 
 /// A press that grabs the brick: left button, not the Hand tool (which pans from anywhere).

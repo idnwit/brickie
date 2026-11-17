@@ -135,7 +135,6 @@ fn select_rule(cx: &Cx, r: RuleRef) {
         p.with(|p| {
             p.brick.clear();
             p.edge.clear();
-            p.group.clear();
         })
     });
     cx.go(p);

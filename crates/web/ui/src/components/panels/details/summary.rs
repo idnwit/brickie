@@ -7,47 +7,32 @@ use sycamore::prelude::*;
 
 use super::super::GROUPS;
 use super::super::diagnostics::gi_icon;
-use std::collections::BTreeSet;
 
 /// `sumTable`: findings by group, counting the enabled layers.
-pub(super) fn sum_table(cx: &Cx, scope: Option<&BTreeSet<usize>>) -> View {
+pub(super) fn sum_table(cx: &Cx) -> View {
     let rows: Vec<View> = GROUPS
         .iter()
-        .map(|(grp, name)| sum_row(cx, grp, name, scope))
+        .map(|(grp, name)| sum_row(cx, grp, name))
         .collect();
     let rows = View::from(rows);
     view! { table(class="sum") { tr { th { "group" } th { "findings" } } (rows) } }
 }
 
 /// One group row: icon, name and the count.
-fn sum_row(cx: &Cx, grp: &str, name: &str, scope: Option<&BTreeSet<usize>>) -> View {
-    let n = group_count(cx, grp, scope).to_string();
+fn sum_row(cx: &Cx, grp: &str, name: &str) -> View {
+    let n = group_count(cx, grp).to_string();
     let cls = format!("gi {grp}");
     let (name, icon) = (name.to_string(), gi_icon(grp));
     view! { tr { td { span(class=cls) { (icon) } " " (name) } td { (n) } } }
 }
 
-/// Count of the shown findings of `grp` in `scope`.
-fn group_count(cx: &Cx, grp: &str, scope: Option<&BTreeSet<usize>>) -> usize {
+/// Count of the shown findings of `grp`.
+fn group_count(cx: &Cx, grp: &str) -> usize {
     cx.m.diags
         .iter()
         .enumerate()
-        .filter(|(i, d)| {
-            group_sub(&d.code).0 == grp
-                && in_scope(&cx.m.g, d, scope)
-                && cx.eval.with(|ev| ev.von[*i])
-        })
+        .filter(|(i, d)| group_sub(&d.code).0 == grp && cx.eval.with(|ev| ev.von[*i]))
         .count()
-}
-
-/// Whether finding `d` touches a brick of `scope` (no scope: every finding does).
-fn in_scope(g: &GraphView, d: &DiagView, scope: Option<&BTreeSet<usize>>) -> bool {
-    scope.is_none_or(|s| {
-        d.bricks
-            .iter()
-            .filter_map(|b| g.bricks.iter().position(|x| x.name == *b))
-            .any(|b| s.contains(&b))
-    })
 }
 
 pub(super) fn summary(cx: &Cx) -> View {
@@ -62,11 +47,11 @@ pub(super) fn summary(cx: &Cx) -> View {
         .map(|(k, n)| view! { span(class="tag") { (format!("{k} {n}")) } })
         .collect();
     let tags = View::from(tags);
-    let table = sum_table(cx, None);
+    let table = sum_table(cx);
     let title = format!("Findings by group (layers on: {layers_on}/{total})");
     view! {
         h2 { "Overview" }
-        p(class="muted") { "Click a brick, an edge or a tag row to scope the lists (Shift: add). Click a finding for details. Keys: 1 2 3 presets, j/k findings, Esc clear, / filter." }
+        p(class="muted") { "Click a brick or an edge to scope the lists. Click a finding for details. Keys: 1 2 3 presets, j/k findings, Esc clear, / filter." }
         h4 { (title) }
         (table)
         div(class="tagrow") { (tags) }

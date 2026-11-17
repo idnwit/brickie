@@ -26,8 +26,6 @@ pub struct Params {
     pub vs: String,
     /// Findings group filter: `deps` | `cx` | `stale` (empty = all).
     pub grp: String,
-    /// Selected tag rows (group selection), comma separated.
-    pub group: String,
     /// Selected edge `from>to>kind`.
     pub edge: String,
     /// Selected finding id.
@@ -66,7 +64,7 @@ impl Params {
     pub fn bricks(&self) -> Vec<&str> {
         self.brick.split(',').filter(|b| !b.is_empty()).collect()
     }
-    /// The same view at level `lv`: the brick, group, edge and finding selections are names of
+    /// The same view at level `lv`: the brick, edge and finding selections are names of
     /// the old level, so they are cleared.
     pub fn at_level(&self, lv: &str) -> Params {
         let mut p = self.clone();
@@ -76,7 +74,6 @@ impl Params {
             lv.to_string()
         };
         p.brick.clear();
-        p.group.clear();
         p.edge.clear();
         p.item.clear();
         p
@@ -142,7 +139,6 @@ impl Params {
             ("lay", &self.lay, ""),
             ("vs", &self.vs, "all"),
             ("grp", &self.grp, ""),
-            ("group", &self.group, ""),
             ("edge", &self.edge, ""),
             ("item", &self.item, ""),
             ("lv", &self.lv, "root"),
@@ -186,7 +182,6 @@ impl Params {
                 "lay" => p.lay = v,
                 "vs" => p.vs = v,
                 "grp" => p.grp = v,
-                "group" => p.group = v,
                 "edge" => p.edge = v,
                 "item" => p.item = v,
                 _ => {}

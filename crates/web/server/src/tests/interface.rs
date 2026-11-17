@@ -32,7 +32,7 @@ async fn edge_uses_needs_known_bricks() {
     let (st, body) = s
         .post(
             "/api/edge-uses",
-            json!({"from": "root/engine", "to": "root/engine"}),
+            json!({"from": "root/engine", "to": "root/engine", "kind": "uses"}),
         )
         .await;
     assert_eq!(st, StatusCode::OK, "{body}");
@@ -40,7 +40,7 @@ async fn edge_uses_needs_known_bricks() {
     let (st, _) = s
         .post(
             "/api/edge-uses",
-            json!({"from": "root/x", "to": "root/engine"}),
+            json!({"from": "root/x", "to": "root/engine", "kind": "uses"}),
         )
         .await;
     assert_eq!(st, StatusCode::BAD_REQUEST);

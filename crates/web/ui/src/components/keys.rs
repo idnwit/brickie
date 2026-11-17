@@ -27,7 +27,7 @@ fn on_escape(c: &Cx, p: &Params) -> bool {
     if crate::components::editor::cancel_drag(c) || c.ed.cancel() {
         return true;
     }
-    let selected = !p.brick.is_empty() || !p.group.is_empty() || !p.edge.is_empty();
+    let selected = !p.brick.is_empty() || !p.edge.is_empty();
     if c.modal.get_clone().is_some() {
         c.modal.set(None);
     } else if !p.item.is_empty() {

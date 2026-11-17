@@ -1,9 +1,9 @@
-//! The tag captions at the left of each row: click selects the row (shift adds).
+//! The tag captions at the left of each row.
 
 use crate::state::*;
 use sycamore::prelude::*;
 
-/// The tag captions at the left of each row: click selects the row (shift adds).
+/// The tag captions at the left of each row.
 pub fn row_labels(cx: &Cx) -> View {
     let l = &cx.m.layout;
     let items: Vec<View> = l
@@ -23,15 +23,9 @@ pub fn row_labels(cx: &Cx) -> View {
             // Counter the zoom so the caption stays about 12 px on screen.
             let c0 = cx.clone();
             let size = move || format!("font-size:{:.1}px", (12.0 / c0.view.get().k).clamp(10.0, 26.0));
-            let (tip, tag) = (r.label.clone(), r.label.clone());
-            let c = cx.clone();
-            let click = move |e: Click| {
-                e.stop_propagation();
-                let sel = c.eval.with(|ev| ev.sel.clone());
-                c.select(sel.select_tag(&tag, e.shift_key()));
-            };
+            let tip = r.label.clone();
             view! {
-                text(x=x.to_string(), y=y.to_string(), class="rcap gsel", style=size, transform=tr, "text-anchor"="middle", on:click=click) {
+                text(x=x.to_string(), y=y.to_string(), class="rcap", style=size, transform=tr, "text-anchor"="middle") {
                     svg_title { (tip) }
                     (label)
                 }

@@ -24,7 +24,7 @@ pub async fn edge_uses(
     Json(req): Json<ReqOf<EdgeUses>>,
 ) -> Result<Json<ResOf<EdgeUses>>, Failure> {
     let l = st.load()?;
-    data::edge_uses(&l, &req.from, &req.to)
+    data::edge_uses(&l, &req.from, &req.to, &req.kind)
         .map(Json)
         .map_err(bad)
 }

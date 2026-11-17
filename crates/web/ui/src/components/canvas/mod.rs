@@ -53,7 +53,7 @@ fn edge_layers(cx: &Cx, routes: Routes) -> (View, View) {
     (group(low), group(top))
 }
 
-/// The stage: pan (drag), zoom (wheel), drag-box select (shift-drag), brick drag, click on the
+/// The stage: pan (drag), zoom (wheel), brick drag, click on the
 /// background clears the selection.
 pub fn canvas(cx: &Cx) -> View {
     let n_bricks = cx.m.g.bricks.len();
@@ -80,8 +80,6 @@ pub fn canvas(cx: &Cx) -> View {
     let anim = cx.anim;
     let c = cx.clone();
     let pan_cls = move || stage_class(&c, anim);
-    let c = cx.clone();
-    let sel_box = move || stage::box_style(c.op.get());
     let crumbs = crate::components::controls::crumbs(cx);
     let bnd = crate::components::controls::boundary(cx);
     let edit = editor::overlay(cx);
@@ -111,7 +109,6 @@ pub fn canvas(cx: &Cx) -> View {
                     (layer)
                 }
             }
-            div(class="selbox", style=sel_box)
             div(class="ovl") { (crumbs) (bnd) }
             (edit)
         }
