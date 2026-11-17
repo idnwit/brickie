@@ -55,13 +55,14 @@ fn chip(text: String, cls: &'static str, tip: String, act: impl Fn() + 'static) 
 
 fn chips(cx: &Cx, ch: &DesignState) -> View {
     let mut out = Vec::new();
-    let reasons = count(ch, TaskKind::Reason);
-    if reasons > 0 {
+    let denied = count(ch, TaskKind::LinkDenied);
+    if denied > 0 {
         let ed = cx.ed;
-        let tip = "Rules without a reason: open the Rules tab".to_string();
+        let tip = "Links no rule allows (drawn red): they block publishing. Open the Rules tab"
+            .to_string();
         out.push(chip(
-            format!("{reasons} without reason"),
-            "planned",
+            format!("{denied} link(s) not allowed"),
+            "conflict",
             tip,
             move || ed.tab.set("rules"),
         ));

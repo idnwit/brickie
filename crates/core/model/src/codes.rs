@@ -1,7 +1,8 @@
 //! Every diagnostic code brickie can emit. `docs/llms.txt` must document each of them (a test
 //! in the `brickie` crate (`cli/llms.rs`) enforces it), so a new code is added here first.
 
-pub const DEPS_DENY: &str = "deps/deny";
+/// A code edge between sibling bricks that no valid `[[link]]` covers.
+pub const DEPS_UNLINKED: &str = "deps/unlinked";
 pub const DEPS_CYCLE: &str = "deps/cycle";
 pub const STALE_FILE: &str = "stale/file";
 pub const STALE_MEASURE: &str = "stale/measure";
@@ -14,11 +15,11 @@ pub const CONFIG_INVALID: &str = "config/invalid";
 pub const CONFIG_MEMBER_OUTSIDE_PARENT: &str = "config/member-outside-parent";
 pub const CONFIG_OVERLAP: &str = "config/overlap";
 pub const CONFIG_UNASSIGNED: &str = "config/unassigned";
-pub const CONFIG_UNKNOWN_VIA: &str = "config/unknown-via";
 // The design (`brickie design`): the message starts with the code.
 pub const DESIGN_PLANNED: &str = "design/planned";
 pub const DESIGN_INVALID: &str = "design/invalid";
-pub const DESIGN_NO_REASON: &str = "design/no-reason";
+/// A `[[link]]` that no `[[rule]]` of its level allows; it blocks `design publish`.
+pub const DESIGN_LINK_DENIED: &str = "design/link-denied";
 /// A write based on an older version than the head (exit code 3).
 pub const DESIGN_STALE: &str = "design/stale";
 pub const DESIGN_NO_MATCH: &str = "design/no-match";
@@ -39,7 +40,7 @@ pub const METRICS: [&str; 6] = [
 /// All codes, complexity ones expanded.
 pub fn all() -> Vec<String> {
     let mut v: Vec<String> = [
-        DEPS_DENY,
+        DEPS_UNLINKED,
         DEPS_CYCLE,
         DEPS_PRIVATE,
         STALE_FILE,
@@ -51,10 +52,9 @@ pub fn all() -> Vec<String> {
         CONFIG_MEMBER_OUTSIDE_PARENT,
         CONFIG_OVERLAP,
         CONFIG_UNASSIGNED,
-        CONFIG_UNKNOWN_VIA,
         DESIGN_PLANNED,
         DESIGN_INVALID,
-        DESIGN_NO_REASON,
+        DESIGN_LINK_DENIED,
         DESIGN_STALE,
         DESIGN_NO_MATCH,
         DESIGN_EXISTS,

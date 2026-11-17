@@ -1,5 +1,5 @@
 //! The CLI name of a selection, to paste into the coding agent's chat: a brick path
-//! (`web/api`) or a rule (`rule web -> store (prod)`).
+//! (`web/api`), a rule (`rule web -> store (prod)`) or a link (`link web -> store (all)`).
 
 use brickie_web_api::design::{FileSheet, RuleSpec};
 
@@ -8,14 +8,23 @@ pub fn brick_ref(lv: &str, name: &str) -> String {
     super::brick_path(lv, name).join("/")
 }
 
-/// `rule from -> to (scope)`; the `[kinds]` are added only when another rule of the same file
-/// has the same ends and scope, as the CLI needs to tell them apart.
-pub fn rule_ref(sheet: Option<&FileSheet>, r: &RuleSpec) -> String {
-    let scope = r.scope.as_deref().unwrap_or("prod");
+/// `rule from -> to (scope)` (`link ...` for a link); the `[kinds]` are added only when another
+/// row of the same file and table has the same ends and scope, as the CLI needs to tell them
+/// apart.
+pub fn rule_ref(sheet: Option<&FileSheet>, link: bool, r: &RuleSpec) -> String {
+    let scope = r.scope.as_deref().unwrap_or("all");
     let same = |x: &&RuleSpec| {
-        x.from == r.from && x.to == r.to && x.scope.as_deref().unwrap_or("prod") == scope
+        x.from == r.from && x.to == r.to && x.scope.as_deref().unwrap_or("all") == scope
     };
-    let twins = sheet.map_or(0, |s| s.rules.iter().filter(same).count());
+    let rows = |s: &FileSheet| {
+        if link {
+            s.links.clone()
+        } else {
+            s.rules.clone()
+        }
+    };
+    let twins = sheet.map_or(0, |s| rows(s).iter().filter(same).count());
+    let what = if link { "link" } else { "rule" };
     let kinds = match twins > 1 && !r.kinds.is_empty() {
         true => {
             let mut k = r.kinds.clone();
@@ -24,7 +33,7 @@ pub fn rule_ref(sheet: Option<&FileSheet>, r: &RuleSpec) -> String {
         }
         false => String::new(),
     };
-    format!("rule {} -> {}{kinds} ({scope})", r.from, r.to)
+    format!("{what} {} -> {}{kinds} ({scope})", r.from, r.to)
 }
 
 #[cfg(test)]
@@ -37,7 +46,6 @@ mod tests {
             to: "store".into(),
             kinds: kinds.iter().map(|k| k.to_string()).collect(),
             scope: scope.map(Into::into),
-            action: "allow".into(),
             ..Default::default()
         }
     }
@@ -56,17 +64,24 @@ mod tests {
             rules: vec![a.clone()],
             ..Default::default()
         };
-        assert_eq!(rule_ref(Some(&one), &a), "rule web -> store (prod)");
+        assert_eq!(rule_ref(Some(&one), false, &a), "rule web -> store (all)");
+        assert_eq!(rule_ref(Some(&one), true, &a), "link web -> store (all)");
         let two = FileSheet {
             rules: vec![a.clone(), b],
             ..Default::default()
         };
-        assert_eq!(rule_ref(Some(&two), &a), "rule web -> store [uses] (prod)");
+        assert_eq!(
+            rule_ref(Some(&two), false, &a),
+            "rule web -> store [uses] (all)"
+        );
         let dev = rule(&["uses"], Some("dev"));
         let other = FileSheet {
             rules: vec![a, dev.clone()],
             ..Default::default()
         };
-        assert_eq!(rule_ref(Some(&other), &dev), "rule web -> store (dev)");
+        assert_eq!(
+            rule_ref(Some(&other), false, &dev),
+            "rule web -> store (dev)"
+        );
     }
 }

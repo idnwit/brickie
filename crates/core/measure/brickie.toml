@@ -24,5 +24,17 @@ desc = "rust-analyzer SCIP index into file, symbol, module and occurrence rows"
 from = "run"
 to = "tag:source"
 scope = "all"
-action = "allow"
 reason = "the flow combines workspace facts and index rows"
+
+[[link]]
+from = "run"
+to = "scip"
+kinds = ["uses"]
+reason = "the flow turns the rust-analyzer index rows into modules and edges"
+
+[[link]]
+from = "run"
+to = "workspace"
+kinds = ["uses"]
+scope = "prod"
+reason = "the flow reads cargo metadata and tool facts before indexing"

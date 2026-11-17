@@ -129,7 +129,7 @@ async fn page_and_static_files() {
     if embedded() {
         assert!(page.contains("codeview_app.js"), "{page}");
     } else {
-        assert!(page.contains("scripts/build-codeview.sh"), "{page}");
+        assert!(page.contains("`ui` cargo feature"), "{page}");
     }
     let res = app
         .oneshot(Request::get("/static/nope.js").body(Body::empty()).unwrap())

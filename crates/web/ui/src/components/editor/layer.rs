@@ -97,27 +97,29 @@ fn band(cx: &Cx, c: &Connect, p: &[Rect]) -> View {
     let (x1, y1) = (p[a].x + p[a].w, p[a].y + p[a].h / 2.0);
     let refused = cx.ed.check.with(|k| {
         k.as_ref()
-            .filter(|(_, v)| v.redundant)
-            .map(|(t, v)| (t.clone(), v.why.clone()))
+            .filter(|(_, v)| v.redundant || !v.allowed)
+            .map(|(t, v)| (t.clone(), v.why.clone(), v.redundant))
     });
     let targets: Vec<View> = (0..cx.m.g.bricks.len().min(p.len()))
         .filter(|&i| i != a && !cx.m.g.bricks[i].ghost)
         .map(|i| {
             let r = p[i];
-            let no = refused.as_ref().filter(|(t, _)| *t == cx.m.g.bricks[i].name);
+            let no = refused.as_ref().filter(|(t, _, _)| *t == cx.m.g.bricks[i].name);
             let cls = if no.is_some() { "ltarget no" } else { "ltarget" };
-            let label = no.map(|_| view! { text(class="tlabel", x=r.x.to_string(), y=(r.y - 6.0).to_string()) { "already allowed" } });
+            // An identical link refuses the drop; a link no rule allows is added but red.
+            let label = no.map(|(_, _, dup)| {
+                let t = if *dup { "already linked" } else { "not allowed" };
+                view! { text(class="tlabel", x=r.x.to_string(), y=(r.y - 6.0).to_string()) { (t) } }
+            });
             view! { rect(class=cls, x=(r.x - 3.0).to_string(), y=(r.y - 3.0).to_string(), width=(r.w + 6.0).to_string(), height=(r.h + 6.0).to_string(), rx="8") (label) }
         })
         .collect();
     let d = format!("M{x1:.1},{y1:.1} L{:.1},{:.1}", c.x, c.y);
     let (wx, wy) = (c.x.to_string(), (c.y - 10.0).to_string());
-    let why = refused
-        .filter(|(t, _)| t.starts_with("tag:"))
-        .map(|(t, w)| {
-            let text = format!("{t}: {w}");
-            view! { text(class="tlabel", x=wx, y=wy) { (text) } }
-        });
+    let why = refused.map(|(t, w, _)| {
+        let text = format!("{t}: {w}");
+        view! { text(class="tlabel", x=wx, y=wy) { (text) } }
+    });
     let targets = View::from(targets);
     let bcls = format!("band l-{}", c.ty.name());
     view! {

@@ -96,9 +96,15 @@ pub fn move_brick(docs: &mut Docs, op: &Op) -> Result<()> {
     insert(docs.get_mut(&to)?, t)
 }
 
-/// Rules between two children of one composite become `parent -> parent` once renamed: drop them.
+/// Rules and links between two children of one composite become `parent -> parent` once
+/// renamed: drop them.
 fn drop_self_rules(doc: &mut toml_edit::DocumentMut, parent: &str) -> Result<()> {
-    let rules = super::table::aot_mut(doc, &["rule"])?;
+    drop_self(doc, &["rule"], parent)?;
+    drop_self(doc, &["link"], parent)
+}
+
+fn drop_self(doc: &mut toml_edit::DocumentMut, table: &[&str], parent: &str) -> Result<()> {
+    let rules = super::table::aot_mut(doc, table)?;
     let is_str = |t: &Table, k: &str| t.get(k).and_then(Item::as_str) == Some(parent);
     let mut i = 0;
     while i < rules.len() {

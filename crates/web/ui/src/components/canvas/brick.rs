@@ -12,10 +12,15 @@ use sycamore::prelude::*;
 pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
     let brick = cx.m.g.bricks[b].clone();
     let r0 = cx.m.layout.pos[b];
+    // Design mode shows the design only: no score, finding or complexity text from code.
+    let design = cx.editing();
     let tip = {
         let cx = cx.clone();
         let brick = brick.clone();
-        move || brick_tip(&brick, &cx.scores.with(|s| s[b].clone()))
+        move || match design {
+            true => design_tip(&brick),
+            false => brick_tip(&brick, &cx.scores.with(|s| s[b].clone())),
+        }
     };
     let kind = kind_class(&brick);
     let cls = {
@@ -26,6 +31,9 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
     let badge = {
         let cx = cx.clone();
         move || {
+            if design {
+                return View::default();
+            }
             let e = cx.scores.with(|s| s[b].errors);
             let bd = Badge::new(e, r0.w);
             let tip = format!("{e} finding(s)");
@@ -38,16 +46,7 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
             }
         }
     };
-    let heat = {
-        let h = Heat::new(brick.worst_ratio, r0.w);
-        view! {
-            g(class=h.cls) {
-                svg_title { (h.tip) }
-                rect(class="track", x="8", y="29", width=h.track.to_string(), height="5", rx="2.5")
-                rect(class="hbar", x="8", y="29", width=h.fill.to_string(), height="5", rx="2.5")
-            }
-        }
-    };
+    let heat = heat_view(design, brick.worst_ratio, r0.w);
     let (w, h) = (r0.w.to_string(), r0.h.to_string());
     let name = name_view(&brick, r0.w);
     let tag = tag_line(&brick);
@@ -84,6 +83,21 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
     }
 }
 
+/// The heat bar of the worst function (none in Design mode, which shows no code data).
+fn heat_view(design: bool, worst: f64, w: f64) -> View {
+    if design {
+        return View::default();
+    }
+    let h = Heat::new(worst, w);
+    view! {
+        g(class=h.cls) {
+            svg_title { (h.tip) }
+            rect(class="track", x="8", y="29", width=h.track.to_string(), height="5", rx="2.5")
+            rect(class="hbar", x="8", y="29", width=h.fill.to_string(), height="5", rx="2.5")
+        }
+    }
+}
+
 /// The name, after a small book on an independent lib (a design flag, shown in both modes). The
 /// box width follows the name up to a cap; a longer name is cut (the tooltip has it all).
 fn name_view(b: &BrickView, w: f64) -> View {
@@ -112,6 +126,23 @@ fn tag_line(b: &BrickView) -> String {
         tag = format!("{tag} \u{00B7} {} bricks", b.children.len());
     }
     tag
+}
+
+/// The Design-mode hover text: the brick as declared (name, tags, kind, description, members,
+/// independent), nothing measured.
+fn design_tip(b: &BrickView) -> String {
+    let kind = if b.composite() { "composite" } else { "leaf" };
+    let mut out = format!("{} [{}] {kind}", b.name, b.tags.join(", "));
+    if let Some(d) = &b.desc {
+        out.push_str(&format!("\n{d}"));
+    }
+    if !b.members.is_empty() {
+        out.push_str(&format!("\nmembers: {}", b.members.join(", ")));
+    }
+    if b.independent {
+        out.push_str(&format!("\n{INDEPENDENT_TIP}"));
+    }
+    out
 }
 
 /// The hover text: name, tag, description, score and the peek.

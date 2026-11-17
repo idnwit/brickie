@@ -24,11 +24,11 @@ is optional, see [Build the viewer bundle](#build-the-viewer-bundle). Not publis
 
 ```sh
 brickie measure                  # slow: runs rust-analyzer, writes .brickie/cache.json
-brickie check                    # fast: applies the rules to the cache, exits 1 on errors
+brickie check                    # fast: applies the rules and links to the cache, exits 1 on errors
 brickie serve                    # viewer on http://127.0.0.1:7881
 brickie interface root/web/api   # a brick's declared interface and its uses
 brickie design show              # the design (brickie.toml tree) at its current version
-brickie design rule add api store allow --reason "reads data" --base 15   # edit, versioned
+brickie design link add api store --reason "reads data" --base 15   # edit, versioned
 brickie llms.txt                 # guide for coding agents
 ```
 
@@ -114,13 +114,14 @@ pan, zoom, dragging and filters. See [webui.md](webui.md).
 
 ## Build the viewer bundle
 
-The wasm viewer is built from the `ui` crate and embedded at compile time, with the code viewer
-(`/code/`). The script fetches a pinned Monaco release from the npm registry (needs curl, tar and
-openssl once):
+`cargo build` builds the wasm viewer and the code viewer and embeds them (release wasm, cargo
+feature `ui`, on by default in `brickie`). It needs the wasm32 target and `wasm-bindgen-cli`; if
+they are missing it warns and builds the read-only SSR viewer. The code viewer fetches a pinned
+Monaco release from the npm registry once (needs curl, tar and openssl).
 
 ```sh
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.123 --locked   # must match crates/web/ui/Cargo.toml
-scripts/build-ui.sh        # writes assets/ui/ and assets/codeview/ (git-ignored)
-cargo build --release      # embeds the bundles found there; without them it only warns
+cargo build --release                       # interactive viewer
+cargo build --release --no-default-features # fast build, read-only SSR viewer
 ```

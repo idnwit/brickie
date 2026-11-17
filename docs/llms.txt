@@ -17,7 +17,7 @@
 
 - The gate, in one command: `brickie check --measure --format short`. `--measure` re-measures
   first when the cache is missing or older than the code. `--format short` prints one line per
-  finding: `error[deps/deny] 3fa9c1d2 src/a.rs:42:17: message`; use the default text format to
+  finding: `error[deps/unlinked] 3fa9c1d2 src/a.rs:42:17: message`; use the default text format to
   see the rule, help and notes of a finding you need to fix.
 - A cache older than the code is an error (`stale/*`, exit 1), never a pass: after any code
   change re-measure before trusting `check`. Config edits never need a re-measure.
@@ -60,7 +60,7 @@ merged. Principles to follow when writing code:
 
 After `measure`, a line `hint: code under cfg(target_arch = "wasm32") is not measured; add
 "wasm32-unknown-unknown" to [measure] additional_targets` means that code has no edges in the
-cache, so a rule it uses may look unused. Do not add the target yourself; report the hint to the
+cache, so a link it needs may look planned (no measured edge). Do not add the target yourself; report the hint to the
 reviewer. If `measure` fails with "rust-analyzer scip failed for target ..." and "if features are
 mutually exclusive, make them additive", fix the code so a build with all features works, or
 report that the target is not installed (`rustup target add <target>`).
@@ -70,8 +70,10 @@ report that the target is not installed (`rustup target add <target>`).
 - Never edit `brickie.toml` (or files it includes) to make `check` pass;
   they are the project's decisions. Change the design only when the human asked for a design
   change, and only with `brickie design` (see "Editing the design"), never by hand. Never use
-  `brickie design` to make a finding go away (adding an allow rule, raising or removing a limit,
-  exporting a child, removing a deny rule): report the finding instead.
+  `brickie design` to make a finding go away (adding a rule, raising or removing a limit,
+  exporting a child): report the finding instead. Rules are principles a human owns; a coding
+  agent that needs a new dependency between bricks adds a `[[link]]` (see "Adding a dependency")
+  and only when asked to change the design.
 - Every finding is an error and there is no way to accept one: only a human relaxes the design
   (a rule or limit). If a finding looks wrong or a rule too strict, stop and report it with the
   finding id.
@@ -104,7 +106,7 @@ hand; use `brickie design`.
    published tree) and prints the refactor checklist: every blocking item (`config/unassigned`,
    `config/overlap`, `config/member-outside-parent`, `design/planned`, a stale or missing cache)
    with its design file and member selector, plus the findings that do not block (dependency
-   findings and allow rules no measured edge uses yet). It exits 0 when a publish would pass and
+   findings and planned links: links no measured edge uses yet). It exits 0 when a publish would pass and
    4 (`design/blocked`) when not.
 4. Refactor the code until the checklist is empty, running `brickie measure` after each change.
    Code written for bricks that exist only in the draft shows as `bricks/unmapped` in
@@ -112,8 +114,9 @@ hand; use `brickie design`.
    code of draft bricks.
 5. `brickie design publish --base N` writes the draft as ONE published version and removes the
    draft. It exits 4 (`design/blocked`) while any item remains and publishes nothing; there is
-   no partial publish. Dependency and rule findings (deny, private, cycles, limits, unused,
-   no-reason) never block: `brickie check` reports them after the publish.
+   no partial publish. A link that no rule allows (`design/link-denied`) also blocks; the design
+   files alone decide that, no code is read. Dependency findings (unlinked, private, cycles,
+   limits) never block: `brickie check` reports them after the publish.
 
 If the published tree moved since the fork (a hand edit, an undo of a published version),
 `publish` exits 3 (`design/stale`) and lists those versions: run
@@ -156,8 +159,9 @@ Concurrency contract (a human may edit at the same time):
 
 - `show` prints `design draft v16 from published v15 <hash>` (or `design published v15 <hash>`)
   and the tree: each level
-  with its file, bricks (kind, members, tags, children), rules `from -> to (scope)
-  allow|deny "reason"` and limits, then a `todo` list. It reads the design files only (no
+  with its file, bricks (kind, members, tags, children), rules and links `from -> to (kinds)
+  (scope) "reason"` (a link is marked `denied` or `cycle` when that holds) and limits, then a
+  `todo` list. It reads the design files only (no
   measure needed). `--since N` prints only the
   versions after N, each with its author, note and diff lines. `--in P` prints only the level
   owned by composite P and its subtree (use it on a large design).
@@ -177,13 +181,13 @@ Concurrency contract (a human may edit at the same time):
   ```
   brickie design apply --base 15 --note "add store" <<'EOF'
   brick add store --kind crate --desc "data access"
-  rule add web store allow --reason "web reads data"
+  link add web store --reason "web reads data"
   EOF
   ```
 
   A bad line stops everything: the error names the line number and nothing is written. Names
   in a line resolve against the design as it is now, so a line cannot refer to a brick an
-  earlier line adds, except by `brick add --in` or in a rule's `FROM`/`TO`.
+  earlier line adds, except by `brick add --in` or in a rule's or link's `FROM`/`TO`.
 - `--dry-run` (on `apply` and on every write command) checks the base, applies and validates
   everything in memory, prints the diff, the todos the change adds and the notes, and writes
   nothing (no version, no code). With `--scaffold` it also lists the code it would create.
@@ -199,26 +203,26 @@ brickie design log | diff A [B] | undo [V]
 brickie design apply [--scaffold]   (ops on stdin, one per line)
 brickie design publish --base N [--note W] | rebase --base N | discard --base N
 brickie design brick add NAME [--in P] [--kind crate|module|group] [--members a,b] [--tags a,b] [--desc D] [--path DIR] [--scaffold]
-brickie design brick set PATH [--members] [--tags] [--desc] [--path] [--independent true|false]   (empty --desc/--path removes; --independent only on root bricks, false removes the key)
+brickie design brick set PATH [--members] [--tags] [--desc] [--path] [--independent true|false]   (empty --desc/--path removes; false removes the key)
 brickie design brick rename PATH NEW | move PATH --into P|root | rm PATH
 brickie design brick group NAME CHILD... | ungroup PATH
-brickie design rule add FROM TO allow|deny [--via A,B] [--kind K]... [--scope S] [--reason R] [--in P]
-brickie design rule set FROM TO [--kind K]... [--scope S] [--action A] [--via A,B] [--reason R] [--in P]
+brickie design rule add FROM TO [--kind K]... [--scope S] --reason R [--in P]
+brickie design rule set FROM TO [--kind K]... [--scope S] --reason R [--in P]
 brickie design rule rm FROM TO [--kind K]... [--scope S] [--in P]
+brickie design link add FROM TO [--kind K]... [--scope S] --reason R [--in P]
+brickie design link set FROM TO [--kind K]... [--scope S] --reason R [--in P]
+brickie design link rm FROM TO [--kind K]... [--scope S] [--in P]
 brickie design export set PATH | rm PATH
 brickie design limit add|set [BRICKS] [--cognitive N] [--cyclomatic N] [--nesting N] [--paths N] [--params N] [--lines N] [--scope S] [--in P]
 brickie design limit rm [BRICKS] [--in P]
 brickie design include add|rm FILE [--in P]
 ```
 
-- A rule is named by `from`, `to`, its kinds and scope (scope `prod` when not written). `rule set`
-  and `rule rm` search the level file and the files it includes; with several rules `FROM -> TO`
-  add `--kind` / `--scope` to pick one. `rule set` changes only the fields given (an empty
-  `--reason` or `--via` removes it); to change kinds or scope, remove the rule and add a new one.
-- `--via A,B` limits a rule to edges that enter the `to` composite through its exported children
-  A or B (see "Rules"); the rule is still named by `from`, `to`, kinds and scope. Renaming such a
-  child rewrites the `via` of the rules that name it; removing, moving or unexporting it, or
-  ungrouping the composite, fails with `design/invalid` while a `via` would dangle.
+- A rule or a link is named by its file, `from`, `to`, its kinds as a set and its scope (absent
+  scope means `all`); `rule`/`link` `set` and `rm` search the level file and the files it
+  includes, and with several matches add `--kind` / `--scope` to pick one. `set` changes only
+  the `--reason`; to change anything else, remove the element and add a new one. A link `TO` is
+  one sibling brick or `composite/child` (see "Rules").
 - A limit is named by its `bricks` selector (default `*`); in `limit set` a metric of `0` removes
   it.
 - `brick add --kind crate` with no members defaults them to `path:crates/<name>/`
@@ -231,12 +235,10 @@ brickie design include add|rm FILE [--in P]
   `Cargo.toml` and `src/lib.rs` plus a workspace member, or a module file plus `pub mod` in the
   crate root; the write lists what it created); existing files are never overwritten. The
   design files of a group and of `set --path` are always created.
-- `rule add` (also as an `apply` line) prints `note: rule a -> b allow changes nothing: already
-  allowed by brickie.toml:12` when the new rule changes no edge of its level (also for an allow
-  from an independent brick to a normal one, which never applies).
-  It is a note, not an error: the rule is written. No note when the level is created in the
-  same `apply`.
-- A rule's `scope` is `prod` unless set: edges from test code need `rule add ... --scope test|all`.
+- `link add` prints `note: design/link-denied: ...` when no rule of the level allows the link;
+  the link is still written (a draft may hold it) but blocks `publish` until a human adds a
+  rule or you remove the link. The same text is a `link_denied` todo of `show`.
+- A rule or link `scope` is `all` unless set: `--scope prod|test` narrows it.
 - `brick group NAME CHILD...` makes composite NAME next to the children and moves them in;
   `ungroup` lifts the children, their rules and limits back up (the child file stays on disk).
   `brick move` rebases `path:` members; it moves no code.
@@ -244,32 +246,34 @@ brickie design include add|rm FILE [--in P]
 - After code changes run `brickie measure`, then `brickie design check` and `brickie check`.
 - `--format json`: `show` also has `since_agent: [version...]` when there are versions after your
   last one; `--dry-run` prints `{dry_run, diff, new_todo, scaffold, notes}`; a write prints its version, plus `notes: [text]` when there are notes. `show` prints `{v, track, forked_from, hash, by, at, root: {path, file, bricks: [{name, kind,
-  members, tags, desc, independent, children}], exports, rules: [{file, from, to, via,
-  kinds, scope, action, reason}], limits: [{file, bricks, metrics, scope}]}, todo:
-  [{kind, text}]}`; `log` a list of versions `{v, track, forked_from, reverts, hash, prev, by, at, note,
+  members, tags, desc, independent, children}], exports, rules: [{file, from, to, kinds, scope,
+  reason}], links: [{file, from, to, kinds, scope, reason, denied?, cycle?}], limits: [{file,
+  bricks, metrics, scope}]}, todo: [{kind, text}]}` (nested levels repeat the shape; `denied` is
+  the reason text, `cycle` is true); `log` a list of versions `{v, track, forked_from, reverts, hash, prev, by, at, note,
   ops, diff, files, removed}`; a write prints its version; `check` prints
   `{v, track, forked_from, ready, blocking: [{code, message, file, brick, member,
   module}], info: [text]}`.
 
-The todo list of `show` (`kind`) has `reason` items only: a rule without a reason
-(`design/no-reason`). What the code lacks is the `check` checklist.
+The todo list of `show` (`kind`) has `link_denied` items (a link no rule allows,
+`design/link-denied`) and `link_cycle` items (a link on a cycle of links: information only). What
+the code lacks is the `check` checklist.
 
 ## Reading a diagnostic
 
 ```
-error[deps/deny]: `engine` depends on `backends`
+error[deps/unlinked]: `engine` depends on `backends`
   --> src/engine/mixer.rs:42:17
    |
 42 |         let io = backends::Alsa::open();
    |                  ^^^^^^^^^^^^^^^^^^^^^^ `backends::Alsa`
-   = rule: rule[0] "core must not use adapter" (brickie.toml:21)
-   = help: depend on the port trait and receive the implementation from the assembly
+   = rule: no link covers it (brickie.toml)
+   = help: remove the dependency, or declare the link: `brickie design link add engine backends --kind uses --scope prod --reason "..."`
    = note: modules: engine::mixer -> backends::alsa (uses, prod)
 ```
 
 - Header: `error`, the code in brackets, a message. Every finding fails `check`.
 - `-->` is the primary location `file:line:col`; extra locations follow ("and N more").
-- `rule` names the configured rule that fired and where it is; it holds the maintainers' reason.
+- `rule` says why the edge fails and where: no link covers it, a link covers it but no rule allows that link, or the exports rule.
 - `help` is the suggested fix; `note` adds context (for example the full cycle path).
 - Every finding has a stable 8-hex `id` (in JSON).
 - The last line summarises: `error: 3 errors` (or `ok: 0 errors`).
@@ -290,20 +294,22 @@ Vocabulary:
 - Nested bricks: a brick with `path = "<dir>"` is a composite; its children, rules and `exports`
   are in `<dir>/brickie.toml`. A finding's JSON `brick_level` (`root`, `root/web`) is the tree
   level it is reported at; its brick names are children of that level and `rule` points at the
-  config file owning the rule. An edge is checked against the rules of the lowest common ancestor
-  of its two bricks (`web/ui` to `core` is checked as `web -> core` in the root file).
+  config file owning the rule or link. An edge is checked against the links of the lowest common
+  ancestor of its two bricks (`web/ui` to `core` is checked as `web -> core` in the root file).
 
 ## Diagnostic codes and how to fix them
 
-### deps/deny
+### deps/unlinked
 
-An edge between sibling bricks is not allowed: a `[[rule]]` with `action = "deny"` decides it
-(`rule` names it), or no rule allows it, or it leaves an independent brick (see "Rules"). Remove
-the dependency: depend on a
-trait, type or function in a brick you may use, and have the assembling brick pass the concrete
-implementation in. If the code is test-only, use `#[cfg(test)]` or move it under `tests/` (many
-rules apply only to `prod`). If the dependency is truly intended, report it for a human reviewer;
-do not edit the rule.
+An edge between sibling bricks has no valid `[[link]]` that covers it: no link names these
+bricks, kind and scope (the `rule` line says "no link covers it"), or a link exists but no
+`[[rule]]` allows it (the `rule` line gives the reason; the link is `design/link-denied`), or the
+edge leaves an independent brick for a normal one (never allowed). First try to remove the
+dependency: depend on a trait, type or function in a brick you may use, and have the assembling
+brick pass the concrete implementation in. If the code is test-only, use `#[cfg(test)]` or move it
+under `tests/`. If the dependency is truly intended and you were asked to change the design,
+declare it with the command in `help` (see "Adding a dependency"); otherwise report it for a
+human reviewer. Never add a `[[rule]]` yourself.
 
 ### deps/private
 
@@ -316,7 +322,7 @@ at the defining module. If the child should be visible, report it; the maintaine
 ### deps/cycle
 
 Two or more bricks depend on each other, directly or through others; the note shows the cycle.
-Break it: move the shared type into a trait or type owned by the lower brick, or invert one
+Code cycles are always errors (cycles among declared links are only information). Break it: move the shared type into a trait or type owned by the lower brick, or invert one
 dependency so the lower brick receives what it needs from the higher one (parameter, trait object,
 callback). Do not merge bricks in `brickie.toml`. Cycles are found per level, among the children
 of one composite (`brick_level` says which).
@@ -346,7 +352,7 @@ One finding per function and metric above the limit of a `[[complexity]]` rule (
   type that has a meaning in the domain (not a bag of unrelated values).
 - `lines`: lines of the function. Fix: split along real responsibilities.
 
-Which limit applies is rule 8 under "Rules". Test-scope functions are checked only when the
+Which limit applies is rule 9 under "Rules". Test-scope functions are checked only when the
 rule's `scope` includes tests. Never raise a limit; never add
 `#[cfg(test)]` or move code only to change its scope.
 
@@ -380,16 +386,16 @@ if only the brick needs it, make it private, or remove it if nothing uses it; or
 exercises it. Methods, fields and variants count as uses of their type; `pub use` re-exports are
 not uses.
 
-### config/missing, config/invalid, config/unknown-via, config/overlap, config/unassigned, config/member-outside-parent
+### config/missing, config/invalid, config/overlap, config/unassigned, config/member-outside-parent
 
 Configuration errors (exit 2, printed on stderr with the code first; no findings are reported):
 
 - `config/missing`: a brick has `path = "<dir>"` but `<dir>/brickie.toml` does not exist.
 - `config/invalid`: a file does not follow the schema: a rule or limit names a brick or tag the
-  file lacks, an unknown kind, `exports` names something that is not a brick of that file, or
-  `independent = true` is on a brick of a nested file. The message says which.
-- `config/unknown-via`: a rule's `via` is empty, its `to` is not a brick name of a composite, or
-  it names a child the composite does not export. Fix `via` (or the composite's `exports`).
+  file lacks, an unknown kind, `exports` names something that is not a brick of that file, a rule
+  has an empty `reason`, or a link is bad (unknown brick, a link to itself, `composite/child` on
+  a brick that is not a composite, or a child that does not exist or is not exported). The
+  message says which.
 - `config/overlap`: a module matches members of two bricks of one file.
 - `config/unassigned`: a module of a composite is in none of its children (children must
   partition the composite).
@@ -407,16 +413,20 @@ the code to the drawn structure, or change the draft. Give each unassigned modul
 the composite's bricks (`brick set --members`), make overlapping members distinct, keep child
 members inside their composite. `check` lists every partition error at once.
 
-### design/planned, design/no-reason, design/invalid, design/stale, design/no-match, design/exists, design/blocked
+### design/planned, design/link-denied, design/invalid, design/stale, design/no-match, design/exists, design/blocked
 
 The design (see "Editing the design"):
 
 - `design/planned` (a blocking item of `check` and `publish`): a brick has no measured
   module. Create its code as its members say, then `brickie measure`.
-- `design/no-reason` (todo `reason`): a rule has no `reason`. Add a one-line reason with
-  `brickie design rule set FROM TO --reason "..."`.
-- `design/invalid`: the edit would leave a design that does not load (for example a rule naming
-  an unknown brick). Nothing was written. Fix the edit, or make the
+- `design/link-denied` (todo `link_denied`; blocks `publish`, listed by `check`): no rule of the
+  level allows a link, for some kind and scope it names (the message says which). It is read from
+  the design files alone. A draft may hold it; fix it by removing the link
+  (`brickie design link rm`) or, for a human, by adding a rule that allows it
+  (`brickie design rule add`). A link from an independent brick to a normal one is never
+  allowed.
+- `design/invalid`: the edit would leave a design that does not load (for example a link naming
+  an unknown brick, or a rule without a reason). Nothing was written. Fix the edit, or make the
   related change in the same order the message suggests (for example change the rule first).
 - `design/stale` (exit code 3): your `--base` is not the head; nothing was written. Follow the
   concurrency contract in "Editing the design". From `publish`: the published tree moved since
@@ -424,11 +434,11 @@ The design (see "Editing the design"):
 - `design/blocked` (exit code 4): `check` or `publish` refused because the code does not match the draft's
   structure yet; nothing was published. The message lists the items; work through
   `brickie design check` (see "Draft workflow").
-- `design/no-match`: no rule or limit matches what you named, or several rules `FROM -> TO` match.
+- `design/no-match`: no rule, link or limit matches what you named, or several `FROM -> TO` match.
   The message lists the candidates; name an existing one, or add `--kind` and `--scope` to pick
   one. For bricks, check the path with `brickie design show`.
-- `design/exists`: `rule add` or `limit add` for an identity that is already there. Change it with
-  `rule set` / `limit set`, or remove it first.
+- `design/exists`: `rule add`, `link add` or `limit add` for an identity that is already there.
+  Change it with `set`, or remove it first.
 
 ## brickie.toml reference
 
@@ -441,22 +451,26 @@ members = ["my-engine", "my-app::api", "path:crates/engine/"]
                                # to this file). Default: none
 tags = ["core"]                # optional labels for rule selectors
 desc = "Rule evaluation"       # optional one-liner shown in the viewer; no effect on checks
-independent = false            # root file only: acts like an external library (see "Rules")
+independent = false            # a library that serves the bricks around it (see "Rules")
 
 [[brick]]
 name = "app"
 members = ["my-app"]
 tags = ["app"]
 
-[[rule]]
+[[rule]]                       # a principle: what the design allows. Nothing else is allowed
 from = "tag:app"               # selector: brick name | tag:<tag> | *
 to = "tag:core"
-# via = ["api"]                # optional, `to` a composite brick: only edges entering it through
-                               # these exported children match (each must be in its `exports`)
 kinds = ["uses", "implements"] # uses | implements | reexports; default all
-scope = "prod"                 # prod (default) | test | all
-action = "allow"               # allow | deny (required)
-reason = "app calls into core" # shown in findings; a rule without one is a design todo
+scope = "prod"                 # prod | test | all (default)
+reason = "app calls into core" # required, non-empty
+
+[[link]]                       # a declared dependency; valid only if rules allow it
+from = "app"                   # a brick of this file
+to = "engine"                  # a sibling brick, or "composite/child" for an exported child
+kinds = ["uses"]               # default all
+scope = "prod"                 # default all
+reason = "app drives the engine"
 
 [measure]                      # root file only
 additional_targets = ["wasm32-unknown-unknown"]
@@ -484,11 +498,22 @@ path = "crates/web"            # composite: children in crates/web/brickie.toml 
 ```
 
 Every `brickie.toml` (root or composite) has the same schema; `include` works in each. Lists
-(`brick`, `exports`, `rule`, `complexity`, `additional_targets`) of included files and the
+(`brick`, `exports`, `rule`, `link`, `complexity`, `additional_targets`) of included files and the
 including file are concatenated. An include cycle, a duplicate brick name in a level, a composite
 path that leads back to a file already being loaded, and unknown fields are configuration errors
 (exit 2). Each target triple is trimmed, non-empty and has only ASCII letters, digits, `-`, `_`
 and `.`.
+
+## Adding a dependency
+
+To let brick A use brick B (only when asked to change the design):
+
+1. `brickie design show` and read the base. Check that a rule of the level already allows
+   `A -> B` for the kind and scope; if it does not, the link will be `design/link-denied` and a
+   human must add the rule: report that.
+2. `brickie design link add A B --kind K --scope S --reason "why" --base N --note "..."`. To use
+   an exported child of a composite, name it `composite/child`.
+3. `brickie design check`, then `brickie design publish --base N` once the code matches.
 
 ## Rules
 
@@ -506,23 +531,32 @@ Each rule below holds for every level and has one reason.
    folder's design.
 4. Edges: every reference is an edge with a kind (`uses`, `implements`, `reexports`) and a scope
    (`prod`, `test`). It is lifted to the lowest level where its ends are sibling bricks and judged
-   there only. A cycle among siblings is always `deps/cycle`. Reason: a rule speaks about the
+   there only. A cycle of code edges among siblings is always `deps/cycle`. Reason: a rule speaks about the
    bricks it can see, and layers do not form cycles.
-5. Rules: a `[[rule]]` matches an edge when `from`, `to`, `kinds` and `scope` match. Selector
-   specificity is brick 3, tag 2, `*` 1, summed over both sides; the highest wins and deny wins a
-   tie. A rule with `via` (exported children of its `to` composite) matches only an edge that
-   enters `to` through one of them, never an edge into a leaf, and scores one more on the `to` side;
-   the finding names the entered child. An edge no rule matches is denied (`* -> *` allow opens a level). Every forbidden edge is
-   `deps/deny`. Reason: the design lists what is allowed; anything new needs a decision.
-6. Exports: from outside a composite, an edge may enter it only through a child in its `exports`,
-   whatever the rules say; otherwise `deps/private`. Reason: a composite's internals stay private.
-7. Independent: a root brick with `independent = true` acts like an external library. `*` never
-   matches it, on either side. Edges into it are allowed unless a deny rule naming it by brick or
-   tag wins. Edges out of it are denied unless they go to another independent brick and an allow
-   rule names both sides; an allow from it to a normal brick never applies. Exports still apply.
-   Reason: a library knows nothing of the application that uses it.
-8. Complexity: a `[[complexity]]` rule sets limits for the bricks its selector matches; every
-   limit is an error. Per function and metric, each level on the function's brick path applies its
+5. Rules: a `[[rule]]` allows edges from the bricks `from` selects to the bricks `to` selects
+   (a brick, `tag:x` or `*`), for its `kinds` (default all) and `scope` (`prod`, `test`, `all`;
+   default all). A reason is required. Nothing is allowed unless a rule allows it; there is no
+   deny, no priority and no tie to break. Reason: the design lists what is allowed, and a rule
+   is a principle a reviewer reads once.
+6. Links: a `[[link]]` declares one dependency: `from` (a brick of its level) to a sibling brick,
+   or to `composite/child` where child is in that composite's `exports` (no grandchildren), with
+   `kinds`, `scope` (default all) and a required reason. A link is valid only if, for every kind
+   and scope it names, some rule of its level allows it; otherwise it is `design/link-denied`
+   (it may be drafted, never published). A measured edge is allowed only if a valid link covers
+   it (bricks, entered child, kind, scope); otherwise it is `deps/unlinked`. A link no code uses
+   yet is planned, not a finding. Links may form cycles (information only). Reason: each
+   dependency is reviewable on one line, and rules stay few.
+7. Exports: from outside a composite, an edge may enter it only through a child in its `exports`,
+   whatever the rules and links say; otherwise `deps/private`. Reason: a composite's internals stay private.
+8. Independent: a brick with `independent = true`, at any level, is a library that serves the
+   bricks around it. Inside its parent's subtree (its siblings and anything nested in them)
+   edges into it need no rule and no link. From outside its parent composite it is reached like
+   any exported child: the outer level's rules, links and exports apply; exporting it is allowed
+   but discouraged, move it up to the level that needs it instead. Edges out of it need a rule
+   and a link and may go only to another independent brick of the same level. `*` never matches
+   it. Reason: a library serves the bricks around it, not the application above.
+9. Complexity: a `[[complexity]]` rule sets limits for the bricks its selector matches; every
+   limit is an error. The scope of a complexity rule defaults to `prod`. Per function and metric, each level on the function's brick path applies its
    most specific matching rule (an equal selector takes the lower limit); across levels the
    tightest limit wins, so a nested file only tightens. Reason: a nested file cannot hide code
    from a limit set above it.

@@ -10,8 +10,8 @@ homepage = "https://github.com/idnwit/brickie"
 readme = "../../README.md"
 keywords = ["architecture", "dependencies", "complexity", "lint", "rust-analyzer"]
 categories = ["development-tools", "command-line-utilities"]
-# Not published to crates.io: the interactive viewer is a generated wasm bundle (assets/ui/,
-# git-ignored, built by scripts/build-ui.sh) and the path dependencies are not published
+# Not published to crates.io: the interactive viewer is a generated wasm bundle (built
+# by the web server's build.rs) and the path dependencies are not published
 # either. Releases are git tags + prebuilt binaries.
 publish = false
 
@@ -30,3 +30,9 @@ serde_json = "1"
 serde_json = "1"
 sha2 = "0.10"
 tempfile = "3"
+
+[features]
+default = ["ui"]
+# The interactive viewer (builds wasm bundles; needs the wasm32 target and wasm-bindgen-cli).
+# `--no-default-features` gives a fast build with the read-only SSR viewer.
+ui = ["brickie-web/ui"]

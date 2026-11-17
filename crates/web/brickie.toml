@@ -25,19 +25,35 @@ desc = "The viewer components (Sycamore): rendered on the server, hydrated in th
 from = "server"
 to = "ui"
 scope = "all"
-action = "allow"
 reason = "the server only renders the viewer (SSR page and source popup) and embeds its CSS"
 
 [[rule]]
 from = "server"
 to = "api"
 scope = "all"
-action = "allow"
 reason = "the server implements the endpoint contracts and builds the shared page data"
 
 [[rule]]
 from = "ui"
 to = "api"
 scope = "all"
-action = "allow"
 reason = "the viewer consumes the shared page data and calls the endpoint contracts"
+
+[[link]]
+from = "server"
+to = "api"
+kinds = ["uses"]
+reason = "the server answers the endpoint contracts with the shared page data types"
+
+[[link]]
+from = "server"
+to = "ui"
+kinds = ["uses"]
+scope = "prod"
+reason = "the server renders the viewer components into the SSR page"
+
+[[link]]
+from = "ui"
+to = "api"
+kinds = ["uses"]
+reason = "the viewer fetches and displays the page data defined by the api"

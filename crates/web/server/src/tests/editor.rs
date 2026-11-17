@@ -178,7 +178,7 @@ async fn links_and_link_checks_read_the_live_design() {
         opts.as_array().unwrap().iter().any(|o| o["to"] == "engine"),
         "{text}"
     );
-    let chk = json!({"from": "cache", "to": "engine", "scope": "prod", "action": "allow"});
+    let chk = json!({"from": "cache", "to": "engine", "scope": "prod"});
     let (st, text) = s.post("/api/design/link-check", chk).await;
     assert_eq!(st, StatusCode::OK, "{text}");
     let c: Value = serde_json::from_str(&text).unwrap();
@@ -275,7 +275,7 @@ async fn a_stale_rule_on_a_removed_brick_is_a_conflict_not_invalid() {
         assert_eq!(st, StatusCode::OK, "{text}");
     }
     let rule = json!({"op": "add_rule", "file": "brickie.toml",
-        "rule": {"from": "web", "to": "store", "action": "allow"}});
+        "rule": {"from": "web", "to": "store", "reason": "web stores"}});
     let (st, _, text) = post_head(&s, "/api/design/edit", json!({"base": 2, "ops": [rule]})).await;
     assert_eq!(st, StatusCode::CONFLICT, "{text}");
     assert!(

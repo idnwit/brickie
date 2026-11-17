@@ -1,5 +1,5 @@
-//! Independent libs in the viewer: clean inbound edges are hidden (and counted), violating
-//! inbound edges and every outbound edge are drawn, and hidden edges add no score.
+//! Independent libs in the viewer: inbound edges need no link and are hidden (and counted);
+//! every outbound edge is drawn, and hidden edges add no score.
 
 use super::*;
 
@@ -23,12 +23,7 @@ tags = ["app"]
 [[rule]]
 from = "*"
 to = "*"
-action = "allow"
-
-[[rule]]
-from = "other"
-to = "lib"
-action = "deny"
+reason = "a flat workspace"
 "#;
 
 fn edge(from: &str, to: &str, line: u32) -> Value {
@@ -97,11 +92,10 @@ async fn clean_inbound_hidden_violations_and_outbound_drawn() {
     let lib = &g["bricks"][0];
     assert_eq!(lib["independent"], true);
     assert_eq!(g["bricks"][1]["independent"], false);
-    // app -> lib is clean: hidden, but counted for the inspector.
-    assert!(!has_edge(g, "app", "lib"));
-    assert_eq!(lib["hidden_in"], 1);
-    // other -> lib is denied: drawn, red. lib -> app is an independent error: drawn.
-    assert!(has_edge(g, "other", "lib"));
+    // app -> lib and other -> lib need no link: hidden, but counted for the inspector.
+    assert!(!has_edge(g, "app", "lib") && !has_edge(g, "other", "lib"));
+    assert_eq!(lib["hidden_in"], 2);
+    // lib -> app is an independent error: drawn.
     assert!(has_edge(g, "lib", "app"));
 }
 
@@ -111,7 +105,7 @@ async fn hidden_edges_do_not_count_toward_scores() {
     let v: Vec<brickie_web_api::LevelView> = serde_json::from_str(&body).unwrap();
     let g = &v[0].graph;
     let scores = brickie_web_api::brick_scores(g, &[]);
-    // Only other -> lib is drawn into lib; the hidden app -> lib adds no in-edge.
-    assert_eq!(scores[0].edges_in, 1);
+    // Nothing is drawn into lib; the hidden edges add no in-edge.
+    assert_eq!(scores[0].edges_in, 0);
     assert_eq!(scores[0].edges_out, 1);
 }

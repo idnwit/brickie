@@ -55,7 +55,7 @@ pub const SUBS: [(&str, &[(&str, &str)]); 4] = [
     (
         "deps",
         &[
-            ("d-deny", "deps/deny (not allowed)"),
+            ("d-deny", "deps/unlinked (no link)"),
             ("d-private", "deps/private (not exported)"),
             ("d-cycle", "deps/cycle"),
         ],
@@ -185,9 +185,9 @@ mod tests {
     fn violations_preset_applies_the_scope() {
         let p = Params::default().with(|p| p.p = "viol".into());
         let lay = Lay::from_params(&p);
-        assert!(v_on(&lay, &p, "deps/deny"));
+        assert!(v_on(&lay, &p, "deps/unlinked"));
         let scoped = p.with(|p| p.vs = "cx".into());
-        assert!(!v_on(&lay, &scoped, "deps/deny"));
+        assert!(!v_on(&lay, &scoped, "deps/unlinked"));
     }
 
     #[test]

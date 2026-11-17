@@ -132,16 +132,14 @@ fn now_lines(ed: Edit) -> View {
         let rows: Vec<View> = ed.links.with(|l| {
             l.iter()
                 .map(|o| {
-                    let cls = format!("la {}", o.action);
-                    let (to, k, a) = (
-                        o.to.clone(),
-                        format!("{} {}", o.kind, o.scope),
-                        o.action.clone(),
-                    );
-                    let by = o
-                        .rule
-                        .clone()
-                        .unwrap_or_else(|| "the default (no rule)".into());
+                    let a = if o.allowed { "allow" } else { "deny" };
+                    let cls = format!("la {a}");
+                    let (to, k) = (o.to.clone(), format!("{} {}", o.kind, o.scope));
+                    let by = match (&o.rule, o.allowed) {
+                        (Some(r), _) => r.clone(),
+                        (None, true) => "no rule needed (independent brick)".into(),
+                        (None, false) => "no rule allows it".into(),
+                    };
                     view! { tr(title=by) { td { (to) } td { (k) } td(class=cls) { (a) } } }
                 })
                 .collect()

@@ -1,8 +1,6 @@
-//! The `independent` brick flag through `decide`: inbound allowed unless a deny names it,
-//! outbound only to another independent brick under an allow naming both. Flat root config over
-//! the `config::tests` crates.
+//! The `independent` brick flag: inbound from a sibling needs nothing, outbound only to another
+//! independent brick through a rule and a link. Flat root config over the `config::tests` crates.
 
-use crate::config::load;
 use crate::config::tests::{cache, edge, fixture, resolved};
 use crate::diag::diagnostic;
 
@@ -61,30 +59,44 @@ fn codes(f: &[(String, String)]) -> Vec<&str> {
     f.iter().map(|(c, _)| c.as_str()).collect()
 }
 
-fn rule(from: &str, to: &str, action: &str) -> String {
-    format!("[[rule]]\nfrom = \"{from}\"\nto = \"{to}\"\naction = \"{action}\"\n")
+fn rule(from: &str, to: &str) -> String {
+    format!("[[rule]]\nfrom = \"{from}\"\nto = \"{to}\"\nreason = \"r\"\n")
+}
+
+fn link(from: &str, to: &str) -> String {
+    format!("[[link]]\nfrom = \"{from}\"\nto = \"{to}\"\nreason = \"r\"\n")
 }
 
 #[test]
-fn outbound_to_a_normal_brick_is_denied_whatever_the_rules() {
+fn outbound_to_a_normal_brick_is_never_allowed() {
     for rules in [
         String::new(),
-        rule("*", "*", "allow"),
-        rule("lib", "other", "allow"),
+        rule("*", "*") + &link("lib", "other"),
+        rule("lib", "other") + &link("lib", "other"),
     ] {
         let f = run(&root(&rules), &[("core", "web-api")]);
-        assert_eq!(codes(&f), ["deps/deny"], "{rules}: {f:#?}");
+        assert_eq!(codes(&f), ["deps/unlinked"], "{rules}: {f:#?}");
         assert_eq!(f[0].1, "`lib` (lib) uses `other`");
     }
 }
 
 #[test]
-fn outbound_to_an_independent_brick_needs_an_allow_naming_both() {
-    let f = run(&root(&rule("*", "*", "allow")), &[("core", "web-ui")]);
-    assert_eq!(codes(&f), ["deps/deny"], "{f:#?}");
+fn outbound_to_an_independent_brick_needs_a_rule_and_a_link() {
+    // `*` never matches an independent brick.
+    let f = run(
+        &root(&(rule("*", "*") + &link("lib", "other-lib"))),
+        &[("core", "web-ui")],
+    );
+    assert_eq!(codes(&f), ["deps/unlinked"], "{f:#?}");
+    let f = run(&root(&rule("lib", "other-lib")), &[("core", "web-ui")]);
+    assert_eq!(
+        codes(&f),
+        ["deps/unlinked"],
+        "a rule alone is not a link: {f:#?}"
+    );
     for from in ["lib", "tag:lib"] {
         let f = run(
-            &root(&rule(from, "other-lib", "allow")),
+            &root(&(rule(from, "other-lib") + &link("lib", "other-lib"))),
             &[("core", "web-ui")],
         );
         assert!(f.is_empty(), "{from}: {f:#?}");
@@ -98,55 +110,49 @@ fn edge_inside_an_independent_brick_is_fine() {
 }
 
 #[test]
-fn inbound_is_allowed_unless_a_deny_names_it() {
+fn inbound_needs_no_rule_and_no_link() {
     let f = run(&root(""), &[("web-api", "core")]);
     assert!(f.is_empty(), "{f:#?}");
-    let f = run(&root(&rule("*", "*", "deny")), &[("web-api", "core")]);
-    assert!(
-        f.is_empty(),
-        "`*` never matches an independent brick: {f:#?}"
-    );
-    for to in ["lib", "tag:lib"] {
-        let f = run(&root(&rule("other", to, "deny")), &[("web-api", "core")]);
-        assert_eq!(codes(&f), ["deps/deny"], "{to}: {f:#?}");
-    }
-    let rules = rule("*", "lib", "deny") + &rule("other", "lib", "allow");
-    let f = run(&root(&rules), &[("web-api", "core")]);
-    assert!(f.is_empty(), "the more specific allow wins: {f:#?}");
 }
 
 #[test]
-fn independent_in_a_nested_level_is_invalid() {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::create_dir_all(dir.path().join("crates/web")).unwrap();
-    std::fs::write(
-        dir.path().join("brickie.toml"),
-        "[[brick]]\nname = \"web\"\npath = \"crates/web\"\n",
-    )
-    .unwrap();
-    std::fs::write(
-        dir.path().join("crates/web/brickie.toml"),
-        "[[brick]]\nname = \"api\"\nmembers = [\"web-api\"]\nindependent = true\n",
-    )
-    .unwrap();
-    let e = format!("{:#}", load(&dir.path().join("brickie.toml")).unwrap_err());
-    assert!(e.contains("config/invalid"), "{e}");
+fn independent_in_a_nested_level_serves_its_siblings() {
+    let root = "[[brick]]\nname = \"app\"\nmembers = [\"core\"]\n\
+        [[brick]]\nname = \"web\"\npath = \"crates/web\"\n";
+    let web = "exports = [\"api\", \"shared\"]\n\
+        [[brick]]\nname = \"api\"\nmembers = [\"web-api\"]\n\
+        [[brick]]\nname = \"ui\"\nmembers = [\"web-ui\"]\n\
+        [[brick]]\nname = \"shared\"\nmembers = [\"web-shared\"]\nindependent = true\n";
+    let f = run_in(root, web, &[("web-ui", "web-shared")]);
+    assert!(f.is_empty(), "a sibling uses it freely: {f:#?}");
+    // From outside, the edge is judged at the root like any other: it needs a link.
+    let f = run_in(root, web, &[("core", "web-shared")]);
+    assert_eq!(codes(&f), ["deps/unlinked"], "{f:#?}");
+    let root = format!("{root}{}{}", rule("app", "web"), link("app", "web/shared"));
+    let f = run_in(&root, web, &[("core", "web-shared")]);
+    assert!(
+        f.is_empty(),
+        "an exported lib is reached through a link: {f:#?}"
+    );
 }
 
 #[test]
 fn independent_root_composite_acts_as_one_lib() {
     let root = "[[brick]]\nname = \"app\"\nmembers = [\"core\"]\n\
         [[brick]]\nname = \"web\"\npath = \"crates/web\"\nindependent = true\n";
-    let web = "exports = [\"api\"]\n\
+    let web = format!(
+        "exports = [\"api\"]\n\
         [[brick]]\nname = \"api\"\nmembers = [\"web-api\"]\n\
         [[brick]]\nname = \"ui\"\nmembers = [\"web-ui\"]\n\
-        [[brick]]\nname = \"shared\"\nmembers = [\"web-shared\"]\n\
-        [[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\n";
-    let f = run_in(root, web, &[("web-ui", "web-shared"), ("core", "web-api")]);
+        [[brick]]\nname = \"shared\"\nmembers = [\"web-shared\"]\n{}{}",
+        rule("*", "*"),
+        link("ui", "shared")
+    );
+    let f = run_in(root, &web, &[("web-ui", "web-shared"), ("core", "web-api")]);
     assert!(f.is_empty(), "{f:#?}");
-    let f = run_in(root, web, &[("web-api", "core")]);
-    assert_eq!(codes(&f), ["deps/deny"], "{f:#?}");
-    let f = run_in(root, web, &[("core", "web-ui")]);
+    let f = run_in(root, &web, &[("web-api", "core")]);
+    assert_eq!(codes(&f), ["deps/unlinked"], "{f:#?}");
+    let f = run_in(root, &web, &[("core", "web-ui")]);
     assert_eq!(
         codes(&f),
         ["deps/private"],
@@ -155,14 +161,36 @@ fn independent_root_composite_acts_as_one_lib() {
 }
 
 #[test]
-fn unused_links_skip_allows_that_never_apply() {
-    let rules = rule("lib", "other", "allow") + &rule("other", "lib", "allow");
-    let (dir, cfg) = fixture(&root(&rules), "");
-    let res = resolved(dir.path(), &cfg).unwrap();
-    let c = cache(&dir.path().canonicalize().unwrap(), &[]);
-    assert!(super::unused_links(&c, &cfg, &res).is_empty());
-    let rules = rule("lib", "other-lib", "allow");
-    let (dir, cfg) = fixture(&root(&rules), "");
-    let res = resolved(dir.path(), &cfg).unwrap();
-    assert_eq!(super::unused_links(&c, &cfg, &res).len(), 1);
+fn a_link_from_an_independent_to_a_normal_brick_is_denied() {
+    let rules = rule("lib", "other") + &link("lib", "other") + &link("other", "lib");
+    let (_dir, cfg) = fixture(&root(&rules), "");
+    let d = super::design_links(&cfg);
+    assert!(
+        d[0].denied
+            .as_deref()
+            .is_some_and(|w| w.contains("independent")),
+        "{d:#?}"
+    );
+    assert!(
+        d[1].denied.is_none(),
+        "a link into a lib needs no rule: {d:#?}"
+    );
+}
+
+#[test]
+fn a_valid_link_is_planned_until_a_measured_edge_uses_it() {
+    let r = root(&(rule("lib", "other-lib") + &link("lib", "other-lib")));
+    let planned = |edges: &[(&str, &str)]| {
+        let (dir, cfg) = fixture(&r, "");
+        let res = resolved(dir.path(), &cfg).unwrap();
+        let ws = dir.path().canonicalize().unwrap();
+        let es = edges.iter().map(|(f, t)| edge(f, t, "prod")).collect();
+        let c = cache(&ws, &[("core", es, vec![])]);
+        let marked = super::marked_links(&c, &cfg, &res);
+        let only = super::planned_links(&c, &cfg, &res);
+        assert_eq!(only.len(), marked.iter().filter(|s| s.planned).count());
+        marked.iter().any(|s| s.planned)
+    };
+    assert!(planned(&[]));
+    assert!(!planned(&[("core", "web-ui")]));
 }

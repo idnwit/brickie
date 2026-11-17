@@ -1,5 +1,5 @@
 //! `ungroup`: undo a composite. Its children are lifted into the parent file (`path` and
-//! `path:` members rebased), with the child level's `[[rule]]` and `[[complexity]]`
+//! `path:` members rebased), with the child level's `[[rule]]`, `[[link]]` and `[[complexity]]`
 //! entries (their selectors name the same bricks, now siblings); the brick stays as a leaf
 //! without `path`. The child level's `exports` no longer mean anything and are dropped. The
 //! child file leaves the design: publish lists it for deletion by hand (it never deletes).
@@ -39,7 +39,7 @@ pub fn ungroup(docs: &mut Docs, file: &str, name: &str) -> Result<()> {
         rebase(&mut b, &from, &to);
         insert(parent, b).with_context(|| format!("ungroup '{name}'"))?;
     }
-    for path in [&["rule"][..], &["complexity"]] {
+    for path in [&["rule"][..], &["link"], &["complexity"]] {
         for t in lifted(path) {
             aot_mut(parent, path)?.push(t);
         }

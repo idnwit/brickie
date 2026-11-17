@@ -11,7 +11,7 @@ mod interface;
 mod measure;
 mod view;
 
-pub(crate) use assets::wasm_embedded;
+pub(crate) use assets::{bundle, wasm_embedded};
 
 use super::AppState;
 use crate::code::CodeProvider;
@@ -45,7 +45,7 @@ pub fn router(state: AppState) -> Router {
         .route(MeasureStatus::PATH, get(measure::status))
         .route(EVENTS_PATH, get(events::events))
         .route(MeasureStart::PATH, post(measure::start))
-        .route("/static/ui/brickie_ui.js", get(assets::ui_js))
-        .route("/static/ui/brickie_ui_bg.wasm", get(assets::ui_wasm))
+        .route(&assets::ui_urls().0, get(assets::ui_js))
+        .route(&assets::ui_urls().1, get(assets::ui_wasm))
         .with_state(state)
 }

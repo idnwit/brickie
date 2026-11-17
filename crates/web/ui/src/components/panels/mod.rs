@@ -2,6 +2,7 @@
 
 mod bricks;
 mod card;
+mod design;
 mod details;
 mod diagnostics;
 mod functions;

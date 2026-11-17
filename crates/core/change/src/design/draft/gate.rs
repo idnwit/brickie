@@ -1,17 +1,19 @@
-//! The publish gate: the code must match the draft's structure. Strict resolve of the draft
-//! over a fresh cache: no partition error, no planned brick, no stale cache. Dependency and
-//! rule findings never block; they are reported as information, with the allow rules no
-//! measured edge uses yet.
+//! The publish gate: every link of the draft is allowed by a rule (`design/link-denied`, read
+//! from the design alone), and the code matches the draft's structure: strict resolve over a
+//! fresh cache, no partition error, no planned brick, no stale cache. Dependency findings never
+//! block; they are reported as information, with the links no measured edge uses yet and the
+//! links on a cycle.
 
 use super::super::Design;
 use super::super::tree::Files;
 use crate::paths::to_rel;
 use crate::preview::{cache_mismatch, planned};
+use crate::report::design_todo;
 use anyhow::Result;
 use brickie_check::check::{self, Loaded};
-use brickie_check::config::{Partition, level_name};
-use brickie_model::codes::{DESIGN_INVALID, DESIGN_PLANNED, STALE_MEASURE};
-use brickie_model::design::{Blocker, Gate};
+use brickie_check::config::{Config, Partition, level_name};
+use brickie_model::codes::{DESIGN_INVALID, DESIGN_LINK_DENIED, DESIGN_PLANNED, STALE_MEASURE};
+use brickie_model::design::{Blocker, Gate, TaskKind};
 
 fn item(code: &str, message: String) -> Blocker {
     Blocker {
@@ -24,10 +26,23 @@ fn item(code: &str, message: String) -> Blocker {
     }
 }
 
+/// The design-only part of the gate: denied links block, links on a cycle are information.
+fn links(cfg: &Config, g: &mut Gate) {
+    for t in design_todo(cfg) {
+        match t.kind {
+            TaskKind::LinkDenied => g.blocking.push(item(DESIGN_LINK_DENIED, t.text)),
+            TaskKind::LinkCycle => g.info.push(t.text),
+        }
+    }
+}
+
 impl Design {
     /// The gate of the draft `files` against the measured cache on disk.
     pub(crate) fn gate(&self, files: &Files) -> Result<Gate> {
         let mut g = Gate::default();
+        if let Ok(cfg) = self.preview(files)?.load_config() {
+            links(&cfg, &mut g);
+        }
         if !self.root.join(".brickie/cache.json").is_file() {
             let msg = "no measurements yet: run `brickie measure`".to_string();
             g.blocking.push(item(STALE_MEASURE, msg));
@@ -68,13 +83,13 @@ impl Design {
                 false => g.info.push(format!("{}: {}", d.code, d.message)),
             }
         }
-        for link in check::unused_links(l) {
+        for s in check::planned_links(l) {
             g.info.push(format!(
-                "unused rule: {} -> {} in {} decides no edge yet ({}); write the code",
-                link.from,
-                link.to,
-                level_name(&link.level),
-                link.filter_text(),
+                "planned link: {} -> {} in {} has no code edge yet ({})",
+                s.link.from,
+                s.link.to,
+                level_name(&s.level),
+                s.match_text(),
             ));
         }
         for path in planned(&l.cfg, &l.resolved) {

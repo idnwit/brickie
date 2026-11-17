@@ -1,5 +1,5 @@
 //! Configuration types: one config file (a level of the brick tree), its bricks, exports,
-//! dependency rules and complexity rules.
+//! rules, links and complexity rules.
 
 use super::Sel;
 use serde::Deserialize;
@@ -20,7 +20,7 @@ pub struct Brick {
     pub path: Option<String>,
     /// One-line description shown in the viewer; no effect on checks.
     pub desc: Option<String>,
-    /// The brick acts like an external library (root level only); see `rules::decide`.
+    /// The brick acts like a library of its level: its siblings (and what they nest) use it freely.
     #[serde(default)]
     pub independent: bool,
     /// Canonical directory of the declaring file; `path:` members are relative to it.
@@ -31,20 +31,13 @@ pub struct Brick {
     pub sub: Option<Box<Config>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Action {
-    Allow,
-    Deny,
-}
-
-/// Which code a rule looks at; the default is production code.
+/// Which code a rule or link covers; the default is all code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Scope {
-    #[default]
     Prod,
     Test,
+    #[default]
     All,
 }
 
@@ -66,35 +59,57 @@ impl Scope {
     }
 }
 
-impl DepRule {
-    /// Whether the rule applies to an edge entering its `to` brick through child `entered`
-    /// (`None` for a leaf target): a `via` rule needs the child in `via`.
-    pub fn enters(&self, entered: Option<&str>) -> bool {
-        self.via
-            .as_ref()
-            .is_none_or(|via| entered.is_some_and(|e| via.iter().any(|v| v == e)))
-    }
+fn prod() -> Scope {
+    Scope::Prod
 }
 
 pub const KINDS: [&str; 3] = ["uses", "implements", "reexports"];
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DepRule {
+/// `[[rule]]`: a principle that allows links `from -> to` (a brick, `tag:x` or `*`). Nothing
+/// is allowed unless a rule allows it.
+pub struct Rule {
     pub from: Sel,
     pub to: Sel,
-    /// Exported children of the `to` composite the rule applies to; `None` matches any entry.
-    pub via: Option<Vec<String>>,
     /// Empty means all kinds.
     #[serde(default)]
     pub kinds: Vec<String>,
     #[serde(default)]
     pub scope: Scope,
-    pub action: Action,
-    pub reason: Option<String>,
+    pub reason: String,
     /// `file:line` of the rule header, filled in while loading.
     #[serde(skip)]
     pub loc: String,
+}
+
+/// `[[link]]`: a declared dependency from a brick of this level to a sibling, or to an
+/// exported child of a sibling composite (`to = "composite/child"`). A code edge is allowed
+/// only through a link that some rule allows.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Link {
+    pub from: String,
+    pub to: String,
+    /// Empty means all kinds.
+    #[serde(default)]
+    pub kinds: Vec<String>,
+    #[serde(default)]
+    pub scope: Scope,
+    pub reason: String,
+    /// `file:line` of the link header, filled in while loading.
+    #[serde(skip)]
+    pub loc: String,
+}
+
+impl Link {
+    /// The sibling brick `to` names, and the child it enters through (`composite/child`).
+    pub fn target(&self) -> (&str, Option<&str>) {
+        match self.to.split_once('/') {
+            Some((b, c)) => (b, Some(c)),
+            None => (&self.to, None),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -108,7 +123,8 @@ pub struct ComplexityRule {
     pub paths: Option<u64>,
     pub params: Option<u32>,
     pub lines: Option<u32>,
-    #[serde(default)]
+    /// Complexity limits look at production code unless they say otherwise.
+    #[serde(default = "prod")]
     pub scope: Scope,
     #[serde(skip)]
     pub loc: String,
@@ -125,8 +141,10 @@ pub struct Config {
     pub bricks: Vec<Brick>,
     /// Children visible from outside this composite (unused at the root).
     pub exports: Vec<String>,
-    /// `[[rule]]`: dependency rules between this level's children.
-    pub rules: Vec<DepRule>,
+    /// `[[rule]]`: the principles links between this level's children must follow.
+    pub rules: Vec<Rule>,
+    /// `[[link]]`: the declared dependencies between this level's children.
+    pub links: Vec<Link>,
     pub complexity: Vec<ComplexityRule>,
     /// `[measure]`; only the root level may set it.
     pub measure: super::MeasureCfg,

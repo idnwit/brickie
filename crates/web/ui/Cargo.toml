@@ -20,7 +20,7 @@ sycamore = { version = "0.9", default-features = false, features = ["web"] }
 web-sys = { version = "0.3", features = ["Event", "MouseEvent", "HtmlInputElement", "Element", "Document", "Window", "KeyboardEvent", "History", "Location", "Request", "RequestInit", "Response", "Headers", "EventTarget", "WheelEvent", "DomRect", "HtmlElement", "HtmlIFrameElement", "MessageEvent", "Performance", "EventSource", "FocusEvent", "console", "Navigator", "Clipboard"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-# Must match the wasm-bindgen CLI used by scripts/build-ui.sh.
+# Must match the wasm-bindgen CLI used by crates/web/server/build.rs.
 wasm-bindgen = "=0.2.123"
 wasm-bindgen-futures = "0.4"
 

@@ -20,7 +20,8 @@ fn kind(k: Kind) -> BrickKind {
 pub fn edit(d: &Design, e: Edit) -> Result<(Vec<Op>, Write)> {
     match e {
         Edit::Brick(c) => brick(d, c),
-        Edit::Rule(c) => rule(d, c),
+        Edit::Rule(c) => rule(d, c, false),
+        Edit::Link(c) => rule(d, c, true),
         Edit::Export(c) => export(d, c),
         Edit::Limit(c) => limit(d, c),
         Edit::Include(c) => include(d, c),
@@ -109,40 +110,42 @@ fn key(sel: &RuleSel) -> RuleKey {
     }
 }
 
-/// `--via ''` gives an empty list, which `rule set` reads as removing `via`.
-fn via(v: Option<Vec<String>>) -> Option<Vec<String>> {
-    v.map(|v| v.into_iter().filter(|s| !s.is_empty()).collect())
-}
-
-pub fn rule(d: &Design, c: RuleCmd) -> Result<(Vec<Op>, Write)> {
+/// The ops of a rule command, or with `link` of a link command.
+pub fn rule(d: &Design, c: RuleCmd, link: bool) -> Result<(Vec<Op>, Write)> {
     Ok(match c {
-        RuleCmd::Add { sel, action, f, w } => {
-            let rule = RuleSpec {
+        RuleCmd::Add { sel, reason, w } => {
+            let spec = RuleSpec {
                 from: sel.from,
                 to: sel.to,
-                via: via(f.via).unwrap_or_default(),
                 kinds: sel.kinds,
                 scope: sel.scope,
-                action,
-                reason: f.reason,
+                reason,
             };
             let file = level(d, sel.level.as_deref())?;
-            (vec![Op::AddRule { file, rule }], w)
-        }
-        RuleCmd::Set { sel, action, f, w } => {
-            let key = key(&sel);
-            let file = d.rule_file(&level(d, sel.level.as_deref())?, &key)?;
-            let set = RulePatch {
-                action,
-                reason: f.reason,
-                via: via(f.via),
+            let op = match link {
+                true => Op::AddLink { file, link: spec },
+                false => Op::AddRule { file, rule: spec },
             };
-            (vec![Op::SetRule { file, key, set }], w)
+            (vec![op], w)
+        }
+        RuleCmd::Set { sel, reason, w } => {
+            let key = key(&sel);
+            let file = d.rule_file(&level(d, sel.level.as_deref())?, link, &key)?;
+            let set = RulePatch { reason };
+            let op = match link {
+                true => Op::SetLink { file, key, set },
+                false => Op::SetRule { file, key, set },
+            };
+            (vec![op], w)
         }
         RuleCmd::Rm { sel, w } => {
             let key = key(&sel);
-            let file = d.rule_file(&level(d, sel.level.as_deref())?, &key)?;
-            (vec![Op::RemoveRule { file, key }], w)
+            let file = d.rule_file(&level(d, sel.level.as_deref())?, link, &key)?;
+            let op = match link {
+                true => Op::RemoveLink { file, key },
+                false => Op::RemoveRule { file, key },
+            };
+            (vec![op], w)
         }
     })
 }

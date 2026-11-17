@@ -37,33 +37,82 @@ desc = "Note use cases"
 from = "usecases"
 to = "*"
 scope = "all"
-action = "allow"
 reason = "the interactor wires feature use cases to ports"
 
 [[rule]]
 from = "usecases-columns"
 to = "board-service"
 scope = "all"
-action = "allow"
-reason = "drafts and errors"
+reason = "column use cases take drafts and return the service's errors"
 
 [[rule]]
 from = "usecases-columns"
 to = "board-storage"
 scope = "all"
-action = "allow"
-reason = "load and save through ports"
+reason = "column use cases load and save the board through the ports"
 
 [[rule]]
 from = "usecases-notes"
 to = "board-service"
 scope = "all"
-action = "allow"
-reason = "drafts and errors"
+reason = "note use cases take drafts and return the service's errors"
 
 [[rule]]
 from = "usecases-notes"
 to = "board-storage"
 scope = "all"
-action = "allow"
-reason = "load and save through ports"
+reason = "note use cases load and save the board through the ports"
+
+[[link]]
+from = "usecases"
+to = "board-service"
+kinds = ["implements", "uses"]
+reason = "the interactor implements the BoardService trait and returns its views"
+
+[[link]]
+from = "usecases"
+to = "board-storage"
+kinds = ["implements", "uses"]
+reason = "the interactor loads and saves boards through the repository ports"
+
+[[link]]
+from = "usecases"
+to = "usecases-columns"
+kinds = ["uses"]
+scope = "prod"
+reason = "the interactor delegates column operations to the column use cases"
+
+[[link]]
+from = "usecases"
+to = "usecases-notes"
+kinds = ["uses"]
+scope = "prod"
+reason = "the interactor delegates note operations to the note use cases"
+
+[[link]]
+from = "usecases-columns"
+to = "board-service"
+kinds = ["uses"]
+scope = "prod"
+reason = "column use cases take drafts and return the service's errors"
+
+[[link]]
+from = "usecases-columns"
+to = "board-storage"
+kinds = ["uses"]
+scope = "prod"
+reason = "column use cases load and save the board through the ports"
+
+[[link]]
+from = "usecases-notes"
+to = "board-service"
+kinds = ["uses"]
+scope = "prod"
+reason = "note use cases take drafts and return the service's errors"
+
+[[link]]
+from = "usecases-notes"
+to = "board-storage"
+kinds = ["uses"]
+scope = "prod"
+reason = "note use cases load and save the board through the ports"

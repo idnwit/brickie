@@ -17,7 +17,7 @@ and configs and resolves the brick tree on every run. It needs no rust-analyzer.
 - Unknown fields, duplicate bricks and unknown selectors are errors (exit 2).
 - Small schema mistakes (unknown selector, kind or export, nested `independent`) share one code,
   `config/invalid`, with a message naming the fix: one code per kind of fix, not per key.
-- `via` is validated after the composites load (`config/unknown-via`): `to` names a composite brick, the list is not empty and every name is in that composite's `exports`. `via` is a property of a rule, not of its identity: `rule set` keeps it unless given. An unused-link check backs a `via` rule only with a measured edge that enters through a `via` child. Design ops keep it valid: renaming a child rewrites parent rules; remove, move, unexport and ungroup fail with `design/invalid` when a `via` would dangle.
+- A link naming `composite/child` is validated after the composites load (`config/invalid`): the target is a composite and the child is in its `exports`. The rest of the rules and links decision: [links.md](links.md).
 - Per-level semantics (exports, partition): [levels.md](levels.md).
 
 ## Resolution: member selectors
@@ -50,18 +50,16 @@ subtree; an equal length in two bricks stays an error.
 
 ## Rules
 
-The rules themselves are stated once in `docs/llms.txt` ("Rules"). Decisions behind them:
+The rules and links themselves are stated once in `docs/llms.txt` ("Rules"). The decision, its
+reasons and the open questions: [links.md](links.md). Check-specific decisions:
 
 | Decision | Reason |
 | --- | --- |
-| One decision function, `config::decide(level, from, to, entered, kind, scope)` (`entered`: the child of `to` the edge enters through, for `via`), implements rules 5 and 7; `check`, the design editor (`link_options`, `link_check`, notes), the unused-link list and the viewer all call it | a rule re-implemented in a second place drifts |
-| No match is deny, fixed (`deps.default` cut); `* -> *` allow opens a level | the design lists what is allowed; one fewer option per file |
-| Every forbidden edge is `deps/deny` (`deps/default`, `deps/independent` merged into it) | one fix per code: remove the edge or ask for a rule |
-| Sibling cycles are always errors (`deps.cycles` cut) | a layered design has no cycles |
-| Exports are a plain list (scoped exports cut); `via` kept | `via` narrows a rule to an exported entry point (ports in a hexagon); scoped exports duplicated what scope on rules does |
-| Rule `help` and complexity `help` / `level` cut | every finding is an error; the fix text is per code in llms.txt |
-| `independent`: `*` never matches it; inbound allowed unless a deny names it; outbound only to another independent brick under an allow naming both; an allow to a normal brick never applies (a `rule add` note says it changes nothing) | a library knows nothing of its users; no special code or config error needed |
-| Unused allow rules are information of `design check` only (`deps/unused` cut as a finding); a rule is used when `decide` picks it for a measured edge | an unwritten edge is planned work, not a violation |
+| Shared decision functions in `config/decide.rs` (`rule_allows`, `judge_link`, `covering_link`, `free`, `link_cycles`); `check`, the publish gate, the design editor and the viewer all call them | a rule re-implemented in a second place drifts |
+| A measured edge is allowed only by a valid link (`deps/unlinked`; `deps/deny`, `deps/default`, `deps/independent` merged into it); the `rule` line says whether no link covers it or a covering link is denied | one fix per code: remove the edge or declare the link |
+| Sibling code cycles are always errors (`deps.cycles` cut); cycles among links are information | code cycles are a defect; a drawn cycle is a plan to review |
+| Exports are a plain list, checked after links (`deps/private` ignores rules and links) | a composite's internals stay private whatever is declared |
+| Planned links (valid, no measured edge) are information of `design check` only (`deps/unused` cut) | an unwritten edge is planned work, not a violation |
 
 Other rule facts: an edge lifts to the lowest common ancestor `L` (O(depth)); `deps/private` is
 checked for every lifted edge and is independent of rules; one finding per module edge (from, to,
@@ -84,13 +82,13 @@ from `git diff` / `git status` confirmed by sha256, workspace members unknown to
 
 - A finding is a `Diagnostic` (`crates/core/check/src/diag/`). Its `id` is the first 8 hex of
   sha256 of `code\0subject`, so review decisions survive re-runs. Codes: `crates/core/model/src/codes.rs`.
-- Id subjects (what follows `code\0`): `deps/deny|private` `from->to:kind:scope` by
+- Id subjects (what follows `code\0`): `deps/unlinked|private` `from->to:kind:scope` by
   module; `deps/cycle` member names (prefixed by the level below root); `complexity/m` `file::fn::m`; `interface/unused`
   `leaf path:module:symbol`; `stale/file` the file; `stale/measure` `measure`; `bricks/unmapped`
   the module id.
 - Text output is cargo-style. JSON is `{summary, diagnostics}`; the webview consumes it.
 - `check --brick PATH` (repeatable) shows findings whose owner is the brick or a descendant,
-  matched by level path. Owners: source brick of `deps/deny|private`, all members of
+  matched by level path. Owners: source brick of `deps/unlinked|private`, all members of
   `deps/cycle`, the defining brick of `interface/*`, the function's
   brick of `complexity/*`; ownerless findings (`stale/file`, `bricks/unmapped`) always show.
   Everything is evaluated; the exit code uses the shown set; the footer is `outside scope: N

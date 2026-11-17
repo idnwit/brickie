@@ -33,61 +33,122 @@ desc = "Column and note forms"
 from = "shell"
 to = "*"
 scope = "all"
-action = "allow"
 reason = "the shell mounts everything"
 
 [[rule]]
 from = "board-view"
 to = "column-view"
 scope = "all"
-action = "allow"
-reason = "board lists columns"
+reason = "the board view lists one column view per column"
 
 [[rule]]
 from = "board-view"
 to = "forms"
 scope = "all"
-action = "allow"
-reason = "new-column form"
+reason = "the board view hosts the new-column form"
 
 [[rule]]
 from = "board-view"
 to = "drag"
 scope = "all"
-action = "allow"
-reason = "drag state"
+reason = "the board view owns the shared drag state"
 
 [[rule]]
 from = "column-view"
 to = "note-card"
 scope = "all"
-action = "allow"
-reason = "column lists cards"
+reason = "the column view renders a card for each note"
 
 [[rule]]
 from = "column-view"
 to = "drag"
 scope = "all"
-action = "allow"
-reason = "drop zone"
+reason = "the column view resolves drops with the drag state"
 
 [[rule]]
 from = "column-view"
 to = "forms"
 scope = "all"
-action = "allow"
-reason = "note form"
+reason = "the column view hosts the new-note form"
 
 [[rule]]
 from = "note-card"
 to = "drag"
 scope = "all"
-action = "allow"
-reason = "drag start"
+reason = "a card starts a drag by setting the drag state"
 
 [[rule]]
 from = "note-card"
 to = "forms"
 scope = "all"
-action = "allow"
-reason = "edit form"
+reason = "a card opens the edit form for its note"
+
+[[link]]
+from = "board-view"
+to = "column-view"
+kinds = ["uses"]
+scope = "prod"
+reason = "the board view lists one column view per column"
+
+[[link]]
+from = "board-view"
+to = "drag"
+kinds = ["uses"]
+scope = "prod"
+reason = "the board view owns the shared drag state"
+
+[[link]]
+from = "board-view"
+to = "forms"
+kinds = ["uses"]
+scope = "prod"
+reason = "the board view hosts the new-column form"
+
+[[link]]
+from = "column-view"
+to = "drag"
+kinds = ["uses"]
+scope = "prod"
+reason = "the column view resolves drops with the drag state"
+
+[[link]]
+from = "column-view"
+to = "forms"
+kinds = ["uses"]
+scope = "prod"
+reason = "the column view hosts the new-note form"
+
+[[link]]
+from = "column-view"
+to = "note-card"
+kinds = ["uses"]
+scope = "prod"
+reason = "the column view renders a card for each note"
+
+[[link]]
+from = "note-card"
+to = "drag"
+kinds = ["uses"]
+scope = "prod"
+reason = "a card starts a drag by setting the drag state"
+
+[[link]]
+from = "note-card"
+to = "forms"
+kinds = ["uses"]
+scope = "prod"
+reason = "a card opens the edit form for its note"
+
+[[link]]
+from = "shell"
+to = "board-view"
+kinds = ["uses"]
+scope = "prod"
+reason = "the shell mounts the board view as the app body"
+
+[[link]]
+from = "shell"
+to = "drag"
+kinds = ["uses"]
+scope = "prod"
+reason = "the shell creates the drag state shared by the views"

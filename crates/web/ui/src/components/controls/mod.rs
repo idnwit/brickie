@@ -37,7 +37,7 @@ fn counts(cx: &Cx) -> impl Fn() -> View + 'static {
 }
 
 pub fn header(cx: &Cx) -> View {
-    let (presets, vscope, menu) = (presets(cx), vscope(cx), layers_menu(cx));
+    let (vscope, menu) = (vscope(cx), layers_menu(cx));
     let c = cx.clone();
     let fit = move |_: Click| {
         if let Some(s) = c.stage.get() {
@@ -57,6 +57,8 @@ pub fn header(cx: &Cx) -> View {
         }
     };
     // Design mode reads the design files alone: no finding counts, presets or measure controls.
+    // Build them only when shown: an element built but never inserted breaks hydration (its key is
+    // taken on the server and the client but missing from the page).
     let code = !cx.editing();
     let counts = if code {
         View::from(counts(cx))
@@ -66,7 +68,7 @@ pub fn header(cx: &Cx) -> View {
     let design = crate::components::editor::design_button(cx);
     let measure = code.then(|| measure::measure(&cx.m.cache, cx.bus.job));
     let pill = code.then(|| measure::pill(cx.bus.pill));
-    let presets = code.then_some(presets);
+    let presets = code.then(|| presets(cx));
     view! {
         header {
             b { "brickie" }

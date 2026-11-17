@@ -35,9 +35,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - name: clippy (ui, wasm hydrate)
         run: cargo clippy -p brickie-ui --target wasm32-unknown-unknown --features hydrate -- -D warnings
-      - name: Build UI bundle
-        run: scripts/build-ui.sh
-      - name: Test (with embedded bundle)
+      - name: Test
         run: cargo test --workspace
       - name: brickie checks itself
         # The gate on brickie's own bricks (brickie.toml): measure, then check.

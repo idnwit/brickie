@@ -19,7 +19,7 @@ pub struct Ctx<'a> {
     edges: Vec<ModEdge>,
     heat: BTreeMap<String, (f64, Vec<HotFn>)>,
     diags: BTreeMap<&'a str, &'a Diagnostic>,
-    links: Vec<(String, UnusedLink)>,
+    links: Vec<(String, LevelLink)>,
 }
 
 #[derive(Default)]
@@ -86,8 +86,8 @@ impl Agg {
 }
 
 impl<'a> Ctx<'a> {
-    /// `links`: the rule links to draw ([`super::links::served`] or [`super::links::rules`]).
-    pub fn new(l: &'a Loaded, links: Vec<(String, UnusedLink)>) -> Ctx<'a> {
+    /// `links`: the links to draw ([`super::links::served`] or [`super::links::design`]).
+    pub fn new(l: &'a Loaded, links: Vec<(String, LevelLink)>) -> Ctx<'a> {
         Ctx {
             l,
             edges: mod_edges(l),
@@ -112,7 +112,7 @@ impl<'a> Ctx<'a> {
         let edges = (agg.edges.into_iter())
             .map(|(key, acc)| self.edge_view(key, acc, &index, &hops, &name))
             .collect();
-        let unused_links = (self.links.iter())
+        let links = (self.links.iter())
             .filter(|(lv, _)| *lv == name)
             .map(|(_, e)| e.clone())
             .collect();
@@ -125,7 +125,7 @@ impl<'a> Ctx<'a> {
                 bricks,
                 edges,
             },
-            unused_links,
+            links,
         }
     }
 

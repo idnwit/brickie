@@ -6,15 +6,35 @@ const RULES: &str = r#"
 [[rule]]
 from = "*"
 to = "port"
-action = "allow"
+reason = "port is open"
 [[rule]]
 from = "app"
 to = "*"
-action = "allow"
+reason = "app may use anything"
 [[rule]]
 from = "engine"
 to = "adapter"
-action = "allow"
+reason = "engine drives adapters"
+[[link]]
+from = "engine"
+to = "adapter"
+reason = "needed"
+[[link]]
+from = "engine"
+to = "port"
+reason = "needed"
+[[link]]
+from = "adapter"
+to = "port"
+reason = "needed"
+[[link]]
+from = "app"
+to = "engine"
+reason = "needed"
+[[link]]
+from = "app"
+to = "adapter"
+reason = "needed"
 [[complexity]]
 cognitive = 10
 "#;

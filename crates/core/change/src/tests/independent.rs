@@ -57,7 +57,7 @@ fn set_brick_sets_and_unsets_independent() {
 }
 
 #[test]
-fn independent_on_a_nested_brick_is_invalid() {
+fn independent_on_a_nested_brick_is_allowed() {
     let ws = Ws::new();
     ws.apply(H, vec![add("g", &[])]).unwrap();
     ws.apply(
@@ -79,8 +79,7 @@ fn independent_on_a_nested_brick_is_invalid() {
         ],
     )
     .unwrap();
-    let err = ws
-        .apply(H, vec![set_independent("g/brickie.toml", "n", true)])
-        .unwrap_err();
-    assert!(format!("{err:#}").contains("design/invalid"), "{err:#}");
+    ws.apply(H, vec![set_independent("g/brickie.toml", "n", true)])
+        .unwrap();
+    assert!(ws.read("g/brickie.toml").contains("independent = true"));
 }

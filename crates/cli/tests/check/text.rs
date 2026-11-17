@@ -13,13 +13,27 @@ fn text_output_snapshot() {
 [[rule]]
 from = "*"
 to = "*"
-action = "allow"
+reason = "open"
 
-[[rule]]
-from = "tag:core"
-to = "tag:backend"
-action = "deny"
-reason = "core must not use adapter"
+[[link]]
+from = "engine"
+to = "port"
+reason = "needed"
+
+[[link]]
+from = "adapter"
+to = "port"
+reason = "needed"
+
+[[link]]
+from = "app"
+to = "engine"
+reason = "needed"
+
+[[link]]
+from = "app"
+to = "adapter"
+reason = "needed"
 
 [[complexity]]
 bricks = "tag:core"
@@ -36,17 +50,17 @@ cognitive = 15
 5 | pub fn busy() {{}}
   |        ^^^^ cognitive over the limit by 5
   |
-  = rule: complexity[0] cognitive <= 15 ({path}:29)
+  = rule: complexity[0] cognitive <= 15 ({path}:43)
   = help: return early or extract a function to cut cognitive by at least 5
 
-error[deps/deny]: `engine` (core) uses `adapter` (backend)
+error[deps/unlinked]: `engine` (core) uses `adapter` (backend)
  --> crates/eng/src/x.rs:2:14
   |
 2 |     let io = AudioIo::build();
   |              ^^^^^^^^^^^^^^ written `item` → defined in `adp::y`
   |
-  = rule: rule[1] \"core must not use adapter\" ({path}:23)
-  = help: remove the dependency, or change the rule if it is intended
+  = rule: no link covers it ({path})
+  = help: remove the dependency, or declare the link: `brickie design link add engine adapter --kind uses --scope prod --reason \"...\"`
   = note: modules: eng::x -> adp::y (uses, prod)
 
 error: 2 errors
@@ -63,7 +77,7 @@ error: 2 errors
         }
     });
     let cfg = w.save(&format!(
-        "{}[[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\n[[rule]]\nfrom = \"engine\"\nto = \"adapter\"\naction = \"deny\"\n",
+        "{}[[rule]]\nfrom = \"*\"\nto = \"*\"\nreason = \"open\"\n",
         bricks_with_misc()
     ));
     let o = run(&cfg, &["--color", "never"]);
@@ -74,7 +88,7 @@ error: 2 errors
     );
     // Colour is only used when asked for.
     let o = run(&cfg, &["--color", "always"]);
-    assert!(o.stdout.contains("\x1b[1;31merror[deps/deny]"));
+    assert!(o.stdout.contains("\x1b[1;31merror[deps/unlinked]"));
     assert!(!run(&cfg, &["--color", "never"]).stdout.contains('\x1b'));
 }
 

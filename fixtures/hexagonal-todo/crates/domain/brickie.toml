@@ -23,33 +23,64 @@ desc = "Board aggregate, invariants"
 from = "column"
 to = "kernel"
 scope = "all"
-action = "allow"
 reason = "values report DomainError"
 
 [[rule]]
 from = "note"
 to = "kernel"
 scope = "all"
-action = "allow"
 reason = "values report DomainError"
 
 [[rule]]
 from = "note"
 to = "column"
 scope = "all"
-action = "allow"
 reason = "a note is placed in a column"
 
 [[rule]]
 from = "board"
 to = "*"
 scope = "all"
-action = "allow"
 reason = "the aggregate composes everything"
 
 [[rule]]
 from = "kernel"
 to = "*"
 scope = "all"
-action = "allow"
-reason = "root module declares submodules"
+reason = "the crate root declares the submodules"
+
+[[link]]
+from = "board"
+to = "column"
+kinds = ["uses"]
+reason = "the board aggregate owns its columns and enforces their invariants"
+
+[[link]]
+from = "board"
+to = "kernel"
+kinds = ["uses"]
+reason = "the board reports invariant violations as DomainError"
+
+[[link]]
+from = "board"
+to = "note"
+kinds = ["uses"]
+reason = "the board aggregate holds the notes placed in its columns"
+
+[[link]]
+from = "column"
+to = "kernel"
+kinds = ["uses"]
+reason = "column values report invalid input as DomainError"
+
+[[link]]
+from = "note"
+to = "column"
+kinds = ["uses"]
+reason = "a note refers to the column it is placed in"
+
+[[link]]
+from = "note"
+to = "kernel"
+kinds = ["uses"]
+reason = "note values report invalid input as DomainError"

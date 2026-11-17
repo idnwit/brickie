@@ -2,7 +2,7 @@
 
 use super::support::*;
 
-const OPEN: &str = "[[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\n";
+const OPEN: &str = "[[rule]]\nfrom = \"*\"\nto = \"*\"\nreason = \"open\"\n";
 
 #[test]
 fn cycles() {

@@ -1,17 +1,18 @@
-//! Rule links on the canvas, one line per (from, to) brick pair, dashed like the edge kind. View
-//! mode: the unused allow rules, in the warning colour with a `!`. Design mode: every rule of the
-//! level from the design files, allow by kind colour, deny red. A yellow `?` marks a rule without a reason, `A` an agent's rule.
-//! The reason shows as a label on hover or selection only. In the editor a click selects the
-//! rule; in view mode it picks the link (a tap on touch).
+//! `[[link]]`s on the canvas, one line per (from, to) brick pair, dashed like the edge kind.
+//! View mode: the planned links (no code uses them yet), in the warning colour with a `!`.
+//! Design mode: every link of the level, by kind colour; a link no rule allows is red with a
+//! `\u{2715}` (the tooltip says why), one on a cycle of links carries `\u{21BB}`, an agent's
+//! link `A`. The reason shows as a label on hover or selection only. In the editor a click
+//! selects the link; in view mode it picks it (a tap on touch).
 
 mod pair;
 mod spot;
 
-pub use pair::ends;
+pub use pair::end;
 
 use crate::layout::{Pt, Rect, Route};
 use crate::state::*;
-use brickie_web_api::UnusedLink;
+use brickie_web_api::LevelLink;
 use brickie_web_api::design::Op as DOp;
 use pair::{Pair, pairs};
 use spot::mark_spot;
@@ -20,13 +21,13 @@ use sycamore::prelude::*;
 /// Horizontal step between the marks of one link (world units).
 const SLOT: f64 = 18.0;
 
-/// Whether an agent's version since your last edit added rule `e`.
-fn by_agent(cx: &Cx, e: &UnusedLink) -> bool {
+/// Whether an agent's version since your last edit added link `e`.
+fn by_agent(cx: &Cx, e: &LevelLink) -> bool {
     let Some(d) = cx.m.design.as_deref() else {
         return false;
     };
     agent_ops(&d.history).into_iter().any(|o| {
-        matches!(o, DOp::AddRule { file, rule } if *file == e.file && rule.from == e.from && rule.to == e.to)
+        matches!(o, DOp::AddLink { file, link } if *file == e.file && link.from == e.from && link.to == e.to)
     })
 }
 
@@ -46,7 +47,7 @@ fn path_of(cx: &Cx, a: usize, b: usize, p: &[Rect]) -> Route {
 }
 
 /// The dash of the pair's edge kind (`implements`, `reexports`); `None` keeps the default dash.
-fn kind_dash(e: &UnusedLink) -> Option<&'static str> {
+fn kind_dash(e: &LevelLink) -> Option<&'static str> {
     match e.kinds.as_slice() {
         [k] if k == "implements" || k == "reexports" => Some(crate::components::dash(k)),
         _ => None,
@@ -59,12 +60,15 @@ fn glyph(x: f64, y: f64, g: &str) -> View {
     view! { g(class="qmark") { circle(cx=px2, cy=py, r="8") text(x=px, y=ty, "text-anchor"="middle") { (g) } } }
 }
 
-/// The marks of one link (`!` in view mode, `?`, `A`) in a row from `at`, and the hover label after them.
+/// The marks of one link (`!` in view mode, denied, cycle, `A`) in a row from `at`, and the hover label after them.
 fn marks_of(pr: &Pair, at: Pt, agent: bool, editing: bool) -> (Vec<View>, Option<View>) {
-    // `!` (unused: no code backs it) is view mode only; Design mode never reads code.
+    // `!` (planned: no code uses it) is view mode only; Design mode never reads code.
     let mut glyphs = if editing { vec![] } else { vec!["!"] };
-    if pr.no_reason() {
-        glyphs.push("?");
+    if pr.denied() {
+        glyphs.push("\u{2715}");
+    }
+    if pr.cycle() {
+        glyphs.push("\u{21BB}");
     }
     let (ax, ay) = (at.x, at.y);
     let ty = (ay + 4.0).to_string();
@@ -93,10 +97,10 @@ fn marks_of(pr: &Pair, at: Pt, agent: bool, editing: bool) -> (Vec<View>, Option
     (shown, label)
 }
 
-/// Select the rule after the selected one among `refs` (the first when none is selected), and
+/// Select the link after the selected one among `refs` (the first when none is selected), and
 /// open the inspector.
 fn select_next(ed: Edit, refs: &[RuleRef]) {
-    // A pair of several rules: each click selects the next one.
+    // A pair of several links: each click selects the next one.
     let at = ed
         .rule
         .with_untracked(|x| x.as_ref().and_then(|r| refs.iter().position(|q| q == r)));
@@ -114,20 +118,18 @@ fn draw(
     picked: Signal<Option<(usize, usize)>>,
 ) -> View {
     let lead = pr.lead();
-    let ty = LinkType::of_rule(&lead.kinds, &lead.action);
+    let ty = LinkType::of_kinds(&lead.kinds);
+    let flags = format!(
+        "{}{}",
+        if pr.denied() { " denied" } else { "" },
+        if pr.cycle() { " cycle" } else { "" }
+    );
     let agent = pr.rules.iter().any(|e| by_agent(cx, e));
     let route = path_of(cx, pr.a, pr.b, p);
     let d = route.d();
     let at = mark_spot(&route, p, marks);
     let (shown, label) = marks_of(pr, at, agent, cx.editing());
-    let refs: Vec<RuleRef> = pr
-        .rules
-        .iter()
-        .map(|e| RuleRef {
-            file: e.file.clone(),
-            key: unused_key(e),
-        })
-        .collect();
+    let refs: Vec<RuleRef> = pr.rules.iter().map(|e| RuleRef::served(e)).collect();
     let (ed, editing, key) = (cx.ed, cx.editing(), (pr.a, pr.b));
     let (sel_refs, dash) = (refs.clone(), kind_dash(lead));
     let cls = move || -> String {
@@ -141,7 +143,7 @@ fn draw(
             if sel { " sel" } else { "" },
             if pick { " picked" } else { "" },
         );
-        format!("pedge plink l-{}{agent}{sel}{pick}", ty.name())
+        format!("pedge plink l-{}{flags}{agent}{sel}{pick}", ty.name())
     };
     let click = move |ev: Click| {
         ev.stop_propagation();

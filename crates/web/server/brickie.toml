@@ -30,19 +30,37 @@ desc = "Adapter for the code viewer: implements codeview's provider port from th
 from = "routes"
 to = "render"
 scope = "all"
-action = "allow"
 reason = "handlers answer with rendered pages"
 
 [[rule]]
 from = "routes"
 to = "data"
 scope = "all"
-action = "allow"
 reason = "handlers build page data from the check result"
 
 [[rule]]
 from = "routes"
 to = "code"
 scope = "all"
-action = "allow"
 reason = "the router mounts the code viewer with brickie's provider"
+
+[[link]]
+from = "routes"
+to = "code"
+kinds = ["uses"]
+scope = "prod"
+reason = "the router mounts the code viewer with brickie's provider"
+
+[[link]]
+from = "routes"
+to = "data"
+kinds = ["uses"]
+scope = "prod"
+reason = "handlers build their JSON answers from the data layer"
+
+[[link]]
+from = "routes"
+to = "render"
+kinds = ["uses"]
+scope = "prod"
+reason = "the page handler wraps the viewer in the rendered HTML shell"

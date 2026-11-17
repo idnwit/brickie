@@ -107,7 +107,7 @@ pub fn set(doc: &mut DocumentMut, name: &str, f: Fields) -> Result<()> {
     Ok(())
 }
 
-/// Rename a brick and every reference to it in the same file: rule selectors, complexity
+/// Rename a brick and every reference to it in the same file: rule selectors, links, complexity
 /// selectors and `exports` entries.
 pub fn rename(doc: &mut DocumentMut, from: &str, to: &str) -> Result<()> {
     if find_named(aot_mut(doc, &["brick"])?, to).is_some() {
@@ -117,11 +117,20 @@ pub fn rename(doc: &mut DocumentMut, from: &str, to: &str) -> Result<()> {
     rename_refs(doc, from, to)
 }
 
-/// Point the rule selectors, complexity selectors and `exports` of `doc` at `to`.
+/// Point the rule selectors, links, complexity selectors and `exports` of `doc` at `to`.
 pub fn rename_refs(doc: &mut DocumentMut, from: &str, to: &str) -> Result<()> {
     for t in aot_mut(doc, &["rule"])?.iter_mut() {
         rename_key(t, "from", from, to);
         rename_key(t, "to", from, to);
+    }
+    for t in aot_mut(doc, &["link"])?.iter_mut() {
+        rename_key(t, "from", from, to);
+        rename_key(t, "to", from, to);
+        let child = (t.get("to").and_then(Item::as_str))
+            .and_then(|v| v.strip_prefix(from)?.strip_prefix('/').map(String::from));
+        if let Some(c) = child {
+            t["to"] = value(format!("{to}/{c}"));
+        }
     }
     for t in aot_mut(doc, &["complexity"])?.iter_mut() {
         rename_key(t, "bricks", from, to);
@@ -147,7 +156,7 @@ fn rename_export(v: &mut Value, from: &str, to: &str) {
     }
 }
 
-/// Drop the empty `[[rule]]` / `[[complexity]]` / `[[brick]]` arrays that `aot_mut` created
+/// Drop the empty `[[rule]]` / `[[link]]` / `[[complexity]]` / `[[brick]]` arrays that `aot_mut` created
 /// while looking.
 pub fn prune_empty(doc: &mut DocumentMut) {
     let empty = |i: &Item| i.as_array_of_tables().is_some_and(|a| a.is_empty());
@@ -159,5 +168,8 @@ pub fn prune_empty(doc: &mut DocumentMut) {
     }
     if doc.get("rule").is_some_and(empty) {
         doc.remove("rule");
+    }
+    if doc.get("link").is_some_and(empty) {
+        doc.remove("link");
     }
 }

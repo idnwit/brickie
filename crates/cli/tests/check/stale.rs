@@ -169,8 +169,7 @@ fn cache_from_another_location_is_one_stale_measure() {
 #[test]
 fn a_config_error_does_not_hide_stale_facts() {
     let w = world(|_| {});
-    let broken =
-        with_bricks("[[rule]]\nfrom = \"no-such-brick\"\nto = \"port\"\naction = \"allow\"\n");
+    let broken = with_bricks("[[rule]]\nfrom = \"no-such-brick\"\nto = \"port\"\nreason = \"r\"\n");
     let cfg = w.save(&broken);
     assert_eq!(run(&cfg, &[]).code, 2);
     assert!(!brickie_check::check::needs_measure(&cfg));

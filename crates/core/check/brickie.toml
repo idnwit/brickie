@@ -36,33 +36,80 @@ desc = "Findings, diagnostics and their text rendering"
 from = "rules"
 to = "config"
 scope = "all"
-action = "allow"
 reason = "rules evaluate the configured bricks"
 
 [[rule]]
 from = "rules"
 to = "diag"
 scope = "all"
-action = "allow"
 reason = "rules produce findings"
 
 [[rule]]
 from = "check"
 to = "*"
 scope = "all"
-action = "allow"
 reason = "the facade combines config, rules and diagnostics"
 
 [[rule]]
 from = "interface"
 to = "config"
 scope = "all"
-action = "allow"
 reason = "interfaces follow the configured exports"
 
 [[rule]]
 from = "interface"
 to = "diag"
 scope = "all"
-action = "allow"
 reason = "unused items are findings"
+
+[[link]]
+from = "check"
+to = "config"
+kinds = ["uses"]
+scope = "prod"
+reason = "the facade loads brickie.toml and resolves modules before checking"
+
+[[link]]
+from = "check"
+to = "diag"
+kinds = ["uses"]
+scope = "prod"
+reason = "the facade renders findings as diagnostics and text"
+
+[[link]]
+from = "check"
+to = "interface"
+kinds = ["uses"]
+scope = "prod"
+reason = "the facade runs the interface checks next to the rules"
+
+[[link]]
+from = "check"
+to = "rules"
+kinds = ["uses"]
+scope = "prod"
+reason = "the facade evaluates the rules over the loaded cache"
+
+[[link]]
+from = "interface"
+to = "config"
+kinds = ["uses"]
+reason = "interfaces follow the exports and bricks declared in the config"
+
+[[link]]
+from = "interface"
+to = "diag"
+kinds = ["implements", "uses"]
+reason = "an unused interface item is reported as a finding"
+
+[[link]]
+from = "rules"
+to = "config"
+kinds = ["uses"]
+reason = "rules evaluate the bricks, rules and links declared in the config"
+
+[[link]]
+from = "rules"
+to = "diag"
+kinds = ["implements", "uses"]
+reason = "each violated rule is reported as a finding"

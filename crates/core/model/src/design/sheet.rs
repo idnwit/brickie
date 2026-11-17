@@ -1,6 +1,6 @@
 //! What the viewer's editor reads of the design besides the tree: one config file's own rows
-//! ([`FileSheet`]), the links a brick may draw ([`LinkOption`]) and whether a new rule would
-//! change anything ([`LinkCheck`]).
+//! ([`FileSheet`]), the links a brick may draw ([`LinkOption`]) and what a new link would
+//! be ([`LinkCheck`]).
 
 use super::{ComplexitySpec, RuleSpec};
 use serde::{Deserialize, Serialize};
@@ -11,6 +11,9 @@ pub struct FileSheet {
     /// `[[rule]]` in file order.
     #[serde(default)]
     pub rules: Vec<RuleSpec>,
+    /// `[[link]]` in file order.
+    #[serde(default)]
+    pub links: Vec<RuleSpec>,
     /// `[[complexity]]` in file order.
     #[serde(default)]
     pub complexity: Vec<ComplexitySpec>,
@@ -24,8 +27,8 @@ pub struct FileSheet {
     pub include_files: Vec<String>,
 }
 
-/// A link the editor may draw from a brick to a sibling: one edge kind and scope, and what the
-/// rules of that level decide for it now.
+/// A link the editor may draw from a brick to a sibling: one edge kind and scope, and whether a
+/// rule of that level allows it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LinkOption {
     pub to: String,
@@ -33,22 +36,24 @@ pub struct LinkOption {
     pub kind: String,
     /// `prod` or `test`.
     pub scope: String,
-    /// `allow` or `deny`.
-    pub action: String,
-    /// `file:line` of the deciding rule; `None` when no rule decides (the fixed default).
+    /// Some rule allows it (a link into an independent brick needs none).
+    pub allowed: bool,
+    /// `file:line` of the allowing rule.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rule: Option<String>,
 }
 
-/// Whether a rule `from -> to` (kinds, scope, action) would change what the level decides.
+/// What a new link `from -> to` (kinds, scope) would be: a duplicate, allowed by the rules,
+/// or denied (`design/link-denied`: it may be drafted but blocks publishing).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LinkCheck {
-    /// Every edge it covers is already decided this way (or an equal rule exists).
+    /// An identical link exists already.
     pub redundant: bool,
-    /// Plain words for the UI ("already allowed by brickie.toml:12", "would allow 3 edges").
+    /// Every kind and scope it names is allowed by a rule.
+    pub allowed: bool,
+    /// Plain words for the UI ("allowed by brickie.toml:12", "no rule allows ...").
     pub why: String,
-    /// `file:line` of the rule that already decides it (`None`: the default, or not
-    /// redundant).
+    /// `file:line` of the identical link, or of a rule that allows it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rule: Option<String>,
 }

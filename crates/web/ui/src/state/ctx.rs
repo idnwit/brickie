@@ -91,7 +91,7 @@ fn level_layout(
     editing: bool,
     keep: Option<&Keep>,
 ) -> Layout {
-    let extra = unused_pairs(level);
+    let extra = unused_pairs(level, editing);
     let mut layout = layout::layout(&layout_input(&level.graph, &extra));
     // The editor's stored positions win over the automatic layout.
     if let Some(ch) = design.filter(|_| editing) {
@@ -137,7 +137,7 @@ impl Cx {
             .filter(|k| k.level == level.path);
         let editing = params.with_untracked(|p| p.editing());
         let layout = level_layout(level, design.as_deref(), editing, keep.as_ref());
-        let unused = unused_pairs(level);
+        let unused = unused_pairs(level, editing);
         let plan0 = level.graph.edges.len();
         let m = Rc::new(Model {
             cache: sh.cache.clone(),

@@ -146,10 +146,10 @@ impl Design {
         let mut docs = Docs::from_base(&old, Some(self.root.clone()))?;
         let mut notes = Vec::new();
         for op in ops {
-            if matches!(op, Op::AddRule { .. })
+            if matches!(op, Op::AddLink { .. })
                 && let Ok(cfg) = Preview::new(&self.root, &self.config, &docs).load_config()
             {
-                notes.extend(self.rule_note(&cfg, op));
+                notes.extend(self.link_note(&cfg, op));
             }
             apply(&mut docs, op).with_context(|| format!("{} on {}", op.name(), op.file()))?;
         }

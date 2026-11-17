@@ -18,16 +18,18 @@ pub fn toggle_design(cx: &Cx) {
     platform::goto(&p.url());
 }
 
-/// Delete what is selected: a rule, or a brick (after the confirmation popover).
+/// Delete what is selected: a rule or link, or a brick (after the confirmation popover).
 pub fn delete_selection(cx: &Cx) {
     let ed = cx.ed;
     if let Some(r) = ed.rule.get_clone() {
         ed.rule.set(None);
+        let (file, key) = (r.file, r.key);
         op(
             cx,
-            Op::RemoveRule {
-                file: r.file,
-                key: r.key,
+            if r.link {
+                Op::RemoveLink { file, key }
+            } else {
+                Op::RemoveRule { file, key }
             },
         );
         return;

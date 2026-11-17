@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct Params {
     /// Brick name filter (diagnostics and functions).
     pub brick: String,
-    /// Diagnostic code, exact (`deps/deny`) or a family prefix (`complexity`).
+    /// Diagnostic code, exact (`deps/unlinked`) or a family prefix (`complexity`).
     pub code: String,
     /// Function metric: cognitive (default), cyclomatic, nesting, paths, params, lines, name.
     pub fn_sort: String,
@@ -237,10 +237,10 @@ mod tests {
 
     #[test]
     fn params_round_trip_and_omit_defaults() {
-        let p = Params::from_query("?brick=engine&code=deps%2Fdeny&fn_sort=cognitive");
+        let p = Params::from_query("?brick=engine&code=deps%2Funlinked&fn_sort=cognitive");
         assert_eq!(p.brick, "engine");
-        assert_eq!(p.code, "deps/deny");
-        assert_eq!(p.query(), "brick=engine&code=deps/deny");
+        assert_eq!(p.code, "deps/unlinked");
+        assert_eq!(p.query(), "brick=engine&code=deps/unlinked");
         assert_eq!(
             Params::from_query(&p.query()),
             p.with(|p| p.fn_sort.clear())

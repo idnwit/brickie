@@ -3,8 +3,8 @@
 
 use super::MeasureCfg;
 use super::source::{Disk, FileSource};
-use super::validate::{validate, validate_via};
-use super::{Brick, ComplexityRule, Config, DepRule};
+use super::validate::{validate, validate_links};
+use super::{Brick, ComplexityRule, Config, Link, Rule};
 use anyhow::{Context, Result, bail};
 use brickie_model::codes::CONFIG_MISSING;
 use serde::Deserialize;
@@ -21,7 +21,9 @@ struct Raw {
     #[serde(default)]
     brick: Vec<Brick>,
     #[serde(default)]
-    rule: Vec<DepRule>,
+    rule: Vec<Rule>,
+    #[serde(default)]
+    link: Vec<Link>,
     #[serde(default)]
     complexity: Vec<ComplexityRule>,
     #[serde(default)]
@@ -116,7 +118,7 @@ fn load_level(
         b.sub = Some(Box::new(sub));
     }
     ancestors.pop();
-    validate_via(&cfg)?;
+    validate_links(&cfg)?;
     Ok(cfg)
 }
 
@@ -171,6 +173,11 @@ fn load_file(
     for (i, mut r) in raw.rule.into_iter().enumerate() {
         r.loc = loc(&lines, i);
         cfg.rules.push(r);
+    }
+    let lines = header_lines(&text, "[[link]]");
+    for (i, mut l) in raw.link.into_iter().enumerate() {
+        l.loc = loc(&lines, i);
+        cfg.links.push(l);
     }
     let lines = header_lines(&text, "[[complexity]]");
     for (i, mut r) in raw.complexity.into_iter().enumerate() {

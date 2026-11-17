@@ -1,6 +1,6 @@
 //! Operations over the `brickie.toml` tree. `file` is always the physical config file the op
 //! edits, relative to the root config's directory with `/` separators. Elements are named by
-//! identity, never by position: a brick by name, a rule by [`RuleKey`], a complexity rule by
+//! identity, never by position: a brick by name, a rule or link by [`RuleKey`], a complexity rule by
 //! its `bricks` selector.
 
 use serde::{Deserialize, Serialize};
@@ -34,25 +34,21 @@ pub struct BrickSpec {
     pub desc: Option<String>,
 }
 
-/// A `[[rule]]` table; `None` and empty fields are omitted from the file.
+/// A `[[rule]]` or `[[link]]` table (both have the same fields); `None` and empty fields are
+/// omitted from the file. For a link, `to` is a sibling brick or `composite/child`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuleSpec {
     pub from: String,
     pub to: String,
-    /// Exported children of the `to` composite; empty: any entry.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub via: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub kinds: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scope: Option<String>,
-    pub action: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
+    pub reason: String,
 }
 
-/// Which `[[rule]]` of a file an op means: `from` and `to` as written, narrowed by
-/// `kinds` (compared as a set) and `scope` (absent in the file means `prod`) when given. A rule's
+/// Which `[[rule]]` or `[[link]]` of a file an op means: `from` and `to` as written, narrowed
+/// by `kinds` (compared as a set) and `scope` (absent in the file means `all`) when given. The
 /// identity is `(file, from, to, kinds, scope)`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RuleKey {
@@ -64,13 +60,10 @@ pub struct RuleKey {
     pub scope: Option<String>,
 }
 
-/// The fields `set_rule` changes; `None` keeps a field, an empty `reason` / `via` removes it.
+/// The fields `set_rule` / `set_link` change; `None` keeps a field. The other fields are the
+/// identity: change them with `rm` and `add`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RulePatch {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub action: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub via: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
 }
@@ -125,7 +118,7 @@ pub enum Op {
         members: Option<Vec<String>>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         path: Option<String>,
-        /// `true` writes `independent = true`, `false` removes the key (root bricks only).
+        /// `true` writes `independent = true`, `false` removes the key; allowed at any level.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         independent: Option<bool>,
     },
@@ -181,6 +174,19 @@ pub enum Op {
         key: RuleKey,
         set: RulePatch,
     },
+    AddLink {
+        file: String,
+        link: RuleSpec,
+    },
+    RemoveLink {
+        file: String,
+        key: RuleKey,
+    },
+    SetLink {
+        file: String,
+        key: RuleKey,
+        set: RulePatch,
+    },
     AddComplexity {
         file: String,
         rule: ComplexitySpec,
@@ -225,6 +231,9 @@ impl Op {
             | Op::AddRule { file, .. }
             | Op::RemoveRule { file, .. }
             | Op::SetRule { file, .. }
+            | Op::AddLink { file, .. }
+            | Op::RemoveLink { file, .. }
+            | Op::SetLink { file, .. }
             | Op::AddComplexity { file, .. }
             | Op::RemoveComplexity { file, .. }
             | Op::SetComplexity { file, .. }
@@ -249,6 +258,9 @@ impl Op {
             Op::AddRule { .. } => "add_rule",
             Op::RemoveRule { .. } => "remove_rule",
             Op::SetRule { .. } => "set_rule",
+            Op::AddLink { .. } => "add_link",
+            Op::RemoveLink { .. } => "remove_link",
+            Op::SetLink { .. } => "set_link",
             Op::AddComplexity { .. } => "add_complexity",
             Op::RemoveComplexity { .. } => "remove_complexity",
             Op::SetComplexity { .. } => "set_complexity",

@@ -11,26 +11,25 @@ enum Ident {
     Brick(String),
     /// A brick a rule names: clashes with changes to the brick, not with other rules naming it.
     Named(String),
-    Rule(String, RuleKey),
+    /// A `[[rule]]` (`false`) or `[[link]]` (`true`) by file and key.
+    Rule(String, bool, RuleKey),
     Limit(String, String),
     /// File-level settings: exports, includes, the file itself.
     File(String),
 }
 
 impl Ident {
-    /// Two identities clash when they name the same thing. A rule key without `kinds` or
-    /// `scope` stands for any narrowing.
+    /// Two identities clash when they name the same thing. A key without `kinds` stands for
+    /// any kinds; a key without `scope` means `all`.
     fn clashes(&self, other: &Ident) -> bool {
         match (self, other) {
-            (Ident::Rule(fa, a), Ident::Rule(fb, b)) => {
+            (Ident::Rule(fa, la, a), Ident::Rule(fb, lb, b)) => {
                 fa == fb
+                    && la == lb
                     && a.from == b.from
                     && a.to == b.to
                     && same_set(&a.kinds, &b.kinds)
-                    && match (&a.scope, &b.scope) {
-                        (Some(x), Some(y)) => x == y,
-                        _ => true,
-                    }
+                    && a.scope.as_deref().unwrap_or("all") == b.scope.as_deref().unwrap_or("all")
             }
             (Ident::Named(a), Ident::Brick(b)) | (Ident::Brick(a), Ident::Named(b)) => a == b,
             (Ident::Named(_), Ident::Named(_)) => false,
@@ -41,7 +40,7 @@ impl Ident {
     fn text(&self) -> String {
         match self {
             Ident::Brick(n) | Ident::Named(n) => format!("brick {n}"),
-            Ident::Rule(_, k) => {
+            Ident::Rule(_, link, k) => {
                 let kinds = match &k.kinds {
                     Some(k) if !k.is_empty() => format!(" [{}]", k.join(",")),
                     _ => String::new(),
@@ -50,7 +49,8 @@ impl Ident {
                     .scope
                     .as_deref()
                     .map_or(String::new(), |s| format!(" ({s})"));
-                format!("rule {} -> {}{kinds}{scope}", k.from, k.to)
+                let what = if *link { "link" } else { "rule" };
+                format!("{what} {} -> {}{kinds}{scope}", k.from, k.to)
             }
             Ident::Limit(_, b) => format!("limits of {b}"),
             Ident::File(f) => format!("settings of {f}"),
@@ -83,12 +83,14 @@ fn limit(file: &str, bricks: &Option<String>) -> Ident {
     Ident::Limit(file.into(), bricks.clone().unwrap_or_else(|| "*".into()))
 }
 
-/// A rule also depends on the bricks it names: renaming or removing one stales the write.
-fn rule_idents(file: &str, key: RuleKey) -> Vec<Ident> {
+/// A rule or link also depends on the bricks it names (a link's `composite/child` names the
+/// composite): renaming or removing one stales the write.
+fn rule_idents(file: &str, link: bool, key: RuleKey) -> Vec<Ident> {
+    let brick = |s: &str| Ident::Named(s.split('/').next().unwrap_or(s).to_string());
     vec![
-        Ident::Named(key.from.clone()),
-        Ident::Named(key.to.clone()),
-        Ident::Rule(file.into(), key),
+        brick(&key.from),
+        brick(&key.to),
+        Ident::Rule(file.into(), link, key),
     ]
 }
 
@@ -104,9 +106,13 @@ fn touched(op: &Op) -> Vec<Ident> {
         Op::MoveBrick { name, into, .. } => std::iter::once(brick(name))
             .chain(into.iter().map(brick))
             .collect(),
-        Op::AddRule { file, rule } => rule_idents(file, spec_key(rule)),
+        Op::AddRule { file, rule } => rule_idents(file, false, spec_key(rule)),
         Op::RemoveRule { file, key } | Op::SetRule { file, key, .. } => {
-            rule_idents(file, key.clone())
+            rule_idents(file, false, key.clone())
+        }
+        Op::AddLink { file, link } => rule_idents(file, true, spec_key(link)),
+        Op::RemoveLink { file, key } | Op::SetLink { file, key, .. } => {
+            rule_idents(file, true, key.clone())
         }
         Op::AddComplexity { file, rule } => vec![limit(file, &rule.bricks)],
         Op::RemoveComplexity { file, bricks } | Op::SetComplexity { file, bricks, .. } => {
@@ -210,14 +216,28 @@ mod tests {
 
     #[test]
     fn rules_match_by_file_and_key() {
-        let log = vec![ver(2, By::Agent, vec![rule("store", Some("prod"))])];
+        let log = vec![ver(2, By::Agent, vec![rule("store", Some("all"))])];
         assert!(first_conflict(&log, 1, &[rule("store", None)]).is_some());
-        assert_eq!(first_conflict(&log, 1, &[rule("store", Some("dev"))]), None);
+        assert_eq!(
+            first_conflict(&log, 1, &[rule("store", Some("prod"))]),
+            None
+        );
         assert_eq!(first_conflict(&log, 1, &[rule("db", None)]), None);
         assert_eq!(
             first_conflict(&log, 1, &[rule("store", None)]).as_deref(),
-            Some("agent v2 changed rule web -> store (prod)")
+            Some("agent v2 changed rule web -> store (all)")
         );
+        // A link with the same key is a different thing.
+        let link = Op::RemoveLink {
+            file: "brickie.toml".into(),
+            key: RuleKey {
+                from: "web".into(),
+                to: "store".into(),
+                kinds: None,
+                scope: None,
+            },
+        };
+        assert_eq!(first_conflict(&log, 1, &[link]), None);
     }
 
     #[test]

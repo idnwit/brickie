@@ -54,7 +54,7 @@ billed and read.
   standalone, with no links or references to other repo files.
 - Adding a diagnostic code: add it to `crates/core/model/src/codes.rs` and document how to fix it in
   `docs/llms.txt` (a test enforces this).
-- The viewer bundle is built with `scripts/build-ui.sh`; `assets/ui/` is git-ignored.
+- `cargo build` builds the viewer bundles itself (`build.rs` of `crates/web/server` and `crates/lib/codeview/host`, release wasm, cargo feature `ui`, on by default in `brickie`); needs the wasm32 target and `wasm-bindgen-cli` (else a warning and the SSR-only viewer). Use `--no-default-features` (`-p brickie`) for fast builds without it.
 - Never commit private or machine-specific names, paths or addresses (test fixtures, docs,
   comments, snapshots included).
 

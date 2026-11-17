@@ -1,57 +1,46 @@
-//! Rule commands.
+//! Rule and link commands (both have the same fields).
 
 use super::Write;
 use clap::{Args, Subcommand};
 
-/// Which rule: `from` and `to` as written, narrowed by kinds and scope.
+/// Which rule or link: `from` and `to` as written, narrowed by kinds and scope.
 #[derive(Args)]
 pub struct RuleSel {
     pub from: String,
+    /// A rule: a brick, `tag:x` or `*`. A link: a sibling brick or `composite/child`.
     pub to: String,
-    /// Repeat for several kinds: uses, implements, reexports.
+    /// Repeat for several kinds: uses, implements, reexports (default: all).
     #[arg(long = "kind")]
     pub kinds: Vec<String>,
-    /// prod (the default in the file), test or all.
+    /// prod, test or all (the default).
     #[arg(long)]
     pub scope: Option<String>,
     #[arg(long = "in")]
     pub level: Option<String>,
 }
 
-#[derive(Args)]
-pub struct RuleFields {
-    #[arg(long)]
-    pub reason: Option<String>,
-    /// Exported children of the `to` composite the rule applies to (comma-separated).
-    #[arg(long, value_delimiter = ',')]
-    pub via: Option<Vec<String>>,
-}
-
 #[derive(Subcommand)]
 pub enum RuleCmd {
-    /// Add a rule: `from -> to` is allowed or denied.
+    /// Add one: a rule allows links `from -> to`; a link declares a dependency.
     Add {
         #[command(flatten)]
         sel: RuleSel,
-        #[arg(value_parser = ["allow", "deny"])]
-        action: String,
-        #[command(flatten)]
-        f: RuleFields,
+        /// Why it exists (required).
+        #[arg(long)]
+        reason: String,
         #[command(flatten)]
         w: Write,
     },
-    /// Change the action, reason or via of a rule (an empty value removes it).
+    /// Change the reason of one.
     Set {
         #[command(flatten)]
         sel: RuleSel,
-        #[arg(long, value_parser = ["allow", "deny"])]
-        action: Option<String>,
-        #[command(flatten)]
-        f: RuleFields,
+        #[arg(long)]
+        reason: Option<String>,
         #[command(flatten)]
         w: Write,
     },
-    /// Remove a rule.
+    /// Remove one.
     Rm {
         #[command(flatten)]
         sel: RuleSel,

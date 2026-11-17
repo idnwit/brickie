@@ -114,7 +114,7 @@
         {
           "count": 1,
           "diags": [
-            "ba6b14f0",
+            "1042b8a0",
             "e49bfa52"
           ],
           "from": 1,
@@ -125,9 +125,7 @@
         },
         {
           "count": 1,
-          "diags": [
-            "6ccf9ead"
-          ],
+          "diags": [],
           "from": 0,
           "kind": "implements",
           "test": true,
@@ -151,6 +149,26 @@
         "core"
       ]
     },
+    "links": [
+      {
+        "file": "brickie.toml",
+        "filter": "edge in any scope",
+        "from": "web",
+        "level": "root",
+        "reason": "web serves the core",
+        "scope": "all",
+        "to": "core"
+      },
+      {
+        "file": "brickie.toml",
+        "filter": "edge in any scope",
+        "from": "client",
+        "level": "root",
+        "reason": "the client calls web",
+        "scope": "all",
+        "to": "web"
+      }
+    ],
     "path": "root"
   },
   {
@@ -281,9 +299,7 @@
         },
         {
           "count": 1,
-          "diags": [
-            "6ccf9ead"
-          ],
+          "diags": [],
           "from": 1,
           "kind": "implements",
           "test": true,
@@ -317,6 +333,17 @@
         "outbound"
       ]
     },
+    "links": [
+      {
+        "file": "ws/crates/web/brickie.toml",
+        "filter": "edge in any scope",
+        "from": "ui",
+        "level": "root/web",
+        "reason": "the ui calls the api",
+        "scope": "all",
+        "to": "api"
+      }
+    ],
     "path": "root/web"
   }
 ]

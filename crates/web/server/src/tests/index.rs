@@ -32,7 +32,10 @@ async fn index_renders_diagnostic_with_hydration_markers() {
         "{html}"
     );
     // The wasm script is only emitted when a bundle is embedded.
-    assert_eq!(html.contains("/static/ui/brickie_ui.js"), cfg!(ui_wasm));
+    match crate::routes::bundle() {
+        Some((js, wasm)) => assert!(html.contains(&js) && html.contains(&wasm), "{html}"),
+        None => assert!(!html.contains("/static/ui/"), "{html}"),
+    }
 }
 
 #[tokio::test]

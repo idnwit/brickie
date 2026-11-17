@@ -7,7 +7,7 @@
 name = "audio"
 members = ["acme-audio"]          # package name: all its targets
 tags = ["port"]
-# independent = true               # root bricks only: acts like an external library
+# independent = true               # a library for the bricks around it (any level)
 
 [[brick]]
 name = "engine"
@@ -29,26 +29,46 @@ name = "web"
 path = "web"                       # composite: children in web/brickie.toml (required);
 tags = ["assembly"]                # members default to ["path:web/"] (crates under the folder)
 
-# An edge no rule allows is denied; sibling cycles are always errors.
+# Rules are principles: what the design allows. Nothing else is allowed, there is no deny.
 [[rule]]
 from = "tag:assembly"              # brick name | tag:<tag> | *
 to = "*"
-action = "allow"
-reason = "assemblies wire everything together"
+reason = "assemblies wire everything together"   # required
 
 [[rule]]
 from = "tag:core"
-to = "tag:adapter"
+to = "tag:port"
 kinds = ["uses", "implements"]     # default: all kinds
-scope = "prod"                     # prod (default) | test | all
-action = "deny"
-reason = "core must not use adapter"
+scope = "prod"                     # prod | test | all (default)
+reason = "the core is written against the port traits"
 
 [[rule]]
-from = "*"
-to = "tag:port"
-action = "allow"
-reason = "everyone may depend on the port traits"
+from = "tag:assembly"
+to = "tag:adapter"
+reason = "assemblies choose the adapters"
+
+# Links are the dependencies the code may really have, each valid only if a rule allows it.
+# A code edge no valid link covers is `deps/unlinked`.
+[[link]]
+from = "engine"
+to = "audio"
+kinds = ["uses", "implements"]
+reason = "the engine renders through the audio port"
+
+[[link]]
+from = "client"
+to = "engine"
+reason = "the client drives the engine"
+
+[[link]]
+from = "client"
+to = "backends"
+reason = "the client picks the adapter"
+
+[[link]]
+from = "client"
+to = "web/api"                     # `composite/child`: the child must be in web's `exports`
+reason = "the client calls the web api"
 
 [[complexity]]
 bricks = "tag:core"                # default: *

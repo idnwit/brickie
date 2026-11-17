@@ -16,7 +16,8 @@ mod rule;
 #[command(after_help = "Examples:
   brickie design show
   brickie design brick add store --kind crate --base 15
-  brickie design rule add api store allow --reason \"reads data\" --base 16
+  brickie design rule add api store --reason \"api may read data\" --base 16
+  brickie design link add api store --kind uses --reason \"reads orders\" --base 17
   brickie design undo --base 17
   brickie design check
   brickie design publish --base 17")]
@@ -125,9 +126,12 @@ pub enum Edit {
     /// Add, change, rename, move, remove, group or ungroup bricks.
     #[command(subcommand)]
     Brick(BrickCmd),
-    /// Add, change or remove dependency rules.
+    /// Add, change or remove rules: the links a level allows.
     #[command(subcommand)]
     Rule(RuleCmd),
+    /// Add, change or remove links: the declared dependencies between sibling bricks.
+    #[command(subcommand)]
+    Link(RuleCmd),
     /// Set or remove the exports of a composite.
     #[command(subcommand)]
     Export(ExportCmd),

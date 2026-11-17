@@ -23,12 +23,22 @@ tags = ["app"]
 [[rule]]
 from = "tag:app"
 to = "tag:core"
-action = "allow"
+reason = "apps build on the core"
 
 [[rule]]
 from = "client"
 to = "web"
-action = "allow"
+reason = "the client calls the web api"
+
+[[link]]
+from = "web"
+to = "core"
+reason = "web serves the core"
+
+[[link]]
+from = "client"
+to = "web"
+reason = "the client calls web"
 "#;
 
 const WEB: &str = r#"
@@ -45,7 +55,12 @@ members = ["web-ui"]
 [[rule]]
 from = "*"
 to = "*"
-action = "allow"
+reason = "inside web anything goes"
+
+[[link]]
+from = "ui"
+to = "api"
+reason = "the ui calls the api"
 "#;
 
 fn edge(from: &str, to: &str, line: u32) -> Value {

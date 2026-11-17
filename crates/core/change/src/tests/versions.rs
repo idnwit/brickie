@@ -102,7 +102,7 @@ fn invalid_design_is_rejected_and_files_untouched() {
         rule: crate::RuleSpec {
             from: "nope".into(),
             to: "b".into(),
-            action: "allow".into(),
+            reason: "why".into(),
             ..Default::default()
         },
     };

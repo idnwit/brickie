@@ -39,7 +39,6 @@ jobs:
         with:
           key: ${{ matrix.target }}
       - run: cargo install wasm-bindgen-cli --version "$WASM_BINDGEN_VERSION" --locked
-      - run: scripts/build-ui.sh
       - name: Build release binary
         run: |
           export RUSTFLAGS="--remap-path-prefix=${HOME}=~ --remap-path-prefix=$(pwd)=."

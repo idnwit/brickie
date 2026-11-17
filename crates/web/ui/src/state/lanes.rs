@@ -13,24 +13,22 @@ use std::collections::BTreeSet;
 const INBOUND: &str = "inbound";
 const OUTBOUND: &str = "outbound";
 
-/// The (from, to) brick pairs the planned rules of `level` draw, each once, in rule order.
-/// A selector `*` draws nothing; ghosts and self pairs are skipped.
-pub(super) fn unused_pairs(level: &LevelView) -> Vec<(usize, usize)> {
+/// The (from, to) brick pairs the drawn links of `level` connect (see [`drawn`]), each once,
+/// in link order. Ghosts and self pairs are skipped.
+pub(super) fn unused_pairs(level: &LevelView, editing: bool) -> Vec<(usize, usize)> {
     let g = &level.graph;
-    let ends = |sel: &str| -> Vec<usize> {
-        (0..g.bricks.len())
-            .filter(|&i| !g.bricks[i].ghost && sel != "*" && names(sel, &g.bricks[i]))
-            .collect()
+    let at = |end: &str| {
+        let name = link_brick(end);
+        (0..g.bricks.len()).find(|&i| !g.bricks[i].ghost && g.bricks[i].name == name)
     };
     let mut seen = BTreeSet::new();
     let mut out = Vec::new();
-    for e in &level.unused_links {
-        for a in ends(&e.from) {
-            for b in ends(&e.to) {
-                if a != b && seen.insert((a, b)) {
-                    out.push((a, b));
-                }
-            }
+    for e in level.links.iter().filter(|e| drawn(e, editing)) {
+        if let (Some(a), Some(b)) = (at(&e.from), at(&e.to))
+            && a != b
+            && seen.insert((a, b))
+        {
+            out.push((a, b));
         }
     }
     out

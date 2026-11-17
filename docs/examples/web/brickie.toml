@@ -1,6 +1,6 @@
 # A composite's own file (the root declares `path = "web"`). Its children must cover every
-# module of the crates under web/. Rules here only see these children; edges leaving `web` are
-# checked by the root's rules.
+# module of the crates under web/. Rules and links here only see these children; edges leaving
+# `web` are checked by the root's rules and links.
 
 exports = ["api"]                  # visible from outside; default none
 
@@ -19,12 +19,27 @@ members = ["path:shared/"]         # crates whose manifest is under web/shared/
 [[rule]]
 from = "*"
 to = "shared"
-action = "allow"
+reason = "everything in web may use the shared code"
 
 [[rule]]
 from = "ui"
 to = "api"
-action = "allow"
+reason = "the ui calls the api"
+
+[[link]]
+from = "ui"
+to = "api"
+reason = "the ui fetches data through the api"
+
+[[link]]
+from = "ui"
+to = "shared"
+reason = "the ui uses the shared types"
+
+[[link]]
+from = "api"
+to = "shared"
+reason = "the api uses the shared types"
 
 [[complexity]]                     # replaces the root's limits for `ui`
 bricks = "ui"
