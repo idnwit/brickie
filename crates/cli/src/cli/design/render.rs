@@ -187,17 +187,24 @@ fn level(s: &mut String, l: &LevelView, depth: usize) {
         brick(s, b, depth + 1);
     }
     for r in &l.rules {
-        let via = list("via", &r.via);
         let kinds = list("kinds", &r.kinds);
-        let reason = r
-            .reason
-            .as_deref()
-            .map(|x| format!("  \"{x}\""))
-            .unwrap_or_default();
         let _ = writeln!(
             s,
-            "{pad}  rule {} -> {}{via}{kinds} ({}) {}{reason}",
-            r.from, r.to, r.scope, r.action
+            "{pad}  rule {} -> {}{kinds} ({})  \"{}\"",
+            r.from, r.to, r.scope, r.reason
+        );
+    }
+    for k in &l.links {
+        let kinds = list("kinds", &k.kinds);
+        let mark = match (&k.denied, k.cycle) {
+            (Some(why), _) => format!("  DENIED: {why}"),
+            (None, true) => "  (on a cycle)".into(),
+            (None, false) => String::new(),
+        };
+        let _ = writeln!(
+            s,
+            "{pad}  link {} -> {}{kinds} ({})  \"{}\"{mark}",
+            k.from, k.to, k.scope, k.reason
         );
     }
     for m in &l.limits {

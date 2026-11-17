@@ -20,7 +20,12 @@ tags = ["core"]
 [[rule]]
 from = "tag:app"
 to = "tag:core"
-action = "allow"
+reason = "the app runs on the core"
+
+[[link]]
+from = "web"
+to = "core"
+reason = "web calls the core"
 
 [[complexity]]
 cognitive = 20
@@ -44,17 +49,27 @@ members = ["web-shared"]
 [[rule]]
 from = "*"
 to = "shared"
-action = "allow"
+reason = "everyone may share"
 
 [[rule]]
 from = "ui"
 to = "api"
-action = "allow"
+reason = "ui calls api"
 
 [[rule]]
 from = "api"
 to = "ui"
-action = "allow"
+reason = "api renders ui"
+
+[[link]]
+from = "ui"
+to = "api"
+reason = "ui calls api"
+
+[[link]]
+from = "api"
+to = "ui"
+reason = "api renders ui"
 
 [[complexity]]
 bricks = "ui"
@@ -202,29 +217,17 @@ fn nested_members_are_an_overlap_not_a_longest_match() {
 }
 
 #[test]
-fn via_must_name_exports_of_a_composite() {
-    let root = |rule: &str| {
-        format!("{ROOT}\n[[rule]]\nfrom = \"core\"\nto = {rule}\naction = \"allow\"\n")
-    };
+fn links_name_siblings_or_exported_children() {
+    let root =
+        |to: &str| format!("{ROOT}\n[[link]]\nfrom = \"core\"\nto = \"{to}\"\nreason = \"r\"\n");
     let cases = [
-        ("\"web\"\nvia = [\"api\"]", None),
-        (
-            "\"web\"\nvia = [\"shared\"]",
-            Some("'shared' is not exported"),
-        ),
-        ("\"web\"\nvia = []", Some("empty list")),
-        (
-            "\"core\"\nvia = [\"api\"]",
-            Some("needs `to` to name a composite"),
-        ),
-        (
-            "\"tag:app\"\nvia = [\"api\"]",
-            Some("needs `to` to name a composite"),
-        ),
-        (
-            "\"*\"\nvia = [\"api\"]",
-            Some("needs `to` to name a composite"),
-        ),
+        ("web", None),
+        ("web/api", None),
+        ("web/shared", Some("does not export 'shared'")),
+        ("web/ghost", Some("not a child")),
+        ("core/api", Some("to itself")),
+        ("ghost", Some("unknown brick")),
+        ("core", Some("to itself")),
     ];
     for (to, bad) in cases {
         let dir = tempfile::tempdir().unwrap();
@@ -236,12 +239,23 @@ fn via_must_name_exports_of_a_composite() {
             None => assert!(r.is_ok(), "{to}: {:?}", r.err()),
             Some(m) => {
                 let e = format!("{:#}", r.unwrap_err());
-                assert!(
-                    e.contains("config/unknown-via") && e.contains(m),
-                    "{to}: {e}"
-                );
+                assert!(e.contains("config/invalid") && e.contains(m), "{to}: {e}");
             }
         }
+    }
+}
+
+#[test]
+fn rules_and_links_need_a_reason() {
+    for extra in [
+        "[[rule]]\nfrom = \"web\"\nto = \"core\"\n",
+        "[[rule]]\nfrom = \"web\"\nto = \"core\"\nreason = \" \"\n",
+        "[[link]]\nfrom = \"web\"\nto = \"core\"\nreason = \"\"\n",
+        "[[rule]]\nfrom = \"web\"\nto = \"core\"\naction = \"allow\"\nreason = \"r\"\n",
+    ] {
+        let (dir, _) = fixture(ROOT, WEB);
+        std::fs::write(dir.path().join("brickie.toml"), format!("{ROOT}\n{extra}")).unwrap();
+        assert!(load(&dir.path().join("brickie.toml")).is_err(), "{extra}");
     }
 }
 

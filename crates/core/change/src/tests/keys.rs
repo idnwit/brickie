@@ -18,19 +18,18 @@ fn rule(from: &str, to: &str, kinds: &[&str]) -> Op {
             from: from.into(),
             to: to.into(),
             kinds: kinds.iter().map(|k| k.to_string()).collect(),
-            action: "deny".into(),
+            reason: "r".into(),
             ..Default::default()
         },
     }
 }
 
-fn set(k: RuleKey, action: &str) -> Op {
+fn set(k: RuleKey, reason: &str) -> Op {
     Op::SetRule {
         file: "brickie.toml".into(),
         key: k,
         set: RulePatch {
-            action: Some(action.into()),
-            ..Default::default()
+            reason: Some(reason.into()),
         },
     }
 }
@@ -40,13 +39,13 @@ fn missing_rule_lists_the_candidates() {
     let ws = Ws::new();
     let e = format!(
         "{:#}",
-        ws.apply(A, vec![set(key("b", "a"), "deny")]).unwrap_err()
+        ws.apply(A, vec![set(key("b", "a"), "x")]).unwrap_err()
     );
     assert!(
         e.contains("design/no-match: no rule b -> a in brickie.toml"),
         "{e}"
     );
-    assert!(e.contains("a -> b (prod)"), "{e}");
+    assert!(e.contains("a -> b (all)"), "{e}");
 }
 
 #[test]
@@ -55,25 +54,25 @@ fn ambiguous_rule_asks_for_kind_and_scope() {
     ws.apply(A, vec![rule("a", "b", &["uses"])]).unwrap();
     let e = format!(
         "{:#}",
-        ws.apply(A, vec![set(key("a", "b"), "deny")]).unwrap_err()
+        ws.apply(A, vec![set(key("a", "b"), "x")]).unwrap_err()
     );
     assert!(e.contains("2 rules a -> b") && e.contains("--kind"), "{e}");
     let narrow = RuleKey {
         kinds: Some(vec!["uses".into()]),
         ..key("a", "b")
     };
-    ws.apply(A, vec![set(narrow, "allow")]).unwrap();
+    ws.apply(A, vec![set(narrow, "new")]).unwrap();
     let text = ws.read("brickie.toml");
-    assert_eq!(text.matches("action = \"allow\"").count(), 2, "{text}");
+    assert_eq!(text.matches("reason = \"new\"").count(), 1, "{text}");
 }
 
 #[test]
 fn set_rule_edits_only_the_matched_rule_and_keeps_the_rest() {
     let ws = Ws::new();
     ws.apply(A, vec![rule("b", "a", &[])]).unwrap();
-    ws.apply(A, vec![set(key("b", "a"), "allow")]).unwrap();
+    ws.apply(A, vec![set(key("b", "a"), "new")]).unwrap();
     let text = ws.read("brickie.toml");
-    assert_eq!(text.matches("action = \"allow\"").count(), 2, "{text}");
+    assert_eq!(text.matches("reason = \"new\"").count(), 1, "{text}");
 }
 
 #[test]

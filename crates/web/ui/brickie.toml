@@ -25,5 +25,17 @@ desc = "Sycamore components (canvas, controls, panels, source) and the crate ent
 from = "components"
 to = "*"
 scope = "all"
-action = "allow"
 reason = "components render state and the api data and call the browser wrappers"
+
+[[link]]
+from = "components"
+to = "platform"
+kinds = ["uses"]
+scope = "prod"
+reason = "components call the browser wrappers for location, history and fetch"
+
+[[link]]
+from = "components"
+to = "state"
+kinds = ["uses"]
+reason = "components render and update the reactive viewer state"

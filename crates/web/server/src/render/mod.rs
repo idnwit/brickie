@@ -12,14 +12,17 @@ fn embed_json<T: serde::Serialize>(v: &T) -> String {
 const SHELL_HEAD: &str = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">\
 <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">";
 
-/// The page: SSR output in `#app`, the data it hydrates from, and the wasm loader when embedded.
-pub fn index_html(data: &PageData, params: &Params, wasm: bool) -> String {
+/// The page: SSR output in `#app`, the data it hydrates from, and the wasm loader at `bundle`
+/// (the JS glue and wasm URLs) when the bundle is embedded.
+pub fn index_html(data: &PageData, params: &Params, bundle: Option<(String, String)>) -> String {
     let body = brickie_ui::render_page(data, params);
-    let script = if wasm {
-        "<script type=\"module\">import init, {hydrate} from \"/static/ui/brickie_ui.js\";\
-await init({module_or_path: \"/static/ui/brickie_ui_bg.wasm\"});hydrate();</script>"
+    let script = if let Some((js, wasm)) = bundle {
+        format!(
+            "<script type=\"module\">import init, {{hydrate}} from \"{js}\";\
+await init({{module_or_path: \"{wasm}\"}});hydrate();</script>"
+        )
     } else {
-        ""
+        String::new()
     };
     format!(
         "{SHELL_HEAD}<title>brickie</title><style>{css}</style></head><body><div id=\"{app}\">{body}</div>\

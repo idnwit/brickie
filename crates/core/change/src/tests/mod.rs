@@ -5,6 +5,7 @@ mod exports;
 mod independent;
 mod keys;
 mod levels;
+mod links;
 mod publish;
 mod undo;
 mod ungroup;
@@ -29,7 +30,7 @@ members = ["pb"]
 [[rule]]
 from = "a"
 to = "b"
-action = "allow"
+reason = "fixture"
 "#;
 
 pub struct Ws {

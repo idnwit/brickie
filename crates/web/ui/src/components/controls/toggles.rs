@@ -89,19 +89,26 @@ pub fn layers_menu(cx: &Cx) -> View {
         layer_box(cx, "k-implements", "implements", None),
         layer_box(cx, "k-reexports", "reexports", None),
     ]);
-    let viol = View::from(vec![
-        group_menu(cx, "deps", "deps"),
-        group_menu(cx, "cx", "complexity"),
-        group_menu(cx, "stale", "stale"),
-        group_menu(cx, "iface", "interface"),
-    ]);
+    // Findings come from code: Design mode has none to filter.
+    let viol = match cx.editing() {
+        true => View::default(),
+        false => {
+            let groups = View::from(vec![
+                group_menu(cx, "deps", "deps"),
+                group_menu(cx, "cx", "complexity"),
+                group_menu(cx, "stale", "stale"),
+                group_menu(cx, "iface", "interface"),
+            ]);
+            view! { span(class="tg") { span(class="tgl") { "Findings" } (groups) } }
+        }
+    };
     view! {
         span(class="dd") {
             button(class="ddb", on:click=toggle_layers) { "Data layers \u{25BE}" }
             div(class=menu_open, on:click=move |e: Click| e.stop_propagation()) {
                 span(class="tg") { span(class="tgl") { "Edges" } (edges) }
                 span(class="tg") { span(class="tgl") { "Kinds" } (kinds) }
-                span(class="tg") { span(class="tgl") { "Findings" } (viol) }
+                (viol)
             }
         }
     }

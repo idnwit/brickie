@@ -60,28 +60,34 @@ pub struct LayoutHint {
     pub y: f64,
 }
 
-/// A rule link the canvas draws. View mode: an allow rule between named bricks that no measured
-/// edge backs (an unused link). Design mode: every rule between named bricks, allow or deny.
-/// Named by identity (`file`, `from`, `to`, `kinds`, `scope`).
+/// A `[[link]]` the canvas draws: a declared dependency between bricks of a level, named by
+/// identity (`file`, `from`, `to`, `kinds`, `scope`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct UnusedLink {
-    /// Level path the rule applies to (`root`, `root/web`).
+pub struct LevelLink {
+    /// Level path the link is declared at (`root`, `root/web`).
     pub level: String,
-    /// Physical file of the rule.
+    /// Physical file of the link.
     pub file: String,
     pub from: String,
+    /// A sibling brick, or `composite/child`.
     pub to: String,
     /// Empty: all kinds.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub kinds: Vec<String>,
     /// `prod`, `test` or `all`.
     pub scope: String,
-    pub action: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
-    /// View mode: what the rule still waits for ("no `uses` edge in test scope"); Design mode:
-    /// what it matches ("`uses` edge in test scope").
+    pub reason: String,
+    /// What the link covers ("`uses` edge in test scope").
     pub filter: String,
+    /// Why no rule allows it (`design/link-denied`); `None` for a valid link.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub denied: Option<String>,
+    /// The link sits on a cycle of its level's links (information only).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cycle: bool,
+    /// View mode: a valid link that no measured edge uses yet.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub planned: bool,
 }
 
 /// The names a level offers to rule selectors.
@@ -171,9 +177,9 @@ pub struct RelayoutRequest {
     pub level: String,
 }
 
-/// Would rule `from -> to` at `level` (brick names from the root, `[]`: the root) change
-/// anything? `from` / `to` are selectors; `kinds` empty means all; `scope` is `prod`, `test`
-/// or `all`; `action` `allow` or `deny`.
+/// What would link `from -> to` at `level` (brick names from the root, `[]`: the root) be?
+/// `to` is a sibling or `composite/child`; `kinds` empty means all; `scope` is `prod`, `test`
+/// or `all`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LinkCheckRequest {
     #[serde(default)]
@@ -183,7 +189,6 @@ pub struct LinkCheckRequest {
     #[serde(default)]
     pub kinds: Vec<String>,
     pub scope: String,
-    pub action: String,
 }
 
 /// Levels of the design by path (`root`, `root/web`); empty: every level.

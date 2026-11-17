@@ -1,14 +1,14 @@
-//! `deps/deny`: dependency rules between sibling bricks. A module edge is lifted to the lowest
-//! common ancestor of its leaf paths and judged there by [`decide`]; `deps/private` (see
+//! `deps/unlinked`: a module edge is lifted to the lowest common ancestor of its leaf paths and
+//! allowed there only through a valid link ([`covering_link`]); `deps/private` (see
 //! `private.rs`) checks the target's visibility on the same pass.
 
 use super::lift::{hidden, lift};
 use super::private::Private;
 use super::{span, tags};
-use crate::config::{Action, Brick, Config, DepRule, Resolved, decide};
+use crate::config::{Brick, Config, Resolved, Why, covering_link};
 use crate::diag::{Finding, Note, RuleRef, Span};
 use brickie_facts::{Cache, Evidence};
-use brickie_model::codes::DEPS_DENY;
+use brickie_model::codes::DEPS_UNLINKED;
 
 struct Dep {
     /// Level name of the common ancestor (`root/web`) and its config file.
@@ -23,8 +23,8 @@ struct Dep {
     /// The child of `to` the edge enters through, for a composite target.
     entered: Option<String>,
     evidence: Vec<Evidence>,
-    /// Index and rule that denied the edge; `None` when no rule allowed it.
-    rule: Option<(usize, DepRule)>,
+    /// The link that covers the edge but that no rule allows (`loc`, why), if any.
+    denied: Option<(String, String)>,
 }
 
 pub(super) fn deps(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Box<dyn Finding>>) {
@@ -49,10 +49,11 @@ pub(super) fn deps(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Bo
             }));
         }
         let entered = p2.get(l.k + 1).map(String::as_str);
-        let d = decide(l.level, l.from, l.to, entered, &e.kind, &e.scope);
-        if d.action == Action::Allow {
-            continue;
-        }
+        let denied = match covering_link(l.level, l.from, l.to, entered, &e.kind, &e.scope) {
+            Ok(_) => continue,
+            Err(Why::Unlinked) => None,
+            Err(Why::Denied(link, why)) => Some((link.loc.clone(), why)),
+        };
         out.push(Box::new(Dep {
             level: l.level.level(),
             file: l.level.file.clone(),
@@ -64,7 +65,7 @@ pub(super) fn deps(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Bo
             scope: e.scope,
             entered: entered.map(String::from),
             evidence: e.evidence,
-            rule: d.rule.map(|(i, r)| (i, r.clone())),
+            denied,
         }));
     }
 }
@@ -102,7 +103,7 @@ pub fn dep_subject(from: &str, to: &str, kind: &str, scope: &str) -> String {
 
 impl Finding for Dep {
     fn code(&self) -> String {
-        DEPS_DENY.into()
+        DEPS_UNLINKED.into()
     }
     fn subject(&self) -> String {
         dep_subject(&self.from_module, &self.to_module, &self.kind, &self.scope)
@@ -133,29 +134,38 @@ impl Finding for Dep {
             .collect()
     }
     fn rule(&self) -> Option<RuleRef> {
-        Some(match &self.rule {
-            Some((i, r)) => RuleRef {
-                name: match &r.reason {
-                    Some(why) => format!("rule[{i}] \"{why}\""),
-                    None => format!("rule[{i}]"),
-                },
-                loc: Some(r.loc.clone()),
+        Some(match &self.denied {
+            Some((loc, why)) => RuleRef {
+                name: format!("link denied: {why}"),
+                loc: Some(loc.clone()),
             },
             None => RuleRef {
-                name: "no rule allows it".into(),
+                name: "no link covers it".into(),
                 loc: Some(self.file.clone()),
             },
         })
     }
     fn help(&self) -> Option<String> {
-        Some(match &self.rule {
-            Some(_) => "remove the dependency, or change the rule if it is intended".into(),
-            None if self.from.independent => "remove the dependency: an independent brick may \
-                use only itself, other independent bricks and external crates"
+        let to = match &self.entered {
+            Some(c) => format!("{}/{c}", self.to.name),
+            None => self.to.name.clone(),
+        };
+        let level = match self.level.strip_prefix("root") {
+            Some("") | None => String::new(),
+            Some(rest) => format!(" --in {}", rest.trim_start_matches('/')),
+        };
+        let add = format!(
+            "brickie design link add {} {to} --kind {} --scope {}{level} --reason \"...\"",
+            self.from.name, self.kind, self.scope
+        );
+        Some(match &self.denied {
+            _ if self.from.independent && !self.to.independent => "remove the dependency: an \
+                independent brick may use only itself, other independent bricks and external crates"
                 .into(),
-            None => {
-                "remove the dependency, or ask the reviewer for a [[rule]] that allows it".into()
-            }
+            Some(_) => "remove the dependency, or ask the reviewer for a [[rule]] that allows \
+                the link"
+                .into(),
+            None => format!("remove the dependency, or declare the link: `{add}`"),
         })
     }
     fn bricks(&self) -> Vec<String> {

@@ -22,12 +22,22 @@ desc = "axum router over a provider: serves the bundle and the port endpoints"
 from = "app"
 to = "port"
 scope = "all"
-action = "allow"
 reason = "the UI speaks the port's endpoints and messages"
 
 [[rule]]
 from = "host"
 to = "port"
 scope = "all"
-action = "allow"
 reason = "the router serves the port's endpoints from a provider"
+
+[[link]]
+from = "app"
+to = "port"
+kinds = ["uses"]
+reason = "the viewer UI calls the port's endpoints and exchanges its iframe messages"
+
+[[link]]
+from = "host"
+to = "port"
+kinds = ["implements", "uses"]
+reason = "the host serves the port's endpoints and implements them over a provider"

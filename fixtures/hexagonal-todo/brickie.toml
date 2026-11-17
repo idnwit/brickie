@@ -31,31 +31,21 @@ path = "crates/ui"
 desc = "Driving adapter: Sycamore components"
 
 [[rule]]
-from = "tag:core"
-to = "tag:adapter"
-action = "deny"
-reason = "core must not know its adapters"
-
-[[rule]]
 from = "adapters"
 to = "application"
-via = ["board-storage"]
 scope = "all"
-action = "allow"
 reason = "driven adapters implement the storage ports only"
 
 [[rule]]
 from = "application"
 to = "domain"
 scope = "all"
-action = "allow"
 reason = "the application layer is written in domain types"
 
 [[rule]]
 from = "adapters"
 to = "domain"
 scope = "all"
-action = "allow"
 reason = "driven adapters store and load domain entities"
 
 [[rule]]
@@ -63,39 +53,32 @@ from = "ui"
 to = "domain"
 kinds = ["uses"]
 scope = "all"
-action = "allow"
 reason = "the UI renders domain values (read-only use)"
 
 [[rule]]
 from = "ui"
 to = "application"
-via = ["board-service"]
 scope = "all"
-action = "allow"
 reason = "the UI drives the application only through BoardService"
 
 [[rule]]
 from = "app"
 to = "application"
-action = "allow"
 reason = "the composition root builds the interactor and wires the ports"
 
 [[rule]]
 from = "app"
 to = "adapters"
-action = "allow"
 reason = "the composition root picks the driven adapters"
 
 [[rule]]
 from = "app"
 to = "ui"
-action = "allow"
 reason = "the composition root mounts the UI (wasm32 only, measured via additional_targets)"
 
 [[rule]]
 from = "app"
 to = "domain"
-action = "allow"
 reason = "the smoke run and the wiring use domain value types"
 
 [[complexity]]
@@ -105,3 +88,61 @@ params = 5
 
 [measure]
 additional_targets = ["wasm32-unknown-unknown"]
+
+[[link]]
+from = "adapters"
+to = "application/board-storage"
+kinds = ["implements", "uses"]
+reason = "the adapters implement the repository and id ports the application defines"
+
+[[link]]
+from = "adapters"
+to = "domain"
+kinds = ["uses"]
+reason = "the adapters store and load domain entities"
+
+[[link]]
+from = "app"
+to = "adapters"
+kinds = ["uses"]
+scope = "prod"
+reason = "the composition root creates the driven adapters"
+
+[[link]]
+from = "app"
+to = "application"
+kinds = ["uses"]
+scope = "prod"
+reason = "the composition root builds the interactor and wires the ports"
+
+[[link]]
+from = "app"
+to = "domain"
+kinds = ["uses"]
+scope = "prod"
+reason = "the composition root uses domain value types in the wiring and smoke run"
+
+[[link]]
+from = "app"
+to = "ui"
+kinds = ["uses"]
+scope = "prod"
+reason = "the composition root mounts the UI"
+
+[[link]]
+from = "application"
+to = "domain"
+kinds = ["uses"]
+reason = "use cases are written in domain entities and values"
+
+[[link]]
+from = "ui"
+to = "application/board-service"
+kinds = ["implements", "uses"]
+reason = "the UI drives the application only through the BoardService trait and its drafts and views"
+
+[[link]]
+from = "ui"
+to = "domain"
+kinds = ["uses"]
+reason = "the UI renders domain values"

@@ -19,9 +19,9 @@ pub(super) fn levels(l: &Loaded) -> Vec<LevelView> {
 }
 
 /// Every level of the design files alone ([`brickie_change::Design::load_working`]): bricks and
-/// every rule between named bricks as a link; no measured edge, score or finding.
+/// every declared link; no measured edge, score or finding.
 pub fn design_levels(l: &Loaded) -> Vec<LevelView> {
-    walk_all(l, level::Ctx::new(l, links::rules(l)))
+    walk_all(l, level::Ctx::new(l, links::design(l)))
 }
 
 fn walk_all(l: &Loaded, ctx: level::Ctx) -> Vec<LevelView> {

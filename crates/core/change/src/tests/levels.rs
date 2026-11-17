@@ -1,4 +1,4 @@
-//! Rules that change nothing get a note, and code is written only when scaffolding is asked for.
+//! Code is written only when scaffolding is asked for.
 
 use super::*;
 use crate::{BrickKind, RuleSpec};
@@ -20,11 +20,9 @@ fn rule(file: &str, from: &str, to: &str) -> Op {
         rule: RuleSpec {
             from: from.into(),
             to: to.into(),
-            via: Vec::new(),
             kinds: Vec::new(),
             scope: None,
-            action: "allow".into(),
-            reason: None,
+            reason: "why".into(),
         },
     }
 }
@@ -47,26 +45,10 @@ fn an_existing_level_file_is_never_changed() {
 }
 
 #[test]
-fn a_rule_that_changes_nothing_gets_a_note() {
+fn a_rule_adds_no_note() {
     let ws = Ws::new();
-    // No rule allows b -> a, so the rule changes the level.
     let out = ws.apply(A, vec![rule("brickie.toml", "b", "a")]).unwrap();
     assert!(out.notes.is_empty(), "{:?}", out.notes);
-    // An allow from an independent brick to a normal brick never applies.
-    let ws = Ws::new();
-    ws.write(
-        "brickie.toml",
-        "[[brick]]\nname = \"a\"\nmembers = [\"pa\"]\nindependent = true\n\
-         [[brick]]\nname = \"b\"\nmembers = [\"pb\"]\n",
-    );
-    let d = ws.design();
-    let plan = d.dry_run(1, vec![rule("brickie.toml", "a", "b")]).unwrap();
-    let want = "rule a -> b allow changes nothing: an allow from an independent brick to a normal brick never applies";
-    assert_eq!(plan.notes, [want]);
-    // b -> a is already allowed: an independent brick accepts inbound edges.
-    let plan = d.dry_run(1, vec![rule("brickie.toml", "b", "a")]).unwrap();
-    let want = "rule b -> a allow changes nothing: already allowed by the default (no rule)";
-    assert_eq!(plan.notes, [want]);
 }
 
 #[test]

@@ -1,10 +1,11 @@
-//! Rule, complexity, exports and include ops on one document.
+//! Rule, link, complexity, exports and include ops on one document.
 
 use super::table::{aot_mut, set_list, set_opt, str_array};
 use anyhow::{Context, Result, bail};
 use brickie_model::design::{ComplexitySpec, RulePatch, RuleSpec};
 
 pub const RULES: &[&str] = &["rule"];
+pub const LINKS: &[&str] = &["link"];
 pub const COMPLEXITY: &[&str] = &["complexity"];
 use toml_edit::{DocumentMut, Item, Table, value};
 
@@ -12,11 +13,9 @@ pub fn rule_table(r: &RuleSpec) -> Table {
     let mut t = Table::new();
     t["from"] = value(r.from.as_str());
     t["to"] = value(r.to.as_str());
-    set_list(&mut t, "via", &r.via);
     set_list(&mut t, "kinds", &r.kinds);
     set_opt(&mut t, "scope", r.scope.as_deref());
-    t["action"] = value(r.action.as_str());
-    set_opt(&mut t, "reason", r.reason.as_deref());
+    t["reason"] = value(r.reason.as_str());
     t
 }
 
@@ -67,23 +66,15 @@ pub fn edit_list(
     Ok(())
 }
 
-/// Change the fields of rule `i` that the patch names, keeping the others and their comments.
-pub fn patch_rule(doc: &mut DocumentMut, i: usize, p: &RulePatch) -> Result<()> {
-    if let Some(a) = p.action.as_deref()
-        && a != "allow"
-        && a != "deny"
-    {
-        bail!("action must be allow or deny, not '{a}'");
-    }
-    let t = aot_mut(doc, RULES)?.get_mut(i).context("no such rule")?;
-    if let Some(a) = &p.action {
-        t["action"] = value(a.as_str());
-    }
-    if let Some(v) = &p.via {
-        set_list(t, "via", v);
-    }
+/// Change the fields of rule or link `i` of `table` that the patch names, keeping the others
+/// and their comments.
+pub fn patch_rule(doc: &mut DocumentMut, table: &[&str], i: usize, p: &RulePatch) -> Result<()> {
+    let t = aot_mut(doc, table)?.get_mut(i).context("no such entry")?;
     if let Some(r) = &p.reason {
-        set_opt(t, "reason", Some(r));
+        if r.trim().is_empty() {
+            bail!("a reason cannot be empty");
+        }
+        t["reason"] = value(r.as_str());
     }
     Ok(())
 }

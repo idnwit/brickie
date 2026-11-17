@@ -22,8 +22,8 @@ fn find(name: &str) -> Option<&'static [u8]> {
 
 const MISSING: &str = "<!doctype html><meta charset=utf-8><title>code viewer</title>\
 <body style=\"font:14px system-ui;padding:2em\"><h1>The code viewer is not built</h1>\
-<p>This binary was built without the viewer bundle. Run <code>scripts/build-codeview.sh</code> \
-(or <code>scripts/build-ui.sh</code>, which builds every bundle) and rebuild.</p></body>";
+<p>This binary was built without the viewer bundle. Build with the <code>ui</code> cargo feature \
+and with the wasm32 target and wasm-bindgen-cli installed.</p></body>";
 
 pub async fn index() -> Response {
     match find("index.html").filter(|_| embedded()) {

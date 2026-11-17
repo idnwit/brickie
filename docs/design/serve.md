@@ -18,8 +18,9 @@ Scope: `brickie serve` webview, its decisions, the layout port, the embedded cod
 | Measure job runs in the server process, single flight (`/api/measure`) | one cache writer; the page shows progress |
 | Colours are CSS variables in `crates/web/ui/styles/`; classes change style, never geometry | state changes never move layout |
 
-- Endpoint list: `crates/web/api`. Bundle: `scripts/build-ui.sh`. `crates/web/server/build.rs`
-  embeds it, or serves the read-only SSR page with a cargo warning.
+- Endpoint list: `crates/web/api`. Bundle: built by `crates/web/server/build.rs` (feature `ui`)
+  into `OUT_DIR` and embedded; without the feature or toolchain it serves the read-only SSR page
+  (cargo warning).
 - **Brick score** (`crates/web/api/src/model/score.rs`, the only place): `errors + sum over
   functions of max(0, worst ratio - 1)`, whatever layers are shown.
 - **Layers and presets**: Architecture = edges plus `deps` findings; Violations = error findings
@@ -37,7 +38,7 @@ kinds -> `uses`, `implements`, `reexports`; statuses -> `ok`, violating.
 
 | Decision | Reason |
 | --- | --- |
-| The unused rule pairs (served per level as `unused_links` from `unused_links`, with `filter`) are layout edges in every mode (after the graph edges) and drawn on their routes, one line per pair | lanes and bricks are ordered for the rules too; rule lines leave from side ports and go around boxes instead of cutting through them |
+| The planned link pairs (valid links with no measured edge, served per level with `filter`) are layout edges in every mode (after the graph edges) and drawn on their routes, one line per pair | lanes and bricks are ordered for the links too; link lines leave from side ports and go around boxes instead of cutting through them |
 | The untagged lane goes where the edges' summed lane span is least (last on ties), inside the inbound/outbound lanes | it has no tag order to keep; in the middle it blocks the lanes it does not link |
 | A row gap that no edge crosses is `GAPY_FREE` (36), not `GAPY` (72) | an empty gap needs room for the interface labels only |
 | Link marks ("!", "?", "A") and the hover reason label take the route point nearest the middle clear of boxes and other marks | marks where edges cross piled up on each other and on brick text |
@@ -54,8 +55,8 @@ references). It knows nothing about bricks, rules or the cache.
 - `crates/web/server/src/code/` implements `Provider` from config, cache and check result.
 - The UI opens it in an iframe: `/code/?path=&line=&col=`. Marks are finding spans. Bands are
   one bar per function plus one per decision-tree node, heat = value / limit.
-- `scripts/build-codeview.sh` fetches monaco-editor from npm (hash checked) into
-  `assets/codeview/` (git-ignored). No CDN at runtime.
+- `crates/lib/codeview/host/build.rs` (feature `ui`) builds the app and fetches monaco-editor from
+  npm (hash checked, cached under `target/`). No CDN at runtime.
 
 | Decision | Reason |
 | --- | --- |

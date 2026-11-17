@@ -4,8 +4,8 @@ use super::Docs;
 use super::brick::{self, Fields};
 use super::find;
 use super::rules::{
-    COMPLEXITY, RULES, complexity_table, edit_include, edit_list, patch_complexity, patch_rule,
-    read_exports, rule_table, set_exports,
+    COMPLEXITY, LINKS, RULES, complexity_table, edit_include, edit_list, patch_complexity,
+    patch_rule, read_exports, rule_table, set_exports,
 };
 use super::via;
 use crate::paths::join_rel;
@@ -92,17 +92,18 @@ fn apply_to_doc(doc: &mut DocumentMut, op: &Op) -> Result<()> {
                 independent: *independent,
             },
         ),
-        Op::AddRule { file, rule } => {
-            find::new_rule(doc, file, rule)?;
-            edit_list(doc, RULES, None, Some(rule_table(rule)))
+        Op::AddRule { file, rule: r } | Op::AddLink { file, link: r } => {
+            let t = table(op);
+            find::new_rule(doc, t, file, r)?;
+            edit_list(doc, t, None, Some(rule_table(r)))
         }
-        Op::RemoveRule { file, key } => {
-            let i = find::rule(doc, file, key)?;
-            edit_list(doc, RULES, Some(i), None)
+        Op::RemoveRule { file, key } | Op::RemoveLink { file, key } => {
+            let i = find::rule(doc, table(op), file, key)?;
+            edit_list(doc, table(op), Some(i), None)
         }
-        Op::SetRule { file, key, set } => {
-            let i = find::rule(doc, file, key)?;
-            patch_rule(doc, i, set)
+        Op::SetRule { file, key, set } | Op::SetLink { file, key, set } => {
+            let i = find::rule(doc, table(op), file, key)?;
+            patch_rule(doc, table(op), i, set)
         }
         Op::AddComplexity { file, rule } => {
             find::new_limit(doc, file, rule.bricks.as_deref())?;
@@ -127,6 +128,14 @@ fn apply_to_doc(doc: &mut DocumentMut, op: &Op) -> Result<()> {
         | Op::AddBrick { .. }
         | Op::MoveBrick { .. }
         | Op::Ungroup { .. } => unreachable!("handled above"),
+    }
+}
+
+/// The array of tables a rule or link op edits.
+fn table(op: &Op) -> &'static [&'static str] {
+    match op {
+        Op::AddLink { .. } | Op::RemoveLink { .. } | Op::SetLink { .. } => LINKS,
+        _ => RULES,
     }
 }
 

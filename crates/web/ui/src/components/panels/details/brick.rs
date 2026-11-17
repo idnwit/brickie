@@ -125,7 +125,7 @@ fn scorecard(cx: &Cx, b: usize) -> View {
             h4 { "Worst functions" }
             (fns)
             h4 { "Edges" }
-            div(class="small", title="Edges to and from this brick; violating = the edge carries a deps finding (a deny or default rule, or a cycle through it)") { (edges) }
+            div(class="small", title="Edges to and from this brick; violating = the edge carries a deps finding (no link allows it, a private target, or a cycle through it)") { (edges) }
         }
     }
 }

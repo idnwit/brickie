@@ -17,6 +17,11 @@ impl Row<RuleSpec> {
     pub fn rule_ref(&self) -> RuleRef {
         RuleRef::of(&self.file, &self.item)
     }
+
+    /// The reference of the row read as a link.
+    pub fn link_ref(&self) -> RuleRef {
+        RuleRef::link(&self.file, &self.item)
+    }
 }
 
 /// The level's own file, then every file it includes (transitively, each once).
@@ -54,14 +59,20 @@ pub fn level_rules(ch: &DesignState, lv: &str) -> Vec<Row<RuleSpec>> {
     rows(ch, lv, |s| &s.rules)
 }
 
+/// The `[[link]]` rows declared at level `lv`.
+pub fn level_links(ch: &DesignState, lv: &str) -> Vec<Row<RuleSpec>> {
+    rows(ch, lv, |s| &s.links)
+}
+
 /// The `[[complexity]]` rows that apply at level `lv`.
 pub fn level_complexity(ch: &DesignState, lv: &str) -> Vec<Row<ComplexitySpec>> {
     rows(ch, lv, |s| &s.complexity)
 }
 
-/// The rule `r` names (`None`: no longer in the design).
+/// The rule or link `r` names (`None`: no longer in the design).
 pub fn rule_at<'a>(ch: &'a DesignState, r: &RuleRef) -> Option<&'a RuleSpec> {
-    let rules = &ch.sheets.get(&r.file)?.rules;
+    let s = ch.sheets.get(&r.file)?;
+    let rules = if r.link { &s.links } else { &s.rules };
     rules.iter().find(|x| rule_key(x) == r.key)
 }
 
@@ -73,13 +84,19 @@ pub fn sharers(ch: &DesignState, file: &str) -> usize {
         .count()
 }
 
-/// What refers to brick `name` at level `lv`: rules naming it and the level's exports.
+/// What refers to brick `name` at level `lv`: rules and links naming it and the level's
+/// exports.
 pub fn references(ch: &DesignState, lv: &str, name: &str) -> Vec<String> {
     let mut out: Vec<String> = level_rules(ch, lv)
         .into_iter()
         .filter(|r| r.item.from == name || r.item.to == name)
         .map(|r| format!("rule {} \u{2192} {} ({})", r.item.from, r.item.to, r.file))
         .collect();
+    out.extend(
+        (level_links(ch, lv).into_iter())
+            .filter(|r| r.item.from == name || super::link_brick(&r.item.to) == name)
+            .map(|r| format!("link {} \u{2192} {} ({})", r.item.from, r.item.to, r.file)),
+    );
     let own = ch.files.get(lv).and_then(|f| ch.sheets.get(f));
     if own.is_some_and(|s| s.exports.iter().any(|e| e == name)) {
         out.push("this level's exports".into());
@@ -98,7 +115,6 @@ pub(crate) mod tests {
             from: from.into(),
             to: to.into(),
             kinds: kinds.iter().map(|k| k.to_string()).collect(),
-            action: "allow".into(),
             ..Default::default()
         }
     }
@@ -106,6 +122,7 @@ pub(crate) mod tests {
     pub fn change() -> DesignState {
         let own = FileSheet {
             rules: vec![rule("api", "ui", &["uses"])],
+            links: vec![rule("ui", "api", &[])],
             exports: vec!["api".into()],
             include_files: vec!["shared.toml".into()],
             ..Default::default()
@@ -158,8 +175,11 @@ pub(crate) mod tests {
         let gone = RuleRef {
             file: r.file.clone(),
             key: rule_key(&rule("api", "ui", &["implements"])),
+            link: false,
         };
         assert_eq!(rule_at(&ch, &gone), None);
-        assert_eq!(references(&ch, "root/web", "api").len(), 2);
+        let l = level_links(&ch, "root/web")[0].link_ref();
+        assert_eq!(rule_at(&ch, &l).map(|x| x.to.as_str()), Some("api"));
+        assert_eq!(references(&ch, "root/web", "api").len(), 3);
     }
 }

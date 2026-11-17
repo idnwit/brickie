@@ -1,5 +1,6 @@
-//! The rule inspector: kinds, scope, action, reason, help; its file and who shares it; each
-//! change one version, the rule named by identity. Design mode has no measured edge.
+//! The rule or link inspector: kinds, scope and reason (required); its file and who shares
+//! it; a link no rule allows says why. Each change is one version, named by identity. Design
+//! mode has no measured edge.
 
 use super::super::widgets::{seg, text_field};
 use super::super::{keys::delete_selection, ops_then};
@@ -9,12 +10,15 @@ use sycamore::prelude::*;
 
 const KINDS: [&str; 3] = ["uses", "implements", "reexports"];
 
-/// Change rule `r` into `rule` and keep it selected (its identity may change).
+/// Change rule or link `r` into `rule` and keep it selected (its identity may change).
 fn set_rule(cx: &Cx, r: &RuleRef, rule: RuleSpec) {
     let Some(old) = cx.m.design.as_deref().and_then(|d| rule_at(d, r)).cloned() else {
         return;
     };
-    let next = RuleRef::of(&r.file, &rule);
+    let next = RuleRef {
+        key: rule_key(&rule),
+        ..r.clone()
+    };
     ops_then(cx, rule_ops(r, &old, &rule), move |now, _| {
         now.ed.rule.set(Some(next));
     });
@@ -38,7 +42,7 @@ fn kinds(cx: &Cx, r: &RuleRef, rule: &RuleSpec) -> View {
 
 fn choices(cx: &Cx, r: &RuleRef, rule: &RuleSpec) -> View {
     let (c, rr, base) = (cx.clone(), r.clone(), rule.clone());
-    let scope = seg(&SCOPES, rule.scope.as_deref().unwrap_or("prod"), move |s| {
+    let scope = seg(&SCOPES, rule.scope.as_deref().unwrap_or("all"), move |s| {
         set_rule(
             &c,
             &rr,
@@ -48,34 +52,28 @@ fn choices(cx: &Cx, r: &RuleRef, rule: &RuleSpec) -> View {
             },
         )
     });
-    let (c, rr, base) = (cx.clone(), r.clone(), rule.clone());
-    let action = seg(&["allow", "deny"], &rule.action, move |a| {
-        set_rule(
-            &c,
-            &rr,
-            RuleSpec {
-                action: a.to_string(),
-                ..base.clone()
-            },
-        )
-    });
-    view! { label { "scope" } (scope) label { "action" } (action) }
+    view! { label { "scope" } (scope) }
 }
 
 fn texts(cx: &Cx, r: &RuleRef, rule: &RuleSpec) -> View {
-    let opt = |s: String| (!s.trim().is_empty()).then(|| s.trim().to_string());
     let (c, rr, base) = (cx.clone(), r.clone(), rule.clone());
     let reason = text_field(
         "rule-reason",
-        "reason (why this link)",
-        rule.reason.clone().unwrap_or_default(),
+        "reason (required)",
+        rule.reason.clone(),
         true,
         move |s| {
+            let s = s.trim().to_string();
+            if s.is_empty() {
+                c.ed.msg
+                    .set("A reason is required: kept the old one.".into());
+                return;
+            }
             set_rule(
                 &c,
                 &rr,
                 RuleSpec {
-                    reason: opt(s),
+                    reason: s,
                     ..base.clone()
                 },
             )
@@ -89,15 +87,22 @@ pub fn rule_view(cx: &Cx, r: RuleRef) -> View {
         return View::default();
     };
     let Some(rule) = rule_at(&ch, &r).cloned() else {
-        return view! { p(class="muted") { "This rule is gone." } };
+        return view! { p(class="muted") { "It is gone." } };
     };
     let n = sharers(&ch, &r.file);
     let shared = (n > 1).then(|| view! { p(class="warn-text") { (format!("Shared by {n} levels: editing it changes all of them.")) } });
-    let missing = rule.reason.is_none().then(|| view! { p(class="muted") { "? No reason yet: optional now, listed in the design's todo." } });
+    let served = (cx.level().links.iter())
+        .find(|v| r.link && v.file == r.file && v.from == rule.from && v.to == rule.to);
+    let denied = served.and_then(|v| v.denied.clone()).map(|why| view! { p(class="err-text") { (format!("Not allowed: {why}. It blocks publishing.")) } });
+    let cycle = served
+        .is_some_and(|v| v.cycle)
+        .then(|| view! { p(class="warn-text") { "On a cycle of this level's links." } });
+    let what = if r.link { "link" } else { "rule" };
     let title = format!("{} \u{2192} {}", rule.from, rule.to);
-    let sub = format!("{} rule in {}", rule.action, r.file);
+    let sub = format!("{what} in {}", r.file);
+    let del = format!("Delete {what}");
     let c = cx.clone();
-    let copy = super::copy_ref(rule_ref(ch.sheets.get(&r.file), &rule));
+    let copy = super::copy_ref(rule_ref(ch.sheets.get(&r.file), r.link, &rule));
     let (k, ch2, t) = (
         kinds(cx, &r, &rule),
         choices(cx, &r, &rule),
@@ -107,7 +112,9 @@ pub fn rule_view(cx: &Cx, r: RuleRef) -> View {
         h2 { (title) (copy) }
         p(class="muted mono") { (sub) }
         (shared)
-        div(class="form") { (t) (missing) (k) (ch2) }
-        div(class="row acts") { button(class="danger", on:click=move |_: Click| delete_selection(&c)) { "Delete rule" } }
+        (denied)
+        (cycle)
+        div(class="form") { (t) (k) (ch2) }
+        div(class="row acts") { button(class="danger", on:click=move |_: Click| delete_selection(&c)) { (del) } }
     }
 }

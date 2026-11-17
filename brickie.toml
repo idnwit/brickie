@@ -31,35 +31,30 @@ desc = "The `brickie` command line: measure, check, serve, llms"
 from = "cli"
 to = "core"
 scope = "all"
-action = "allow"
 reason = "the commands drive measure and check"
 
 [[rule]]
 from = "cli"
 to = "web"
 scope = "all"
-action = "allow"
 reason = "`brickie serve` starts the server"
 
 [[rule]]
 from = "web"
 to = "core"
 scope = "all"
-action = "allow"
 reason = "the server reads the cache and checks; the viewer shares the model"
 
 [[rule]]
 from = "core"
 to = "lib"
 scope = "all"
-action = "allow"
 reason = "measure and check use the metrics, scanner and graph libraries"
 
 [[rule]]
 from = "web"
 to = "lib"
 scope = "all"
-action = "allow"
 reason = "the viewer lays out the brick graph; the server mounts the code viewer and implements its port"
 
 # lib depends on nothing of brickie: no rule allows lib -> *.
@@ -88,3 +83,34 @@ cognitive = 40
 lines = 150
 
 
+
+[[link]]
+from = "cli"
+to = "core"
+kinds = ["uses"]
+reason = "the commands run measure and check and print their results"
+
+[[link]]
+from = "cli"
+to = "web"
+kinds = ["uses"]
+scope = "prod"
+reason = "`brickie serve` starts the reviewer server"
+
+[[link]]
+from = "core"
+to = "lib"
+kinds = ["reexports", "uses"]
+reason = "measure and check call the metrics, scanner and graph libraries"
+
+[[link]]
+from = "web"
+to = "core"
+kinds = ["uses"]
+reason = "the server loads the cache and runs the checks, and the viewer reads the shared model"
+
+[[link]]
+from = "web"
+to = "lib"
+kinds = ["implements", "uses"]
+reason = "the viewer lays out the brick graph, and the server mounts the code viewer and implements its provider port"

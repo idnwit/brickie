@@ -79,16 +79,18 @@ Serves: P12, P13.
 A measured edge shows an abbreviation of its kind at the middle and, at the same place, a cross
 when it is debt. Width follows its count; `reexports` has a tail mark.
 
-In view mode an allow rule that no measured edge backs draws as a link, one line per brick pair
-(the tooltip lists every rule with its reason and what it waits for). In Design mode every rule
-between named bricks draws as a link: allow in the colour of its kind, deny red and dashed (the
-tooltip lists action, ends, reason, kinds, `via` and scope). Dash is the edge kind.
+In view mode a valid link that no measured edge backs draws as a planned link, one line per brick
+pair (the tooltip lists every link with its reason). In Design mode the canvas draws the links of
+the level, in the colour of their kind; a link no rule allows (`design/link-denied`) is red with
+the reason in its tooltip, and a link on a cycle of links is marked. Rules are listed in the Rules
+tab, not drawn. Dash is the edge kind.
 
 | Look | Meaning |
 | --- | --- |
-| warning-colour line with `!` | view mode, unused: the rule decides no measured edge yet (a design todo) |
-| warning-colour `?` | the rule has no reason |
-| `A` | an agent added the rule |
+| warning-colour line with `!` | view mode, planned: the link has no measured edge yet |
+| red line | Design mode, denied: no rule allows the link (blocks Publish) |
+| cycle mark on a link | the link is on a cycle of links (information only) |
+| `A` | an agent added the rule or link |
 | short-dash outline, warning colour | unassigned brick |
 | book icon before the name, dashed box | independent lib (tooltip says what it means) |
 
@@ -112,27 +114,28 @@ measured code.
   `behind: rebase` when the published head moved, and Publish (runs the gate; disabled when
   behind), Rebase (enabled when behind) and Discard (asks first). A blocked publish lists its
   blocking items in the bar's message. Then `v<N> . <author>` (opens History; agent violet, you,
-  hand edit), the chip of rules without a reason (opens Rules), an error chip when the
+  hand edit), the chip of denied links (opens the Inspector on the first), an error chip when the
   design does not load, and Undo and Redo with tooltips naming what they would do.
 - Toolbar, one row: Select and Hand; brick tiles Crate, Module, Group; link types; the scope of
-  new rules; Delete and `?`. It never wraps: below 1280 px labels give way to glyphs with
+  new links; Delete and `?`. It never wraps: below 1280 px labels give way to glyphs with
   tooltips, and the rest scrolls sideways. It is collapsible.
 - Drag a brick tile onto the canvas, a brick (nest it), a tag lane (retag), the "+ new tag lane"
   zone (new tag), or the frame edge or a breadcrumb (move up). A drop target is outlined with a
   label of what the drop does; a refused one is marked in the error colour with the reason.
 - Arm a link type (`L` or a toolbar button), then drag a port from a brick onto a sibling or a
-  lane; there is one port per type and no form after the drop. Drag the arrowhead of a selected
-  rule to change its target.
+  lane; there is one port per type and no form after the drop, and the drop creates a link
+  (a rule is added in the Rules tab, never by dragging). Drag the arrowhead of a selected link to
+  change its target.
 - Panel tabs: Inspector, Rules, Level, Files, History (every version with author, diff lines and
   an Undo); all but History are scoped to the level on screen.
 - Undo reverts your latest edit as a new version; Redo reverts the undo.
 - Moving a brick writes only a layout hint (`.brickie/layout.json`), not a version. Auto layout
   clears the hints of the level on screen, lays it out again and fits.
 - The copy icon "Copy ref for the agent" in the inspector copies the CLI name (`web/api`,
-  `rule web -> store (prod)`).
-- Click a rule link to select its rule (again: the next rule of the pair) and edit or delete it in
-  the Inspector.
-- Delete asks for confirmation for a brick and removes a selected rule at once.
+  `link web -> store`).
+- Click a link to select it (again: the next link of the pair) and edit or delete it in the
+  Inspector.
+- Delete asks for confirmation for a brick and removes a selected rule or link at once.
 
 ## Live updates and toasts
 
@@ -153,7 +156,7 @@ Serves: P4, P18.
 | Key | Effect | Where |
 | --- | --- | --- |
 | `1` `2` `3` | preset Architecture, Violations, All | view mode |
-| `1` `2` `3` | scope of new rules: prod, test, all | Design mode |
+| `1` `2` `3` | scope of new links: prod, test, all | Design mode |
 | `E` | toggle Design mode | always |
 | `Esc` | one step back: drag, armed tool, form, popup, finding, selection, then zoom out | always |
 | `Backspace` | out to the parent level | always |
@@ -212,7 +215,7 @@ width, never size or position.
 | `--sel` | selection, focus | `#2f6fb3` | `#6aa7ff` |
 | `--c-ok` | healthy edge, brick | `#7d858d` | `#8d959d` |
 | `--c-debt` (`--err`) | violation, error | `#c0261f` | `#ff6a5f` |
-| `--bd-amber` (`--warn`) | warning, unused link | `#a67c00` | `#f1d98a` |
+| `--bd-amber` (`--warn`) | warning, planned link | `#a67c00` | `#f1d98a` |
 | `--bd-green`, `--ok` | within limit, allow | `#2e8b57` | `#5fc88a` |
 | `--c-acc` | stale-findings icon | `#b8962e` | `#d9b648` |
 | `--agent` | agent author and mark | `#7e4bb0` | `#b98af0` |
@@ -236,5 +239,5 @@ width, never size or position.
 
 ## Regenerating the screenshots
 
-Run `scripts/build-ui.sh`, `brickie measure`, then `brickie serve` and capture the pages above in
+Run `cargo build --release`, `brickie measure`, then `brickie serve` and capture the pages above in
 a 1400x900 window.

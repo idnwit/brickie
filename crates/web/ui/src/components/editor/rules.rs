@@ -1,34 +1,45 @@
-//! The Rules tab: every dependency rule that applies at the level (its own file and includes), each with its physical file; a row opens
-//! the rule in the inspector, `x` removes it, and the add row takes selectors of the level.
+//! The Rules tab: every `[[rule]]` that applies at the level (its own file and includes) and
+//! every `[[link]]` declared there, each with its physical file; a row opens it in the
+//! inspector, `x` removes it. The add row takes selectors of the level and a required reason.
+//! A link no rule allows is marked with why.
 
 use super::op;
 use crate::state::*;
-use brickie_web_api::design::Op;
+use brickie_web_api::design::{Op, RuleSpec};
 use sycamore::prelude::*;
 
-fn row(cx: &Cx, own: &str, r: Row<brickie_web_api::design::RuleSpec>) -> View {
+/// Why link `r` is not allowed, as served for the level on screen.
+fn denied(cx: &Cx, r: &Row<RuleSpec>) -> Option<String> {
+    (cx.level().links.iter())
+        .find(|v| v.file == r.file && v.from == r.item.from && v.to == r.item.to)
+        .and_then(|v| v.denied.clone())
+}
+
+fn row(cx: &Cx, own: &str, r: Row<RuleSpec>, link: bool, why: Option<String>) -> View {
     let ed = cx.ed;
-    let rr = r.rule_ref();
+    let rr = if link { r.link_ref() } else { r.rule_ref() };
     let on = ed.rule.with(|x| x.as_ref() == Some(&rr));
     let cls = format!(
-        "rrow{}{}",
+        "rrow{}{}{}",
         if r.file != own { " inc" } else { "" },
-        if on { " on" } else { "" }
+        if on { " on" } else { "" },
+        if why.is_some() { " denied" } else { "" }
     );
     let kinds = if r.item.kinds.is_empty() {
         "all".to_string()
     } else {
         r.item.kinds.join("+")
     };
-    let reason = r.item.reason.clone().unwrap_or_else(|| "?".into());
     let (c, file, key) = (cx.clone(), r.file.clone(), rr.key.clone());
     let rm = move |e: Click| {
         e.stop_propagation();
+        let (file, key) = (file.clone(), key.clone());
         op(
             &c,
-            Op::RemoveRule {
-                file: file.clone(),
-                key: key.clone(),
+            if link {
+                Op::RemoveLink { file, key }
+            } else {
+                Op::RemoveRule { file, key }
             },
         );
     };
@@ -36,17 +47,19 @@ fn row(cx: &Cx, own: &str, r: Row<brickie_web_api::design::RuleSpec>) -> View {
         ed.rule.set(Some(rr.clone()));
         ed.tab.set("inspect");
     };
-    let at = r.file.clone();
-    let (from, to, scope, action) = (
+    let at = match &why {
+        Some(w) => format!("{}: not allowed: {w}", r.file),
+        None => r.file.clone(),
+    };
+    let (from, to, scope, reason) = (
         r.item.from,
         r.item.to,
-        r.item.scope.unwrap_or_else(|| "prod".into()),
-        r.item.action,
+        r.item.scope.unwrap_or_else(|| "all".into()),
+        r.item.reason,
     );
-    let acls = format!("la {action}");
     view! {
         tr(class=cls, title=at, on:click=pick) {
-            td { (from) } td { (to) } td { (kinds) } td { (scope) } td(class=acls) { (action) }
+            td { (from) } td { (to) } td { (kinds) } td { (scope) }
             td(class="muted") { (reason) } td { button(class="px", title="remove", on:click=rm) { "\u{00D7}" } }
         }
     }
@@ -54,7 +67,10 @@ fn row(cx: &Cx, own: &str, r: Row<brickie_web_api::design::RuleSpec>) -> View {
 
 fn add_row(cx: &Cx, file: String, selectors: Vec<String>) -> View {
     let (from, to) = (create_signal(String::new()), create_signal(String::new()));
-    let ty = create_signal("uses".to_string());
+    let (ty, reason) = (
+        create_signal("uses".to_string()),
+        create_signal(String::new()),
+    );
     let opts = |list: &[String]| {
         View::from(
             list.iter()
@@ -78,17 +94,47 @@ fn add_row(cx: &Cx, file: String, selectors: Vec<String>) -> View {
             .into_iter()
             .find(|t| ty.with(|x| x == t.name()))
             .unwrap_or(LinkType::Uses);
-        let (f, g) = (from.get_clone(), to.get_clone());
-        if !f.is_empty() && !g.is_empty() {
-            op(&c, link_op(&file, &f, &g, t, c.ed.scope.get()));
+        let (f, g, why) = (from.get_clone(), to.get_clone(), reason.get_clone());
+        if f.is_empty() || g.is_empty() {
+            return;
         }
+        if why.trim().is_empty() {
+            c.ed.msg.set("A rule needs a reason.".into());
+            return;
+        }
+        let rule = RuleSpec {
+            from: f,
+            to: g,
+            kinds: t.kinds(),
+            scope: Some(c.ed.scope.get().to_string()),
+            reason: why.trim().to_string(),
+        };
+        op(
+            &c,
+            Op::AddRule {
+                file: file.clone(),
+                rule,
+            },
+        );
+        reason.set(String::new());
     };
     view! {
         div(class="row addrule") {
             select(bind:value=from) { option(value="") { "from" } (o1) }
             select(bind:value=ty) { (types) }
             select(bind:value=to) { option(value="") { "to" } (o2) }
+            input(bind:value=reason, placeholder="reason (required)")
             button(on:click=add) { "+ rule" }
+        }
+    }
+}
+
+fn table(rows: Vec<View>) -> View {
+    let rows = View::from(rows);
+    view! {
+        table(class="rules") {
+            tr { th { "from" } th { "to" } th { "kinds" } th { "scope" } th { "reason" } th {} }
+            (rows)
         }
     }
 }
@@ -98,27 +144,37 @@ pub fn rules(cx: &Cx) -> View {
         return View::default();
     };
     let lv = cx.level().path.clone();
-    let rows: Vec<View> = level_rules(&ch, &lv)
+    let rules: Vec<View> = level_rules(&ch, &lv)
         .into_iter()
-        .map(|r| row(cx, &file, r))
+        .map(|r| row(cx, &file, r, false, None))
         .collect();
-    let empty = rows.is_empty().then(|| view! { p(class="muted") { "No rules. Drag a port between bricks on the canvas to add one." } });
+    let links: Vec<View> = level_links(&ch, &lv)
+        .into_iter()
+        .map(|r| {
+            let why = denied(cx, &r);
+            row(cx, &file, r, true, why)
+        })
+        .collect();
+    let no_rules = rules
+        .is_empty()
+        .then(|| view! { p(class="muted") { "No rules: no link of this level is allowed." } });
+    let no_links = links.is_empty().then(|| view! { p(class="muted") { "No links. Drag a port between bricks on the canvas to add one." } });
     let selectors = ch
         .levels
         .get(&lv)
         .map(|l| l.selectors.clone())
         .unwrap_or_default();
     let a = add_row(cx, file.clone(), selectors);
-    let rows = View::from(rows);
+    let (rt, lt) = (table(rules), table(links));
     view! {
-        h3 { "Dependency rules" }
+        h3 { "Rules (what links may exist)" }
         p(class="muted mono") { (file) }
-        table(class="rules") {
-            tr { th { "from" } th { "to" } th { "kinds" } th { "scope" } th { "action" } th { "reason" } th {} }
-            (rows)
-        }
-        (empty)
+        (rt)
+        (no_rules)
         (a)
         p(class="muted") { "Tinted rows come from an included file (shared)." }
+        h3 { "Links (declared dependencies)" }
+        (lt)
+        (no_links)
     }
 }

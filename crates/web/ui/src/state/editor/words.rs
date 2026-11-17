@@ -3,18 +3,14 @@
 
 use brickie_web_api::design::{By, Op, RuleKey, RuleSpec, Version};
 
-fn rule_words(r: &RuleSpec) -> String {
+/// `verb a -> b (kinds, scope)`.
+fn rule_words(verb: &str, r: &RuleSpec) -> String {
     let kinds = if r.kinds.is_empty() {
         "all kinds".to_string()
     } else {
         r.kinds.join("+")
     };
-    let verb = if r.action == "deny" {
-        "Denied"
-    } else {
-        "Allowed"
-    };
-    let scope = r.scope.as_deref().unwrap_or("prod");
+    let scope = r.scope.as_deref().unwrap_or("all");
     format!("{verb} {} \u{2192} {} ({kinds}, {scope})", r.from, r.to)
 }
 
@@ -43,13 +39,17 @@ fn key_words(k: &RuleKey) -> String {
     format!("{} \u{2192} {}", k.from, k.to)
 }
 
-/// The op in plain words: "Added brick telemetry", "Allowed a -> b (uses, prod)".
+/// The op in plain words: "Added brick telemetry", "Allowed a -> b (uses, prod)",
+/// "Linked a -> b (uses, all)".
 pub fn describe(op: &Op) -> String {
     if let Some(w) = brick_words(op) {
         return w;
     }
     match op {
-        Op::AddRule { rule, .. } => rule_words(rule),
+        Op::AddRule { rule, .. } => rule_words("Allowed", rule),
+        Op::AddLink { link, .. } => rule_words("Linked", link),
+        Op::SetLink { key, .. } => format!("Changed link {}", key_words(key)),
+        Op::RemoveLink { key, .. } => format!("Removed link {}", key_words(key)),
         Op::SetRule { key, .. } => format!("Changed rule {}", key_words(key)),
         Op::RemoveRule { key, .. } => format!("Removed rule {}", key_words(key)),
         Op::AddExport { brick, .. } => format!("Exported {brick}"),
@@ -144,23 +144,21 @@ mod tests {
                 to: "b".into(),
                 kinds: vec!["uses".into()],
                 scope: Some("prod".into()),
-                action: "allow".into(),
                 ..Default::default()
             },
         };
         assert_eq!(describe(&r), "Allowed a \u{2192} b (uses, prod)");
-        let v = Op::AddRule {
+        let v = Op::AddLink {
             file: "x".into(),
-            rule: RuleSpec {
+            link: RuleSpec {
                 from: "ui".into(),
                 to: "application".into(),
-                action: "allow".into(),
                 ..Default::default()
             },
         };
         assert_eq!(
             describe(&v),
-            "Allowed ui \u{2192} application (all kinds, prod)"
+            "Linked ui \u{2192} application (all kinds, all)"
         );
         assert_eq!(op_brick(&add("t")), Some("t"));
         assert_eq!(op_brick(&r), None);

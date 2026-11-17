@@ -9,7 +9,7 @@ const BIN: &str = env!("CARGO_BIN_EXE_brickie");
 
 const ROOT: &str = "# design\n[[brick]]\nname = \"a\"   # first\nmembers = [\"pa\"]\n\n\
 [[brick]]\nname = \"b\"\nmembers = [\"pb\"]\n\n\
-[[rule]]\nfrom = \"a\"\nto = \"b\"\naction = \"allow\"\nreason = \"a reads b\"\n";
+[[rule]]\nfrom = \"a\"\nto = \"b\"\nreason = \"a reads b\"\n";
 
 fn ws() -> tempfile::TempDir {
     let tmp = tempfile::tempdir().unwrap();
@@ -87,16 +87,17 @@ fn every_write_verb() {
     ok(
         d,
         4,
-        &[
-            "rule", "add", "a", "db", "allow", "--kind", "uses", "--reason", "x",
-        ],
+        &["rule", "add", "a", "db", "--kind", "uses", "--reason", "x"],
     );
-    ok(d, 5, &["rule", "set", "a", "db", "--action", "deny"]);
+    ok(d, 5, &["rule", "set", "a", "db", "--reason", "y"]);
     ok(d, 6, &["rule", "rm", "a", "db", "--kind", "uses"]);
-    ok(d, 7, &["limit", "add", "--cognitive", "20"]);
+    ok(d, 7, &["link", "add", "a", "db", "--reason", "a needs db"]);
+    ok(d, 8, &["link", "set", "a", "db", "--reason", "a reads db"]);
+    ok(d, 9, &["link", "rm", "a", "db"]);
+    ok(d, 10, &["limit", "add", "--cognitive", "20"]);
     ok(
         d,
-        8,
+        11,
         &["limit", "set", "*", "--cognitive", "0", "--lines", "80"],
     );
     let text = read(d, "brickie.toml");
@@ -104,37 +105,37 @@ fn every_write_verb() {
         text.contains("lines = 80") && !text.contains("cognitive"),
         "{text}"
     );
-    ok(d, 9, &["limit", "rm"]);
-    ok(d, 10, &["brick", "set", "a", "--desc", "d"]);
+    ok(d, 12, &["limit", "rm"]);
+    ok(d, 13, &["brick", "set", "a", "--desc", "d"]);
     std::fs::write(
         d.join("preset.toml"),
-        "[[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\n",
+        "[[rule]]\nfrom = \"*\"\nto = \"*\"\nreason = \"open\"\n",
     )
     .unwrap();
-    ok(d, 11, &["include", "add", "preset.toml"]);
-    ok(d, 12, &["include", "rm", "preset.toml"]);
-    ok(d, 13, &["brick", "group", "app", "a", "b"]);
+    ok(d, 14, &["include", "add", "preset.toml"]);
+    ok(d, 15, &["include", "rm", "preset.toml"]);
+    ok(d, 16, &["brick", "group", "app", "a", "b"]);
     assert!(read(d, "app/brickie.toml").contains("name = \"a\"   # first"));
-    ok(d, 14, &["export", "set", "app/a"]);
-    ok(d, 15, &["export", "rm", "app/a"]);
-    ok(d, 16, &["brick", "move", "app/b", "--into", "root"]);
-    ok(d, 17, &["brick", "ungroup", "app"]);
-    ok(d, 18, &["brick", "rm", "db"]);
+    ok(d, 17, &["export", "set", "app/a"]);
+    ok(d, 18, &["export", "rm", "app/a"]);
+    ok(d, 19, &["brick", "move", "app/b", "--into", "root"]);
+    ok(d, 20, &["brick", "ungroup", "app"]);
+    ok(d, 21, &["brick", "rm", "db"]);
     let log = json(d, &["log"]);
-    assert_eq!(log.as_array().unwrap().len(), 19);
+    assert_eq!(log.as_array().unwrap().len(), 22);
     assert!(
         log.as_array().unwrap()[1..]
             .iter()
             .all(|v| v["by"] == "agent")
     );
     // undo, diff, show --since
-    ok(d, 19, &["undo"]);
+    ok(d, 22, &["undo"]);
     assert!(read(d, "brickie.toml").contains("name = \"db\""));
     let diff = String::from_utf8_lossy(&run(d, &["diff", "1", "2"]).stdout).to_string();
     assert_eq!(diff, "+ brickie.toml: brick store\n");
-    let since = String::from_utf8_lossy(&run(d, &["show", "--since", "19"]).stdout).to_string();
+    let since = String::from_utf8_lossy(&run(d, &["show", "--since", "22"]).stdout).to_string();
     assert!(
-        since.contains("v20  draft  agent") && since.contains("undo v19"),
+        since.contains("v23  draft  agent") && since.contains("undo v22"),
         "{since}"
     );
 }
@@ -213,7 +214,7 @@ fn apply(dir: &Path, args: &[&str], script: &str) -> Output {
 }
 
 const SCRIPT: &str = "# one task\n\nbrick add store --kind crate --desc \"the data\"\n\
-rule add a store allow --reason \"a reads store\"\n";
+rule add a store --reason \"a reads store\"\n";
 
 #[test]
 fn apply_writes_all_ops_as_one_version() {
@@ -273,10 +274,14 @@ fn dry_run_prints_the_diff_and_writes_nothing() {
             && text.contains("brick store"),
         "{text}"
     );
-    let out = apply(d, &["--base", "1", "--dry-run"], "rule add b a allow\n");
+    let out = apply(
+        d,
+        &["--base", "1", "--dry-run"],
+        "link add b a --reason r\n",
+    );
     let text = String::from_utf8_lossy(&out.stdout);
     assert!(
-        text.contains("new todo") && text.contains("no-reason"),
+        text.contains("new todo") && text.contains("design/link-denied"),
         "{text}"
     );
     assert_eq!(read(d, "brickie.toml"), before);
@@ -635,7 +640,8 @@ fn apply_scaffold_covers_every_line_and_is_refused_inside_one() {
                 "add",
                 "a",
                 "b",
-                "allow",
+                "--reason",
+                "r",
                 "--scaffold",
                 "--base",
                 "3"
@@ -662,38 +668,56 @@ fn a_new_group_starts_with_an_empty_file() {
 }
 
 #[test]
-fn a_rule_that_changes_nothing_prints_a_note() {
+fn link_add_prints_a_note_when_no_rule_allows_it() {
     let tmp = ws();
     let d = tmp.path();
     run(d, &["show"]);
-    ok(d, 1, &["brick", "add", "grp", "--kind", "group"]);
-    ok(
-        d,
-        2,
-        &["brick", "add", "m", "--members", "pm", "--in", "grp"],
-    );
-    ok(
-        d,
-        3,
-        &["brick", "add", "n", "--members", "pn", "--in", "grp"],
-    );
-    // A rule that decides something new: no note.
-    ok(d, 4, &["rule", "add", "*", "*", "allow", "--in", "grp"]);
+    // ROOT has a rule a -> b only: a link b -> a is denied, a link a -> b is not.
     let args = [
-        "rule", "add", "m", "n", "allow", "--in", "grp", "--base", "5",
+        "link",
+        "add",
+        "b",
+        "a",
+        "--reason",
+        "b needs a",
+        "--base",
+        "1",
     ];
-    let text = String::from_utf8_lossy(&run(d, &args).stdout).to_string();
+    let out = run(d, &args);
+    assert!(out.status.success());
+    let text = String::from_utf8_lossy(&out.stdout).to_string();
     assert!(
-        text.starts_with("ok: draft v6\nnote: rule m -> n allow changes nothing: already allowed by grp/brickie.toml:"),
+        text.starts_with("ok: draft v2")
+            && text.contains("\nnote: design/link-denied: link b -> a is not allowed"),
         "{text}"
     );
     let args = [
-        "rule", "add", "n", "m", "allow", "--in", "grp", "--base", "6",
+        "link",
+        "add",
+        "a",
+        "b",
+        "--reason",
+        "a needs b",
+        "--base",
+        "2",
     ];
+    let text = String::from_utf8_lossy(&run(d, &args).stdout).to_string();
+    assert_eq!(text.lines().next(), Some("ok: draft v3"));
+    assert!(!text.contains("design/link-denied"), "{text}");
+    let args = ["link", "add", "b", "a", "--reason", "x", "--base", "3"];
     let out = run(d, &[&args[..], &["--format", "json"]].concat());
+    // The same link twice is refused.
+    assert_eq!(out.status.code(), Some(2));
+    // The denied link blocks `design check`.
+    let out = run(d, &["check", "--format", "json"]);
+    assert_eq!(out.status.code(), Some(4));
     let v: Value = serde_json::from_slice(&out.stdout).unwrap();
     assert!(
-        v["notes"][0].as_str().unwrap().contains("changes nothing"),
+        v["blocking"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|b| b["code"] == "design/link-denied"),
         "{v}"
     );
 }
@@ -730,28 +754,4 @@ fn publish_is_blocked_without_measurements_and_discard_drops_the_draft() {
         Some(2),
         "no draft"
     );
-}
-
-#[test]
-fn rule_via_is_written_and_an_empty_value_removes_it() {
-    let tmp = grouped();
-    let d = tmp.path();
-    ok(d, 3, &["export", "set", "app/a"]);
-    ok(
-        d,
-        4,
-        &["brick", "add", "d", "--kind", "crate", "--desc", "d"],
-    );
-    ok(d, 5, &["rule", "add", "d", "app", "allow", "--via", "a"]);
-    assert!(read(d, "brickie.toml").contains("via = [\"a\"]"));
-    ok(d, 6, &["rule", "set", "d", "app", "--via", ""]);
-    assert!(!read(d, "brickie.toml").contains("via"));
-    // A child that is not exported is refused.
-    let out = run(
-        d,
-        &[
-            "rule", "add", "d", "app", "deny", "--via", "b", "--base", "6",
-        ],
-    );
-    assert!(!out.status.success());
 }

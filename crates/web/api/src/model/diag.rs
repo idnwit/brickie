@@ -100,7 +100,7 @@ pub struct DiagView {
     pub snippet: Option<Snippet>,
 }
 
-/// A diagnostic code filter: empty, exact (`deps/deny`) or a family prefix (`complexity`).
+/// A diagnostic code filter: empty, exact (`deps/unlinked`) or a family prefix (`complexity`).
 pub fn code_matches(code: &str, filter: &str) -> bool {
     filter.is_empty()
         || code == filter

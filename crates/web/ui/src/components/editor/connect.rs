@@ -1,12 +1,12 @@
-//! Connecting, type first: dragging a typed port of a brick draws a rubber band; the sibling or
-//! tag lane under the pointer is checked (`/api/design/link-check`) and a redundant target is
-//! refused ("already allowed"). Dropping adds the rule at once (`add_rule`), selects it and
-//! focuses its reason in the inspector. Dragging the arrowhead of the selected rule
-//! (`retarget`) draws the same band and changes that rule's target instead.
+//! Connecting, type first: dragging a typed port of a brick draws a rubber band; the sibling
+//! under the pointer is checked (`/api/design/link-check`) and an identical link is refused.
+//! Dropping adds the `[[link]]` at once (`add_link`, reason [`DRAWN_REASON`]), selects it and
+//! focuses its reason in the inspector. A link no rule allows is still added (it is drawn red
+//! and blocks publishing) and the toast says why. Dragging the arrowhead of the selected link
+//! (`retarget`) draws the same band and changes that link's target instead.
 
 use super::{ops_then, send};
 use crate::components::call::call;
-use crate::components::canvas::frame_rect;
 use crate::platform;
 use crate::state::*;
 use brickie_web_api::design::{Op, RuleSpec};
@@ -24,26 +24,14 @@ pub fn start(ed: Edit, from: String, ty: LinkType, x: f64, y: f64) {
     }));
 }
 
-/// The selector under world point `at` for a link from `from`: a sibling or a tag lane.
+/// The sibling under world point `at` for a link from `from` (a link names a brick, never a
+/// tag).
 pub fn target_at(cx: &Cx, from: &str, at: (f64, f64)) -> Option<String> {
     let pos = positions(&cx.m.layout, &cx.drag.get_clone_untracked());
     let skip = cx.brick(from);
-    if let Some(t) = hit(&pos, &cx.m.g.bricks, at, skip) {
-        return Some(cx.m.g.bricks[t].name.clone());
-    }
-    if hit_any(&pos, at, None).is_some() {
-        return None;
-    }
-    let inside = frame_rect(&cx.m.g, &pos).is_some_and(|f| at.0 >= f.x - 60.0 && at.0 <= f.x + f.w);
-    let tags =
-        cx.m.design
-            .as_deref()
-            .and_then(|c| c.levels.get(&cx.level().path))
-            .map(|l| l.tags.clone())?;
-    inside
-        .then(|| lane_at(&cx.m.layout.rows, &tags, at.1))
-        .flatten()
-        .map(|t| format!("tag:{t}"))
+    let t = hit(&pos, &cx.m.g.bricks, at, skip)?;
+    let b = &cx.m.g.bricks[t];
+    (!b.ghost).then(|| b.name.clone())
 }
 
 fn check_req(cx: &Cx, c: &Connect, to: &str) -> LinkCheckRequest {
@@ -53,7 +41,6 @@ fn check_req(cx: &Cx, c: &Connect, to: &str) -> LinkCheckRequest {
         to: to.to_string(),
         kinds: c.ty.kinds(),
         scope: cx.ed.scope.get().to_string(),
-        action: c.ty.action().to_string(),
     }
 }
 
@@ -86,7 +73,7 @@ pub fn moved(cx: &Cx, at: (f64, f64)) {
     });
 }
 
-/// Release while connecting: add the rule to the target, unless it changes nothing.
+/// Release while connecting: add the link to the target, unless an identical one exists.
 pub fn finish(cx: &Cx, at: Option<(f64, f64)>) {
     let ed = cx.ed;
     let Some(c) = ed.connect.get_clone() else {
@@ -105,17 +92,23 @@ pub fn finish(cx: &Cx, at: Option<(f64, f64)>) {
     send::<DesignLinkCheck>(ed, req, move |chk| {
         if chk.redundant {
             let link = format!("{} \u{2192} {to}", c.from);
-            ed.msg.set(format!("No rule added for {link}: {}", chk.why));
+            ed.msg.set(format!("No link added for {link}: {}", chk.why));
             return;
         }
-        let rule = link_rule(&c.from, &to, c.ty, cx2.ed.scope.get());
-        let r = RuleRef::of(&file, &rule);
-        let op = Op::AddRule { file, rule };
-        ops_then(&cx2, vec![op], move |now, _| select_rule(now, r));
+        let link = link_rule(&c.from, &to, c.ty, cx2.ed.scope.get());
+        let r = RuleRef::link(&file, &link);
+        let op = Op::AddLink { file, link };
+        let note = (!chk.allowed).then(|| format!("Added, but not allowed: {}", chk.why));
+        ops_then(&cx2, vec![op], move |now, _| {
+            select_rule(now, r);
+            if let Some(n) = note {
+                now.ed.msg.set(n);
+            }
+        });
     });
 }
 
-/// Point rule `r` at `to` (its arrowhead was dropped there), keeping it selected.
+/// Point link `r` at `to` (its arrowhead was dropped there), keeping it selected.
 fn retarget(cx: &Cx, r: &RuleRef, to: &str) {
     let rule =
         cx.m.design
@@ -126,17 +119,17 @@ fn retarget(cx: &Cx, r: &RuleRef, to: &str) {
     let Some(ops) = retarget_ops(r, &rule, to) else {
         return;
     };
-    let next = RuleRef::of(
-        &r.file,
-        &RuleSpec {
+    let next = RuleRef {
+        key: rule_key(&RuleSpec {
             to: to.to_string(),
             ..rule
-        },
-    );
+        }),
+        ..r.clone()
+    };
     ops_then(cx, ops, move |now, _| now.ed.rule.set(Some(next)));
 }
 
-/// Select rule `r` (just added) and focus its reason.
+/// Select link `r` (just added) and focus its reason.
 fn select_rule(cx: &Cx, r: RuleRef) {
     let p = cx.params.with(|p| {
         p.with(|p| {

@@ -1,47 +1,45 @@
-//! The rule links of a level (`unused_links` of a `LevelView`): in view mode the allow rules
-//! between named bricks that no measured edge backs; in Design mode every rule between named
-//! bricks, allow or deny, read from the design files alone.
+//! The `[[link]]`s of each level (`links` of a `LevelView`), judged by the shared decisions in
+//! `brickie_check`: denied and cycle flags always; view mode also marks the planned ones (valid
+//! links that no measured edge uses yet). Design mode reads the design files alone.
 
-use brickie_check::check::{Loaded, rule_links, unused_links};
-use brickie_check::config::level_name;
-use brickie_check::config::{Action, Link};
-use brickie_web_api::UnusedLink;
+use brickie_check::check::{Loaded, design_links, marked_links};
+use brickie_check::config::{LinkState, level_name};
+use brickie_web_api::LevelLink;
 use std::path::{Path, PathBuf};
 
-/// Every unused link of the design as a served edge, in tree order.
-pub fn served(l: &Loaded) -> Vec<(String, UnusedLink)> {
-    as_served(l, &unused_links(l), Link::filter_text)
+/// Every link of the design with its planned flag, in tree order.
+pub fn served(l: &Loaded) -> Vec<(String, LevelLink)> {
+    as_served(l, &marked_links(l))
 }
 
-/// Every rule between named bricks of the design as a served edge, in tree order.
-pub fn rules(l: &Loaded) -> Vec<(String, UnusedLink)> {
-    as_served(l, &rule_links(&l.cfg), Link::match_text)
+/// Every link of the design files, none planned (Design mode reads no code).
+pub fn design(l: &Loaded) -> Vec<(String, LevelLink)> {
+    as_served(l, &design_links(&l.cfg))
 }
 
-/// `links` as served edges; `filter` writes each one's filter text.
-fn as_served(l: &Loaded, links: &[Link], filter: fn(&Link) -> String) -> Vec<(String, UnusedLink)> {
+fn as_served(l: &Loaded, links: &[LinkState]) -> Vec<(String, LevelLink)> {
     let root = root_dir(&l.cfg.file);
     links
         .iter()
-        .map(|k| (level_name(&k.level), edge(k, &root, filter)))
+        .map(|s| (level_name(&s.level), edge(s, &root)))
         .collect()
 }
 
-fn edge(k: &Link, root: &Path, filter: fn(&Link) -> String) -> UnusedLink {
-    UnusedLink {
-        level: level_name(&k.level),
-        file: rel(root, &k.loc),
+fn edge(s: &LinkState, root: &Path) -> LevelLink {
+    let k = &s.link;
+    let loc = if k.loc.is_empty() { &s.file } else { &k.loc };
+    LevelLink {
+        level: level_name(&s.level),
+        file: rel(root, loc),
         from: k.from.clone(),
         to: k.to.clone(),
         kinds: k.kinds.clone(),
         scope: k.scope.name().to_string(),
-        action: match k.action {
-            Action::Allow => "allow",
-            Action::Deny => "deny",
-        }
-        .into(),
-        reason: k.reason.clone().filter(|s| !s.trim().is_empty()),
-        filter: filter(k),
+        reason: k.reason.clone(),
+        filter: s.match_text(),
+        denied: s.denied.clone(),
+        cycle: s.cycle,
+        planned: s.planned,
     }
 }
 

@@ -16,10 +16,9 @@ pub struct LevelView {
     /// Children visible from outside the composite (empty at the root).
     pub exports: Vec<String>,
     pub graph: GraphView,
-    /// Edit mode: allow rules of this level that no measured edge uses yet (drawn dashed
-    /// between the bricks their selectors name).
+    /// The `[[link]]`s declared at this level (view mode marks the planned ones).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub unused_links: Vec<crate::UnusedLink>,
+    pub links: Vec<crate::LevelLink>,
 }
 
 impl LevelView {
@@ -84,7 +83,7 @@ mod tests {
         };
         let d = |lv: Option<&str>, bricks: &[&str]| DiagView {
             id: "x".into(),
-            code: "deps/deny".into(),
+            code: "deps/unlinked".into(),
             message: String::new(),
             span: None,
             spans: vec![],

@@ -160,3 +160,22 @@ fn a_stale_cache_blocks() {
     ws.write("g/pa/src/lib.rs", "// changed\n");
     assert_eq!(blocked(&ws, vec![desc("b", "y")]), ["stale/file"]);
 }
+
+#[test]
+fn a_denied_link_blocks() {
+    let ws = measured();
+    let link = Op::AddLink {
+        file: "brickie.toml".into(),
+        link: crate::RuleSpec {
+            from: "b".into(),
+            to: "a".into(),
+            reason: "r".into(),
+            ..Default::default()
+        },
+    };
+    let codes = blocked(&ws, vec![link]);
+    assert!(
+        codes.contains(&"design/link-denied".to_string()),
+        "{codes:?}"
+    );
+}

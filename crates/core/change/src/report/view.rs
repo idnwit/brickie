@@ -5,8 +5,10 @@ use super::todo::design_todo;
 use crate::design::Design;
 use crate::paths::to_rel;
 use anyhow::Result;
-use brickie_check::config::{Action, Brick, Config, Scope};
-use brickie_model::design::{BrickView, DesignView, LevelView, LimitView, RuleView, Task};
+use brickie_check::config::{Brick, Config, Scope, judge_link, link_cycles};
+use brickie_model::design::{
+    BrickView, DesignView, LevelView, LimitView, LinkView, RuleView, Task,
+};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -78,14 +80,6 @@ fn rel(root: &Path, file: &str) -> String {
     to_rel(root, &abs).unwrap_or_else(|| file.to_string())
 }
 
-fn action(a: Action) -> String {
-    match a {
-        Action::Allow => "allow",
-        Action::Deny => "deny",
-    }
-    .into()
-}
-
 fn scope(s: Scope) -> String {
     match s {
         Scope::Prod => "prod",
@@ -100,11 +94,20 @@ fn level(cfg: &Config, root: &Path) -> LevelView {
         file: rel(root, &r.loc),
         from: r.from.to_string(),
         to: r.to.to_string(),
-        via: r.via.clone().unwrap_or_default(),
         kinds: r.kinds.clone(),
         scope: scope(r.scope),
-        action: action(r.action),
-        reason: r.reason.clone().filter(|s| !s.trim().is_empty()),
+        reason: r.reason.clone(),
+    });
+    let cycles = link_cycles(cfg);
+    let links = cfg.links.iter().map(|l| LinkView {
+        file: rel(root, &l.loc),
+        from: l.from.clone(),
+        to: l.to.clone(),
+        kinds: l.kinds.clone(),
+        scope: scope(l.scope),
+        reason: l.reason.clone(),
+        denied: judge_link(cfg, l),
+        cycle: cycles.iter().any(|c| std::ptr::eq(*c, l)),
     });
     let limits = cfg.complexity.iter().map(|c| {
         let all = [
@@ -131,6 +134,7 @@ fn level(cfg: &Config, root: &Path) -> LevelView {
         bricks: cfg.bricks.iter().map(|b| brick(cfg, b, root)).collect(),
         exports: cfg.exports.clone(),
         rules: rules.collect(),
+        links: links.collect(),
         limits: limits.collect(),
     }
 }

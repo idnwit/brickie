@@ -54,12 +54,10 @@ mod unmapped;
 mod independent_tests;
 #[cfg(test)]
 mod tests;
-#[cfg(test)]
-mod via_tests;
 
 pub use complexity::limits as complexity_limits;
 pub use deps::dep_subject;
-pub use links::{rule_links, unused_links};
+pub use links::{design_links, marked_links, planned_links};
 use unmapped::Unmapped;
 mod members;
 mod stale;

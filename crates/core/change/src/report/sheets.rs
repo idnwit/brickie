@@ -1,4 +1,4 @@
-//! The design's config files as [`FileSheet`]s: each file's own rules,
+//! The design's config files as [`FileSheet`]s: each file's own rules, links,
 //! complexity rules, exports and includes, in file order (the viewer's tables).
 
 use crate::design::Design;
@@ -24,6 +24,7 @@ pub fn sheet(file: &str, src: &str) -> Option<FileSheet> {
     let include: Vec<String> = list(doc.get("include"));
     Some(FileSheet {
         rules: list::<RuleSpec>(doc.get("rule")),
+        links: list::<RuleSpec>(doc.get("link")),
         exports: list(doc.get("exports")),
         complexity: list::<ComplexitySpec>(doc.get("complexity")),
         include_files: include.iter().map(|i| join_rel(file, i)).collect(),
@@ -56,7 +57,7 @@ exports = ["api", "ui"]
 from = "api"
 to = "ui"
 kinds = ["uses"]
-action = "allow"
+reason = "ui may use the api"
 [[complexity]]
 cognitive = 10
 "#;

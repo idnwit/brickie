@@ -59,22 +59,22 @@ fn has(f: &[(String, String, String)], code: &str, level: &str, needle: &str) ->
 #[test]
 fn edges_are_checked_at_the_common_ancestor() {
     let f = findings(ROOT, WEB);
-    // web -> core is allowed at the root; core -> web matches no rule (test edges included).
+    // web -> core is allowed at the root; core -> web has no link (test edges included).
     assert!(!f.iter().any(|x| x.2.starts_with("`web`")), "{f:#?}");
     assert!(has(
         &f,
-        "deps/deny",
+        "deps/unlinked",
         "root",
         "`core` (core) uses `web` (app) via `ui` in tests"
     ));
     let root = f
         .iter()
-        .filter(|(c, l, _)| c == "deps/deny" && l == "root")
+        .filter(|(c, l, _)| c == "deps/unlinked" && l == "root")
         .count();
     assert_eq!(root, 3, "{f:#?}");
-    // Inside web: shared -> api has no rule.
-    assert!(has(&f, "deps/deny", "root/web", "`shared` uses `api`"));
-    assert_eq!(f.iter().filter(|x| x.0 == "deps/deny").count(), 4);
+    // Inside web: shared -> api has no link.
+    assert!(has(&f, "deps/unlinked", "root/web", "`shared` uses `api`"));
+    assert_eq!(f.iter().filter(|x| x.0 == "deps/unlinked").count(), 4);
 }
 
 #[test]
@@ -121,10 +121,13 @@ fn helps(code: &str, needle: &str) -> Vec<String> {
 }
 
 #[test]
-fn deny_help_asks_for_a_rule() {
-    let h = helps("deps/deny", "`shared` uses `api`");
+fn unlinked_help_gives_the_link_command() {
+    let h = helps("deps/unlinked", "`shared` uses `api`");
     assert_eq!(h.len(), 1, "{h:?}");
-    assert!(h[0].contains("[[rule]]"));
+    assert!(
+        h[0].contains("brickie design link add shared api --kind uses --scope prod --in web"),
+        "{h:?}"
+    );
 }
 
 #[test]

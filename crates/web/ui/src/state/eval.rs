@@ -220,7 +220,7 @@ mod tests {
             ..graph().edges[1].clone()
         }];
         let diags: Vec<DiagView> = (0..found)
-            .map(|i| diag(&format!("d{i}"), "deps/deny", &["a", "b"]))
+            .map(|i| diag(&format!("d{i}"), "deps/unlinked", &["a", "b"]))
             .collect();
         evaluate(&g, &diags, &Params::from_query(q)).edge[0]
     }
@@ -281,7 +281,7 @@ mod tests {
     #[test]
     fn architecture_shows_all_edges_with_violating_ones_marked() {
         let g = graph();
-        let diags = vec![diag("d1", "deps/deny", &["a", "b"])];
+        let diags = vec![diag("d1", "deps/unlinked", &["a", "b"])];
         let arch = evaluate(&g, &diags, &Params::default());
         // Architecture draws every edge and marks the violating one; complexity and stale
         // findings stay hidden.
@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn selecting_a_brick_keeps_its_edges_and_a_finding_wins() {
         let g = graph();
-        let diags = vec![diag("d1", "deps/deny", &["a", "b"])];
+        let diags = vec![diag("d1", "deps/unlinked", &["a", "b"])];
         let p = Params::from_query("brick=c");
         let f = evaluate(&g, &diags, &p).focus.unwrap();
         assert_eq!(f.keep, [1, 2].into());
@@ -349,7 +349,7 @@ mod tests {
     fn findings_list_is_scoped_by_selection() {
         let g = graph();
         let diags = vec![
-            diag("d1", "deps/deny", &["a", "b"]),
+            diag("d1", "deps/unlinked", &["a", "b"]),
             diag("c1", "complexity/cognitive", &["c"]),
         ];
         let p = Params::from_query("p=all");

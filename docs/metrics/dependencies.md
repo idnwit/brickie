@@ -42,12 +42,17 @@ their lowest common parent. Edges inside one brick, or touching unmapped modules
 from = "tag:app"
 to = "tag:core"
 kinds = ["uses", "implements"]   # default: all three
-scope = "prod"                   # prod (default) | test | all
-action = "allow"                 # allow | deny
+scope = "all"                    # prod | test | all (default)
+reason = "the app runs on the core"
+
+[[link]]
+from = "web"                     # a brick of this level
+to = "core"                      # a sibling, or `composite/child` for an exported child
+reason = "web calls the core"
 ```
 
-The most specific rule wins (brick name 3, tag 2, `*` 1 per side, summed). Deny wins a tie. With
-no match, the edge is denied. Codes: `deps/deny`, and `deps/private` when a
+Rules only allow; an edge is allowed when a link covers it and a rule allows that link (see
+[../design/links.md](../design/links.md)). Codes: `deps/unlinked`, and `deps/private` when a
 brick uses another brick's item that its parent does not export.
 
 ## Cycles between bricks

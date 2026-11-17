@@ -16,7 +16,7 @@ members = ["py"]
 [[rule]]
 from = "x"
 to = "y"
-action = "allow"
+reason = "fixture"
 "#;
 
 fn ungroup(name: &str) -> Op {

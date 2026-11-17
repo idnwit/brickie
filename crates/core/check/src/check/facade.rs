@@ -1,20 +1,24 @@
 //! The facade over the internal `rules` brick for the CLI and the webview.
 
-use crate::config::{Config, Link};
+use crate::config::{Config, LinkState};
 use crate::rules;
 use std::path::{Path, PathBuf};
 
-pub use brickie_model::codes::{DEPS_CYCLE, DEPS_DENY, DEPS_PRIVATE};
+pub use brickie_model::codes::{DEPS_CYCLE, DEPS_PRIVATE, DEPS_UNLINKED};
 
-/// Every allow rule between two named bricks that no measured edge backs, with its state.
-/// The design todo list and the viewer read this one list.
-pub fn unused_links(l: &super::Loaded) -> Vec<Link> {
-    rules::unused_links(&l.cache, &l.cfg, &l.resolved)
+/// The valid links no measured edge uses yet (information for `design check` and the viewer).
+pub fn planned_links(l: &super::Loaded) -> Vec<LinkState> {
+    rules::planned_links(&l.cache, &l.cfg, &l.resolved)
 }
 
-/// Every rule between named bricks of `cfg`, allow or deny (no code read).
-pub fn rule_links(cfg: &Config) -> Vec<Link> {
-    rules::rule_links(cfg)
+/// Every link of the design, with `planned` set (information for the viewer).
+pub fn marked_links(l: &super::Loaded) -> Vec<LinkState> {
+    rules::marked_links(&l.cache, &l.cfg, &l.resolved)
+}
+
+/// Every link of `cfg`, judged against its level's rules (no code read).
+pub fn design_links(cfg: &Config) -> Vec<LinkState> {
+    rules::design_links(cfg)
 }
 
 /// The subject of a dependency finding: `from->to:kind:scope` over module ids.

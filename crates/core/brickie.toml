@@ -37,19 +37,59 @@ desc = "Design change sessions: op log, review, preview over the loader, publish
 from = "tag:flow"
 to = "facts"
 scope = "all"
-action = "allow"
 reason = "measure writes the cache, check reads it"
 
 [[rule]]
 from = "tag:flow"
 to = "model"
 scope = "all"
-action = "allow"
 reason = "measure builds function trees, check produces diagnostics"
 
 [[rule]]
 from = "change"
 to = "check"
 scope = "all"
-action = "allow"
 reason = "the preview is loaded and checked by check's loader over a virtual file set"
+
+[[link]]
+from = "change"
+to = "check"
+kinds = ["implements", "uses"]
+reason = "a design change is previewed by loading and checking the edited design with check's loader"
+
+[[link]]
+from = "change"
+to = "facts"
+kinds = ["uses"]
+reason = "a design change reads the measured cache to judge the edited design"
+
+[[link]]
+from = "change"
+to = "model"
+kinds = ["uses"]
+reason = "the change report is built from diagnostics and levels defined in the model"
+
+[[link]]
+from = "check"
+to = "facts"
+kinds = ["uses"]
+reason = "check reads the measured cache to evaluate rules"
+
+[[link]]
+from = "check"
+to = "model"
+kinds = ["reexports", "uses"]
+reason = "check turns findings into the shared diagnostics and re-exports the model's codes"
+
+[[link]]
+from = "measure"
+to = "facts"
+kinds = ["uses"]
+reason = "measure writes what it learns into the cache facts"
+
+[[link]]
+from = "measure"
+to = "model"
+kinds = ["uses"]
+scope = "prod"
+reason = "measure stores function trees in the shared model types"

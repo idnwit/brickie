@@ -163,7 +163,7 @@ fn rebase_fails_on_a_clash_and_writes_nothing() {
     let before = ws.read("brickie.toml");
     let root = ROOT.replace("[[brick]]\nname = \"b\"\nmembers = [\"pb\"]\n", "");
     let root = root.replace(
-        "[[rule]]\nfrom = \"a\"\nto = \"b\"\naction = \"allow\"\n",
+        "[[rule]]\nfrom = \"a\"\nto = \"b\"\nreason = \"fixture\"\n",
         "",
     );
     ws.write("brickie.toml", &root);

@@ -1,40 +1,46 @@
-//! The design's own todo list: config self-consistency, read from the design files alone.
-//! What the code lacks is `design check`.
+//! The design's own todo list, read from the design files alone: links no rule allows (they
+//! block publishing) and links on a cycle (information). What the code lacks is `design check`.
 
-use brickie_check::config::Config;
-use brickie_model::codes::DESIGN_NO_REASON;
+use brickie_check::check::design_links;
+use brickie_check::config::{Config, LinkState, level_name};
+use brickie_model::codes::DESIGN_LINK_DENIED;
 use brickie_model::design::{Task, TaskKind};
 
-fn task(kind: TaskKind, text: String) -> Task {
-    Task { kind, text }
+/// `a -> b` in level `root/web`.
+fn named(s: &LinkState) -> String {
+    format!(
+        "link {} -> {} in {}",
+        s.link.from,
+        s.link.to,
+        level_name(&s.level)
+    )
 }
 
-/// The todo list of a design held as files: rules without a reason.
+/// The message of a denied link, as the todo list and the publish gate print it.
+pub fn denied_text(s: &LinkState, why: &str) -> String {
+    format!(
+        "{DESIGN_LINK_DENIED}: {} is not allowed: {why}; add a [[rule]] that allows it \
+         (`brickie design rule add`) or remove the link",
+        named(s)
+    )
+}
+
+/// The todo list of a design held as files.
 pub fn design_todo(cfg: &Config) -> Vec<Task> {
     let mut out = Vec::new();
-    reasonless(cfg, &mut out);
+    for s in design_links(cfg) {
+        if let Some(why) = &s.denied {
+            out.push(Task {
+                kind: TaskKind::LinkDenied,
+                text: denied_text(&s, why),
+            });
+        }
+        if s.cycle {
+            out.push(Task {
+                kind: TaskKind::LinkCycle,
+                text: format!("{} is on a cycle of links (information only)", named(&s)),
+            });
+        }
+    }
     out
-}
-
-/// One task per rule without a reason (a preset's rule once).
-fn reasonless(level: &Config, out: &mut Vec<Task>) {
-    for r in &level.rules {
-        if r.reason.as_deref().is_some_and(|s| !s.trim().is_empty()) {
-            continue;
-        }
-        let text = format!(
-            "{DESIGN_NO_REASON}: rule {} -> {} in {} has no reason; say why with `brickie design rule set`",
-            r.from,
-            r.to,
-            level.level()
-        );
-        if !out.iter().any(|t| t.text == text) {
-            out.push(task(TaskKind::Reason, text));
-        }
-    }
-    for b in &level.bricks {
-        if let Some(sub) = &b.sub {
-            reasonless(sub, out);
-        }
-    }
 }

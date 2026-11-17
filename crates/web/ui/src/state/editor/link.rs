@@ -1,26 +1,24 @@
-//! Typed links: the four port types of a brick (a dependency kind, or deny), the rule a drop
-//! adds, and which rule selectors name a brick.
+//! Typed links: the three port types of a brick (a dependency kind), the `[[link]]` a drop
+//! adds, which bricks a rule selector or a link end names, and the ops that edit a rule or link.
 
-use brickie_web_api::BrickView;
 use brickie_web_api::design::{Op, RulePatch, RuleSpec};
+use brickie_web_api::{BrickView, LevelLink};
 
-/// The type of a link port: it fixes the rule's kind, and `Deny` its action.
+/// The type of a link port: it fixes the link's kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LinkType {
     Uses,
     Implements,
     Reexports,
-    Deny,
 }
 
-pub const LINK_TYPES: [LinkType; 4] = [
-    LinkType::Uses,
-    LinkType::Implements,
-    LinkType::Reexports,
-    LinkType::Deny,
-];
+pub const LINK_TYPES: [LinkType; 3] = [LinkType::Uses, LinkType::Implements, LinkType::Reexports];
 
 pub const SCOPES: [&str; 3] = ["prod", "test", "all"];
+
+/// The reason a link drawn on the canvas starts with (`reason` is required; the inspector
+/// edits it).
+pub const DRAWN_REASON: &str = "drawn in the editor";
 
 impl LinkType {
     pub fn name(self) -> &'static str {
@@ -28,7 +26,6 @@ impl LinkType {
             LinkType::Uses => "uses",
             LinkType::Implements => "implements",
             LinkType::Reexports => "reexports",
-            LinkType::Deny => "deny",
         }
     }
 
@@ -38,31 +35,15 @@ impl LinkType {
             LinkType::Uses => "\u{25CF}",
             LinkType::Implements => "\u{25C6}",
             LinkType::Reexports => "\u{25B2}",
-            LinkType::Deny => "\u{2715}",
         }
     }
 
-    /// Kinds of the rule (`Deny`: every kind).
     pub fn kinds(self) -> Vec<String> {
-        match self {
-            LinkType::Deny => Vec::new(),
-            t => vec![t.name().to_string()],
-        }
+        vec![self.name().to_string()]
     }
 
-    pub fn action(self) -> &'static str {
-        if self == LinkType::Deny {
-            "deny"
-        } else {
-            "allow"
-        }
-    }
-
-    /// The type a rule is drawn as: deny, or its first kind (`uses` when it names none).
-    pub fn of_rule(kinds: &[String], action: &str) -> LinkType {
-        if action == "deny" {
-            return LinkType::Deny;
-        }
+    /// The type a rule or link is drawn as: its first kind (`uses` when it names none).
+    pub fn of_kinds(kinds: &[String]) -> LinkType {
         match kinds.first().map(String::as_str) {
             Some("implements") => LinkType::Implements,
             Some("reexports") => LinkType::Reexports,
@@ -71,25 +52,34 @@ impl LinkType {
     }
 }
 
-/// The rule spec a port drop adds (no reason yet: the inspector asks for it).
+/// The spec a port drop adds (the reason starts as [`DRAWN_REASON`]).
 pub fn link_rule(from: &str, to: &str, ty: LinkType, scope: &str) -> RuleSpec {
     RuleSpec {
         from: from.to_string(),
         to: to.to_string(),
-        via: Vec::new(),
         kinds: ty.kinds(),
         scope: Some(scope.to_string()),
-        action: ty.action().to_string(),
-        reason: None,
+        reason: DRAWN_REASON.to_string(),
     }
 }
 
-/// `add_rule` of a port drop.
+/// `add_link` of a port drop.
 pub fn link_op(file: &str, from: &str, to: &str, ty: LinkType, scope: &str) -> Op {
-    Op::AddRule {
+    Op::AddLink {
         file: file.to_string(),
-        rule: link_rule(from, to, ty, scope),
+        link: link_rule(from, to, ty, scope),
     }
+}
+
+/// Whether the canvas draws link `e`: every link in Design mode, only planned ones (no code
+/// uses them yet) in view mode, where the measured edges show the rest.
+pub fn drawn(e: &LevelLink, editing: bool) -> bool {
+    editing || e.planned
+}
+
+/// The brick a link end names: `composite/child` lands on the composite.
+pub fn link_brick(end: &str) -> &str {
+    end.split('/').next().unwrap_or(end)
 }
 
 /// Whether selector `sel` (`*`, a name, `tag:<t>`) names brick `b`.
@@ -111,43 +101,48 @@ pub fn scope_key(key: &str) -> Option<&'static str> {
     }
 }
 
-/// The ops that turn rule `r` (as it is now, `old`) into `new`: a `set_rule` patch when only
-/// action or reason change; remove and add (one version) when its identity (from,
-/// to, kinds, scope) changes. An emptied reason is removed. Empty when unchanged.
+/// The ops that turn rule or link `r` (as it is now, `old`) into `new`: a `set_rule` /
+/// `set_link` patch when only the reason changes; remove and add (one version) when its
+/// identity (from, to, kinds, scope) changes. Empty when unchanged.
 pub fn rule_ops(r: &super::RuleRef, old: &RuleSpec, new: &RuleSpec) -> Vec<Op> {
     if old == new {
         return Vec::new();
     }
+    let (file, key) = (r.file.clone(), r.key.clone());
     if super::rule_key(old) != super::rule_key(new) {
-        return vec![
-            Op::RemoveRule {
-                file: r.file.clone(),
-                key: r.key.clone(),
-            },
-            Op::AddRule {
-                file: r.file.clone(),
-                rule: new.clone(),
-            },
-        ];
+        let spec = new.clone();
+        return if r.link {
+            vec![
+                Op::RemoveLink {
+                    file: file.clone(),
+                    key,
+                },
+                Op::AddLink { file, link: spec },
+            ]
+        } else {
+            vec![
+                Op::RemoveRule {
+                    file: file.clone(),
+                    key,
+                },
+                Op::AddRule { file, rule: spec },
+            ]
+        };
     }
-    let text =
-        |a: &Option<String>, b: &Option<String>| (a != b).then(|| b.clone().unwrap_or_default());
-    vec![Op::SetRule {
-        file: r.file.clone(),
-        key: r.key.clone(),
-        set: RulePatch {
-            action: (old.action != new.action).then(|| new.action.clone()),
-            reason: text(&old.reason, &new.reason),
-            via: (old.via != new.via).then(|| new.via.clone()),
-        },
-    }]
+    let set = RulePatch {
+        reason: Some(new.reason.clone()),
+    };
+    if r.link {
+        vec![Op::SetLink { file, key, set }]
+    } else {
+        vec![Op::SetRule { file, key, set }]
+    }
 }
 
-/// The ops that point rule `r` (as it is now, `rule`) at `to`. `None` when unchanged.
+/// The ops that point rule or link `r` (as it is now, `rule`) at `to`. `None` when unchanged.
 pub fn retarget_ops(r: &super::RuleRef, rule: &RuleSpec, to: &str) -> Option<Vec<Op>> {
     let new = RuleSpec {
         to: to.to_string(),
-        via: Vec::new(),
         ..rule.clone()
     };
     (rule.to != to).then(|| rule_ops(r, rule, &new))
@@ -155,24 +150,25 @@ pub fn retarget_ops(r: &super::RuleRef, rule: &RuleSpec, to: &str) -> Option<Vec
 
 #[cfg(test)]
 mod tests {
+    use super::super::RuleRef;
     use super::*;
 
     #[test]
-    fn port_types_fix_kind_and_action() {
+    fn port_types_fix_the_kind() {
         let r = link_rule("a", "b", LinkType::Implements, "prod");
+        assert_eq!(r.kinds, vec!["implements".to_string()]);
+        assert_eq!(r.reason, DRAWN_REASON);
         assert_eq!(
-            (r.kinds, r.action.as_str()),
-            (vec!["implements".to_string()], "allow")
-        );
-        let d = link_rule("a", "tag:io", LinkType::Deny, "all");
-        assert!(d.kinds.is_empty());
-        assert_eq!(d.action, "deny");
-        assert_eq!(LinkType::of_rule(&[], "deny"), LinkType::Deny);
-        assert_eq!(
-            LinkType::of_rule(&["reexports".into()], "allow"),
+            LinkType::of_kinds(&["reexports".into()]),
             LinkType::Reexports
         );
+        assert_eq!(LinkType::of_kinds(&[]), LinkType::Uses);
         assert_eq!(scope_key("2"), Some("test"));
+        assert_eq!(link_brick("web/api"), "web");
+        assert!(matches!(
+            link_op("f", "a", "b", LinkType::Uses, "all"),
+            Op::AddLink { .. }
+        ));
     }
 
     #[test]
@@ -187,55 +183,46 @@ mod tests {
     }
 
     #[test]
-    fn rule_edits_patch_or_replace_by_identity() {
+    fn edits_patch_or_replace_by_identity() {
         let old = link_rule("a", "b", LinkType::Uses, "prod");
-        let r = super::super::RuleRef::of("brickie.toml", &old);
+        let r = RuleRef::link("brickie.toml", &old);
         assert!(rule_ops(&r, &old, &old).is_empty());
         let why = RuleSpec {
-            reason: Some("ports".into()),
-            action: "deny".into(),
+            reason: "ports".into(),
             ..old.clone()
         };
         let ops = rule_ops(&r, &old, &why);
-        let [Op::SetRule { key, set, .. }] = ops.as_slice() else {
-            panic!("expected one set_rule");
+        let [Op::SetLink { key, set, .. }] = ops.as_slice() else {
+            panic!("expected one set_link");
         };
-        assert_eq!(key, &r.key);
-        assert_eq!(
-            (set.action.as_deref(), set.reason.as_deref()),
-            (Some("deny"), Some("ports"))
-        );
-        let cleared = rule_ops(&super::super::RuleRef::of("brickie.toml", &why), &why, &old);
-        let [Op::SetRule { set, .. }] = cleared.as_slice() else {
-            panic!("expected one set_rule");
-        };
-        assert_eq!(set.reason.as_deref(), Some(""));
+        assert_eq!((key, set.reason.as_deref()), (&r.key, Some("ports")));
         let test = RuleSpec {
             scope: Some("test".into()),
             ..old.clone()
         };
         assert!(matches!(
             rule_ops(&r, &old, &test).as_slice(),
-            [Op::RemoveRule { .. }, Op::AddRule { .. }]
+            [Op::RemoveLink { .. }, Op::AddLink { .. }]
+        ));
+        let rule = RuleRef::of("brickie.toml", &old);
+        assert!(matches!(
+            rule_ops(&rule, &old, &why).as_slice(),
+            [Op::SetRule { .. }]
         ));
     }
 
     #[test]
-    fn retarget_replaces_the_rule_and_keeps_its_fields() {
-        let rule = RuleSpec {
-            reason: Some("why".into()),
-            ..link_rule("a", "b", LinkType::Uses, "prod")
-        };
-        let r = super::super::RuleRef::of("brickie.toml", &rule);
+    fn retarget_replaces_and_keeps_the_fields() {
+        let rule = link_rule("a", "b", LinkType::Uses, "prod");
+        let r = RuleRef::link("brickie.toml", &rule);
         assert!(retarget_ops(&r, &rule, "b").is_none());
-        let ops = retarget_ops(&r, &rule, "tag:io").unwrap();
-        let [Op::RemoveRule { key, .. }, Op::AddRule { rule: n, .. }] = ops.as_slice() else {
-            panic!("expected remove_rule then add_rule");
+        let ops = retarget_ops(&r, &rule, "c").unwrap();
+        let [Op::RemoveLink { key, .. }, Op::AddLink { link: n, .. }] = ops.as_slice() else {
+            panic!("expected remove_link then add_link");
         };
-        assert_eq!((key.from.as_str(), key.to.as_str()), ("a", "b"));
         assert_eq!(
-            (n.to.as_str(), n.reason.clone()),
-            ("tag:io", rule.reason.clone())
+            (key.to.as_str(), n.to.as_str(), n.reason.as_str()),
+            ("b", "c", DRAWN_REASON)
         );
     }
 }

@@ -15,11 +15,11 @@ mod validate;
 #[cfg(test)]
 pub(crate) mod tests;
 
-pub use decide::{Decision, decide};
-pub use link::Link;
+pub use decide::{Why, covering_link, free, judge_link, kinds_of, link_cycles, rule_allows};
+pub use link::LinkState;
 pub use load::{load, load_from, load_measure};
 pub use measure::MeasureCfg;
 pub use resolve::{Issue, Partition, Resolved, resolve};
-pub use schema::{Action, Brick, ComplexityRule, Config, DepRule, KINDS, Scope, level_name};
+pub use schema::{Brick, ComplexityRule, Config, KINDS, Link, Rule, Scope, level_name};
 pub use selector::Sel;
 pub use source::{Disk, FileSource};

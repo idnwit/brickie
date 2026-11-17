@@ -5,10 +5,12 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum TaskKind {
-    /// A rule without a `reason`.
-    Reason,
+    /// A link no rule allows (`design/link-denied`): it blocks publishing.
+    LinkDenied,
+    /// A link on a cycle of its level's links: information only.
+    LinkCycle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,6 +48,8 @@ pub struct LevelView {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<RuleView>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<LinkView>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub limits: Vec<LimitView>,
 }
 
@@ -60,7 +64,7 @@ pub struct BrickView {
     pub tags: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub desc: Option<String>,
-    /// An independent lib (`independent = true`, root bricks only).
+    /// An independent lib (`independent = true`): usable only within its parent's subtree.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub independent: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -74,13 +78,29 @@ pub struct RuleView {
     pub from: String,
     pub to: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub via: Vec<String>,
+    pub kinds: Vec<String>,
+    pub scope: String,
+    pub reason: String,
+}
+
+/// A `[[link]]` of a level, judged against the level's rules.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LinkView {
+    /// The file the link is written in.
+    pub file: String,
+    pub from: String,
+    /// A sibling brick, or `composite/child`.
+    pub to: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub kinds: Vec<String>,
     pub scope: String,
-    pub action: String,
+    pub reason: String,
+    /// Why no rule allows it (`design/link-denied`); `None` for a valid link.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
+    pub denied: Option<String>,
+    /// The link is on a cycle of its level's links (information only).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub cycle: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

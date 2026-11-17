@@ -162,7 +162,6 @@ pub async fn link_check(
         to: &req.to,
         kinds: &req.kinds,
         scope: &req.scope,
-        action: &req.action,
     };
     Ok(Json(
         design(&st)?.link_check(&req.level, &link).map_err(fail)?,

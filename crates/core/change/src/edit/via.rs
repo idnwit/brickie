@@ -1,13 +1,13 @@
-//! `via` bookkeeping: a rule in a parent file may name exported children of the composite
-//! it targets (`via = ["ports-in"]`). Ops on the child level must keep those names valid.
+//! Child-link bookkeeping: a link in a parent file may name an exported child of the composite
+//! it targets (`to = "ports/in"`). Ops on the child level must keep those names valid.
 
 use super::Docs;
-use super::rules::RULES;
+use super::rules::LINKS;
 use super::table::{aot, aot_mut};
 use crate::paths::join_rel;
 use anyhow::{Result, bail};
 use brickie_model::codes::DESIGN_INVALID;
-use toml_edit::{Item, Value};
+use toml_edit::{Item, value};
 
 /// The `(file, composite)` pairs whose `path` level is `child_file`.
 fn owners(docs: &Docs, child_file: &str) -> Vec<(String, String)> {
@@ -30,63 +30,54 @@ fn owners(docs: &Docs, child_file: &str) -> Vec<(String, String)> {
     out
 }
 
-fn names(t: &toml_edit::Table, via: &str) -> bool {
-    t.get("via")
-        .and_then(Item::as_array)
-        .is_some_and(|a| a.iter().any(|v| v.as_str() == Some(via)))
+/// Whether link `t` targets `composite/child`.
+fn names(t: &toml_edit::Table, composite: &str, child: &str) -> bool {
+    t.get("to").and_then(Item::as_str) == Some(&format!("{composite}/{child}"))
 }
 
-/// Rewrite `via` entries `from` -> `to` in the rules that target the composite owning
+/// Rewrite links `composite/from` -> `composite/to` that target the composite owning
 /// `child_file` (a child brick was renamed).
 pub fn rename(docs: &mut Docs, child_file: &str, from: &str, to: &str) -> Result<()> {
     for (file, composite) in owners(docs, child_file) {
-        let rules = aot_mut(docs.get_mut(&file)?, RULES)?;
-        for t in rules.iter_mut() {
-            if t.get("to").and_then(Item::as_str) != Some(composite.as_str()) {
-                continue;
-            }
-            if let Some(a) = t.get_mut("via").and_then(Item::as_array_mut) {
-                for v in a.iter_mut().filter(|v| v.as_str() == Some(from)) {
-                    *v = Value::from(to);
-                }
-            }
+        let links = aot_mut(docs.get_mut(&file)?, LINKS)?;
+        for t in links.iter_mut().filter(|t| names(t, &composite, from)) {
+            t["to"] = value(format!("{composite}/{to}"));
         }
         super::brick::prune_empty(docs.get_mut(&file)?);
     }
     Ok(())
 }
 
-/// Fail when a rule's `via` names `child` of the composite owning `child_file`, and `child`
+/// Fail when a link names `composite/child` of the composite owning `child_file`, and `child`
 /// is about to leave that level's exports (`why` says how).
 pub fn guard_child(docs: &Docs, child_file: &str, child: &str, why: &str) -> Result<()> {
     for (file, composite) in owners(docs, child_file) {
-        let Some(rules) = docs.get(&file).and_then(|d| aot(d, RULES)) else {
+        let Some(links) = docs.get(&file).and_then(|d| aot(d, LINKS)) else {
             continue;
         };
-        for (i, t) in rules.iter().enumerate() {
-            let to = t.get("to").and_then(Item::as_str);
-            if to == Some(composite.as_str()) && names(t, child) {
-                bail!(
-                    "{DESIGN_INVALID}: {file} rule {i} (to '{composite}') names '{child}' in `via`; \
-                     {why} would leave it dangling, edit or remove the rule first"
-                );
-            }
+        if links.iter().any(|t| names(t, &composite, child)) {
+            bail!(
+                "{DESIGN_INVALID}: a link in {file} goes to '{composite}/{child}'; {why} would \
+                 leave it dangling, edit or remove the link first"
+            );
         }
     }
     Ok(())
 }
 
-/// Fail when a rule of `file` with `via` targets composite `name` (it is about to become a
+/// Fail when a link of `file` names a child of composite `name` (it is about to become a
 /// leaf).
 pub fn guard_composite(docs: &Docs, file: &str, name: &str, why: &str) -> Result<()> {
-    let Some(rules) = docs.get(file).and_then(|d| aot(d, RULES)) else {
+    let Some(links) = docs.get(file).and_then(|d| aot(d, LINKS)) else {
         return Ok(());
     };
-    for (i, t) in rules.iter().enumerate() {
-        if t.get("to").and_then(Item::as_str) == Some(name) && t.contains_key("via") {
+    let prefix = format!("{name}/");
+    for t in links.iter() {
+        let to = t.get("to").and_then(Item::as_str).unwrap_or_default();
+        if to.starts_with(&prefix) {
             bail!(
-                "{DESIGN_INVALID}: {file} rule {i} (to '{name}') has `via`; {why} would leave it \
-                 dangling, edit or remove the rule first"
+                "{DESIGN_INVALID}: a link in {file} goes to '{to}'; {why} would leave it \
+                 dangling, edit or remove the link first"
             );
         }
     }

@@ -6,8 +6,6 @@ node_modules/
 *.scip
 __pycache__/
 /examples/
-/assets/ui/*
-!/assets/ui/.gitkeep
 
 # local design prototype (python viewer), not published
 /tools/
@@ -15,4 +13,3 @@ __pycache__/
 
 # brickie cache
 /.brickie/
-/assets/codeview/

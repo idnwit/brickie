@@ -98,12 +98,13 @@ pub struct Connect {
     pub y: f64,
 }
 
-/// A rule selected on the canvas or in the Rules tab: its physical file and its identity
-/// there (never its position, which another writer may change).
+/// A rule (Rules tab) or link (canvas) selected: its physical file, whether it is a
+/// `[[link]]`, and its identity there (never its position, which another writer may change).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuleRef {
     pub file: String,
     pub key: RuleKey,
+    pub link: bool,
 }
 
 impl RuleRef {
@@ -112,23 +113,36 @@ impl RuleRef {
         RuleRef {
             file: file.to_string(),
             key: rule_key(r),
+            link: false,
+        }
+    }
+
+    /// The reference of link `r` written in `file`.
+    pub fn link(file: &str, r: &RuleSpec) -> RuleRef {
+        RuleRef {
+            link: true,
+            ..RuleRef::of(file, r)
+        }
+    }
+
+    /// The reference of a served link.
+    pub fn served(e: &brickie_web_api::LevelLink) -> RuleRef {
+        let mut kinds = e.kinds.clone();
+        kinds.sort();
+        RuleRef {
+            file: e.file.clone(),
+            key: RuleKey {
+                from: e.from.clone(),
+                to: e.to.clone(),
+                kinds: Some(kinds),
+                scope: Some(e.scope.clone()),
+            },
+            link: true,
         }
     }
 }
 
-/// The identity of a planned edge's rule.
-pub fn unused_key(e: &brickie_web_api::UnusedLink) -> RuleKey {
-    let mut kinds = e.kinds.clone();
-    kinds.sort();
-    RuleKey {
-        from: e.from.clone(),
-        to: e.to.clone(),
-        kinds: Some(kinds),
-        scope: Some(e.scope.clone()),
-    }
-}
-
-/// The identity of a rule: from, to, kinds (as a set) and scope (`prod` when absent).
+/// The identity of a rule or link: from, to, kinds (as a set) and scope (`all` when absent).
 pub fn rule_key(r: &RuleSpec) -> RuleKey {
     let mut kinds = r.kinds.clone();
     kinds.sort();
@@ -136,7 +150,7 @@ pub fn rule_key(r: &RuleSpec) -> RuleKey {
         from: r.from.clone(),
         to: r.to.clone(),
         kinds: Some(kinds),
-        scope: Some(r.scope.clone().unwrap_or_else(|| "prod".into())),
+        scope: Some(r.scope.clone().unwrap_or_else(|| "all".into())),
     }
 }
 

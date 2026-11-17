@@ -6,9 +6,17 @@ use serde_json::json;
 #[test]
 fn include_merges_relative_to_including_file() {
     let w = world(|_| {});
+    let link =
+        |f: &str, t: &str| format!("[[link]]\nfrom = \"{f}\"\nto = \"{t}\"\nreason = \"needed\"\n");
     w.write(
         "presets/layers.toml",
-        "include = [\"more/extra.toml\"]\n[[rule]]\nfrom = \"tag:core\"\nto = \"tag:backend\"\naction = \"deny\"\n",
+        &format!(
+            "include = [\"more/extra.toml\"]\n[[rule]]\nfrom = \"*\"\nto = \"*\"\nreason = \"open\"\n{}{}{}{}",
+            link("engine", "port"),
+            link("adapter", "port"),
+            link("app", "engine"),
+            link("app", "adapter"),
+        ),
     );
     w.write(
         "presets/more/extra.toml",
@@ -16,17 +24,18 @@ fn include_merges_relative_to_including_file() {
     );
     let o = check(
         &w,
-        &format!(
-            "include = [\"presets/layers.toml\"]\n{BRICKS}\n[[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"allow\"\n"
-        ),
+        &format!("include = [\"presets/layers.toml\"]\n{BRICKS}"),
     );
-    assert_eq!(codes(&o, "deps/deny").len(), 1);
+    // The included rule and links apply; only the unlinked engine -> adapter edge remains.
+    let d = codes(&o, "deps");
+    assert_eq!(d.len(), 1, "{}", o.stdout);
+    assert_eq!(d[0]["code"], "deps/unlinked");
     assert_eq!(codes(&o, "complexity").len(), 1);
     assert!(
-        codes(&o, "deps/deny")[0]["rule"]["loc"]
+        codes(&o, "complexity")[0]["rule"]["loc"]
             .as_str()
             .unwrap()
-            .ends_with("presets/layers.toml:2")
+            .ends_with("presets/more/extra.toml:1")
     );
 }
 
@@ -39,11 +48,11 @@ fn config_errors_exit_2() {
             "duplicate brick 'port'",
         ),
         (
-            with_bricks("[[rule]]\nfrom = \"tag:nope\"\nto = \"*\"\naction = \"deny\"\n"),
+            with_bricks("[[rule]]\nfrom = \"tag:nope\"\nto = \"*\"\nreason = \"r\"\n"),
             "unknown tag 'nope'",
         ),
         (
-            with_bricks("[[rule]]\nfrom = \"*\"\nto = \"ghost\"\naction = \"deny\"\n"),
+            with_bricks("[[rule]]\nfrom = \"*\"\nto = \"ghost\"\nreason = \"r\"\n"),
             "unknown brick 'ghost'",
         ),
         (
@@ -51,16 +60,32 @@ fn config_errors_exit_2() {
             "unknown brick 'ghost'",
         ),
         (
-            with_bricks("[[rule]]\nfrom = \"*\"\nto = \"*\"\naction = \"deny\"\nbogus = 1\n"),
+            with_bricks("[[rule]]\nfrom = \"*\"\nto = \"*\"\nreason = \"r\"\nbogus = 1\n"),
             "bogus",
         ),
         (with_bricks("[deps]\ndefault = \"allow\"\n"), "deps"),
         ("bogus = 1\n".to_string(), "bogus"),
         (
             with_bricks(
-                "[[rule]]\nfrom = \"*\"\nto = \"*\"\nkinds = [\"calls\"]\naction = \"deny\"\n",
+                "[[rule]]\nfrom = \"*\"\nto = \"*\"\nkinds = [\"calls\"]\nreason = \"r\"\n",
             ),
             "unknown kind 'calls'",
+        ),
+        (
+            with_bricks("[[rule]]\nfrom = \"*\"\nto = \"*\"\n"),
+            "reason",
+        ),
+        (
+            with_bricks("[[rule]]\nfrom = \"*\"\nto = \"*\"\nreason = \"r\"\naction = \"allow\"\n"),
+            "action",
+        ),
+        (
+            with_bricks("[[link]]\nfrom = \"engine\"\nto = \"engine\"\nreason = \"r\"\n"),
+            "config/invalid",
+        ),
+        (
+            with_bricks("[[link]]\nfrom = \"engine\"\nto = \"ghost\"\nreason = \"r\"\n"),
+            "unknown brick 'ghost'",
         ),
         ("include = [\"missing.toml\"]\n".to_string(), "missing.toml"),
     ];

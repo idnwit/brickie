@@ -16,7 +16,7 @@ resolution: [check.md](check.md).
 | Outer brick taking a module from inside a composite | `config/member-outside-parent`, naming the outer brick | it would bypass `exports`; fix: make it a child and export it |
 | Re-exports | grant no access; move the item into an exported child | `exports` is not derived from `pub` |
 | Brick mapping | not in the cache | editing config never needs a re-measure |
-| `independent` brick flag | root level only (leaf or composite; a composite is one lib, its children use each other under its own rules and `exports` still apply) | lifting an edge to the common ancestor hides the flag below the root |
+| `independent` brick flag | any level; semantics in [links.md](links.md#independent-bricks) | a library serves the bricks around it, not the application above |
 | Cycles | per composite | names are local to a level |
 
 Rejected: `imports` lists, `@` selectors (lifting to the common ancestor gives the policy),

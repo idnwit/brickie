@@ -18,7 +18,12 @@ tags = ["core"]
 [[rule]]
 from = "tag:app"
 to = "tag:core"
-action = "allow"
+reason = "apps use the core"
+
+[[link]]
+from = "web"
+to = "core"
+reason = "web reads the core"
 "#;
 
 pub(super) const WEB: &str = r#"
@@ -39,12 +44,22 @@ members = ["web-shared"]
 [[rule]]
 from = "*"
 to = "shared"
-action = "allow"
+reason = "shared is open to siblings"
 
 [[rule]]
 from = "ui"
 to = "api"
-action = "allow"
+reason = "ui calls the api"
+
+[[link]]
+from = "ui"
+to = "api"
+reason = "ui calls the api"
+
+[[link]]
+from = "ui"
+to = "shared"
+reason = "ui uses shared"
 
 [[complexity]]
 bricks = "ui"
@@ -128,8 +143,8 @@ fn findings_carry_level_and_owning_file() {
     w.write("ws/crates/web/brickie.toml", WEB);
     let o = check(&w, ROOT);
     assert_eq!(o.code, 1, "{}", o.stderr);
-    // Root: core -> web matches no rule (test edges are checked too).
-    let root = find(&o, "deps/deny", "root");
+    // Root: core -> web has no link (test edges are checked too).
+    let root = find(&o, "deps/unlinked", "root");
     assert_eq!(root.len(), 3, "{}", o.stdout);
     assert!(root.iter().all(|d| d["bricks"] == json!(["core", "web"])));
     assert!(
@@ -138,8 +153,8 @@ fn findings_carry_level_and_owning_file() {
             .unwrap()
             .ends_with("/brickie.toml")
     );
-    // web: shared -> ui has no rule; the finding points at web's own file.
-    let web = find(&o, "deps/deny", "root/web");
+    // web: shared -> ui has no link; the finding points at web's own file.
+    let web = find(&o, "deps/unlinked", "root/web");
     assert_eq!(web.len(), 1, "{}", o.stdout);
     assert_eq!(web[0]["bricks"], json!(["shared", "ui"]));
     assert!(

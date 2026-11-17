@@ -45,6 +45,7 @@ brickie measure --> .brickie/cache.json --> brickie check  --> findings (text/js
 | [design/check.md](design/check.md) | config tree, member selectors, rules, interfaces, findings, exit codes, `llms.txt` |
 | [design/serve.md](design/serve.md) | webview decisions, brick score, layout port, embedded code viewer |
 | [design/levels.md](design/levels.md) | nested bricks, exports, map-style zoom |
+| [design/links.md](design/links.md) | decision record: allow-only rules and declared links |
 | [design/editor.md](design/editor.md) | versioned design editing: draft, publish gate, rebase (`brickie design` and the viewer's Design mode) |
 | [design/layout.md](design/layout.md) | crates, folders, crate boundaries |
 | [design/complexity.md](design/complexity.md) | lib vs wiring flow, test placement, limits per tag |
@@ -58,7 +59,7 @@ and tests in `crates/cli/tests/docs.rs` compare the docs with the code.
 | Fact | Home |
 | --- | --- |
 | Config keys, defaults, diagnostic codes with severity and fix | [llms.txt](llms.txt) (keys and codes are test-checked) |
-| Rule semantics: reasons and edge cases | [design/check.md](design/check.md) |
+| Rule and link semantics: reasons and edge cases | [design/links.md](design/links.md), [design/check.md](design/check.md) |
 | UX method (principles P1..Pn, no widgets, colours or keys) | [design/ux.md](design/ux.md) |
 | UI realisation (each section names the principles it serves) | [webui.md](webui.md) |
 

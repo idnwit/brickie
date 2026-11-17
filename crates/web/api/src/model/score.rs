@@ -188,7 +188,7 @@ mod tests {
     fn score_adds_errors_and_excess() {
         let g = graph();
         let diags = vec![
-            diag("d1", "deps/deny", &["a", "b"]),
+            diag("d1", "deps/unlinked", &["a", "b"]),
             diag("w1", "complexity/cognitive", &["a"]),
             diag("c1", "deps/cycle", &["a"]),
             diag("i1", "stale/file", &["a"]),

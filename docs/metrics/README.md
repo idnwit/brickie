@@ -40,7 +40,7 @@ scope = "prod"          # prod (default) | test | all
 ## In diagnostics
 
 Each function metric over its limit gives one finding per function with the code
-`complexity/<metric>`, for example `complexity/cognitive`. Dependency problems give `deps/deny`,
+`complexity/<metric>`, for example `complexity/cognitive`. Dependency problems give `deps/unlinked`,
 `deps/private` and `deps/cycle`. How to fix each one is in
 [../llms.txt](../llms.txt).
 

@@ -11,7 +11,7 @@ Check a Rust workspace against architecture rules you write yourself, and review
 ## What it does
 
 1. **Measure**: finds the dependencies between modules and the complexity of every function.
-2. **Check**: compares the results with the rules in `brickie.toml` and fails CI on violations.
+2. **Check**: compares the results with the rules and links in `brickie.toml` and fails CI on violations.
 3. **View**: a local web page shows bricks, dependencies and findings next to the source.
 
 You group crates and modules into *bricks* and say which bricks may depend on which. brickie has no
@@ -39,11 +39,15 @@ members = ["acme-engine"]    # a package, module prefix or path
 name = "app"
 members = ["acme-app"]
 
-[[rule]]                     # an edge no rule allows is denied
+[[rule]]                     # a principle: what the design allows (nothing else is)
 from = "app"
 to = "engine"
-action = "allow"
 reason = "the app drives the engine"
+
+[[link]]                     # a declared dependency; valid only if a rule allows it
+from = "app"
+to = "engine"
+reason = "main calls the engine"
 
 [[complexity]]
 bricks = "*"
@@ -59,7 +63,7 @@ brickie check --measure --format short   # the gate for hooks and agents: re-mea
 brickie serve     # viewer on http://127.0.0.1:7881
 ```
 
-A dependency rule defaults to `scope = "prod"`; edges from test code need `scope = "test"` or `"all"`.
+Rules and links default to `scope = "all"`; narrow with `scope = "prod"` or `"test"`. A code edge is allowed only when a link covers it and a rule allows that link (`deps/unlinked` otherwise).
 `check` verifies structure, not runtime behaviour: keep the project's own tests.
 
 ## Docs

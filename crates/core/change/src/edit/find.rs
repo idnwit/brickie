@@ -2,14 +2,14 @@
 //! complexity rule by its `bricks` selector. Never by position, so a stale index cannot edit
 //! the wrong rule.
 
-use super::rules::{COMPLEXITY, RULES};
+use super::rules::COMPLEXITY;
 use super::table::aot;
 use anyhow::{Result, bail};
 use brickie_model::codes::{DESIGN_EXISTS, DESIGN_NO_MATCH};
 use brickie_model::design::{RuleKey, RuleSpec};
 use toml_edit::{DocumentMut, Item, Table};
 
-/// The identity of a rule table: from, to, sorted kinds, scope (`prod` when absent).
+/// The identity of a rule or link table: from, to, sorted kinds, scope (`all` when absent).
 #[derive(PartialEq, Eq)]
 struct Id {
     from: String,
@@ -34,7 +34,7 @@ fn id(t: &Table) -> Id {
         })
         .unwrap_or_default();
     kinds.sort();
-    let scope = t.get("scope").and_then(Item::as_str).unwrap_or("prod");
+    let scope = t.get("scope").and_then(Item::as_str).unwrap_or("all");
     Id {
         from: text(t, "from"),
         to: text(t, "to"),
@@ -58,13 +58,19 @@ fn sorted(v: &[String]) -> Vec<String> {
     v
 }
 
-fn ids(doc: &DocumentMut) -> Vec<Id> {
-    aot(doc, RULES).map_or_else(Vec::new, |a| a.iter().map(id).collect())
+/// `rule` or `link`: the table name, as messages say it.
+fn noun<'a>(table: &[&'a str]) -> &'a str {
+    table.first().copied().unwrap_or("rule")
 }
 
-/// The index of the one rule of `file` that `key` names.
-pub fn rule(doc: &DocumentMut, file: &str, key: &RuleKey) -> Result<usize> {
-    let all = ids(doc);
+fn ids(doc: &DocumentMut, table: &[&str]) -> Vec<Id> {
+    aot(doc, table).map_or_else(Vec::new, |a| a.iter().map(id).collect())
+}
+
+/// The index of the one rule or link (`table`) of `file` that `key` names.
+pub fn rule(doc: &DocumentMut, table: &[&str], file: &str, key: &RuleKey) -> Result<usize> {
+    let n = noun(table);
+    let all = ids(doc, table);
     let hits: Vec<usize> = (0..all.len())
         .filter(|&i| {
             let r = &all[i];
@@ -83,7 +89,7 @@ pub fn rule(doc: &DocumentMut, file: &str, key: &RuleKey) -> Result<usize> {
                 false => list.join("; "),
             };
             bail!(
-                "{DESIGN_NO_MATCH}: no rule {} -> {} in {file}; its rules: {list}",
+                "{DESIGN_NO_MATCH}: no {n} {} -> {} in {file}; its {n}s: {list}",
                 key.from,
                 key.to
             )
@@ -91,7 +97,7 @@ pub fn rule(doc: &DocumentMut, file: &str, key: &RuleKey) -> Result<usize> {
         many => {
             let list: Vec<String> = many.iter().map(|&i| describe(&all[i])).collect();
             bail!(
-                "{DESIGN_NO_MATCH}: {} rules {} -> {} in {file} match: {}; name one with --kind and --scope",
+                "{DESIGN_NO_MATCH}: {} {n}s {} -> {} in {file} match: {}; name one with --kind and --scope",
                 many.len(),
                 key.from,
                 key.to,
@@ -101,17 +107,21 @@ pub fn rule(doc: &DocumentMut, file: &str, key: &RuleKey) -> Result<usize> {
     }
 }
 
-/// Refuse a new rule whose identity is already in `file`.
-pub fn new_rule(doc: &DocumentMut, file: &str, r: &RuleSpec) -> Result<()> {
+/// Refuse a new rule or link (`table`) whose identity is already in `file`.
+pub fn new_rule(doc: &DocumentMut, table: &[&str], file: &str, r: &RuleSpec) -> Result<()> {
+    let n = noun(table);
+    if r.reason.trim().is_empty() {
+        bail!("a {n} needs a reason");
+    }
     let new = Id {
         from: r.from.clone(),
         to: r.to.clone(),
         kinds: sorted(&r.kinds),
-        scope: r.scope.clone().unwrap_or_else(|| "prod".into()),
+        scope: r.scope.clone().unwrap_or_else(|| "all".into()),
     };
-    if ids(doc).contains(&new) {
+    if ids(doc, table).contains(&new) {
         bail!(
-            "{DESIGN_EXISTS}: {file} already has rule {}; change it with `rule set` or remove it first",
+            "{DESIGN_EXISTS}: {file} already has {n} {}; change it with `{n} set` or remove it first",
             describe(&new)
         );
     }
@@ -164,7 +174,7 @@ pub fn new_limit(doc: &DocumentMut, file: &str, bricks: Option<&str>) -> Result<
     Ok(())
 }
 
-/// `rule a -> b [uses] (prod)` for the semantic diff.
-pub fn rule_label(t: &Table) -> String {
-    format!("rule {}", describe(&id(t)))
+/// `rule a -> b [uses] (prod)` (or `link ...`) for the semantic diff.
+pub fn rule_label(noun: &str, t: &Table) -> String {
+    format!("{noun} {}", describe(&id(t)))
 }
