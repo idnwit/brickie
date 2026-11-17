@@ -213,8 +213,7 @@ impl<'a> Ctx<'a> {
             name,
             path: key,
             desc: self.l.cfg.brick_at(path).and_then(|b| b.desc.clone()),
-            independent: matches!(path, [_])
-                && self.l.cfg.brick_at(path).is_some_and(|b| b.independent),
+            independent: self.l.cfg.brick_at(path).is_some_and(|b| b.independent),
             worst_ratio,
             hot,
             children: sub
