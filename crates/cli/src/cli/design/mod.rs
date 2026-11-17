@@ -3,8 +3,8 @@
 //! Every write goes to the draft; `publish` copies it into the real files.
 //!
 //! Exit code: 0 ok, 2 any error (nothing written), 3 `design/stale` (the base is not the head;
-//! nothing written), 4 `design/blocked` (`check` or `publish`: the code does not match the design).
-//! Only `check` and `publish` look at the code.
+//! nothing written), 4 `design/blocked` (`publish`: the draft does not pass `brickie check`).
+//! Only `publish` looks at the code.
 
 mod args;
 mod batch;
@@ -79,7 +79,6 @@ fn dispatch(a: DesignArgs) -> Result<()> {
             let out = d.undo(base, By::Agent, v)?;
             return print(json, &out.version, || render::outcome(&out));
         }
-        Cmd::Check => return publish::check(&d, json),
         Cmd::Publish { base, note } => return publish::publish(&d, json, base, note),
         Cmd::Rebase { base } => {
             let out = d.rebase(base, By::Agent)?;

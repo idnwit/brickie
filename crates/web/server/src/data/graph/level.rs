@@ -86,7 +86,7 @@ impl Agg {
 }
 
 impl<'a> Ctx<'a> {
-    /// `links`: the links to draw ([`super::links::served`] or [`super::links::design`]).
+    /// `links`: the links to draw ([`super::links::served`]).
     pub fn new(l: &'a Loaded, links: Vec<(String, LevelLink)>) -> Ctx<'a> {
         Ctx {
             l,

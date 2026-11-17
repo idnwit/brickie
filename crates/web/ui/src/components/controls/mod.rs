@@ -56,19 +56,11 @@ pub fn header(cx: &Cx) -> View {
             c.view.set(c.fit(s));
         }
     };
-    // Design mode reads the design files alone: no finding counts, presets or measure controls.
-    // Build them only when shown: an element built but never inserted breaks hydration (its key is
-    // taken on the server and the client but missing from the page).
-    let code = !cx.editing();
-    let counts = if code {
-        View::from(counts(cx))
-    } else {
-        View::default()
-    };
     let design = crate::components::editor::design_button(cx);
-    let measure = code.then(|| measure::measure(&cx.m.cache, cx.bus.job));
-    let pill = code.then(|| measure::pill(cx.bus.pill));
-    let presets = code.then(|| presets(cx));
+    let counts = View::from(counts(cx));
+    let measure = measure::measure(&cx.m.cache, cx.bus.job);
+    let pill = measure::pill(cx.bus.pill);
+    let presets = presets(cx);
     view! {
         header {
             b { "brickie" }

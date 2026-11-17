@@ -45,6 +45,7 @@ pub fn evaluate(cache: &Cache, cfg: &Config, res: &Resolved, root: &Path) -> Vec
 mod complexity;
 mod cycles;
 mod deps;
+mod design;
 mod lift;
 mod links;
 mod private;
@@ -57,6 +58,7 @@ mod tests;
 
 pub use complexity::limits as complexity_limits;
 pub use deps::dep_subject;
+pub use design::{IssueFinding, LinkDenied, denied_text, named};
 pub use links::{design_links, marked_links, planned_links};
 use unmapped::Unmapped;
 mod members;

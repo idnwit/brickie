@@ -26,7 +26,7 @@ rules themselves are stated once in `docs/llms.txt` ("Rules"); this file records
 
 Removed with this decision: `deps/deny`, `config/unknown-via`, `design/no-reason` (reasons are
 required by the schema), unused-rule findings (a valid link with no edge is information, the
-planned link, in `design check` only), and the root-only limit on `independent`.
+planned link, a todo of `check`), and the root-only limit on `independent`.
 
 ## Identity
 
@@ -55,8 +55,8 @@ not the application above.
 
 ## Cycles
 
-Cycles among a level's links are information only (todo `link_cycle`, a non-blocking item of
-`design check`, marked in Design mode): a plan may be redrawn. Cycles in measured code stay
+Cycles among a level's links are information only (a todo of `check`,
+marked in Design mode): a plan may be redrawn. Cycles in measured code stay
 `deps/cycle` errors. Every check finding is still an error.
 
 ## Shared decision functions

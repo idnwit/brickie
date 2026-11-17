@@ -1,8 +1,8 @@
 //! The `[[link]]`s of each level (`links` of a `LevelView`), judged by the shared decisions in
-//! `brickie_check`: denied and cycle flags always; view mode also marks the planned ones (valid
-//! links that no measured edge uses yet). Design mode reads the design files alone.
+//! `brickie_check`: the denied and cycle flags, and the planned ones (valid links that no
+//! measured edge uses yet).
 
-use brickie_check::check::{Loaded, design_links, marked_links};
+use brickie_check::check::{Loaded, marked_links};
 use brickie_check::config::{LinkState, level_name};
 use brickie_web_api::LevelLink;
 use std::path::{Path, PathBuf};
@@ -10,11 +10,6 @@ use std::path::{Path, PathBuf};
 /// Every link of the design with its planned flag, in tree order.
 pub fn served(l: &Loaded) -> Vec<(String, LevelLink)> {
     as_served(l, &marked_links(l))
-}
-
-/// Every link of the design files, none planned (Design mode reads no code).
-pub fn design(l: &Loaded) -> Vec<(String, LevelLink)> {
-    as_served(l, &design_links(&l.cfg))
 }
 
 fn as_served(l: &Loaded, links: &[LinkState]) -> Vec<(String, LevelLink)> {

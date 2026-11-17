@@ -94,10 +94,6 @@ pub fn current_list(cx: &Cx) -> Vec<usize> {
 
 /// `renderLeft`.
 pub fn left(cx: &Cx) -> View {
-    // Design mode shows nothing derived from code.
-    if cx.editing() {
-        return super::design::design_left(cx);
-    }
     let scope = scope_bar(cx);
     let filters = filter_bar(cx);
     let q = cx.q;

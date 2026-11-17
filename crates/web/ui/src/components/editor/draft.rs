@@ -1,7 +1,7 @@
 //! The draft's part of the design bar: which version is published, whether a draft exists and
 //! what it forked from, whether it is behind (rebase), and the Publish / Rebase / Discard
-//! actions. Design mode never compares the code with the design: Publish runs the gate, and a
-//! blocked publish lists its blocking items in the bar's message. Each action is based on the
+//! actions. Publish runs the gate (`check` on the draft); a blocked publish lists its blocking
+//! items (`Gate.blocking`) in the bar's message. Each action is based on the
 //! version on screen and never retried on a newer head.
 
 use super::act;

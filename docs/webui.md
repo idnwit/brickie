@@ -79,15 +79,15 @@ Serves: P12, P13.
 A measured edge shows an abbreviation of its kind at the middle and, at the same place, a cross
 when it is debt. Width follows its count; `reexports` has a tail mark.
 
-In view mode a valid link that no measured edge backs draws as a planned link, one line per brick
-pair (the tooltip lists every link with its reason). In Design mode the canvas draws the links of
-the level, in the colour of their kind; a link no rule allows (`design/link-denied`) is red with
+A valid link that no measured edge backs draws as a planned link, one line per brick pair (the
+tooltip lists every link with its reason). In Design mode the canvas also draws the links that
+code already uses, in the colour of their kind; a link no rule allows (`design/link-denied`) is red with
 the reason in its tooltip, and a link on a cycle of links is marked. Rules are listed in the Rules
 tab, not drawn. Dash is the edge kind.
 
 | Look | Meaning |
 | --- | --- |
-| warning-colour line with `!` | view mode, planned: the link has no measured edge yet |
+| warning-colour line with `!` | planned: the link has no measured edge yet |
 | red line | Design mode, denied: no rule allows the link (blocks Publish) |
 | cycle mark on a link | the link is on a cycle of links (information only) |
 | `A` | an agent added the rule or link |
@@ -102,13 +102,13 @@ selects.
 
 Serves: P1, P2, P4, P5, P6, P7, P8, P9, P10.
 
-`Design` (or `E`, `edit=1`) makes the canvas show and edit the draft (the published design while
-there is none). Every edit is a new version (`v12`) of the draft; publishing makes it the
-published design once the code matches it. Design mode shows the design files only and compares
-code with the design only when Publish is clicked
-([the two rules](design/editor.md#draft-and-publish)): no measured edges, findings, scores,
-measure button or presets. Outside Design mode the canvas shows the published design with the
-measured code.
+The canvas always shows the working design (the draft when one exists, else the published
+design) with the measured code ([working design](design/editor.md#working-design)). `Design`
+(or `E`, `edit=1`) turns editing on. Every edit is a new version (`v12`) of the draft;
+publishing makes it the published design once the code matches it. A design with structure
+errors (such as `config/missing`) still renders, with the errors listed as findings. Without a
+measured cache Design mode falls back to the design files alone and the bar shows a `design only:
+no measurements` chip (its tooltip says why); view mode needs the cache.
 
 - A bar under the header shows `published v<N>`; with a draft, `draft v<N> . from v<M>`, its
   `behind: rebase` when the published head moved, and Publish (runs the gate; disabled when

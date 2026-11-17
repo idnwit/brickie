@@ -38,6 +38,11 @@ pub struct DesignState {
     /// by the same relative path as `files` values.
     #[serde(default)]
     pub sheets: BTreeMap<String, FileSheet>,
+    /// Set when the viewer fell back to the design files alone because the working design could
+    /// not be checked against the measured code (no cache yet): the tree then shows no measured
+    /// edge, score or finding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notice: Option<String>,
     /// Why the design does not load or check (the page then shows what it can).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,

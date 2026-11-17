@@ -2,7 +2,6 @@
 //! the docs loads, relative links in `docs/` resolve and `llms.txt` links nowhere.
 //! (Diagnostic codes in `llms.txt`: `guide_documents_every_diagnostic_code`.)
 
-use brickie_model::codes::CONFIG_MISSING;
 use std::path::{Path, PathBuf};
 
 fn root() -> PathBuf {
@@ -95,8 +94,7 @@ fn every_toml_block_in_the_docs_loads() {
                 // file or an include is not part of the example; syntax, keys and values must
                 // still be valid.
                 let msg = format!("{e:#}");
-                let external = msg.contains(CONFIG_MISSING)
-                    || msg.contains(": read ")
+                let external = msg.contains(": read ")
                     || msg.starts_with("read ")
                     || msg.contains(": unknown tag '")
                     || msg.contains(": unknown brick '");

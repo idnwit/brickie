@@ -1,4 +1,4 @@
-//! A declared link with what the design says of it: the view `design check`, the design todo
+//! A declared link with what the design says of it: the design todo
 //! list and the viewer read.
 
 use super::{Link, Scope};

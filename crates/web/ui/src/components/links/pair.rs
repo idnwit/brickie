@@ -32,6 +32,11 @@ impl Pair<'_> {
         self.rules.iter().any(|e| e.denied.is_some())
     }
 
+    /// Some link of the pair has no code edge yet.
+    pub fn planned(&self) -> bool {
+        self.rules.iter().any(|e| e.planned)
+    }
+
     /// Some link of the pair sits on a cycle of the level's links.
     pub fn cycle(&self) -> bool {
         self.rules.iter().any(|e| e.cycle)

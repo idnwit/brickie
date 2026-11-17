@@ -33,3 +33,26 @@ async fn json_endpoints_use_the_same_params() {
     assert_eq!(g["bricks"][0]["name"], "engine");
     assert!(g["edges"].is_array() && g["rows"].is_array());
 }
+
+#[tokio::test]
+async fn design_mode_serves_the_same_measured_data_as_view_mode() {
+    let s = Site::new();
+    let view: Value = serde_json::from_str(&s.get("/api/graph").await.1).unwrap();
+    let edit: Value = serde_json::from_str(&s.get("/api/graph?edit=1").await.1).unwrap();
+    assert_eq!(view, edit, "one tree: Design mode only turns editing on");
+    // The over-limit function counts as a finding on the engine brick in Design mode too.
+    let bricks = edit[0]["graph"]["bricks"].as_array().unwrap();
+    assert!(
+        bricks[0]["worst_ratio"].as_f64().unwrap() > 1.0,
+        "measured heat: {bricks:?}"
+    );
+    let (_, html) = s.get("/?edit=1").await;
+    assert!(
+        html.contains("complexity/cognitive"),
+        "findings are in the page data: {html}"
+    );
+    assert!(
+        !html.contains("showing the design only"),
+        "no fallback with a cache"
+    );
+}

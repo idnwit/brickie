@@ -1,7 +1,7 @@
 //! Tree resolution and partition checks on a two-level fixture (configs on disk, cache facts
 //! built in code). `fixture` is shared with the rule tests.
 
-use super::{Config, Partition, Resolved, load, resolve};
+use super::{Config, Issue, Resolved, load, resolve};
 use brickie_facts::Cache;
 use serde_json::{Value, json};
 use std::path::Path;
@@ -135,10 +135,22 @@ pub(crate) fn fixture(root: &str, web: &str) -> (tempfile::TempDir, Config) {
     (dir, cfg)
 }
 
-pub(crate) fn resolved(dir: &Path, cfg: &Config) -> anyhow::Result<Resolved> {
+pub(crate) fn resolved_issues(dir: &Path, cfg: &Config) -> (Resolved, Vec<Issue>) {
     let ws = dir.canonicalize().unwrap();
     let c = cache(&ws, &[]);
     resolve(cfg, &c.crates, &c.modules, &ws)
+}
+
+/// The resolved tree, or an error listing every partition issue.
+pub(crate) fn resolved(dir: &Path, cfg: &Config) -> anyhow::Result<Resolved> {
+    let (r, issues) = resolved_issues(dir, cfg);
+    match issues.is_empty() {
+        true => Ok(r),
+        false => {
+            let lines: Vec<&str> = issues.iter().map(|i| i.message.as_str()).collect();
+            Err(anyhow::anyhow!(lines.join("\n")))
+        }
+    }
 }
 
 #[test]
@@ -177,8 +189,7 @@ fn partition_errors() {
 fn resolve_lists_every_partition_error() {
     let issues = |web: &str| {
         let (dir, cfg) = fixture(ROOT, web);
-        let e = resolved(dir.path(), &cfg).unwrap_err();
-        e.downcast::<Partition>().unwrap().0
+        resolved_issues(dir.path(), &cfg).1
     };
     let web = WEB
         .replace("members = [\"web-shared\"]", "members = []")

@@ -8,10 +8,12 @@ use brickie_facts::{Cache, SCHEMA_VERSION};
 
 mod facade;
 mod scope;
+mod todo;
 pub use facade::*;
 pub use scope::{Filter, Filtered};
 use std::collections::BTreeMap;
 use std::path::Path;
+pub use todo::Todo;
 
 /// Config, cache and the diagnostics derived from them (sorted).
 /// Shared by `check` and `view`, so both show the same values.
@@ -24,6 +26,10 @@ pub struct Loaded {
     pub diagnostics: Vec<Diagnostic>,
     /// Diagnostic id -> owner brick paths (`root/web/api`), for scoped checks.
     pub owners: BTreeMap<String, Vec<String>>,
+    /// Config issues (`config/missing` and the partition errors), also in `diagnostics`.
+    pub issues: Vec<config::Issue>,
+    /// Planned work: never a finding, never counted in an exit code.
+    pub todo: Todo,
 }
 
 pub fn load(config: &Path) -> Result<Loaded> {
@@ -31,14 +37,24 @@ pub fn load(config: &Path) -> Result<Loaded> {
 }
 
 /// `load` with the config tree read from `src` (the design draft); the cache is read from
-/// disk. Partition errors fail with a [`config::Partition`] listing them all.
+/// disk. Config issues and denied links are findings; planned work is `todo`.
 pub fn load_from(src: &dyn config::FileSource, config: &Path) -> Result<Loaded> {
     let cfg = config::load_from(src, config)?;
     let cache = read_cache(config)?;
     let root = Path::new(&cache.workspace_root);
     let ws = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
-    let resolved = config::resolve(&cfg, &cache.crates, &cache.modules, &ws)?;
+    let (resolved, partition) = config::resolve(&cfg, &cache.crates, &cache.modules, &ws);
+    let mut issues = cfg.missing.clone();
+    issues.extend(partition);
     let mut found = rules::evaluate(&cache, &cfg, &resolved, root);
+    for i in &issues {
+        found.push(Box::new(rules::IssueFinding(i.clone())));
+    }
+    for s in crate::rules::design_links(&cfg) {
+        if let Some(why) = s.denied.clone() {
+            found.push(Box::new(rules::LinkDenied(s, why)));
+        }
+    }
     // A cache from another directory describes another tree: report that alone.
     let here = config_dir(config);
     let here = here.canonicalize().unwrap_or(here);
@@ -56,12 +72,15 @@ pub fn load_from(src: &dyn config::FileSource, config: &Path) -> Result<Loaded> 
         .map(|f| (diag::finding_id(&f.code(), &f.subject()), f.owners()))
         .collect();
     diagnostics.sort_by(|a, b| (&a.code, &a.message).cmp(&(&b.code, &b.message)));
+    let todo = todo::todo(&cache, &cfg, &resolved);
     Ok(Loaded {
         cfg,
         cache,
         resolved,
         diagnostics,
         owners,
+        issues,
+        todo,
     })
 }
 
@@ -74,6 +93,8 @@ pub fn load_design(src: &dyn config::FileSource, config: &Path) -> Result<Loaded
         resolved: Resolved::default(),
         diagnostics: Vec::new(),
         owners: BTreeMap::new(),
+        issues: Vec::new(),
+        todo: Todo::default(),
     })
 }
 

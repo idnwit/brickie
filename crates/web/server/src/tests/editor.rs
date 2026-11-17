@@ -63,7 +63,7 @@ async fn an_edit_is_a_version_and_a_stale_base_is_refused() {
         .unwrap();
     assert!(
         cache.get("planned").is_none(),
-        "Design mode marks nothing from code"
+        "bricks carry no planned flag"
     );
     // The edit started a draft forked from v1; the published file is untouched.
     assert_eq!(

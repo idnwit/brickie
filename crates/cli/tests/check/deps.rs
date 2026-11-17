@@ -106,15 +106,8 @@ reason = "app may use anything"
     assert_eq!(d.len(), 1, "{}", o.stdout);
     assert_eq!(d[0]["code"], "deps/unlinked");
     assert_eq!(d[0]["span"]["line"], 2);
-    // `design check` judges the links from the design files alone.
-    let path = w.save(&cfg);
-    let c = std::process::Command::new(BIN)
-        .args(["design", "check", "--config"])
-        .arg(&path)
-        .output()
-        .unwrap();
-    assert_eq!(c.status.code(), Some(4));
-    assert!(String::from_utf8_lossy(&c.stdout).contains("design/link-denied"));
+    // The denied link is a finding of `check` too.
+    assert!(o.stdout.contains("design/link-denied"), "{}", o.stdout);
 }
 
 #[test]

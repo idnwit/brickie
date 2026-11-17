@@ -1,6 +1,6 @@
 //! The draft: the one design in progress, stored under `.brickie/draft/` as `draft.json`
 //! (`{"forked_from": N}`) and `files/`, the config files by workspace-relative path (`..` stored
-//! as `^`). Every design edit writes it; `check` never reads it. The published tree changes only
+//! as `^`). Every design edit writes it; `check` reads it as the working design. The published tree changes only
 //! by `publish` (and by hand). The draft is read through the preview overlay, so `path =` and
 //! includes resolve as for the real files.
 
@@ -11,11 +11,13 @@ mod rebase;
 pub use publish::Blocked;
 
 use super::Design;
-use super::history::encode;
+use super::history::{self, encode};
 use super::tree::Files;
+use super::working::Working;
 use crate::lock::write_atomic;
 use anyhow::{Context, Result};
 use brickie_check::check::{self, Loaded};
+use brickie_model::design::Track;
 use std::path::{Path, PathBuf};
 
 /// The draft on disk.
@@ -54,6 +56,33 @@ impl Design {
             Some(d) => check::load_design(&self.preview(&d.files)?, &self.config_path()),
             None => check::load_design(&brickie_check::config::Disk, &self.config_path()),
         }
+    }
+
+    /// The working design checked against the measured code: the draft when one exists, else
+    /// the published files. The one source of `check`, `interface` and the viewer. Reads only;
+    /// the version names come from the history as recorded.
+    pub fn load_checked(&self) -> Result<(Loaded, Working)> {
+        let entries = self.history.entries()?;
+        let (loaded, track, forked_from) = match self.draft()? {
+            Some(d) => {
+                let src = self.preview(&d.files)?;
+                let l = check::load_from(&src, &self.config_path())?;
+                (l, Track::Draft, Some(d.forked_from))
+            }
+            None => {
+                let l = check::load(&self.config_path())?;
+                (l, Track::Published, None)
+            }
+        };
+        let v = history::head_of(&entries, track).map_or(0, |h| h.v);
+        Ok((
+            loaded,
+            Working {
+                track,
+                v,
+                forked_from,
+            },
+        ))
     }
 
     /// Replace the draft with `files`, based on published version `forked_from`.

@@ -52,10 +52,7 @@ pub fn on_event(seen: &mut Seen, ev: &ServerEvent, on_screen: Option<u64>) -> Ac
             Some(now) if now != *v => Action::RefreshDesign,
             _ => Action::Nothing,
         },
-        // Design mode never shows measured code: a re-measure changes nothing on screen.
-        ServerEvent::Cache { stamp, .. }
-            if newer(&mut seen.cache, *stamp) && on_screen.is_none() =>
-        {
+        ServerEvent::Cache { stamp, .. } if newer(&mut seen.cache, *stamp) => {
             Action::Pill(PILL_CACHE)
         }
         // In edit mode a config edit is a design version (`design` events).
@@ -93,7 +90,10 @@ mod tests {
             on_event(&mut seen, &cache(6), None),
             Action::Pill(PILL_CACHE)
         );
-        assert_eq!(on_event(&mut seen, &cache(7), Some(1)), Action::Nothing);
+        assert_eq!(
+            on_event(&mut seen, &cache(7), Some(1)),
+            Action::Pill(PILL_CACHE)
+        );
         let cfg = |stamp| ServerEvent::Config { stamp };
         assert_eq!(on_event(&mut seen, &cfg(1), None), Action::Nothing);
         assert_eq!(on_event(&mut seen, &cfg(2), Some(0)), Action::Nothing);

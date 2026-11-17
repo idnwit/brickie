@@ -1,5 +1,4 @@
-//! The versioned design as the editor shows it ([`DesignState`]), read from the design files
-//! alone: no measured code (the publish gate alone compares code with the design).
+//! The versioned design as the editor shows it ([`DesignState`]), read from the design files.
 
 mod conflict;
 mod layout;
@@ -33,6 +32,7 @@ pub fn state(d: &Design) -> Result<DesignState> {
         files: BTreeMap::new(),
         levels: BTreeMap::new(),
         sheets: d.sheets()?,
+        notice: None,
         error: None,
     };
     match d.show_design() {

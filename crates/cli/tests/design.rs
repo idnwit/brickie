@@ -708,18 +708,10 @@ fn link_add_prints_a_note_when_no_rule_allows_it() {
     let out = run(d, &[&args[..], &["--format", "json"]].concat());
     // The same link twice is refused.
     assert_eq!(out.status.code(), Some(2));
-    // The denied link blocks `design check`.
-    let out = run(d, &["check", "--format", "json"]);
+    // Publish is the gate: with no measurements it is blocked (the denied link itself is a
+    // finding of `brickie check`).
+    let out = run(d, &["publish", "--base", "3"]);
     assert_eq!(out.status.code(), Some(4));
-    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert!(
-        v["blocking"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|b| b["code"] == "design/link-denied"),
-        "{v}"
-    );
 }
 
 #[test]
@@ -727,20 +719,14 @@ fn publish_is_blocked_without_measurements_and_discard_drops_the_draft() {
     let tmp = ws();
     let d = tmp.path();
     ok(d, 1, &["brick", "set", "a", "--desc", "x"]);
-    // `show` reads the design only; `check` is the gate and exits like publish.
+    // `show` reads the design only; `publish` is the gate.
     assert!(!d.join(".brickie/cache.json").exists());
     assert!(run(d, &["show"]).status.success());
-    let out = run(d, &["check", "--format", "json"]);
-    assert_eq!(out.status.code(), Some(4));
-    let v: Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(
-        (v["ready"].as_bool(), v["forked_from"].as_u64()),
-        (Some(false), Some(1))
-    );
-    assert_eq!(v["blocking"][0]["code"], "stale/measure", "{v}");
     let out = run(d, &["publish", "--base", "2"]);
     assert_eq!(out.status.code(), Some(4));
-    assert!(String::from_utf8_lossy(&out.stderr).starts_with("error[design/blocked]"));
+    let err = String::from_utf8_lossy(&out.stderr).to_string();
+    assert!(err.starts_with("error[design/blocked]"), "{err}");
+    assert!(err.contains("stale/measure"), "{err}");
     assert!(read(d, "brickie.toml").contains("desc = \"x\""));
     assert_eq!(
         std::fs::read_to_string(d.join("brickie.toml")).unwrap(),

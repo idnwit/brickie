@@ -8,12 +8,10 @@
 //!
 //! Every partition error of the tree is collected (best effort goes on: an unassigned module
 //! stays unmapped, an overlap goes to the first brick, a member reaching outside is ignored);
-//! any of them fails the resolve with a [`Partition`] error listing them all, so `design
-//! check` can show the whole checklist.
+//! all of them are returned beside the resolved tree, which is always complete.
 
 use super::Config;
 use super::member::{Subject, matches};
-use anyhow::Result;
 use brickie_facts::{Crate, Module};
 use brickie_model::codes::{CONFIG_MEMBER_OUTSIDE_PARENT, CONFIG_OVERLAP, CONFIG_UNASSIGNED};
 use std::collections::BTreeMap;
@@ -42,19 +40,6 @@ pub struct Issue {
     /// The member selector concerned, when one is.
     pub member: Option<String>,
 }
-
-/// Every partition error of a resolve; the error `resolve` fails with.
-#[derive(Debug, Clone)]
-pub struct Partition(pub Vec<Issue>);
-
-impl std::fmt::Display for Partition {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let lines: Vec<&str> = self.0.iter().map(|i| i.message.as_str()).collect();
-        f.write_str(&lines.join("\n"))
-    }
-}
-
-impl std::error::Error for Partition {}
 
 struct Ctx<'r> {
     out: &'r mut Resolved,
@@ -95,7 +80,7 @@ pub fn resolve(
     crates: &[Crate],
     modules: &[Module],
     ws_root: &Path,
-) -> Result<Resolved> {
+) -> (Resolved, Vec<Issue>) {
     let by_id: BTreeMap<&str, &Crate> = crates.iter().map(|c| (c.id.as_str(), c)).collect();
     let subjects: Vec<Subject> = modules
         .iter()
@@ -108,10 +93,8 @@ pub fn resolve(
         issues: Vec::new(),
     };
     assign(cfg, &all, &all, &mut cx);
-    match cx.issues.is_empty() {
-        true => Ok(out),
-        false => Err(Partition(cx.issues).into()),
-    }
+    let issues = cx.issues;
+    (out, issues)
 }
 
 /// The brick of `cfg` whose members match `s`; a match in a second brick is an overlap, which is

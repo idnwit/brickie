@@ -31,10 +31,11 @@ brickie measure --> .brickie/cache.json --> brickie check  --> findings (text/js
   outsiders may use.
 - One `Diagnostic` model for `check` and the webview. Review decisions survive re-runs.
 - Crates exist only at real boundaries; complexity limits only tighten down the tree.
-- The published `brickie.toml` tree is the design `check` gates on. Every design edit goes to
-  one draft, versioned and based on the version the writer read; `design publish` makes the
-  draft the published tree once the code matches its structure
-  ([design/editor.md](design/editor.md#draft-and-publish)).
+- Every reader (`check`, `serve`, `interface`, `design`) uses one working design: the draft
+  when one exists, else the published `brickie.toml` tree. Every design edit goes to the draft,
+  versioned and based on the version the writer read; `design publish` makes the draft the
+  published tree once the code matches its structure
+  ([design/editor.md](design/editor.md#working-design)).
 - Development stage: one current API and model path, no backward compatibility.
 
 ## Detail docs

@@ -21,13 +21,12 @@ pub struct Blocker {
     pub module: Option<String>,
 }
 
-/// The publish checklist of the draft.
+/// The publish gate of the draft: `check` run on it.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Gate {
-    /// Structure items: the publish is refused while any is left.
+    /// What `check` reports on the draft (errors, planned bricks, cache): the publish is
+    /// refused while any is left.
     pub blocking: Vec<Blocker>,
-    /// Dependency and rule findings of the draft (`code: message`); they never block.
-    pub info: Vec<String>,
 }
 
 impl Gate {

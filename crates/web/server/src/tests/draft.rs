@@ -16,9 +16,19 @@ async fn edit(s: &Site, base: u64, op: Value) -> Value {
     serde_json::from_str::<Value>(&text).unwrap()["design"].clone()
 }
 
-/// A site whose code matches its cache (the shared fixture has an unmeasured file).
+/// A site whose code matches its cache and passes `check` (the shared fixture has an
+/// unmeasured file, a function over the limit and exported items nothing uses).
 fn measured() -> Site {
     let s = Site::new();
+    let cfg = s.config();
+    let cache = cfg.with_file_name(".brickie/cache.json");
+    let text = std::fs::read_to_string(&cache).unwrap();
+    std::fs::write(
+        &cache,
+        text.replace("\"exported\":true", "\"exported\":false")
+            .replace("\"cognitive\":20", "\"cognitive\":1"),
+    )
+    .unwrap();
     let other = s.config().with_file_name("ws/crates/eng/src/other.rs");
     std::fs::remove_file(other).unwrap();
     s

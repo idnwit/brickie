@@ -15,6 +15,7 @@ pub use resolve::brick_path;
 mod stale;
 mod tree;
 mod undo;
+pub mod working;
 mod write;
 
 pub use draft::Blocked;
@@ -73,11 +74,6 @@ impl Design {
     /// Absolute path of the root config.
     pub(crate) fn config_path(&self) -> PathBuf {
         self.root.join(&self.config)
-    }
-
-    /// File name of the root config.
-    pub(crate) fn config_name(&self) -> &str {
-        &self.config
     }
 
     fn lock(&self) -> Result<Lock> {

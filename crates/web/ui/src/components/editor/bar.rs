@@ -67,6 +67,9 @@ fn chips(cx: &Cx, ch: &DesignState) -> View {
             move || ed.tab.set("rules"),
         ));
     }
+    if let Some(n) = ch.notice.clone() {
+        out.push(view! { span(class="chip conflict", title=n) { "design only: no measurements" } });
+    }
     if let Some(e) = ch.error.clone() {
         out.push(view! { span(class="chip conflict", title=e) { "design does not show" } });
     }
