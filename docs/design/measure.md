@@ -20,7 +20,7 @@ Proposal and phases: [../proposals/features.md](../proposals/features.md).
 | Always all cargo features (`cargo.features = "all"` in a rust-analyzer `--config-path` JSON); no setting | the design covers every code path; additive features (P1) make it buildable |
 | One `scip` run for the host, one per `[measure] additional_targets` entry (`cargo.target`); per-file edges and items are unioned and deduplicated | rule checks see every edge; a file compiled by any run counts as compiled |
 | The config JSON uses the nested form `{"cargo": {...}}`; flat `cargo.features` keys are silently ignored by rust-analyzer | verified on rust-analyzer's `scip` command |
-| A failed run reports its target and says exclusive features must be made additive | P1 enforced by construction |
+| A failed run reports its target and says exclusive features must be made additive; if rustup reports `Unknown binary 'rust-analyzer'` it says to run `rustup component add rust-analyzer` instead | P1 enforced by construction; a missing component is not a feature problem |
 | `measure` prints one `hint:` line per `cfg(target_arch/os = ...)` family found by a text scan that neither the host (`rustc -vV`) nor an additional target covers | never add a target silently; its cost stays visible |
 | The cache records `measured { features, targets, location }` (`location` is the canonical config directory); `check` reports `stale/measure` when the config differs or the cache is read from another directory, and then judges no file | the settings and the place are part of the cache key; a copied or moved project must not be judged on the old tree; a cache without them is not judged |
 
