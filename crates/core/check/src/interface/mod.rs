@@ -46,12 +46,14 @@
 //! # Notes
 //!
 //! - A use is a reference from outside the brick, or from test code anywhere. `pub use`
-//!   re-exports are routes, not uses.
+//!   re-exports are routes, not uses. A doctest naming a public API item is a test use (a
+//!   word match: rust-analyzer does not index doc comments).
 //! - Uses are grouped by the using brick at the interface's level; modules outside the tree are
 //!   `(unmapped)`.
 //! - Items are sorted by use count, descending, unused last.
 
 mod declared;
+mod doctest;
 mod edge;
 mod unused;
 mod uses;
@@ -142,7 +144,7 @@ pub struct Site {
     pub end_col: u32,
     /// `prod` or `test`.
     pub scope: String,
-    /// `uses`, `implements` or `reexports`.
+    /// `uses`, `implements`, `reexports` or `doctest`.
     pub kind: String,
     /// The path as written at the site.
     pub written: String,
