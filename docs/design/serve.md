@@ -68,3 +68,19 @@ references). It knows nothing about bricks, rules or the cache.
 | `POST` + JSON, paths checked by `valid_path` | no path escapes the workspace |
 
 Open: hover (a `Hover` type, an endpoint, a `Provider` method).
+
+## Brick docs
+
+`/docs/<brick path>` (`/docs/` lists the top bricks): a docs.rs-style page per brick, plain SSR
+HTML with no JavaScript. The brick details panel links to it.
+
+| Decision | Reason |
+| --- | --- |
+| Items are the brick's declared interface (`brickie_check::interface`); a composite shows its children and its exported children's items | one decision of what a brick declares, shared with `check` and `brickie interface` |
+| The cache keeps the whole doc comment (`Item.doc`, markdown); listings show `doc_summary` (first paragraph) | the docs page needs the full text; one stored form, the summary is derived |
+| Markdown via `pulldown-cmark`; raw HTML in doc comments is shown as text | doc comments must not inject markup into the page |
+| Each item shows up to 3 use sites per using brick, with the source line | real usage is what docs.rs cannot show |
+| Associated items (`Type::name`) render under their type; ones whose type is not on the page go to "Associated items" | rustdoc-like grouping from the data the cache has |
+| View structs live in `brickie-web-api` (`DocsPage`), built in `data`, rendered in `render` | keeps the server's `routes -> render/data` layering |
+
+Gaps: no intra-doc link resolution, no trait impls or fields/variants (not cached), no search.

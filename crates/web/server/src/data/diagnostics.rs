@@ -19,7 +19,7 @@ impl<'a> Lines<'a> {
             files: HashMap::new(),
         }
     }
-    fn line(&mut self, file: &str, line: u32) -> Option<&str> {
+    pub(super) fn line(&mut self, file: &str, line: u32) -> Option<&str> {
         let root = self.root;
         let lines = self.files.entry(file.to_string()).or_insert_with(|| {
             std::fs::read_to_string(root.join(file))

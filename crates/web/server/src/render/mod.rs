@@ -1,4 +1,8 @@
-//! The HTML shell around the sycamore output of the main page.
+//! The HTML shell around the sycamore output of the main page, and the docs page.
+
+mod docs;
+
+pub use docs::docs_html;
 
 use brickie_web_api::{PageData, Params};
 

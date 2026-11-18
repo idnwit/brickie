@@ -30,6 +30,7 @@ pub struct IfaceItemView {
     pub kind: String,
     pub name: String,
     pub signature: String,
+    /// First paragraph of the doc comment, on one line.
     pub doc: String,
     pub file: String,
     pub line: u32,

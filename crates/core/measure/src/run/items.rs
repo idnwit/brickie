@@ -49,13 +49,13 @@ pub fn one_line(sig: &str) -> String {
     sig.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// First paragraph of a doc comment, on one line; rust-analyzer's alias banner is dropped.
-pub fn first_paragraph(doc: &str) -> String {
-    doc.split("\n\n")
-        .map(str::trim)
-        .find(|p| !p.is_empty() && !p.starts_with("*This is the documentation for*"))
-        .map(one_line)
-        .unwrap_or_default()
+/// The doc comment as markdown, trimmed; rust-analyzer's alias banner paragraph is dropped.
+pub fn full_doc(doc: &str) -> String {
+    let doc = doc.trim();
+    match doc.strip_prefix("*This is the documentation for*") {
+        Some(rest) => rest.split_once("\n\n").map_or("", |(_, b)| b).trim().into(),
+        None => doc.into(),
+    }
 }
 
 /// How a symbol sits in its owner: a free item, an inherent impl item (`Some(type name)`), or
@@ -176,7 +176,7 @@ impl<'a> Items<'a> {
             kind: kind.into(),
             name,
             signature: one_line(&s.signature),
-            doc: first_paragraph(&s.doc),
+            doc: full_doc(&s.doc),
             line: s.range.0 + 1,
             vis: vis.into(),
             visible_in: self.reach.visible_in(i, module, vis),
@@ -229,10 +229,14 @@ mod tests {
 
     #[test]
     fn docs() {
-        assert_eq!(first_paragraph("One\nline.\n\nMore."), "One line.");
+        assert_eq!(full_doc(" One\nline.\n\nMore.\n"), "One\nline.\n\nMore.");
         assert_eq!(
-            first_paragraph("*This is the documentation for* `pub struct A`\n\nBody."),
-            "Body."
+            full_doc("*This is the documentation for* `pub struct A`\n\nBody.\n\nMore."),
+            "Body.\n\nMore."
+        );
+        assert_eq!(
+            brickie_facts::doc_summary("One\nline.\n\nMore."),
+            "One line."
         );
     }
 

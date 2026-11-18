@@ -37,7 +37,7 @@
   outside the scope: before reporting done, run the full gate with no `--brick`. JSON adds an
   `outside_scope` object when `--brick` is used.
 - `brickie interface <brick-path> [--json]` (for example `root/web/api`) prints the brick's
-  declared interface: every item outside code can name, with signature, first doc paragraph,
+  declared interface: every item outside code can name, with signature, first doc paragraph (JSON: the whole doc comment),
   definition, and uses (grouped by using brick, file:line:col per site; `[test]` marks test code);
   unused items are marked `UNUSED`. Read it before using or changing a brick from outside.
   `--from <brick-path>` instead lists every reference site from that brick into this one, by used

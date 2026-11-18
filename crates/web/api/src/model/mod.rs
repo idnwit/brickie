@@ -3,6 +3,7 @@
 
 mod boundary;
 mod diag;
+mod docs;
 mod draft;
 mod editor;
 mod events;
@@ -16,6 +17,7 @@ mod score;
 
 pub use boundary::*;
 pub use diag::*;
+pub use docs::*;
 pub use draft::*;
 pub use editor::*;
 pub use events::*;

@@ -45,7 +45,7 @@ Proposal and phases: [../proposals/features.md](../proposals/features.md).
   `lines`, `scope`. Macro bodies are not parsed, so branches inside `println!`, `vec![]` and
   `view!` are invisible. Scoring follows SonarSource.
 
-## Cache layout (schema_version 7)
+## Cache layout (schema_version 8)
 
 `.brickie/cache.json` sits next to the config. Top level: `schema_version`, `tool_version`,
 `rust_analyzer`, `measured`, `workspace_root`, `git`, `crates`, `modules`, `files`.
@@ -58,6 +58,6 @@ Proposal and phases: [../proposals/features.md](../proposals/features.md).
 - Every `.rs` file under a crate root is recorded. One the compiler never saw has
   `compiled: false`, so staleness can tell it from an added file.
 - `items` per file: every non-test `pub` or `pub(crate)` item (`symbol`, `module`, `kind`, `name`,
-  one-line `signature`, `doc`, `line`, `vis`, `visible_in`, `exported`). Trait members, trait-impl
+  one-line `signature`, `doc` (the whole doc comment, markdown), `line`, `vis`, `visible_in`, `exported`). Trait members, trait-impl
   items, fields, variants and modules are not items. Only declared items are cached.
 - Unreadable source: `measure` warns once per path and records an empty row (`lines = 0`).

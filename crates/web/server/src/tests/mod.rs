@@ -3,6 +3,7 @@
 
 mod api;
 mod code;
+mod docs;
 mod draft;
 mod editor;
 mod events;
@@ -62,7 +63,8 @@ impl Site {
         };
         let item = |name: &str, line: u32| {
             json!({"symbol": format!("x::{name}"), "module": "eng::x", "kind": "fn",
-                   "name": name, "signature": format!("pub fn {name}()"), "doc": "",
+                   "name": name, "signature": format!("pub fn {name}()"),
+                   "doc": format!("Does {name}.\n\nSee **{name}** <b>raw</b>."),
                    "line": line, "vis": "pub", "visible_in": "eng", "exported": true})
         };
         let func = |name: &str, line: u32, cog: u32| {

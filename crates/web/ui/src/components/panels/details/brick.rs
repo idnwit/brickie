@@ -56,7 +56,11 @@ pub(super) fn brick_detail(cx: &Cx, b: usize) -> View {
     let card = scorecard(cx, b);
     let iface = super::iface::interface_section(cx, br.path.clone());
     view! {
-        div(class="dhead") { h2 { (name) } span(title="Open this brick's code") { (open_code) } }
+        div(class="dhead") {
+            h2 { (name) }
+            span(title="Open this brick's code") { (open_code) }
+            a(class="codebtn", href=docs_href(&br.name), target="_blank", title="Open this brick's documentation page") { "Docs" }
+        }
         (desc)
         div { (tags) (mark) }
         (card)

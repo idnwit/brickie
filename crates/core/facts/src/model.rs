@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const SCHEMA_VERSION: u32 = 7;
+pub const SCHEMA_VERSION: u32 = 8;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Cache {
@@ -148,7 +148,8 @@ pub struct Item {
     pub name: String,
     /// One-line signature as rust-analyzer renders it (`pub fn url(&self) -> String`).
     pub signature: String,
-    /// First paragraph of the doc comment, `""` when undocumented.
+    /// The whole doc comment as markdown, `""` when undocumented; [`doc_summary`] gives its
+    /// first paragraph.
     pub doc: String,
     /// 1-based line of the name.
     pub line: u32,
@@ -160,6 +161,15 @@ pub struct Item {
     /// Reachable from the crate root of a library target as public API (`pub` through public
     /// modules or a `pub use` re-export).
     pub exported: bool,
+}
+
+/// The first paragraph of a doc comment, on one line (the summary line of a listing).
+pub fn doc_summary(doc: &str) -> String {
+    doc.split("\n\n")
+        .map(str::trim)
+        .find(|p| !p.is_empty())
+        .map(|p| p.split_whitespace().collect::<Vec<_>>().join(" "))
+        .unwrap_or_default()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
