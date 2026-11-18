@@ -3,7 +3,7 @@
 use super::metadata::Workspace;
 use brickie_facts::Crate;
 
-fn is_lib_kind(kind: &str) -> bool {
+pub(crate) fn is_lib_kind(kind: &str) -> bool {
     kind.split(',').any(|k| {
         matches!(
             k,
