@@ -29,6 +29,11 @@ Proposal and phases: [../proposals/features.md](../proposals/features.md).
 - Units: crate, module (`crate::a::b`), file. A module maps to at most one leaf brick.
 - **`to` of an edge is the module that defines the item** (SCIP). A re-export is not an edge
   target. There is no path-based re-attribution.
+- **A SCIP symbol names the package, not the target**, so a lib and a test target of one package
+  can define the same symbol in different modules. A reference resolves to the definition in the
+  same file, else in the same target, else in the package's lib (the only target others can
+  depend on), else the first. Alternatives kept for later: `rust-analyzer lsif` (links each
+  reference to its definition site) or rust-analyzer as a library.
 - Each reference site gives one edge kind:
 
   | kind | sites |
