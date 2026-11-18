@@ -75,6 +75,11 @@ from `git diff` / `git status` confirmed by sha256, workspace members unknown to
   works per leaf: a composite has no interface findings of its own, and exports do not widen it.
 - Uses come from reference edges (not `reexports`) from outside the brick or from unmapped
   modules, or from test code anywhere. Production edges inside the leaf never count. A `#[test]` in a `mod tests` child counts; one in the item's own module does not.
+- Doctests count as test uses of exported items: rust-analyzer does not index doc comments, so a
+  compiled code block (no `ignore`, `text`, `compile_fail` or other language) in a module or item
+  doc of the same crate uses an item whose own name (a method's name alone: `state.alloc(..)`
+  never writes the type) appears in it as a word. A word match
+  can over-count; it only silences a warning.
 - Not items: `macro_rules!` (no `pub` signature from rust-analyzer), a `pub fn` in a private
   module. A `pub(crate)` item shared between folder bricks is an item.
 - Agents run `brickie interface <brick> [--json] [--from <brick>]`.

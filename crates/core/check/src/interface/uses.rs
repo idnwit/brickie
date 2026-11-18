@@ -1,7 +1,9 @@
 //! Uses of an item: reference edges into its module whose symbol is the item (or a member of
 //! it), from outside the brick or from test code anywhere; grouped by the using brick at the
-//! brick's level. `pub use` re-exports are routes, not uses.
+//! brick's level. `pub use` re-exports are routes, not uses. Doctests of the item's crate that
+//! name it are test uses inside the brick ([`super::doctest`]).
 
+use super::doctest::Doctests;
 use super::{Site, UseGroup, covers, key};
 use crate::config::{Resolved, level_name};
 use brickie_facts::{Cache, FileEdge, Item};
@@ -33,6 +35,7 @@ impl Ref<'_> {
 /// Reference edges (not re-exports) by target module.
 pub(super) struct Index<'a> {
     pub by_to: HashMap<&'a str, Vec<Ref<'a>>>,
+    doctests: Doctests,
 }
 
 impl<'a> Index<'a> {
@@ -48,7 +51,10 @@ impl<'a> Index<'a> {
                 });
             }
         }
-        Index { by_to }
+        Index {
+            by_to,
+            doctests: Doctests::new(cache),
+        }
     }
 
     /// Uses of `item` as part of the interface of the brick at `brick`.
@@ -69,6 +75,11 @@ impl<'a> Index<'a> {
                 Some(p) => level_name(&p[..brick.len().min(p.len())]),
             };
             groups.entry(label).or_default().push(r.site());
+        }
+        let doc = self.doctests.sites(item);
+        if !doc.is_empty() {
+            let label = format!("{} (tests)", level_name(brick));
+            groups.entry(label).or_default().extend(doc);
         }
         groups
             .into_iter()
