@@ -77,3 +77,6 @@ pub const PAGE_PATH: &str = "/";
 /// `GET /code/?path=&line=&col=`: the code viewer (`codeview`), embedded by the source popup
 /// and the target of every source link (it needs JavaScript).
 pub const CODE_PATH: &str = "/code/";
+/// `GET /docs/<brick path>`: a brick's documentation page (HTML, no JavaScript); `/docs/` is
+/// the root (the top bricks).
+pub const DOCS_PATH: &str = "/docs/";

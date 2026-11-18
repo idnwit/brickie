@@ -3,11 +3,13 @@
 
 pub mod design;
 mod diagnostics;
+mod docs;
 mod functions;
 pub mod graph;
 mod interface;
 mod time;
 
+pub use docs::docs;
 pub use interface::{edge_uses, interface};
 
 use brickie_check::check::Loaded;

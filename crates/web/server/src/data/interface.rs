@@ -4,7 +4,7 @@ use brickie_check::check::Loaded;
 use brickie_check::interface::{self, EdgeItem, IfaceItem, Site};
 use brickie_web_api::{EdgeItemView, IfaceItemView, InterfaceView, SiteView, UseGroupView};
 
-fn site(s: &Site) -> SiteView {
+pub(super) fn site(s: &Site) -> SiteView {
     SiteView {
         file: s.file.clone(),
         line: s.line,
@@ -23,7 +23,7 @@ fn item(i: &IfaceItem) -> IfaceItemView {
         kind: i.kind.clone(),
         name: i.name.clone(),
         signature: i.signature.clone(),
-        doc: i.doc.clone(),
+        doc: i.summary(),
         file: i.file.clone(),
         line: i.line,
         uses: i

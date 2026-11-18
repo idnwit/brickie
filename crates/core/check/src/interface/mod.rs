@@ -45,6 +45,7 @@ pub struct IfaceItem {
     pub kind: String,
     pub name: String,
     pub signature: String,
+    /// The whole doc comment (markdown).
     pub doc: String,
     pub file: String,
     pub line: u32,
@@ -59,6 +60,11 @@ impl IfaceItem {
 
     pub fn unused(&self) -> bool {
         self.uses.is_empty()
+    }
+
+    /// The first paragraph of the doc comment, on one line.
+    pub fn summary(&self) -> String {
+        brickie_facts::doc_summary(&self.doc)
     }
 }
 

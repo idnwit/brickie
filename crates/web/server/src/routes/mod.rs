@@ -3,6 +3,7 @@
 
 mod api;
 mod assets;
+mod docs;
 mod editor;
 mod events;
 mod guard;
@@ -25,6 +26,9 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .nest_service(CODE_PATH.trim_end_matches('/'), code)
         .route(PAGE_PATH, get(index::index))
+        .route(DOCS_PATH.trim_end_matches('/'), get(docs::root))
+        .route(DOCS_PATH, get(docs::root))
+        .route(&format!("{DOCS_PATH}{{*brick}}"), get(docs::brick))
         .route(Diagnostics::PATH, get(api::diagnostics))
         .route(Functions::PATH, get(api::functions))
         .route(Graph::PATH, get(api::graph))

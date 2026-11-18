@@ -200,11 +200,11 @@ fn items_by_branch() {
 
 const EXPECTED: &str = r#"
 src/a.rs
-  c::a fn hidden "pub fn hidden()" "Doc." line=3 vis=pub in=c exported=true sym=hidden
-  c::a fn crate_fn "pub(crate) fn crate_fn()" "Doc." line=4 vis=pub(crate) in=c exported=false sym=crate_fn
+  c::a fn hidden "pub fn hidden()" "Doc.\n\nMore." line=3 vis=pub in=c exported=true sym=hidden
+  c::a fn crate_fn "pub(crate) fn crate_fn()" "Doc.\n\nMore." line=4 vis=pub(crate) in=c exported=false sym=crate_fn
 src/lib.rs
-  c fn free "pub fn free()" "Doc." line=2 vis=pub in=c exported=true sym=free
-  c trait T "pub trait T" "Doc." line=10 vis=pub in=c exported=true sym=T
-  c method S::new "pub fn new()" "Doc." line=12 vis=pub in=c exported=true sym=impl::S::new
+  c fn free "pub fn free()" "Doc.\n\nMore." line=2 vis=pub in=c exported=true sym=free
+  c trait T "pub trait T" "Doc.\n\nMore." line=10 vis=pub in=c exported=true sym=T
+  c method S::new "pub fn new()" "Doc.\n\nMore." line=12 vis=pub in=c exported=true sym=impl::S::new
 src/tests.rs
 "#;

@@ -74,7 +74,7 @@ fn text(i: &Interface) -> String {
         let _ = writeln!(o, "\n{} {}{mark}", it.kind, it.name);
         let _ = writeln!(o, "    {}", it.signature);
         if !it.doc.is_empty() {
-            let _ = writeln!(o, "    /// {}", it.doc);
+            let _ = writeln!(o, "    /// {}", it.summary());
         }
         let _ = writeln!(o, "    defined {}:{}", it.file, it.line);
         for g in &it.uses {
