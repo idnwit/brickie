@@ -66,7 +66,9 @@ After `measure`, a line `hint: code under cfg(target_arch = "wasm32") is not mea
 cache, so a link it needs may look planned (no measured edge). Do not add the target yourself; report the hint to the
 reviewer. If `measure` fails with "rust-analyzer scip failed for target ..." and "if features are
 mutually exclusive, make them additive", fix the code so a build with all features works, or
-report that the target is not installed (`rustup target add <target>`).
+report that the target is not installed (`rustup target add <target>`). If the output says
+"Unknown binary 'rust-analyzer'", the workspace's toolchain lacks the component: run
+`rustup component add rust-analyzer` in the workspace.
 
 ## Hard constraints
 

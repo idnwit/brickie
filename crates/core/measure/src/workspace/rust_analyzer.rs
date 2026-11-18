@@ -16,8 +16,8 @@ pub fn config_json(target: Option<&str>) -> String {
     serde_json::json!({ "cargo": cargo }).to_string()
 }
 
-/// The error of a failed run: names the target and the likely cause of a failure with all
-/// features on.
+/// The error of a failed run: names the target and the likely cause: a toolchain without the
+/// rust-analyzer component, else a failure with all features on.
 pub fn failure_message(target: Option<&str>, stderr: &str) -> String {
     let which = target.map_or("the host target".to_string(), |t| format!("target {t}"));
     let tail = last_lines(stderr, 20);
@@ -25,7 +25,11 @@ pub fn failure_message(target: Option<&str>, stderr: &str) -> String {
     if !tail.is_empty() {
         msg += &format!("; its last output:\n{tail}");
     }
-    msg += "\nif features are mutually exclusive, make them additive (a build must work with --all-features)";
+    if stderr.contains("Unknown binary 'rust-analyzer'") {
+        msg += "\nthe workspace's toolchain has no rust-analyzer component; run `rustup component add rust-analyzer` in the workspace";
+    } else {
+        msg += "\nif features are mutually exclusive, make them additive (a build must work with --all-features)";
+    }
     msg
 }
 
@@ -108,6 +112,12 @@ mod tests {
             "{m}"
         );
         assert!(m.contains("make them additive (a build must work with --all-features)"));
+        let m = failure_message(
+            None,
+            "error: Unknown binary 'rust-analyzer' in official toolchain 'stable'.\n",
+        );
+        assert!(m.contains("rustup component add rust-analyzer"), "{m}");
+        assert!(!m.contains("additive"), "{m}");
         let m = failure_message(None, "");
         assert!(
             m.contains("host target") && !m.contains("last output"),
