@@ -7,12 +7,17 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const SCHEMA_VERSION: u32 = 8;
+/// The cache layout version; a cache with another value must be measured again.
+pub const SCHEMA_VERSION: u32 = 9;
 
+/// The whole `.brickie/cache.json`: workspace shape plus per-file facts.
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Cache {
+    /// Equals [`SCHEMA_VERSION`] for a cache this build can read.
     pub schema_version: u32,
+    /// The brickie version that measured.
     pub tool_version: String,
+    /// The rust-analyzer version that made the index.
     pub rust_analyzer: String,
     /// How the index was made; `check` reports a cache whose settings differ from the config.
     #[serde(default)]
@@ -23,6 +28,7 @@ pub struct Cache {
     pub git: Option<Git>,
     pub crates: Vec<Crate>,
     pub modules: Vec<Module>,
+    /// Per-file facts keyed by path relative to `workspace_root`.
     pub files: BTreeMap<String, FileData>,
 }
 
@@ -81,9 +87,12 @@ impl Cache {
     }
 }
 
+/// The git state at measure time.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Git {
+    /// `HEAD` commit hash.
     pub commit: String,
+    /// The working tree had uncommitted changes.
     pub dirty: bool,
 }
 
@@ -91,40 +100,56 @@ pub struct Git {
 /// `package/kind/target`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Crate {
+    /// Crate id, the prefix of its module ids.
     pub id: String,
+    /// The cargo package name.
     pub package: String,
     pub version: String,
+    /// The cargo target name.
     pub target: String,
+    /// The cargo target kind (`lib`, `bin`, `test`, ...).
     pub kind: String,
+    /// The target's root source file (`src/lib.rs`), relative to the workspace root.
     pub root: String,
     /// Package directory (holding `Cargo.toml`) relative to the workspace root, `""` for the
     /// root; `path:` brick members match against it.
     pub dir: String,
 }
 
-/// Module id: `<crate id>` for the crate root, `<crate id>::a::b` otherwise.
+/// A Rust module (or crate root); its id is `<crate id>` for the crate root and
+/// `<crate id>::a::b` otherwise.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Module {
     pub id: String,
+    /// The id of the crate that contains it.
     #[serde(rename = "crate")]
     pub krate: String,
+    /// The defining file, relative to the workspace root.
     pub file: String,
     /// 1-based line of the module definition.
     pub line: u32,
+    /// The module's inner doc comment (`//!`, `#![doc]`) as markdown, `""` when undocumented.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub doc: String,
 }
 
+/// Everything measured about one source file.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileData {
+    /// Content hash ([`crate::sha256_hex`]); `check` compares it to find stale files.
     pub sha256: String,
     /// `false` for a `.rs` file under a crate directory that was not compiled (for example
     /// cfg-gated away): hashed so staleness can tell it from an added file, but it has no
     /// functions, edges or module.
     pub compiled: bool,
+    /// Size in bytes.
     pub size: u64,
     pub lines: u32,
+    /// `prod` or `test`.
     pub scope: String,
     /// Module defined by this file (its own module, not inline children).
     pub module: Option<String>,
+    /// Functions with their complexity numbers.
     pub functions: Vec<Function>,
     /// Dependency edges whose evidence is in this file.
     pub edges: Vec<FileEdge>,
@@ -163,6 +188,15 @@ pub struct Item {
     pub exported: bool,
 }
 
+/// The doc comment as markdown, trimmed; rust-analyzer's alias banner paragraph is dropped.
+pub fn full_doc(doc: &str) -> String {
+    let doc = doc.trim();
+    match doc.strip_prefix("*This is the documentation for*") {
+        Some(rest) => rest.split_once("\n\n").map_or("", |(_, b)| b).trim().into(),
+        None => doc.into(),
+    }
+}
+
 /// The first paragraph of a doc comment, on one line (the summary line of a listing).
 pub fn doc_summary(doc: &str) -> String {
     doc.split("\n\n")
@@ -172,24 +206,32 @@ pub fn doc_summary(doc: &str) -> String {
         .unwrap_or_default()
 }
 
+/// One dependency edge between modules, with the site of its evidence in the file that holds it.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct FileEdge {
+    /// Module id of the using side.
     pub from: String,
+    /// Module id of the used side.
     pub to: String,
+    /// `uses`, `implements` or `reexports`.
     pub kind: String,
+    /// `prod` or `test`.
     pub scope: String,
     pub line: u32,
     /// 1-based column range of the reference on `line`.
     pub col: u32,
     pub end_col: u32,
+    /// Readable symbol of the used item.
     pub symbol: String,
     /// Path as written at the site, unresolved (`acme_engine::AudioEngine`, or a plain name).
     pub written: String,
 }
 
+/// One measured function and its complexity metrics (see the `complexity/*` codes).
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Function {
     pub name: String,
+    /// Qualified name, `Type::name` for methods.
     pub qname: String,
     /// Innermost module containing the function.
     pub module: Option<String>,
@@ -199,20 +241,27 @@ pub struct Function {
     pub cognitive: u32,
     pub cyclomatic: u32,
     pub nesting: u32,
+    /// NPath.
     pub paths: u64,
+    /// Parameters other than `self`.
     pub params: u32,
+    /// `prod` or `test`.
     pub scope: String,
 }
 
+/// A module-level edge aggregated from [`FileEdge`]s by (from, to, kind, scope); see
+/// [`Cache::edges`].
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Edge {
     pub from: String,
     pub to: String,
     pub kind: String,
     pub scope: String,
+    /// Every site that makes the edge.
     pub evidence: Vec<Evidence>,
 }
 
+/// One site behind an [`Edge`]: a reference at `line` between `col` and `end_col`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Evidence {
     pub file: String,

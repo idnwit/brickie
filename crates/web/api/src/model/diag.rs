@@ -4,6 +4,7 @@
 use super::{Params, encode};
 use serde::{Deserialize, Serialize};
 
+/// The measure cache header: which workspace and commit it describes and how fresh it is.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CacheInfo {
     pub workspace: String,
@@ -19,6 +20,7 @@ pub struct CacheInfo {
     pub stale_files: usize,
 }
 
+/// A source location: file, 1-based line, and optionally a byte column and length to mark.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SpanView {
     pub file: String,
@@ -60,12 +62,14 @@ pub fn code_brick_href(node: &str) -> String {
     format!("{}?filter={}&view=Bricks", crate::CODE_PATH, encode(node))
 }
 
+/// A note of a finding: text with an optional location.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NoteView {
     pub text: String,
     pub span: Option<SpanView>,
 }
 
+/// The rule a finding came from and where it is declared.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RuleView {
     pub name: String,

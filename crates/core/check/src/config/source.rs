@@ -6,8 +6,11 @@ use std::path::{Path, PathBuf};
 /// The file operations `load` needs. `canonicalize` gives the identity of a file (include and
 /// path cycles) and the base directory of `path:` members.
 pub trait FileSource {
+    /// The text of the file at `path`.
     fn read(&self, path: &Path) -> io::Result<String>;
+    /// Whether `path` is an existing file.
     fn is_file(&self, path: &Path) -> bool;
+    /// The canonical form of `path`.
     fn canonicalize(&self, path: &Path) -> io::Result<PathBuf>;
 }
 

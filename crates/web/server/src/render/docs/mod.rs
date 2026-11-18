@@ -2,6 +2,7 @@
 //! tree and the page's sections, and the brick's children and declared items. Plain HTML, no
 //! JavaScript.
 
+mod highlight;
 mod item;
 mod text;
 
@@ -36,8 +37,9 @@ fn sidebar(o: &mut String, p: &DocsPage, sections: &[(&str, Vec<&brickie_web_api
         };
         let _ = write!(
             o,
-            "<li style=\"padding-left:{}px\"><a class=\"{cls}\" href=\"{}\">{}</a></li>",
-            (n.depth - 1) * 12,
+            "<li class=\"d{}\" style=\"padding-left:{}px\"><a class=\"{cls}\" href=\"{}\">{}</a></li>",
+            n.depth.min(4),
+            (n.depth - 1) * 14,
             esc(&docs_href(&n.path)),
             esc(&n.name)
         );
@@ -48,7 +50,10 @@ fn sidebar(o: &mut String, p: &DocsPage, sections: &[(&str, Vec<&brickie_web_api
     }
     for (head, items) in sections {
         let id = head.to_lowercase().replace(' ', "-");
-        let _ = write!(o, "<h4><a href=\"#{id}\">{head}</a></h4><ul>");
+        let _ = write!(
+            o,
+            "<h4 class=\"sec\"><a href=\"#{id}\">{head}</a></h4><ul class=\"items\">"
+        );
         for it in items {
             let _ = write!(
                 o,
@@ -111,7 +116,10 @@ pub fn docs_html(p: &DocsPage) -> String {
     }
     o.push_str("</h1>");
     if let Some(d) = &p.desc {
-        let _ = write!(o, "<div class=\"doc\">{}</div>", markdown(d));
+        let _ = write!(o, "<p class=\"subtitle\">{}</p>", esc(d));
+    }
+    if !p.doc.is_empty() {
+        let _ = write!(o, "<div class=\"doc\">{}</div>", markdown(&p.doc));
     }
     children(&mut o, &p.children);
     if p.brick != "root" && p.items.is_empty() {

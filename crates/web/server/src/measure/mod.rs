@@ -13,6 +13,7 @@ pub(crate) type Runner = Arc<dyn Fn(&Path, &dyn Fn(&str)) -> anyhow::Result<()> 
 /// Lines of the log kept in a failed job.
 const LOG_TAIL: usize = 20;
 
+/// The single measure job and the runner that executes it.
 pub(crate) struct Jobs {
     state: Mutex<MeasureJob>,
     runner: Runner,
@@ -42,6 +43,7 @@ pub(crate) fn measure_runner() -> Runner {
 }
 
 impl Jobs {
+    /// An idle job that will use `runner`.
     pub(crate) fn new(runner: Runner) -> Jobs {
         Jobs {
             state: Mutex::new(MeasureJob::Idle),
@@ -49,6 +51,7 @@ impl Jobs {
         }
     }
 
+    /// The job's current state.
     pub(crate) fn status(&self) -> MeasureJob {
         lock(&self.state).clone()
     }

@@ -26,6 +26,8 @@ struct Out {
     members: Vec<String>,
 }
 
+/// The files the bricks in `added` (names of bricks a write added) need and lack in `root`;
+/// nothing is written here, the caller applies the plan.
 pub fn scaffold(root: &Path, cfg: &Config, added: &BTreeSet<String>) -> Vec<PlanFile> {
     let mut out = Out {
         ws: Workspace::read(root),

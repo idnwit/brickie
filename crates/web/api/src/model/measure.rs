@@ -24,6 +24,7 @@ pub enum MeasureJob {
 }
 
 impl MeasureJob {
+    /// Whether a run is in progress.
     pub fn running(&self) -> bool {
         matches!(self, MeasureJob::Running { .. })
     }

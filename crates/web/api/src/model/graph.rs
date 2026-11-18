@@ -9,6 +9,8 @@ pub const INDEPENDENT_LABEL: &str = "independent lib";
 /// What an independent lib is, for tooltips.
 pub const INDEPENDENT_TIP: &str = "independent lib: used like an external library. Edges into it are hidden unless they violate a rule; its own outgoing edges are errors unless allowed between independent libs.";
 
+/// One brick of a level: its identity, tags, members, children and complexity heat. A faded
+/// outside neighbour (`ghost`) is a brick of another level shown for context.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct BrickView {
@@ -54,11 +56,14 @@ pub struct BrickView {
 }
 
 impl BrickView {
+    /// Whether the brick has children (a composite) rather than being a leaf.
     pub fn composite(&self) -> bool {
         !self.children.is_empty()
     }
 }
 
+/// One aggregated dependency edge between two bricks of a level, with the findings and
+/// evidence count behind it.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct EdgeView {
@@ -89,7 +94,7 @@ impl EdgeView {
 }
 
 /// Bricks, rows (tags in config order) and aggregated brick edges. No geometry: the layout runs
-/// in [`crate::layout`], in the browser and on the server.
+/// in the layout crate, in the browser and on the server.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct GraphView {
     pub rows: Vec<String>,

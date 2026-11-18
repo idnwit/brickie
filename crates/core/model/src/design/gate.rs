@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 /// One thing the code must do before the draft can be published.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Blocker {
+    /// The diagnostic code of the blocking finding (see [`crate::codes`]).
     pub code: String,
     pub message: String,
     /// The draft config file the item is about (workspace-relative).
@@ -30,6 +31,7 @@ pub struct Gate {
 }
 
 impl Gate {
+    /// `true` when nothing blocks the publish.
     pub fn ok(&self) -> bool {
         self.blocking.is_empty()
     }

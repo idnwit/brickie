@@ -96,12 +96,15 @@ impl Params {
     pub fn to_frame(&self) -> bool {
         self.bnd == "frame"
     }
+    /// The view preset (`arch` when unset).
     pub fn preset(&self) -> &str {
         if self.p.is_empty() { "arch" } else { &self.p }
     }
+    /// The violations scope (`all` when unset).
     pub fn vscope(&self) -> &str {
         if self.vs.is_empty() { "all" } else { &self.vs }
     }
+    /// The function metric to sort by (`cognitive` when unset).
     pub fn sort(&self) -> &str {
         if self.fn_sort.is_empty() {
             "cognitive"
@@ -109,9 +112,11 @@ impl Params {
             &self.fn_sort
         }
     }
+    /// Whether functions sort descending (the default).
     pub fn desc(&self) -> bool {
         self.fn_dir != "asc"
     }
+    /// The function scope: `prod` (default), `test` or `all`.
     pub fn scope(&self) -> &str {
         if self.fn_scope.is_empty() {
             "prod"
@@ -119,6 +124,7 @@ impl Params {
             &self.fn_scope
         }
     }
+    /// The function row limit: `None` for `all`, else the number (default 50).
     pub fn limit(&self) -> Option<usize> {
         match self.fn_limit.as_str() {
             "all" => None,
@@ -154,6 +160,7 @@ impl Params {
             .join("&")
     }
 
+    /// The page URL for these params: `/` or `/?<query>`.
     pub fn url(&self) -> String {
         match self.query() {
             q if q.is_empty() => "/".to_string(),

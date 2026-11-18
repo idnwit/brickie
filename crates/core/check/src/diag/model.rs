@@ -3,7 +3,7 @@
 use brickie_facts::sha256_hex;
 pub use brickie_model::{DiagEdge, Diagnostic, Note, RuleRef, Span};
 
-/// One rule type's finding. Implementations only describe the parts; `diagnostic` assembles.
+/// One rule type's finding. Implementations only describe the parts; [`diagnostic`] assembles.
 pub trait Finding {
     fn code(&self) -> String;
     /// Stable identity within the code; the id is a hash of code and subject.
@@ -13,15 +13,19 @@ pub trait Finding {
     fn spans(&self) -> Vec<Span>;
     fn rule(&self) -> Option<RuleRef>;
     fn help(&self) -> Option<String>;
+    /// Extra remarks; none by default.
     fn notes(&self) -> Vec<Note> {
         Vec::new()
     }
+    /// Bricks the finding is about, as names at `brick_level`; none by default.
     fn bricks(&self) -> Vec<String> {
         Vec::new()
     }
+    /// Brick edges the finding is about (the hops of a cycle); none by default.
     fn edges(&self) -> Vec<DiagEdge> {
         Vec::new()
     }
+    /// The level (`root`, `root/web`) the names in `bricks` belong to; none by default.
     fn brick_level(&self) -> Option<String> {
         None
     }
@@ -36,11 +40,14 @@ pub trait Finding {
     }
 }
 
+/// The 8-hex-digit id of a finding: a hash of its code and subject, stable across runs.
 pub fn finding_id(code: &str, subject: &str) -> String {
     let h = sha256_hex(format!("{code}\0{subject}").as_bytes());
     h[..8].to_string()
 }
 
+/// Assemble the [`Diagnostic`] of a finding: the first span is the primary location, the rest
+/// are further locations.
 pub fn diagnostic(f: &dyn Finding) -> Diagnostic {
     let code = f.code();
     let mut spans = f.spans().into_iter();

@@ -1,3 +1,4 @@
+//! Shapes and their **area**.
 pub trait Shape {
     fn area(&self) -> u32;
 }

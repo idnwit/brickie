@@ -16,6 +16,7 @@ pub struct Filter {
 /// What a [`Filter`] leaves.
 #[derive(Debug, Default)]
 pub struct Filtered {
+    /// The findings in scope.
     pub shown: Vec<Diagnostic>,
     /// Hidden because no owner is in scope.
     pub outside: usize,
@@ -42,6 +43,7 @@ impl Filter {
         Ok(Filter { bricks: paths })
     }
 
+    /// Whether any brick narrows the scope.
     pub fn scoped(&self) -> bool {
         !self.bricks.is_empty()
     }

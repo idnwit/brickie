@@ -10,16 +10,19 @@ use std::collections::BTreeMap;
 /// One used item of the target brick and the sites that use it.
 #[derive(Debug, Clone, Serialize)]
 pub struct EdgeItem {
+    /// The id of the target module that defines the item.
     pub module: String,
     /// The item's symbol, or the referenced symbol when it is no recorded item (private).
     pub symbol: String,
     pub name: String,
     /// `""` when no recorded item covers the symbol.
     pub kind: String,
+    /// The one-line signature, `""` when no recorded item covers the symbol.
     pub signature: String,
     /// Definition, when known.
     pub file: Option<String>,
     pub line: Option<u32>,
+    /// Every reference site that uses the item.
     pub sites: Vec<Site>,
 }
 

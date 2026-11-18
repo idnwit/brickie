@@ -5,6 +5,8 @@ use crate::rules;
 use brickie_facts::Cache;
 use std::collections::BTreeSet;
 
+/// What the design has and the code lacks: informational, never a finding and never counted in
+/// an exit code.
 #[derive(Debug, Default, Clone)]
 pub struct Todo {
     /// Paths (from the root) of the bricks with no measured module, in tree order.

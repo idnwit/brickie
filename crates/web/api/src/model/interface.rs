@@ -10,6 +10,7 @@ pub struct InterfaceRequest {
     pub brick: String,
 }
 
+/// The declared interface of one brick, items sorted by use.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct InterfaceView {
     pub brick: String,
@@ -18,11 +19,13 @@ pub struct InterfaceView {
 }
 
 impl InterfaceView {
+    /// How many items no other brick uses.
     pub fn unused(&self) -> usize {
         self.items.iter().filter(|i| i.uses.is_empty()).count()
     }
 }
 
+/// One interface item: kind, signature, a one-line doc and the bricks that use it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IfaceItemView {
     /// Defining leaf brick path.
@@ -39,11 +42,13 @@ pub struct IfaceItemView {
 }
 
 impl IfaceItemView {
+    /// Total use sites over all using bricks.
     pub fn use_count(&self) -> usize {
         self.uses.iter().map(|g| g.sites.len()).sum()
     }
 }
 
+/// The use sites of one item by one brick.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UseGroupView {
     /// Using brick path (`root/web/server`), `<brick> (tests)` or `(unmapped)`.

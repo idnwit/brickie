@@ -60,6 +60,43 @@ fn item(i: &IfaceItem, lines: &mut Lines) -> DocsItem {
     }
 }
 
+/// The inner doc of the brick's root module: the one module of the brick whose parent is
+/// outside it, or else its one library crate root. `""` when there is no single root.
+fn root_doc(l: &Loaded, path: &[String]) -> String {
+    let inside = |id: &str| l.resolved.path(id).is_some_and(|p| p.starts_with(path));
+    let roots: Vec<&brickie_facts::Module> = l
+        .cache
+        .modules
+        .iter()
+        .filter(|m| inside(&m.id))
+        .filter(|m| {
+            m.id.rsplit_once("::")
+                .is_none_or(|(parent, _)| !inside(parent))
+        })
+        .collect();
+    // A brick's own module (named like the brick) wins over a crate root the brick also holds.
+    let own = path.last().and_then(|name| {
+        l.cache.modules.iter().find(|m| {
+            inside(&m.id) && m.id.contains("::") && m.id.rsplit("::").next() == Some(name.as_str())
+        })
+    });
+    let pick = match (own, roots.as_slice()) {
+        (Some(m), _) => Some(m),
+        (None, [one]) => Some(*one),
+        _ => {
+            let libs: Vec<_> = roots
+                .iter()
+                .filter(|m| !m.id.contains(['/', ':']))
+                .collect();
+            match libs.as_slice() {
+                [one] => Some(**one),
+                _ => None,
+            }
+        }
+    };
+    pick.map(|m| m.doc.clone()).unwrap_or_default()
+}
+
 /// The docs page of the brick at `brick` (`root/core/model`, `core/model`, or `root` / `""`
 /// for the tree root). An unknown brick is an error.
 pub fn docs(l: &Loaded, brick: &str) -> anyhow::Result<DocsPage> {
@@ -92,6 +129,11 @@ pub fn docs(l: &Loaded, brick: &str) -> anyhow::Result<DocsPage> {
     Ok(DocsPage {
         brick: level,
         desc: l.cfg.brick_at(&path).and_then(|b| b.desc.clone()),
+        doc: if path.is_empty() {
+            String::new()
+        } else {
+            root_doc(l, &path)
+        },
         tree,
         children,
         items,

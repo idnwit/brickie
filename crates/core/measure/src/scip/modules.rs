@@ -42,6 +42,7 @@ pub fn modules(g: &Graph, crate_ids: &[String]) -> (ModuleIds, Vec<Module>) {
             krate: crate_ids[g.files[s.file].target.unwrap_or(0)].clone(),
             file: g.files[s.file].path.clone(),
             line: s.range.0 + 1,
+            doc: brickie_facts::full_doc(&s.doc),
         })
         .collect();
     (module_id, list)
@@ -66,6 +67,17 @@ pub fn from_module<'a>(g: &Graph, ids: &'a ModuleIds, o: &OccRow) -> Option<&'a 
 mod tests {
     use super::*;
     use crate::scip::testutil::Builder;
+
+    #[test]
+    fn modules_record_their_inner_doc() {
+        let mut b = Builder::default();
+        let lib = b.file("src/lib.rs");
+        let root = b.module(lib, "c", "", None);
+        b.g.symbols[root].doc = " Crate docs.\n\nMore.\n".into();
+        let (_, list) = modules(&b.g, &["c".to_string()]);
+        assert_eq!(list[0].id, "c");
+        assert_eq!(list[0].doc, "Crate docs.\n\nMore.");
+    }
 
     #[test]
     fn from_module_prefers_container_then_file_module() {

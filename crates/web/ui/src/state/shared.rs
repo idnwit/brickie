@@ -7,6 +7,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use sycamore::prelude::*;
 
+/// The page-wide state that outlives a level change: params, popup and menu signals, the page
+/// data, the editor, the history and the event bus.
 #[derive(Clone)]
 pub struct Shared {
     pub params: Signal<Params>,
@@ -33,6 +35,7 @@ pub struct Shared {
 pub type Cur = Rc<RefCell<Option<Cx>>>;
 
 impl Shared {
+    /// The state for `data` at the URL `initial`.
     pub fn new(data: PageData, initial: Params) -> Shared {
         Shared {
             nav: create_signal(Nav::new(initial.url())),

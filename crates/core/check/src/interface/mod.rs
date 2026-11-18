@@ -1,8 +1,55 @@
-//! Brick interfaces: what a brick declares public, who uses each item, and which items nobody
-//! outside the brick (and no test) uses (`interface/unused`). Also the reference sites behind
-//! an edge between two bricks.
+//! Brick interfaces: declared items, their uses, `interface/unused`, and the sites behind an
+//! edge.
 //!
-//! Computed from the cache's items and per-file edges at `check` / `view` time.
+//! The interface of a leaf brick is the set of its items that code outside the leaf can name:
+//! the crate's public API, or items visible to a module subtree that reaches another brick (the
+//! crate-internal interface between folders). The interface of a composite is the union of its
+//! exported children, recursively. Everything is computed at `check` and `view` time from the
+//! cache's items and per-file edges; this brick reads the config exports but never changes
+//! anything.
+//!
+//! # Usage
+//!
+//! ```no_run
+//! use brickie_check::{check, interface};
+//! use std::path::Path;
+//!
+//! # fn main() -> anyhow::Result<()> {
+//! let l = check::load(Path::new("brickie.toml"))?;
+//! let path = interface::parse_path(&l.cfg, "core/model")?;       // ["core", "model"]
+//! let iface = interface::interface(&l.cache, &l.cfg, &l.resolved, &path);
+//! for item in &iface.items {
+//!     println!("{} {} used {}x", item.kind, item.name, item.use_count());
+//! }
+//! println!("{} unused", iface.unused());
+//!
+//! // The code behind the edge web -> core: every reference site, grouped by used item.
+//! let web = vec!["web".to_string()];
+//! let core = vec!["core".to_string()];
+//! for it in interface::edge_uses(&l.cache, &l.resolved, &web, &core) {
+//!     println!("{} ({} sites)", it.name, it.sites.len());
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Key items
+//!
+//! - [`interface`] and [`Interface`]: the declared items of one brick with their uses
+//!   ([`IfaceItem`], [`UseGroup`], [`Site`]).
+//! - [`unused`]: one `interface/unused` finding per declared item no code outside the brick and
+//!   no test uses.
+//! - [`edge_uses`] and [`EdgeItem`]: the reference sites behind an edge between two bricks, any
+//!   kind and scope, allowed or not.
+//! - [`parse_path`]: `root/web/api` or `web/api` into brick names.
+//!
+//! # Notes
+//!
+//! - A use is a reference from outside the brick, or from test code anywhere. `pub use`
+//!   re-exports are routes, not uses.
+//! - Uses are grouped by the using brick at the interface's level; modules outside the tree are
+//!   `(unmapped)`.
+//! - Items are sorted by use count, descending, unused last.
 
 mod declared;
 mod edge;
@@ -31,22 +78,28 @@ pub struct Interface {
 }
 
 impl Interface {
+    /// How many declared items have no use.
     pub fn unused(&self) -> usize {
         self.items.iter().filter(|i| i.unused()).count()
     }
 }
 
+/// One declared item of a brick's interface, with where it is defined and who uses it.
 #[derive(Debug, Clone, Serialize)]
 pub struct IfaceItem {
     /// The leaf brick that defines the item (`root/web/api`).
     pub leaf: String,
+    /// The defining module's id.
     pub module: String,
     pub symbol: String,
+    /// `fn`, `struct`, `enum`, ... as in `brickie_facts::Item::kind`.
     pub kind: String,
     pub name: String,
+    /// The one-line signature as rust-analyzer renders it.
     pub signature: String,
     /// The whole doc comment (markdown).
     pub doc: String,
+    /// The defining file, relative to the workspace root.
     pub file: String,
     pub line: u32,
     /// Uses grouped by the using brick at the interface's level.
@@ -54,10 +107,12 @@ pub struct IfaceItem {
 }
 
 impl IfaceItem {
+    /// The number of reference sites over all using bricks.
     pub fn use_count(&self) -> usize {
         self.uses.iter().map(|g| g.sites.len()).sum()
     }
 
+    /// No code outside the brick and no test uses the item.
     pub fn unused(&self) -> bool {
         self.uses.is_empty()
     }
@@ -68,6 +123,7 @@ impl IfaceItem {
     }
 }
 
+/// The sites with which one brick uses an item.
 #[derive(Debug, Clone, Serialize)]
 pub struct UseGroup {
     /// Using brick at the interface's level (`root/web/server`); the brick itself with
@@ -79,6 +135,7 @@ pub struct UseGroup {
 /// One reference site.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Site {
+    /// The file of the site, relative to the workspace root.
     pub file: String,
     pub line: u32,
     pub col: u32,
@@ -93,7 +150,7 @@ pub struct Site {
     pub symbol: String,
 }
 
-/// Parses `root/web/api` (or `web/api`) into brick names.
+/// Parses `root/web/api` (or `web/api`) into brick names. Errors when no such brick exists.
 pub fn parse_path(cfg: &Config, path: &str) -> Result<Vec<String>> {
     let names: Vec<String> = path
         .trim_matches('/')
@@ -111,7 +168,8 @@ pub fn parse_path(cfg: &Config, path: &str) -> Result<Vec<String>> {
     Ok(names)
 }
 
-/// The declared interface of the brick at `path`, with uses.
+/// The declared interface of the brick at `path` (brick names from the root, see
+/// [`parse_path`]), with uses.
 pub fn interface(cache: &Cache, cfg: &Config, res: &Resolved, path: &[String]) -> Interface {
     let idx = uses::Index::new(cache, res);
     let mut items: Vec<IfaceItem> = declared(cache, cfg, res, path)

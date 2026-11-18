@@ -1,5 +1,33 @@
-//! Normalise a rust-analyzer SCIP index plus cargo metadata and the source snapshot into raw
-//! graph rows. Pure: no I/O besides the `source` callback.
+//! rust-analyzer SCIP index into file, symbol, module and occurrence rows.
+//!
+//! [`normalise`] turns a decoded SCIP index, the cargo [`layout::Layout`] (package directories
+//! and target roots) and a source reader into a [`Graph`]: file rows with hashes, symbol rows
+//! with signature and doc, module rows and occurrence rows (definitions and references). It
+//! is pure apart from the `source` callback, and it neither measures complexity nor decides
+//! brick membership.
+//!
+//! # Usage
+//!
+//! ```text
+//! let idx = scip::types::Index::parse_from_bytes(&bytes)?;
+//! let layout = layout::Layout { packages, targets };       // from cargo metadata
+//! let (graph, unreadable) = normalise(&idx, &layout, &|path| std::fs::read_to_string(path).ok());
+//! let (module_ids, modules) = modules::modules(&graph, &crate_ids);
+//! ```
+//!
+//! # Key items
+//!
+//! - [`normalise`]: index to [`Graph`]; also returns the paths whose source could not be read.
+//! - [`Graph`], [`FileRow`], [`SymbolRow`], [`ModuleRow`], [`OccRow`]: the rows.
+//! - [`modules::modules`]: module ids and the cache's module list.
+//! - [`descriptor_names`]: the name segments of a SCIP symbol.
+//! - [`UseItem`]: a parsed `use` item, re-exported from `brickie-rustscan`.
+//!
+//! # Notes
+//!
+//! A file whose source cannot be provided is recorded as empty (sha256 of the empty string, zero
+//! lines) and listed in the returned paths. Spans are `(start_line, start_col, end_line,
+//! end_col)`, 0-based, end exclusive.
 
 mod defs;
 mod helpers;

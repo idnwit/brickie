@@ -1,4 +1,32 @@
-//! The HTML shell around the sycamore output of the main page, and the docs page.
+//! HTML rendering: the shell around the viewer's server-rendered page, and the docs page.
+//!
+//! This brick turns data into HTML strings and nothing else: it reads no files, loads no cache
+//! and makes no requests (the `routes` brick calls it with data built by the `data` brick). The
+//! viewer itself is drawn by `brickie-ui`; this brick only wraps it.
+//!
+//! # Usage
+//!
+//! [`index_html`] wraps the viewer output of a [`PageData`] in a full page; pass the wasm
+//! bundle URLs to make it interactive, or `None` for the read-only page. [`docs_html`] renders a
+//! [`DocsPage`] as docs.rs-style HTML with no JavaScript.
+//!
+//! ```ignore
+//! // Crate-private: shown for orientation only.
+//! let html = render::index_html(&data, &Params::default(), Some((js_url, wasm_url)));
+//! let docs = render::docs_html(&docs_page);
+//! assert!(docs.contains("<title>"));
+//! ```
+//!
+//! # Key functions
+//!
+//! - [`index_html`]: the viewer page; embeds the page data as JSON and the wasm loader.
+//! - [`docs_html`]: a brick's docs page (sidebar, root-module doc, children, items with uses).
+//!
+//! # Invariants
+//!
+//! - Text from the workspace (names, docs, signatures) is escaped; doc markdown is rendered with
+//!   raw HTML disabled.
+//! - Embedded JSON escapes `<`, so a `</script>` in the data cannot end the script element.
 
 mod docs;
 

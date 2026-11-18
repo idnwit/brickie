@@ -14,6 +14,7 @@ use std::fmt;
 /// `design/blocked`: the code does not match the draft's structure yet. Nothing was published.
 #[derive(Debug)]
 pub struct Blocked {
+    /// What still blocks the publish.
     pub gate: Gate,
 }
 

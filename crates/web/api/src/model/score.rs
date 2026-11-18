@@ -37,6 +37,8 @@ fn category(code: &str) -> usize {
     }
 }
 
+/// The scorecard numbers of one brick: findings by category, complexity excess and the edges
+/// in and out with findings.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct BrickScore {
     pub errors: u32,
@@ -54,6 +56,7 @@ pub struct BrickScore {
 }
 
 impl BrickScore {
+    /// Whether the brick has no error finding.
     pub fn clean(&self) -> bool {
         self.errors == 0
     }

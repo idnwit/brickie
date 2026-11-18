@@ -3,6 +3,7 @@
 use super::Params;
 use serde::{Deserialize, Serialize};
 
+/// One function with its complexity metrics (a row of the functions table).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FnRow {
     pub qname: String,
@@ -20,6 +21,7 @@ pub struct FnRow {
 }
 
 impl FnRow {
+    /// The value of the metric `name` (one of [`METRICS`]); an unknown name reads cognitive.
     pub fn metric(&self, name: &str) -> u64 {
         match name {
             "cyclomatic" => self.cyclomatic.into(),
@@ -32,6 +34,7 @@ impl FnRow {
     }
 }
 
+/// The sortable metric names of [`FnRow`], as `fn_sort` accepts them.
 pub const METRICS: [&str; 6] = [
     "cognitive",
     "cyclomatic",

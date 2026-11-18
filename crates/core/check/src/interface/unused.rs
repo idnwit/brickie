@@ -61,7 +61,8 @@ impl Finding for Unused {
     }
 }
 
-/// One finding per declared item of every leaf brick without a use.
+/// One `interface/unused` finding per declared item of every leaf brick without a use: an item
+/// counts as used when a sibling brick (or anything outside the leaf) or a test references it.
 pub fn unused(cache: &Cache, cfg: &Config, res: &Resolved) -> Vec<Box<dyn Finding>> {
     let idx = Index::new(cache, res);
     let leaves: BTreeSet<&Vec<String>> = res.paths.values().collect();

@@ -1,5 +1,38 @@
-//! Browser side effects behind a tiny interface. On native targets (server-side rendering)
-//! everything is a no-op, so components can be written once.
+//! Browser side effects behind a tiny interface: location, history, DOM, key and mouse events,
+//! `fetch` and the event stream. On native targets (server-side rendering) every function is a
+//! no-op, so components are written once and render on the server unchanged.
+//!
+//! This brick is the only place that touches `web_sys` and depends on nothing else in the
+//! crate. It is not a UI toolkit: it does not render, hold state or interpret what it carries.
+//! Callers pass closures; handlers registered here live for the page (they are leaked on
+//! purpose, as the page never unregisters them).
+//!
+//! # Usage
+//!
+//! Crate-private, so shown for orientation only. Components call it the same on both targets:
+//!
+//! ```ignore
+//! use crate::platform;
+//!
+//! platform::push_url("/?lv=root/web");            // history.pushState, no reload
+//! let query = platform::search();                  // "" on the server
+//! platform::on_popstate(move || { /* re-read params */ });
+//! platform::get_json("/api/graph", |res| { /* Ok(body) or Err(message) */ });
+//! platform::post_json("/api/design/edit", body, |res| { /* ... */ });
+//! ```
+//!
+//! # Key functions
+//!
+//! - `push_url`, `search`, `on_popstate`, `goto`, `reload`: the address bar and history.
+//! - `on_key`, `on_mouse`, `on_resize`, `typing`: input events (`on_key` reports Ctrl chords).
+//! - `get_json`, `post_json`: `fetch` with a completion callback taking `Result<String, String>`.
+//! - `on_events`, `events_live`, `on_history_nav`, `history_go`: the event stream and history walk.
+//! - `copy_text`, `confirm`, `focus`, `blur_active`, `stage_rect`, `crumb_at`: small DOM helpers.
+//!
+//! # Errors and side effects
+//!
+//! Failures (no `window`, a rejected `fetch`) never panic: setters do nothing, readers return
+//! an empty value or `None`, and `fetch` reports `Err(message)` to its callback.
 #[cfg(target_arch = "wasm32")]
 mod imp {
     use wasm_bindgen::JsCast;

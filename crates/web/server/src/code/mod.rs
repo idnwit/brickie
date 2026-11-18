@@ -1,8 +1,31 @@
-//! brickie's adapter for the code viewer (docs/design/serve.md, "Code viewer"): implements the
-//! `codeview` provider port from the config, the cache and the check result, read per request
-//! like every other route. Trees in `views`, file text in `read`, findings as marks in `marks`,
-//! function complexity trees as gutter bands in `bands`,
-//! definition and references from the cached reference edges in `nav`.
+//! brickie's adapter for the code viewer: the `codeview` provider port, implemented from the
+//! config, the cache and the check result.
+//!
+//! The generic viewer (`codeview-host`) knows nothing of bricks; this brick answers its
+//! questions. Every call loads the config, cache and diagnostics again, like every other route,
+//! and returns an empty answer (an empty viewer) when they cannot be loaded. It is not
+//! the viewer and does no HTTP.
+//!
+//! # Usage
+//!
+//! ```ignore
+//! // Crate-private: mounted by `routes::router` at `/code`.
+//! let provider = std::sync::Arc::new(CodeProvider::new("brickie.toml".into()));
+//! let app = codeview_host::router(provider);
+//! ```
+//!
+//! The viewer then asks the provider for, per request:
+//!
+//! - `views`: the explorer trees (Bricks and Folders) with finding badges (`views`);
+//! - file text (`read`), confined to the workspace root;
+//! - findings as marks on lines (`marks`);
+//! - function complexity trees as gutter bands (`bands`);
+//! - definition and references from the cached reference edges (`nav`).
+//!
+//! # Invariants
+//!
+//! A path outside the workspace is never read. Marks use the same diagnostics as
+//! `brickie check`, so the viewer and the CLI never disagree.
 
 mod bands;
 mod marks;

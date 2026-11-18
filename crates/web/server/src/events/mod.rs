@@ -29,6 +29,7 @@ pub(crate) struct Hub {
 }
 
 impl Hub {
+    /// A hub with no snapshot and no receivers.
     pub(crate) fn new() -> Hub {
         Hub {
             tx: broadcast::channel(64).0,
@@ -41,6 +42,7 @@ impl Hub {
         self.last.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
+    /// A receiver of every event sent from now on.
     pub(crate) fn subscribe(&self) -> broadcast::Receiver<ServerEvent> {
         self.tx.subscribe()
     }

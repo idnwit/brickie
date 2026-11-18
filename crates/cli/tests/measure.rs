@@ -109,7 +109,22 @@ fn function<'a>(c: &'a Value, file: &str, qname: &str) -> &'a Value {
 fn measure_fixture() {
     let Some(m) = measure() else { return };
     let c = &m.cache;
-    assert_eq!(c["schema_version"], 8);
+    assert_eq!(c["schema_version"], 9);
+    // A module records its inner `//!` doc from the SCIP module symbol.
+    let module = |id: &str| {
+        c["modules"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["id"] == id)
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(
+        module("mx-base::shape")["doc"],
+        "Shapes and their **area**."
+    );
+    assert!(module("mx-base::util").get("doc").is_none());
     // A file no `mod` declares is recorded, hashed, not compiled, without functions or edges.
     let orphan = &c["files"]["crates/app/src/orphan.rs"];
     assert_eq!(orphan["compiled"], false);

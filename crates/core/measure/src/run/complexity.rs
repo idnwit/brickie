@@ -3,7 +3,8 @@
 pub use brickie_metrics::{Analysis, analyze};
 use brickie_model::{FnTree, TreeNode};
 
-/// The decision tree of the function starting at 1-based `line` of `src`.
+/// The decision tree of the function starting at 1-based `line` of `src`, or `None` when no
+/// function starts there. The viewer shows it next to the function's complexity numbers.
 pub fn fn_tree(src: &str, line: u32) -> Option<FnTree> {
     let t = brickie_metrics::fn_tree(src, line)?;
     Some(FnTree {

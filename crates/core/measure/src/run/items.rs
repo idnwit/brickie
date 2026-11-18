@@ -7,7 +7,7 @@ use super::reach::Reach;
 use crate::scip::modules::ModuleIds;
 use crate::scip::{Graph, SymbolRow};
 use ::scip::types::descriptor::Suffix;
-use brickie_facts::{FileData, Item};
+use brickie_facts::{FileData, Item, full_doc};
 use std::collections::{BTreeMap, HashSet};
 
 /// `(vis, keyword)` of a signature: `pub fn f()` -> `("pub", "fn")`. `None` for private
@@ -47,15 +47,6 @@ fn is_qualifier(t: &str) -> bool {
 /// Signature on one line, whitespace collapsed.
 pub fn one_line(sig: &str) -> String {
     sig.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
-/// The doc comment as markdown, trimmed; rust-analyzer's alias banner paragraph is dropped.
-pub fn full_doc(doc: &str) -> String {
-    let doc = doc.trim();
-    match doc.strip_prefix("*This is the documentation for*") {
-        Some(rest) => rest.split_once("\n\n").map_or("", |(_, b)| b).trim().into(),
-        None => doc.into(),
-    }
 }
 
 /// How a symbol sits in its owner: a free item, an inherent impl item (`Some(type name)`), or

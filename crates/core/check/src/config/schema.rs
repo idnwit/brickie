@@ -12,11 +12,15 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Brick {
+    /// The brick's name, unique among its siblings.
     pub name: String,
+    /// Which modules belong to the brick; see the type docs for the forms.
     #[serde(default)]
     pub members: Vec<String>,
+    /// Labels that rules select with `tag:<tag>`.
     #[serde(default)]
     pub tags: Vec<String>,
+    /// The folder of the composite's own `brickie.toml`; `None` for a leaf.
     pub path: Option<String>,
     /// One-line description shown in the viewer; no effect on checks.
     pub desc: Option<String>,
@@ -35,13 +39,17 @@ pub struct Brick {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Scope {
+    /// Production code only.
     Prod,
+    /// Test code only.
     Test,
+    /// Production and test code.
     #[default]
     All,
 }
 
 impl Scope {
+    /// `prod`, `test` or `all`, as written in `brickie.toml`.
     pub fn name(self) -> &'static str {
         match self {
             Scope::Prod => "prod",
@@ -50,6 +58,7 @@ impl Scope {
         }
     }
 
+    /// Whether this scope covers a concrete scope of code (`prod` or `test`).
     pub fn matches(self, scope: &str) -> bool {
         match self {
             Scope::All => true,
@@ -63,6 +72,8 @@ fn prod() -> Scope {
     Scope::Prod
 }
 
+/// The edge kinds: `uses` (call, type, constant), `implements` (`impl Trait for X` where the
+/// trait lives elsewhere) and `reexports` (a `pub use`).
 pub const KINDS: [&str; 3] = ["uses", "implements", "reexports"];
 
 #[derive(Debug, Clone, Deserialize)]
@@ -70,13 +81,16 @@ pub const KINDS: [&str; 3] = ["uses", "implements", "reexports"];
 /// `[[rule]]`: a principle that allows links `from -> to` (a brick, `tag:x` or `*`). Nothing
 /// is allowed unless a rule allows it.
 pub struct Rule {
+    /// The brick, `tag:x` or `*` the rule allows links from.
     pub from: Sel,
+    /// The brick, `tag:x` or `*` the rule allows links to.
     pub to: Sel,
     /// Empty means all kinds.
     #[serde(default)]
     pub kinds: Vec<String>,
     #[serde(default)]
     pub scope: Scope,
+    /// Why the rule exists; required.
     pub reason: String,
     /// `file:line` of the rule header, filled in while loading.
     #[serde(skip)]
@@ -89,13 +103,16 @@ pub struct Rule {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Link {
+    /// The sibling brick that depends.
     pub from: String,
+    /// The sibling brick depended on, or `composite/child` for an exported child.
     pub to: String,
     /// Empty means all kinds.
     #[serde(default)]
     pub kinds: Vec<String>,
     #[serde(default)]
     pub scope: Scope,
+    /// Why the dependency exists; required.
     pub reason: String,
     /// `file:line` of the link header, filled in while loading.
     #[serde(skip)]
@@ -112,9 +129,12 @@ impl Link {
     }
 }
 
+/// `[[complexity]]`: per-function limits for the bricks it selects; a metric left out is not
+/// limited. Nested levels can only tighten what an outer level sets.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ComplexityRule {
+    /// The bricks the limits apply to; the default is all of them.
     #[serde(default)]
     pub bricks: Sel,
     pub cognitive: Option<u32>,

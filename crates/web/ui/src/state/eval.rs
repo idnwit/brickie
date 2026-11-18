@@ -13,6 +13,7 @@ pub enum EStat {
     Debt,
 }
 
+/// The result of [`evaluate`]: what the page shows for the current params.
 #[derive(Debug, Clone)]
 pub struct Eval {
     pub sel: Sel,
@@ -131,6 +132,9 @@ impl<'a> EvalIn<'a> {
     }
 }
 
+/// Evaluates the graph `g` and its findings `diags` under `p`: the selection, which findings
+/// pass the layers, how each edge is drawn, per-brick finding counts and the focus. Pure and
+/// cheap enough to re-run in a memo on every params change.
 pub fn evaluate(g: &GraphView, diags: &[DiagView], p: &Params) -> Eval {
     let ev = EvalIn::new(g, diags, p);
     let sel = Sel::from_params(p, g);

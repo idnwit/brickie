@@ -21,6 +21,7 @@ use std::path::Path;
 /// modules are absent.
 #[derive(Debug, Default, Clone)]
 pub struct Resolved {
+    /// The paths, keyed by module id.
     pub paths: BTreeMap<String, Vec<String>>,
 }
 
@@ -75,6 +76,9 @@ impl Resolved {
     }
 }
 
+/// Resolve every module of `modules` to its leaf path in the tree `cfg`. `ws_root` is the
+/// workspace root that `path:` members are relative to. Returns the resolved tree (always
+/// complete) and every partition error found; see the module docs for the rules.
 pub fn resolve(
     cfg: &Config,
     crates: &[Crate],

@@ -103,6 +103,7 @@ pub struct LinkView {
     pub cycle: bool,
 }
 
+/// A `[[complexity]]` rule of a level: the metric limits that apply to the bricks it selects.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LimitView {
     pub file: String,
@@ -112,6 +113,7 @@ pub struct LimitView {
     pub scope: String,
 }
 
+/// What scaffolding does to one path (see [`PlanFile`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PlanAction {

@@ -8,7 +8,9 @@ use std::fmt;
 /// The CLI exits with 3 on this error.
 #[derive(Debug)]
 pub struct Stale {
+    /// What changed since the base and how to retry.
     pub message: String,
+    /// The head the write should be based on instead.
     pub head: u64,
 }
 
@@ -20,6 +22,7 @@ impl fmt::Display for Stale {
 
 impl std::error::Error for Stale {}
 
+/// The current time in Unix seconds (0 if the clock is before the epoch).
 pub fn now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

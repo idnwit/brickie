@@ -40,7 +40,9 @@ pub enum Action {
     Nothing,
 }
 
+/// The pill shown when `cache.json` was replaced under the page.
 pub const PILL_CACHE: &str = "Code re-measured";
+/// The pill shown when a `brickie*.toml` changed under the page.
 pub const PILL_CONFIG: &str = "Config changed on disk";
 
 /// The action for `ev`, given the design version on screen (`None`: not in edit mode) and

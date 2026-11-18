@@ -10,6 +10,7 @@ use std::path::Path;
 /// The source of a working load: the track and versions, for the header line of `check`.
 #[derive(Debug, Clone, Copy, Serialize)]
 pub struct Working {
+    /// Which tree was read.
     pub track: Track,
     /// The head of that track (0 when no version is recorded yet, as before a first design edit).
     pub v: u64,

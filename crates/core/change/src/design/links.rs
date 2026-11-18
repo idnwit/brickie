@@ -11,8 +11,11 @@ use brickie_model::design::{LinkCheck, LinkOption};
 /// The link as asked for: `from -> to` (a sibling or `composite/child`), `kinds` (empty: all)
 /// and `scope`.
 pub struct Link<'a> {
+    /// The sibling that would depend.
     pub from: &'a str,
+    /// The sibling depended on, or `composite/child`.
     pub to: &'a str,
+    /// Edge kinds (`uses`, `implements`, `reexports`); empty means all.
     pub kinds: &'a [String],
     /// `prod`, `test` or `all`.
     pub scope: &'a str,

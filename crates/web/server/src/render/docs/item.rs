@@ -120,12 +120,12 @@ pub fn item_html(o: &mut String, it: &DocsItem, all: &[DocsItem], nested: bool) 
         o,
         "<section class=\"{cls}\" id=\"{id}\"><{tag}><span class=\"kind\">{kind}</span> \
 <a href=\"#{id}\">{name}</a><a class=\"src\" href=\"{href}\">source</a></{tag}>\
-<pre class=\"sig\"><code>{sig}</code></pre>",
+<pre class=\"sig rust\"><code>{sig}</code></pre>",
         id = esc(&anchor(it)),
         kind = esc(&it.kind),
         name = esc(&it.name),
         href = esc(&href),
-        sig = esc(&it.signature),
+        sig = super::highlight::rust(&it.signature),
     );
     if !it.doc.is_empty() {
         let _ = write!(o, "<div class=\"doc\">{}</div>", markdown(&it.doc));

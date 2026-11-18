@@ -21,6 +21,8 @@ use axum::routing::{get, post};
 use brickie_web_api::*;
 use std::sync::Arc;
 
+/// The full router: page, docs, code viewer (nested at `/code`), JSON endpoints, events, the
+/// design editor and measure writes (behind the write guard) and the wasm assets.
 pub fn router(state: AppState) -> Router {
     let code = codeview_host::router(Arc::new(CodeProvider::new(state.config())));
     Router::new()
