@@ -78,6 +78,7 @@ HTML with no JavaScript. The brick details panel links to it.
 | --- | --- |
 | Items are the brick's declared interface (`brickie_check::interface`); a composite shows its children and its exported children's items | one decision of what a brick declares, shared with `check` and `brickie interface` |
 | The cache keeps the whole doc comment (`Item.doc`, markdown); listings show `doc_summary` (first paragraph) | the docs page needs the full text; one stored form, the summary is derived |
+| The header shows the config `desc` as a subtitle, then the inner doc (`//!`) of the brick's root module (`Module.doc`, from the SCIP module symbol at measure time): the one module whose parent is outside the brick, else its one library crate root; none for a composite of several crates | docs.rs-style crate docs; only `measure` reads code, and rust-analyzer already documents module symbols |
 | Markdown via `pulldown-cmark`; raw HTML in doc comments is shown as text | doc comments must not inject markup into the page |
 | Each item shows up to 3 use sites per using brick, with the source line | real usage is what docs.rs cannot show |
 | Associated items (`Type::name`) render under their type; ones whose type is not on the page go to "Associated items" | rustdoc-like grouping from the data the cache has |

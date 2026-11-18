@@ -1,11 +1,59 @@
-//! Client-side graph layout: a function-by-function port of the Python prototype viewer's
-//! JavaScript (not published). Sugiyama style:
-//! rows pinned by layer (here: tag order), dummy nodes for long edges, weighted crossing
-//! minimisation (sweeps, transpose, sifting, restarts, annealing for <= 40 bricks), x by weighted
-//! isotonic regression, ports on all four sides and smooth cubic routes.
+//! Layered graph layout and edge routing (Sugiyama style), pure Rust and wasm-safe.
 //!
-//! Pure and deterministic: [`layout`] has no randomness (fixed LCG seeds). Every function names
-//! its JavaScript original. Deviations are listed in `docs/design/serve.md`, "Layout port".
+//! This brick turns a small directed graph whose nodes already sit in rows (layers) into box
+//! positions and smooth edge routes. Rows are pinned by the caller (here: tag order); the brick
+//! adds dummy nodes for edges that span several rows, minimises weighted crossings (sweeps,
+//! transpose, sifting, restarts and annealing for up to 40 bricks), places boxes by weighted
+//! isotonic regression, assigns ports on all four box sides and routes edges as cubic curves.
+//! It does not draw anything, read files or know what a brick is: nodes are only ids with a row.
+//! It is a function-by-function port of a JavaScript viewer, and every function names its original.
+//!
+//! # Usage
+//!
+//! ```
+//! use brickie_layout::{layout, InBrick, InEdge, Input};
+//!
+//! let input = Input {
+//!     rows: vec!["port".into(), "core".into()],
+//!     bricks: vec![
+//!         InBrick { id: "api".into(), row: 0 },
+//!         InBrick { id: "engine".into(), row: 1 },
+//!         InBrick { id: "store".into(), row: 1 },
+//!     ],
+//!     edges: vec![
+//!         InEdge { id: "engine|api".into(), a: 1, b: 0 },
+//!         InEdge { id: "store|api".into(), a: 2, b: 0 },
+//!     ],
+//! };
+//! let l = layout(&input);
+//! // One box per input brick, in input order.
+//! assert_eq!(l.pos.len(), 3);
+//! // One route per input edge; draw it as SVG path data.
+//! for r in l.routes.iter().flatten() {
+//!     let _svg_d: String = r.d();
+//! }
+//! // After dragging a box, re-route an edge for the new positions.
+//! let moved = l.pos.clone();
+//! let _again = l.path(0, &moved);
+//! ```
+//!
+//! # Key items
+//!
+//! * [`layout`] computes a [`Layout`] from an [`Input`].
+//! * [`InBrick`], [`InEdge`] and [`Input`] describe the graph; edges refer to bricks by index.
+//! * [`Layout::path`] re-routes one edge for given (for example dragged) box positions.
+//! * [`Rect`], [`Pt`], [`Side`], [`End`] and [`Port`] are the geometry of boxes and edge ends.
+//! * [`Kind`] says how an edge travels (direct, arc over a row, or through dummy nodes) and
+//!   [`Route`] holds its cubic segments.
+//! * [`score_layout`] and [`measure_items`] count crossings, edge-through-box hits and direction
+//!   changes, to compare layouts.
+//!
+//! # Notes
+//!
+//! * Pure and deterministic: there is no randomness (fixed LCG seeds), so equal input gives equal
+//!   output.
+//! * Edges are processed in `id` order, so ids must be unique. Self edges get no kind and no route.
+//! * Deviations from the JavaScript original are listed in `docs/design/serve.md`, "Layout port".
 
 // The index loops and tuple-heavy tables mirror the original line by line.
 #![allow(clippy::needless_range_loop, clippy::type_complexity)]
@@ -45,12 +93,14 @@ const LANE: f64 = 9.0;
 const PORT: f64 = 12.0;
 const PAD: f64 = 10.0;
 
+/// A point in layout coordinates (y grows downwards).
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Pt {
     pub x: f64,
     pub y: f64,
 }
 
+/// An axis-aligned box: top-left corner `(x, y)` and size `w` by `h`.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Rect {
     pub x: f64,
@@ -120,33 +170,44 @@ impl End {
     }
 }
 
+/// A node to lay out.
 #[derive(Debug, Clone)]
 pub struct InBrick {
+    /// Display id; not used for ordering.
     pub id: String,
     /// Row (layer) index; rows are the tags in config order.
     pub row: usize,
 }
 
+/// A directed edge between two bricks, by index into [`Input::bricks`].
 #[derive(Debug, Clone)]
 pub struct InEdge {
     /// Unique id; edges are processed in id order.
     pub id: String,
+    /// Index of the source brick.
     pub a: usize,
+    /// Index of the target brick.
     pub b: usize,
 }
 
+/// The graph to lay out: bricks pinned to rows, and edges between them.
 #[derive(Debug, Clone, Default)]
 pub struct Input {
     pub bricks: Vec<InBrick>,
+    /// Row labels, top to bottom; [`InBrick::row`] indexes this list.
     pub rows: Vec<String>,
     pub edges: Vec<InEdge>,
 }
 
+/// A laid-out row band.
 #[derive(Debug, Clone)]
 pub struct RowOut {
+    /// Top of the band.
     pub y: f64,
+    /// Height of the band.
     pub h: f64,
     pub label: String,
+    /// Input brick indices in the row, left to right.
     pub ids: Vec<usize>,
 }
 
@@ -166,15 +227,18 @@ pub enum Kind {
     },
 }
 
+/// Where an edge end attaches to a box.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Port {
     pub side: Side,
+    /// Offset along the side.
     pub off: f64,
 }
 
 /// Result of [`layout`] (the `L` object of the original).
 #[derive(Debug, Clone)]
 pub struct Layout {
+    /// Total width and height of the drawing.
     pub w: f64,
     pub h: f64,
     pub px0: f64,
@@ -185,7 +249,9 @@ pub struct Layout {
     pub rows: Vec<RowOut>,
     /// By input edge index; `None` for self edges.
     pub kinds: Vec<Option<Kind>>,
+    /// Port of each edge end, by (input edge index, end).
     pub po: HashMap<(usize, End), Port>,
+    /// Cubic route by input edge index; `None` for self edges.
     pub routes: Vec<Option<Route>>,
     /// Weighted crossings of the final order (`bc`).
     pub cross: f64,
@@ -194,7 +260,7 @@ pub struct Layout {
     edges: Vec<(usize, usize)>,
 }
 
-/// `layoutFor` (one layout per graph, independent of layers, focus and filters).
+/// Lay out `input` (`layoutFor`; one layout per graph, independent of layers, focus and filters).
 pub fn layout(input: &Input) -> Layout {
     compute::compute_layout(input)
 }

@@ -10,6 +10,9 @@ pub struct DocsPage {
     /// Level path (`root/core/model`, or `root`).
     pub brick: String,
     pub desc: Option<String>,
+    /// The inner doc comment (`//!`) of the brick's root module (markdown), `""` when it has
+    /// none or no single root module (a composite of several crates).
+    pub doc: String,
     /// The whole brick tree in pre-order, for the sidebar.
     pub tree: Vec<DocsNode>,
     /// Direct children of a composite (the top bricks for `root`).

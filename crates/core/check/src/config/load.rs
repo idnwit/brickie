@@ -39,7 +39,9 @@ fn header_lines(text: &str, header: &str) -> Vec<usize> {
         .collect()
 }
 
-/// Load the root config and every composite below it.
+/// Load the root config at `path` and every composite below it. Errors on unreadable or
+/// malformed files, unknown keys, duplicate brick names, rules and links that name unknown
+/// bricks, tags or kinds (or lack a reason), and `include` or `path` cycles.
 pub fn load(path: &Path) -> Result<Config> {
     load_from(&Disk, path)
 }

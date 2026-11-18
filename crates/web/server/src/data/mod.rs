@@ -1,5 +1,36 @@
-//! Builds the webview's data (`brickie_web_api::PageData`) from the loaded config and cache. The
-//! diagnostics are the very values `brickie check` prints, converted field by field.
+//! Builds the webview's data from the loaded config and cache.
+//!
+//! This brick maps what `brickie-check` and the cache already computed into the types of
+//! [`brickie_web_api`]: the page ([`page`]), a brick's docs page ([`docs`]), a brick's interface
+//! ([`interface()`]) and the sites behind an edge ([`edge_uses`]), plus the design editor's state
+//! (in `design`) and the level graphs (in `graph`). It decides nothing about rules: diagnostics
+//! are the very values `brickie check` prints, converted field by field, and whether an edge
+//! is allowed comes from the check crate. It does no HTTP and no HTML.
+//!
+//! # Usage
+//!
+//! Load once per request with `brickie_change::working::load`, then convert.
+//!
+//! ```ignore
+//! // Crate-private: shown for orientation only.
+//! let (loaded, _) = brickie_change::working::load(&config)?;
+//! let page = data::page(&loaded, &cache_file);        // PageData for `GET /`
+//! let docs = data::docs(&loaded, "web/api")?;         // DocsPage for `GET /docs/web/api`
+//! let iface = data::interface(&loaded, "root/web/api")?;
+//! let sites = data::edge_uses(&loaded, "web/ui", "web/api", "uses")?;
+//! ```
+//!
+//! # Key functions
+//!
+//! - [`page`]: levels, diagnostics, function rows and the cache header.
+//! - [`docs`]: the brick tree, the root module's `//!` doc and the declared items with docs and
+//!   a few real use sites per using brick.
+//! - [`interface()`], [`edge_uses`]: the interface view and the use sites of one edge by kind.
+//!
+//! # Errors
+//!
+//! [`docs`], [`interface()`] and [`edge_uses`] fail on an unknown brick path; the routes turn that
+//! into a 404 or 409. Nothing here writes files except the design layout helpers in `design`.
 
 pub mod design;
 mod diagnostics;

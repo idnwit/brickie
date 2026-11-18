@@ -6,6 +6,8 @@ use crate::{Band, FileText, Location, Mark, Pos, View};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+/// One viewer endpoint: its path and its JSON request and response types. Implemented by the
+/// marker types [`Views`], [`File`], [`Marks`], [`Bands`], [`Definition`] and [`References`].
 pub trait Endpoint {
     const PATH: &'static str;
     type Req: Serialize + DeserializeOwned;

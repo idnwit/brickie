@@ -13,6 +13,7 @@ pub enum By {
 }
 
 impl By {
+    /// The lowercase name, as in JSON.
     pub fn name(self) -> &'static str {
         match self {
             By::Human => "human",
@@ -35,6 +36,7 @@ pub enum Track {
 }
 
 impl Track {
+    /// The lowercase name, as in JSON.
     pub fn name(self) -> &'static str {
         match self {
             Track::Published => "published",
@@ -63,10 +65,12 @@ pub struct Version {
     /// The hash of the version before (`None` for the first).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prev: Option<String>,
+    /// Who made the version.
     pub by: By,
     /// Unix seconds.
     pub at: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// A free-text note given with the write.
     pub note: Option<String>,
     /// The ops of the write (empty for an external edit or an undo).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

@@ -12,8 +12,10 @@ pub enum LinkType {
     Reexports,
 }
 
+/// Every link type, in menu order.
 pub const LINK_TYPES: [LinkType; 3] = [LinkType::Uses, LinkType::Implements, LinkType::Reexports];
 
+/// The reference scopes a link may cover.
 pub const SCOPES: [&str; 3] = ["prod", "test", "all"];
 
 /// The reason a link drawn on the canvas starts with (`reason` is required; the inspector
@@ -21,6 +23,7 @@ pub const SCOPES: [&str; 3] = ["prod", "test", "all"];
 pub const DRAWN_REASON: &str = "drawn in the editor";
 
 impl LinkType {
+    /// The kind as the design writes it (`uses`, `implements`, `reexports`).
     pub fn name(self) -> &'static str {
         match self {
             LinkType::Uses => "uses",
@@ -38,6 +41,7 @@ impl LinkType {
         }
     }
 
+    /// The kinds list of a rule or link of this type (one entry).
     pub fn kinds(self) -> Vec<String> {
         vec![self.name().to_string()]
     }

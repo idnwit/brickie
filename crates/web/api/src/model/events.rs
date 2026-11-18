@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 /// `GET` path of the event stream (`text/event-stream`).
 pub const EVENTS_PATH: &str = "/api/events";
 
+/// One change the server noticed. Serialised with a `kind` tag (`design`, `cache`, `measure`,
+/// `config`).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "lowercase")]
 pub enum ServerEvent {

@@ -3,6 +3,7 @@
 
 use super::*;
 
+/// An edge route: a chain of cubic Bezier segments, each `[start, control1, control2, end]`.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Route {
     pub segs: Vec<[Pt; 4]>,

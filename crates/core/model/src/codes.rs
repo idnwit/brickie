@@ -3,11 +3,18 @@
 
 /// A code edge between sibling bricks that no valid `[[link]]` covers.
 pub const DEPS_UNLINKED: &str = "deps/unlinked";
+/// A cycle among bricks of one level.
 pub const DEPS_CYCLE: &str = "deps/cycle";
+/// A `.rs` file or workspace crate changed, was added or deleted since `measure`.
 pub const STALE_FILE: &str = "stale/file";
+/// The cache was measured with other features or targets than `[measure]` asks for, or in
+/// another directory.
 pub const STALE_MEASURE: &str = "stale/measure";
+/// A use of an item that is not in the target brick's interface.
 pub const DEPS_PRIVATE: &str = "deps/private";
+/// A module that no brick claims.
 pub const BRICKS_UNMAPPED: &str = "bricks/unmapped";
+/// An exported item no other brick uses.
 pub const INTERFACE_UNUSED: &str = "interface/unused";
 // Config errors (exit 2): the message starts with the code.
 pub const CONFIG_MISSING: &str = "config/missing";

@@ -7,6 +7,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use sycamore::prelude::*;
 
+/// The levels and design signals the editor patches in place after a write.
 #[derive(Clone, Copy)]
 pub struct Live {
     pub levels: Signal<Rc<Vec<LevelView>>>,

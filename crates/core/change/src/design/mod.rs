@@ -33,6 +33,8 @@ use brickie_model::design::{By, Track, Version};
 use history::History;
 use std::path::{Path, PathBuf};
 
+/// The versioned design of one workspace, rooted at its root `brickie.toml`. See the crate docs
+/// for the write flow.
 pub struct Design {
     /// Canonical directory of the root config.
     root: PathBuf,
@@ -42,7 +44,7 @@ pub struct Design {
 }
 
 impl Design {
-    /// The design whose root config is `config`.
+    /// The design whose root config is `config`. Errors when the file or its folder does not exist.
     pub fn at(config: &Path) -> Result<Design> {
         let dir = config
             .parent()

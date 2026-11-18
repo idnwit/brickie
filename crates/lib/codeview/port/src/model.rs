@@ -72,6 +72,7 @@ pub struct FileText {
     pub stale: bool,
 }
 
+/// How serious a [`Mark`] is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Level {

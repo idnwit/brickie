@@ -11,7 +11,12 @@ async fn docs_page_shows_items_with_full_doc_and_source() {
         body.contains("<h2 id=\"functions\">Functions</h2>"),
         "{body}"
     );
-    assert!(body.contains("pub fn busy()"));
+    assert!(body.contains("busy()"));
+    // The root module's inner doc, rendered like item docs.
+    assert!(
+        body.contains("<p>The <strong>engine</strong> &lt;i&gt;root&lt;/i&gt;.</p>"),
+        "{body}"
+    );
     // The whole doc comment, rendered as markdown with raw HTML escaped.
     assert!(body.contains("<p>Does busy.</p>"), "{body}");
     assert!(

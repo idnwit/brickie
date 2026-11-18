@@ -3,11 +3,15 @@
 use super::Brick;
 use serde::Deserialize;
 
+/// A brick selector as written in a rule: `*`, `tag:<tag>` or a brick name.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum Sel {
+    /// `*`: every brick that is not independent.
     #[default]
     Any,
+    /// `tag:<tag>`: bricks carrying the tag.
     Tag(String),
+    /// A brick by name.
     Brick(String),
 }
 

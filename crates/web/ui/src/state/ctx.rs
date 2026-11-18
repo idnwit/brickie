@@ -45,6 +45,9 @@ pub enum Op {
     },
 }
 
+/// The state of the level on screen: params, hover, pan and zoom, drag, popup and the memoised
+/// evaluation. Cheap to clone (signals are handles); rebuilt by [`Cx::new`] whenever the level
+/// changes, from the longer-lived [`Shared`].
 #[derive(Clone)]
 pub struct Cx {
     pub params: Signal<Params>,

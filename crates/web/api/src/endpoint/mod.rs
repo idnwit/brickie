@@ -20,8 +20,12 @@ use crate::{
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
+/// A JSON endpoint: its path and its request and response types. Implemented by one marker
+/// type per endpoint; the server and the viewer both read the three from here.
 pub trait Endpoint {
+    /// The URL path the server mounts it at.
     const PATH: &'static str;
+    /// The input: a JSON body (POST) or the query string (GET); `()` for none.
     type Req: Serialize + DeserializeOwned;
     type Res: Serialize + DeserializeOwned;
 }

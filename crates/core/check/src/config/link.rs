@@ -10,6 +10,7 @@ pub struct LinkState {
     pub level: Vec<String>,
     /// The config file of the level.
     pub file: String,
+    /// The link as declared.
     pub link: Link,
     /// Why no rule allows it (`design/link-denied`); `None` for a valid link.
     pub denied: Option<String>,

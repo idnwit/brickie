@@ -1,7 +1,46 @@
-//! brickie-graph: strongly connected components and cycle paths over small directed graphs.
+//! Strongly connected components and cycle paths over small directed graphs.
 //!
-//! A graph is an adjacency map `node -> successors`; nodes are any ordered, clonable keys.
-//! Results are deterministic (ordered maps, sorted components).
+//! This brick answers two questions about a directed graph: which nodes are mutually reachable
+//! ([`sccs`]), and what is one concrete cycle through a given node ([`find_cycle`]). It knows
+//! nothing about what the nodes are and does no I/O.
+//!
+//! A graph is a [`Graph`], an adjacency map `node -> successors`; nodes are any ordered, clonable
+//! keys.
+//!
+//! # Usage
+//!
+//! ```
+//! use brickie_graph::{find_cycle, sccs, Graph};
+//! use std::collections::BTreeSet;
+//!
+//! let mut g: Graph<&str> = Graph::new();
+//! g.entry("a").or_default().insert("b");
+//! g.entry("b").or_default().insert("c");
+//! g.entry("c").or_default().insert("a");
+//! g.entry("c").or_default().insert("d");
+//!
+//! // Components of size > 1 are cycles; "d" is alone.
+//! let big: Vec<Vec<&str>> = sccs(&g).into_iter().filter(|c| c.len() > 1).collect();
+//! assert_eq!(big, vec![vec!["a", "b", "c"]]);
+//!
+//! // A shortest path back to the start, inside the component.
+//! let set: BTreeSet<&str> = big[0].iter().copied().collect();
+//! assert_eq!(find_cycle(&g, &set, &"a"), vec!["a", "b", "c", "a"]);
+//! ```
+//!
+//! # Key items
+//!
+//! * [`Graph`] is the adjacency map type.
+//! * [`sccs`] returns the strongly connected components (Tarjan).
+//! * [`find_cycle`] returns a shortest cycle through one node, limited to a node set.
+//!
+//! # Notes
+//!
+//! * Results are deterministic: ordered maps are used and each component's nodes are sorted.
+//! * A node with no cycle is its own one-node component, and a node whose only edge points to
+//!   itself is also a one-node component; callers decide whether that counts as a cycle.
+//! * A node that appears only as a successor and not as a key is still visited as a successor.
+//! * Recursion depth follows the longest path, which is fine for small graphs.
 
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 

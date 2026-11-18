@@ -66,7 +66,9 @@ After `measure`, a line `hint: code under cfg(target_arch = "wasm32") is not mea
 cache, so a link it needs may look planned (no measured edge). Do not add the target yourself; report the hint to the
 reviewer. If `measure` fails with "rust-analyzer scip failed for target ..." and "if features are
 mutually exclusive, make them additive", fix the code so a build with all features works, or
-report that the target is not installed (`rustup target add <target>`).
+report that the target is not installed (`rustup target add <target>`). If the output says
+"Unknown binary 'rust-analyzer'", the workspace's toolchain lacks the component: run
+`rustup component add rust-analyzer` in the workspace.
 
 ## Hard constraints
 
@@ -85,6 +87,28 @@ report that the target is not installed (`rustup target add <target>`).
   chain, a struct instead of many parameters, a clearer decomposition.
 - Do not move code or add re-exports to hide a dependency from the checker; the edge is measured
   where the code references the other module.
+
+## Documenting a brick
+
+Reviewers read each brick through `brickie serve`'s docs page, which shows the brick's root module
+doc (`//!` in `lib.rs` for a crate brick, in the folder's `mod.rs` for a folder brick) and then
+every interface item with its full `///` doc. Write these comments to Rust library standards so a
+reviewer can learn how to use the brick from that page alone, without reading the code.
+
+- Root module `//!`: a one-line summary; a short paragraph on what the brick is responsible for
+  and what it is not; a `# Usage` (or `# Examples`) section with a realistic example of the main
+  entry points; a short list of key items as intra-doc links (``[`Name`]``); and `# Errors` or
+  invariant notes where they apply.
+- Every interface item gets `///`: a one-line summary first (the text view of
+  `brickie interface` shows only the first paragraph), then details. Use the standard sections
+  `# Errors`, `# Panics` and `# Safety` when they apply, and `# Examples` for non-obvious use.
+- Examples use real names and signatures and compile as doctests: plain or `no_run` (for file,
+  network or rust-analyzer access); `ignore` only when the item cannot be imported in a doctest
+  (a `pub(crate)` item of a folder brick, a binary crate); ```` ```text ```` for command lines.
+  Hide setup lines with `# `.
+- State behaviour, not history; describe only what the code does. Update the doc in the same
+  change as the code it describes.
+- `cargo doc --no-deps` must not warn about broken intra-doc links.
 
 ## Editing the design
 

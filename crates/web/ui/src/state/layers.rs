@@ -43,6 +43,7 @@ fn preset_over(p: &str) -> &'static [(&'static str, bool)] {
     }
 }
 
+/// The view presets: id and label, in menu order.
 pub const PRESETS: [(&str, &str); 4] = [
     ("arch", "Architecture"),
     ("viol", "Violations"),
@@ -105,6 +106,7 @@ impl Lay {
         }
         Lay(m)
     }
+    /// Whether the layer `key` is on (an unknown key counts as on).
     pub fn on(&self, key: &str) -> bool {
         self.0.get(key).copied().unwrap_or(true)
     }

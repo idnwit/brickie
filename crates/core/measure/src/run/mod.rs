@@ -1,5 +1,37 @@
-//! `brickie measure`: cargo metadata + rust-analyzer SCIP (dependencies) + tree-sitter
-//! (complexity) -> `.brickie/cache.json`.
+//! The measure flow: index, analyse, assign and write `.brickie/cache.json`.
+//!
+//! The flow takes the cargo workspace facts and one rust-analyzer SCIP index per target (the
+//! host first, then each additional target), normalises each index into rows, reads every
+//! source file for hash and function complexity, assigns edges and public items to modules and
+//! merges the per-target caches. It records facts only; rules and bricks are applied later by
+//! `brickie-check`.
+//!
+//! # Usage
+//!
+//! The crate exports [`run_with`], [`Options`] and [`fn_tree`]. Because the module is a folder
+//! brick of the crate, the example is a flow sketch rather than a doctest:
+//!
+//! ```text
+//! let opts = Options { config: "brickie.toml".into(), scip: None, workspace: None,
+//!                      additional_targets: vec![] };
+//! let cache_path = run_with(&opts, &|step| eprintln!("{step}"))?;   // .brickie/cache.json
+//! ```
+//!
+//! Steps reported to the callback, in order: `cargo metadata`, then per target
+//! `rust-analyzer scip`, `read index`, `analyse files`, and finally `write cache`.
+//!
+//! # Key items
+//!
+//! - [`Options`]: which config, optional pre-made index, workspace and extra targets.
+//! - [`run_with`]: the whole flow; returns the cache path.
+//! - [`fn_tree`]: the decision tree of one function in a source text.
+//!
+//! # Notes
+//!
+//! - A given `scip` index stands for the host only: extra targets are not measured and none is
+//!   recorded in the cache.
+//! - Files that cannot be read stay in the cache as empty rows and are reported as warnings.
+//! - The cache lock and the `Cargo.lock` restore guard are held for the whole run.
 
 mod complexity;
 #[cfg(test)]
@@ -21,17 +53,25 @@ use brickie_facts::{Cache, CacheLock, Measured, SCHEMA_VERSION};
 use protobuf::Message;
 use std::path::{Path, PathBuf};
 
+/// What to measure and where to put it.
 pub struct Options {
+    /// The `brickie.toml` path; only its directory is used, to place `.brickie/` (bricks are
+    /// resolved later by `check`).
     pub config: PathBuf,
+    /// A ready SCIP index to use instead of running rust-analyzer; it stands for the host only.
     pub scip: Option<PathBuf>,
+    /// The workspace to measure; defaults to the config's directory.
     pub workspace: Option<PathBuf>,
     /// Targets measured besides the host (`[measure] additional_targets`).
     pub additional_targets: Vec<String>,
 }
 
 /// Measure and write the cache, reporting each step's name to `progress` as it starts. Returns
-/// the cache path. Holds the cache lock
-/// ([`CacheLock`]) for the whole run: a concurrent measure of the same config fails at once.
+/// the cache path (`<config dir>/.brickie/cache.json`).
+///
+/// Holds the cache lock ([`CacheLock`]) for the whole run: a concurrent measure of the same
+/// config fails at once. Errors when the config path is missing, cargo or rust-analyzer fails,
+/// or the index cannot be decoded.
 pub fn run_with(opts: &Options, progress: &dyn Fn(&str)) -> Result<PathBuf> {
     let cfg_dir = config_dir(opts)?;
     let dir = cfg_dir.join(".brickie");

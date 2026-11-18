@@ -77,7 +77,8 @@ impl Site {
             "workspace_root": ws.display().to_string(), "git": null,
             "crates": [{"id": "eng", "package": "eng", "version": "0.1.0", "target": "eng",
                         "kind": "lib", "root": "crates/eng/src/lib.rs", "dir": "crates/eng"}],
-            "modules": [{"id": "eng::x", "crate": "eng", "file": "crates/eng/src/x.rs", "line": 1}],
+            "modules": [{"id": "eng::x", "crate": "eng", "file": "crates/eng/src/x.rs", "line": 1,
+                         "doc": "The **engine** <i>root</i>."}],
             "files": {
                 "crates/eng/src/x.rs": file(
                     SOURCE,

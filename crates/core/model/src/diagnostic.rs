@@ -13,6 +13,7 @@ pub struct Span {
     pub label: Option<String>,
 }
 
+/// An extra remark attached to a [`Diagnostic`], optionally pointing at a location.
 #[derive(Debug, Clone, Serialize)]
 pub struct Note {
     pub text: String,
@@ -34,15 +35,22 @@ pub struct DiagEdge {
     pub span: Option<Span>,
 }
 
+/// One finding, as printed by `brickie check` and serialised to JSON.
+///
+/// `code` is one of the stable strings in [`crate::codes`]; `id` identifies the finding within
+/// one run (the viewer uses it to select a finding).
 #[derive(Debug, Clone, Serialize)]
 pub struct Diagnostic {
     pub id: String,
+    /// A diagnostic code, for example `deps/unlinked` or `complexity/cognitive`.
     pub code: String,
     pub message: String,
+    /// The main location; `None` when the finding is about no single place.
     pub span: Option<Span>,
     /// Further locations of the same finding (more references).
     pub spans: Vec<Span>,
     pub rule: Option<RuleRef>,
+    /// How to fix the finding, in plain words.
     pub help: Option<String>,
     pub notes: Vec<Note>,
     /// Bricks the finding is about (both ends of an edge, the members of a cycle, the brick

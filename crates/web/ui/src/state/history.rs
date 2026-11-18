@@ -11,6 +11,7 @@ pub struct Nav {
 }
 
 impl Nav {
+    /// A history holding only `url`.
     pub fn new(url: String) -> Nav {
         Nav {
             urls: vec![url],
@@ -37,10 +38,12 @@ impl Nav {
         }
     }
 
+    /// The URL one step back, if any.
     pub fn back(&self) -> Option<&str> {
         self.at.checked_sub(1).map(|i| self.urls[i].as_str())
     }
 
+    /// The URL one step forward, if any.
     pub fn forward(&self) -> Option<&str> {
         self.urls.get(self.at + 1).map(String::as_str)
     }

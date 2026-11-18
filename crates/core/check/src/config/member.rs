@@ -65,6 +65,7 @@ mod tests {
             krate: "web-api".into(),
             file: "crates/web/api/src/routes/x.rs".into(),
             line: 1,
+            doc: String::new(),
         };
         let c = Crate {
             id: "web-api".into(),

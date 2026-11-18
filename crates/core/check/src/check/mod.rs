@@ -1,4 +1,54 @@
-//! Config and cache combined into the diagnostics both `check` and `view` show.
+//! Load config and cache into diagnostics: the facade for the CLI and the webview.
+//!
+//! [`load`] reads the config tree and the measure cache, resolves every module to a brick,
+//! runs every rule and returns one [`Loaded`] value. `brickie check` prints it and the viewer
+//! shows it, so both see the same findings. The internal `rules` brick stays hidden behind this
+//! module.
+//!
+//! # Usage
+//!
+//! ```no_run
+//! use brickie_check::check::{self, Filter};
+//! use std::path::Path;
+//!
+//! # fn main() -> anyhow::Result<()> {
+//! let config = Path::new("brickie.toml");
+//! if check::needs_measure(config) {
+//!     // run `brickie measure` first
+//! }
+//! let loaded = check::load(config)?;
+//! // Show only findings owned by bricks under `web/api`; the whole workspace is still evaluated.
+//! let filter = Filter::new(&loaded.cfg, &["web/api".to_string()])?;
+//! let shown = filter.apply(&loaded);
+//! print!("{}", shown.footer(&filter));
+//! for d in &shown.shown {
+//!     println!("{} {}", d.code, d.message);
+//! }
+//! for line in loaded.todo.lines() {
+//!     println!("planned: {line}");                  // never a finding, never an exit code
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Key items
+//!
+//! - [`load`] and [`load_from`]: config tree plus cache into [`Loaded`]; `load_from` reads the
+//!   config from a [`crate::config::FileSource`] (the design draft or a preview).
+//! - [`load_design`]: the config tree alone, with no cache and no findings.
+//! - [`needs_measure`]: whether the cache is missing, unreadable or stale.
+//! - [`Filter`] and [`Filtered`]: `check --brick` scoping.
+//! - [`Todo`]: planned bricks and links the code lacks yet.
+//! - [`marked_links`], [`design_links`], [`complexity_limits`], [`dep_subject`],
+//!   [`denied_text`]: helpers the viewer and design editor share with the rules.
+//!
+//! # Notes
+//!
+//! - Errors: a missing, unparsable or other-schema cache is an `Err` that tells to run
+//!   `brickie measure`; config problems found while loading are findings, not errors.
+//! - A cache measured in another directory yields one `stale/measure` finding and nothing else
+//!   about code.
+//! - `check` never writes and never measures.
 
 use crate::config::{self, Config, Resolved};
 use crate::diag::{self, Diagnostic};
@@ -20,9 +70,11 @@ pub use todo::Todo;
 pub struct Loaded {
     /// The brick tree (root level).
     pub cfg: Config,
+    /// The measure cache the findings were derived from.
     pub cache: Cache,
     /// Module id -> leaf path in the tree.
     pub resolved: Resolved,
+    /// Every finding, sorted by code then message.
     pub diagnostics: Vec<Diagnostic>,
     /// Diagnostic id -> owner brick paths (`root/web/api`), for scoped checks.
     pub owners: BTreeMap<String, Vec<String>>,
@@ -32,6 +84,9 @@ pub struct Loaded {
     pub todo: Todo,
 }
 
+/// Load the config at `config` and the cache next to it (`.brickie/cache.json`) and evaluate
+/// every rule. Errors when the cache is missing, unparsable or of another schema version, or the
+/// config cannot be read or parsed.
 pub fn load(config: &Path) -> Result<Loaded> {
     load_from(&config::Disk, config)
 }

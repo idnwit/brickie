@@ -4,6 +4,7 @@ use super::{Diagnostic, Span};
 use std::io::IsTerminal;
 use std::path::Path;
 
+/// When text output uses ANSI color.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Color {
     Auto,
@@ -12,6 +13,8 @@ pub enum Color {
 }
 
 impl Color {
+    /// Whether to color now: `Auto` colors only a terminal and only when `NO_COLOR` is unset or
+    /// empty.
     pub fn enabled(self) -> bool {
         match self {
             Color::Always => true,
@@ -188,7 +191,7 @@ pub(super) fn summary_line(ds: &[Diagnostic], color: bool) -> String {
     format!("{head}: {}\n", plural(n, "error"))
 }
 
-/// All diagnostics, then the summary line.
+/// All diagnostics as cargo-style text with source snippets, then the summary line.
 pub fn render_all(ds: &[Diagnostic], root: &Path, color: bool) -> String {
     let mut out = String::new();
     for d in ds.iter() {

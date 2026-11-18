@@ -8,18 +8,11 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type")]
 pub enum ToViewer {
     /// Open `path` in a tab, revealing `span` when given.
-    Open {
-        path: String,
-        span: Option<Span>,
-    },
+    Open { path: String, span: Option<Span> },
     /// Scope the explorer to the node `node` (an id) of view `view`; `None` shows everything.
-    Filter {
-        view: String,
-        node: Option<String>,
-    },
-    Theme {
-        dark: bool,
-    },
+    Filter { view: String, node: Option<String> },
+    /// Switch the viewer between dark and light.
+    Theme { dark: bool },
 }
 
 /// Viewer -> host page.
@@ -28,12 +21,10 @@ pub enum ToViewer {
 pub enum ToHost {
     /// The viewer listens for messages now (sent once, after it started).
     Ready,
-    Opened {
-        path: String,
-    },
+    /// A file was opened in a tab.
+    Opened { path: String },
     /// A mark's link was clicked.
-    Link {
-        href: String,
-    },
+    Link { href: String },
+    /// The user asked to close the viewer.
     Close,
 }
