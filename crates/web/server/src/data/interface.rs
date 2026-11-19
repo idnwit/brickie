@@ -34,7 +34,6 @@ fn item(i: &IfaceItem) -> IfaceItemView {
                 sites: g.sites.iter().map(site).collect(),
             })
             .collect(),
-        unused: i.unused(),
     }
 }
 

@@ -11,8 +11,6 @@ pub struct Target {
     pub name: String,
     /// Root source file relative to the workspace root.
     pub src_path: String,
-    /// A library target: the only target of its package that other targets can depend on.
-    pub lib: bool,
 }
 
 pub struct Layout {

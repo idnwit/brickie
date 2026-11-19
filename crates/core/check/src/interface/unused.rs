@@ -69,7 +69,7 @@ pub fn unused(cache: &Cache, cfg: &Config, res: &Resolved) -> Vec<Box<dyn Findin
     let mut out: Vec<Box<dyn Finding>> = Vec::new();
     for leaf in leaves {
         for d in declared(cache, cfg, res, leaf) {
-            if idx.published(d.item) || !idx.uses(d.item, leaf).is_empty() {
+            if !idx.uses(d.item, leaf).is_empty() {
                 continue;
             }
             out.push(Box::new(Unused {

@@ -29,11 +29,6 @@ Proposal and phases: [../proposals/features.md](../proposals/features.md).
 - Units: crate, module (`crate::a::b`), file. A module maps to at most one leaf brick.
 - **`to` of an edge is the module that defines the item** (SCIP). A re-export is not an edge
   target. There is no path-based re-attribution.
-- **A SCIP symbol names the package, not the target**, so a lib and a test target of one package
-  can define the same symbol in different modules. A reference resolves to the definition in the
-  same file, else in the same target, else in the package's lib (the only target others can
-  depend on), else the first. Alternatives kept for later: `rust-analyzer lsif` (links each
-  reference to its definition site) or rust-analyzer as a library.
 - Each reference site gives one edge kind:
 
   | kind | sites |
@@ -50,13 +45,13 @@ Proposal and phases: [../proposals/features.md](../proposals/features.md).
   `lines`, `scope`. Macro bodies are not parsed, so branches inside `println!`, `vec![]` and
   `view!` are invisible. Scoring follows SonarSource.
 
-## Cache layout (schema_version 10)
+## Cache layout (schema_version 9)
 
 `.brickie/cache.json` sits next to the config. Top level: `schema_version`, `tool_version`,
 `rust_analyzer`, `measured`, `workspace_root`, `git`, `crates`, `modules`, `files`.
 
 - Ids: a library crate is its package name, other targets `pkg/kind/target`, a module
-  `<crate id>::a::b`. A crate records `dir` (package dir) for `path:` members and `publish` (its package may be published). A module
+  `<crate id>::a::b`. A crate records `dir` (package dir) for `path:` members. A module
   records its `file`, `line` and `doc` (its inner `//!` doc comment, markdown, from the SCIP
   module symbol; omitted when empty).
 - `files` is keyed by path: hash, size, lines, scope, module, `functions`, outgoing `edges` with

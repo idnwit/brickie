@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// The cache layout version; a cache with another value must be measured again.
-pub const SCHEMA_VERSION: u32 = 10;
+pub const SCHEMA_VERSION: u32 = 9;
 
 /// The whole `.brickie/cache.json`: workspace shape plus per-file facts.
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -114,10 +114,6 @@ pub struct Crate {
     /// Package directory (holding `Cargo.toml`) relative to the workspace root, `""` for the
     /// root; `path:` brick members match against it.
     pub dir: String,
-    /// The package may be published (`publish` is not `false` in its `Cargo.toml`): code outside
-    /// the workspace may use its library API.
-    #[serde(default)]
-    pub publish: bool,
 }
 
 /// A Rust module (or crate root); its id is `<crate id>` for the crate root and

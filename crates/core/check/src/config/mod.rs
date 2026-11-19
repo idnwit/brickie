@@ -46,7 +46,7 @@
 //!
 //! let krate = |name: &str| Crate {
 //!     id: name.into(), package: name.into(), version: "0.1.0".into(), target: name.into(),
-//!     kind: "lib".into(), root: format!("{name}/src/lib.rs"), dir: name.into(), publish: false,
+//!     kind: "lib".into(), root: format!("{name}/src/lib.rs"), dir: name.into(),
 //! };
 //! let module = |name: &str| Module {
 //!     id: name.into(), krate: name.into(), file: format!("{name}/src/lib.rs"),
