@@ -32,7 +32,7 @@ fn def_link(cx: &Cx, file: &str, line: u32, sig: &str) -> View {
 
 fn item_view(cx: &Cx, it: &IfaceItemView, short: &dyn Fn(&str) -> String) -> View {
     let head = format!("{} {}", it.kind, it.name);
-    let badge = if it.unused {
+    let badge = if it.uses.is_empty() {
         view! { span(class="pill warn", title="no use outside the brick and no test") { "\u{26A0} unused" } }
     } else {
         let n = format!("{} uses", it.use_count());

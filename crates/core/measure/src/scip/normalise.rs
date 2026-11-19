@@ -132,7 +132,7 @@ impl<'a> Builder<'a> {
             use_at(&self.g.use_items[uses.clone()], pos).map(|k| uses.start + k)
         };
         let target = self.g.files[fi].target;
-        let symbol = self.defs.resolve(&self.g, self.ws, &o.symbol, fi, target)?;
+        let symbol = self.defs.resolve(&self.g, &o.symbol, fi, target)?;
         Some(OccRow {
             symbol,
             file: fi,

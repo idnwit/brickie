@@ -109,7 +109,7 @@ fn function<'a>(c: &'a Value, file: &str, qname: &str) -> &'a Value {
 fn measure_fixture() {
     let Some(m) = measure() else { return };
     let c = &m.cache;
-    assert_eq!(c["schema_version"], 10);
+    assert_eq!(c["schema_version"], 9);
     // A module records its inner `//!` doc from the SCIP module symbol.
     let module = |id: &str| {
         c["modules"]

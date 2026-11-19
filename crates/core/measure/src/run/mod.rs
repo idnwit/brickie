@@ -229,7 +229,6 @@ fn cargo_layout(ws: &metadata::Workspace) -> layout::Layout {
                 package: t.package,
                 name: t.name.clone(),
                 src_path: t.src_path.clone(),
-                lib: crate::workspace::crates::is_lib_kind(&t.kind),
             })
             .collect(),
     }

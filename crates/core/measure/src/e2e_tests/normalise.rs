@@ -17,7 +17,6 @@ pub(super) fn layout() -> Layout {
         package,
         name: name.into(),
         src_path: src.into(),
-        lib: src.ends_with("lib.rs"),
     };
     Layout {
         packages: vec![

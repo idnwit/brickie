@@ -127,23 +127,6 @@ fn uses_are_grouped_at_the_brick_level() {
     assert_eq!(foo.uses[0].brick, "root/core");
 }
 
-/// Public API of a package that may be published has users brickie cannot see.
-#[test]
-fn published_public_api_is_never_unused() {
-    let (_d, cfg, res, mut c) = world();
-    c.crates
-        .iter_mut()
-        .for_each(|k| k.publish = k.id == "web-api");
-    let found: Vec<String> = unused(&c, &cfg, &res)
-        .iter()
-        .map(|f| diagnostic(f.as_ref()).message)
-        .collect();
-    assert_eq!(found.len(), 1, "{found:?}");
-    assert!(found[0].contains("`util`"));
-    let api = interface(&c, &cfg, &res, &["web".into(), "api".into()]);
-    assert_eq!(api.unused(), 0);
-}
-
 #[test]
 fn unused_items_are_reported_per_leaf() {
     let (_d, cfg, res, c) = world();
