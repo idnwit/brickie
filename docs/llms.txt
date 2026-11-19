@@ -398,11 +398,14 @@ re-measure is needed.
 
 A leaf brick declares an item (reachable from outside: public API of its crate, or a `pub` /
 `pub(crate)` item whose module is visible to another brick) that no code outside the brick and no
-test uses (tests anywhere count, including the brick's own; a doctest in the crate's docs counts
-for public API items it names, by word match on the item's own name (a method's name alone)). The location is the definition. Fix:
-if only the brick needs it, make it private, or remove it if nothing uses it; or add a test that
-exercises it. Methods, fields and variants count as uses of their type; `pub use` re-exports are
-not uses.
+test uses (tests anywhere count, including the brick's own). A doctest in the crate's docs is a
+test use of each public API item whose own name (a method's name alone) appears in it. The location
+is the definition. Fix: if only the brick needs it, make it private, or remove it if nothing uses
+it; or add a test that exercises it. Methods, fields and variants count as uses of their type; `pub use` re-exports are
+not uses. Public API of a package that may be published (no `publish = false` in its `Cargo.toml`)
+is never reported: users outside the workspace cannot be seen. Set `publish = false` on a package
+only used inside the workspace so its public API is checked; leave it publishable (or set
+`publish = true`) when code outside the repository uses it.
 
 ### config/missing, config/invalid, config/overlap, config/unassigned, config/member-outside-parent
 

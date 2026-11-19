@@ -7,7 +7,7 @@ use super::doctest::Doctests;
 use super::{Site, UseGroup, covers, key};
 use crate::config::{Resolved, level_name};
 use brickie_facts::{Cache, FileEdge, Item};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub(super) struct Ref<'a> {
     pub key: String,
@@ -36,6 +36,10 @@ impl Ref<'_> {
 pub(super) struct Index<'a> {
     pub by_to: HashMap<&'a str, Vec<Ref<'a>>>,
     doctests: Doctests,
+    /// Crate ids of packages that may be published.
+    published: HashSet<&'a str>,
+    /// Module id -> crate id.
+    crate_of: HashMap<&'a str, &'a str>,
 }
 
 impl<'a> Index<'a> {
@@ -54,7 +58,28 @@ impl<'a> Index<'a> {
         Index {
             by_to,
             doctests: Doctests::new(cache),
+            published: cache
+                .crates
+                .iter()
+                .filter(|c| c.publish)
+                .map(|c| c.id.as_str())
+                .collect(),
+            crate_of: cache
+                .modules
+                .iter()
+                .map(|m| (m.id.as_str(), m.krate.as_str()))
+                .collect(),
         }
+    }
+
+    /// The item is public API of a package that may be published: code outside the workspace,
+    /// which brickie cannot see, may use it, so it is never reported unused.
+    pub fn published(&self, item: &Item) -> bool {
+        item.exported
+            && self
+                .crate_of
+                .get(item.module.as_str())
+                .is_some_and(|k| self.published.contains(k))
     }
 
     /// Uses of `item` as part of the interface of the brick at `brick`.

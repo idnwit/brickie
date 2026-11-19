@@ -43,6 +43,7 @@ pub fn crates(ws: &Workspace, ids: &[String]) -> Vec<Crate> {
             kind: t.kind.clone(),
             root: t.src_path.clone(),
             dir: ws.packages[t.package].dir.clone(),
+            publish: ws.packages[t.package].publish,
         })
         .collect()
 }
