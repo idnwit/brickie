@@ -150,7 +150,7 @@ pub fn world(mutate: impl FnOnce(&mut Value)) -> World {
         );
     }
     let mut cache = json!({
-        "schema_version": 9, "tool_version": "0", "rust_analyzer": "0",
+        "schema_version": 10, "tool_version": "0", "rust_analyzer": "0",
         "workspace_root": w.ws().display().to_string(), "git": null,
         "crates": crates, "modules": modules, "files": files,
     });

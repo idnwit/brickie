@@ -106,6 +106,8 @@ pub struct IfaceItem {
     pub line: u32,
     /// Uses grouped by the using brick at the interface's level.
     pub uses: Vec<UseGroup>,
+    /// Public API of a package that may be published: never unused.
+    pub published: bool,
 }
 
 impl IfaceItem {
@@ -114,9 +116,10 @@ impl IfaceItem {
         self.uses.iter().map(|g| g.sites.len()).sum()
     }
 
-    /// No code outside the brick and no test uses the item.
+    /// No code outside the brick and no test uses the item, and it is not public API of a
+    /// package that may be published.
     pub fn unused(&self) -> bool {
-        self.uses.is_empty()
+        self.uses.is_empty() && !self.published
     }
 
     /// The first paragraph of the doc comment, on one line.
@@ -189,6 +192,7 @@ pub fn interface(cache: &Cache, cfg: &Config, res: &Resolved, path: &[String]) -
                 file: d.file.to_string(),
                 line: d.item.line,
                 uses,
+                published: idx.published(d.item),
             }
         })
         .collect();

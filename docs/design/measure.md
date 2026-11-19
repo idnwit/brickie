@@ -50,13 +50,13 @@ Proposal and phases: [../proposals/features.md](../proposals/features.md).
   `lines`, `scope`. Macro bodies are not parsed, so branches inside `println!`, `vec![]` and
   `view!` are invisible. Scoring follows SonarSource.
 
-## Cache layout (schema_version 9)
+## Cache layout (schema_version 10)
 
 `.brickie/cache.json` sits next to the config. Top level: `schema_version`, `tool_version`,
 `rust_analyzer`, `measured`, `workspace_root`, `git`, `crates`, `modules`, `files`.
 
 - Ids: a library crate is its package name, other targets `pkg/kind/target`, a module
-  `<crate id>::a::b`. A crate records `dir` (package dir) for `path:` members. A module
+  `<crate id>::a::b`. A crate records `dir` (package dir) for `path:` members and `publish` (its package may be published). A module
   records its `file`, `line` and `doc` (its inner `//!` doc comment, markdown, from the SCIP
   module symbol; omitted when empty).
 - `files` is keyed by path: hash, size, lines, scope, module, `functions`, outgoing `edges` with
