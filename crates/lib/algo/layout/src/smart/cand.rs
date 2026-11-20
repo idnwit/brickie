@@ -1,7 +1,7 @@
 //! Candidate routes of one edge: its current layered route plus one direct cubic per usable pair
 //! of box sides.
 
-use super::super::geometry::{bbox, bz_ctl, bz_port, bz_sample, poly_len};
+use super::super::geometry::{bbox, bz_port, ortho_direct, poly_len};
 use super::super::path::route_with;
 use super::*;
 
@@ -62,12 +62,9 @@ pub(super) fn coarse(p: &[Pt]) -> Vec<Pt> {
 /// One end of a direct cubic: the box, the side it leaves by and the port offset on that side.
 pub(super) type Anchor<'a> = (&'a Rect, Side, f64);
 
-/// The direct cubic from `(a, sa, pa)` to `(b, sb, pb)` sampled every `step`.
+/// The direct orthogonal rounded route from `(a, sa, pa)` to `(b, sb, pb)` sampled every `step`.
 pub(super) fn direct((a, sa, pa): Anchor, (b, sb, pb): Anchor, step: f64) -> Vec<Pt> {
-    bz_sample(
-        &bz_ctl(bz_port(a, sa, pa), sa, bz_port(b, sb, pb), sb),
-        step,
-    )
+    ortho_direct(bz_port(a, sa, pa), sa, bz_port(b, sb, pb), sb, 0.5).sample(step)
 }
 
 /// Number of boxes in `pos` that the polyline `pts` of an edge with ends `(a, b)` touches.
@@ -117,13 +114,13 @@ pub(super) fn side_penalty(a: &Rect, b: &Rect, sa: Side, sb: Side) -> Option<f64
     let dx = (a.x.max(b.x) - (a.x + a.w).min(b.x + b.w)).max(0.0);
     let dy = (a.y.max(b.y) - (a.y + a.h).min(b.y + b.h)).max(0.0);
     Some(if sa.horizontal() && sb.horizontal() {
-        if dy > dx { 40.0 } else { 0.0 }
+        if dy > 0.0 { 60.0 } else { 0.0 }
     } else if !sa.horizontal() && !sb.horizontal() {
-        if dx > dy * 1.6 { 25.0 } else { 0.0 }
+        0.0
     } else if dx.min(dy) < 30.0 {
-        30.0
+        45.0
     } else {
-        8.0
+        28.0
     })
 }
 
@@ -216,16 +213,17 @@ mod tests {
     }
 
     #[test]
-    fn direct_is_the_sampled_cubic_between_the_two_ports() {
+    fn direct_is_the_sampled_orthogonal_route_between_the_two_ports() {
         let (a, b) = (r(0.0, 0.0, 100.0, 50.0), r(300.0, 0.0, 100.0, 50.0));
         let pts = direct((&a, Side::R, 5.0), (&b, Side::L, -5.0), 7.0);
-        let ctl = bz_ctl(
+        let route = ortho_direct(
             bz_port(&a, Side::R, 5.0),
             Side::R,
             bz_port(&b, Side::L, -5.0),
             Side::L,
+            0.5,
         );
-        assert_eq!(pts, bz_sample(&ctl, 7.0));
+        assert_eq!(pts, route.sample(7.0));
         assert_eq!(pts[0], bz_port(&a, Side::R, 5.0));
     }
 
@@ -299,9 +297,9 @@ mod tests {
     #[test]
     fn side_penalty_two_horizontal_sides() {
         let a = r(0.0, 0.0, 100.0, 50.0);
-        // further apart vertically than horizontally: 40
+        // different rows (dy > 0): penalised strongly in favour of top-down (60)
         let b = r(130.0, 200.0, 100.0, 50.0);
-        assert_eq!(side_penalty(&a, &b, Side::R, Side::L), Some(40.0));
+        assert_eq!(side_penalty(&a, &b, Side::R, Side::L), Some(60.0));
         // side by side: 0
         let b = r(200.0, 0.0, 100.0, 50.0);
         assert_eq!(side_penalty(&a, &b, Side::R, Side::L), Some(0.0));
@@ -310,17 +308,15 @@ mod tests {
     #[test]
     fn side_penalty_two_vertical_sides() {
         let a = r(0.0, 0.0, 50.0, 50.0);
-        // dx 250 > 1.6 * dy 50: 25
+        // top-down vertical sides are never penalised regardless of horizontal span
         assert_eq!(
             side_penalty(&a, &r(300.0, 100.0, 50.0, 50.0), Side::B, Side::T),
-            Some(25.0)
+            Some(0.0)
         );
-        // dx 10 against dy 50: 0
         assert_eq!(
             side_penalty(&a, &r(60.0, 100.0, 50.0, 50.0), Side::B, Side::T),
             Some(0.0)
         );
-        // dx exactly 1.6 * dy is not penalised
         assert_eq!(
             side_penalty(&a, &r(130.0, 100.0, 50.0, 50.0), Side::B, Side::T),
             Some(0.0)
@@ -330,24 +326,24 @@ mod tests {
     #[test]
     fn side_penalty_mixed_sides() {
         let a = r(0.0, 0.0, 50.0, 50.0);
-        // both offsets 20 (< 30): 30
+        // both offsets 20 (< 30): 45
         assert_eq!(
             side_penalty(&a, &r(70.0, 70.0, 50.0, 50.0), Side::R, Side::T),
-            Some(30.0)
+            Some(45.0)
         );
-        // both offsets 50: 8
+        // both offsets 50: 28
         assert_eq!(
             side_penalty(&a, &r(100.0, 100.0, 50.0, 50.0), Side::R, Side::T),
-            Some(8.0)
+            Some(28.0)
         );
         // the smaller of the two decides, in either side order
         assert_eq!(
             side_penalty(&a, &r(70.0, 200.0, 50.0, 50.0), Side::R, Side::T),
-            Some(30.0)
+            Some(45.0)
         );
         assert_eq!(
             side_penalty(&a, &r(70.0, 200.0, 50.0, 50.0), Side::B, Side::L),
-            Some(30.0)
+            Some(45.0)
         );
     }
 

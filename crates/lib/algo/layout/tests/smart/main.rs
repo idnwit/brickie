@@ -106,3 +106,19 @@ fn diagonal_edges_match_golden() {
 fn many_parallel_edges_and_arcs_match_golden() {
     check(&capacity(), &CAPACITY_SAMPLE, CAPACITY);
 }
+
+#[test]
+#[ignore]
+fn bless_golden() {
+    let f = snap(&layout(&fixture()), &FIXTURE_SAMPLE);
+    let d = snap(&layout(&diagonal()), &DIAGONAL_SAMPLE);
+    let c = snap(&layout(&capacity()), &CAPACITY_SAMPLE);
+    let out = format!(
+        "//! Golden snapshots for `smart_route` (see `main.rs`), captured from the current code.\n\n\
+         pub const FIXTURE: &str = \"{f}\";\n\n\
+         pub const DIAGONAL: &str = \"{d}\";\n\n\
+         pub const CAPACITY: &str = \"{c}\";\n"
+    );
+    let p = format!("{}/tests/smart/golden.rs", env!("CARGO_MANIFEST_DIR"));
+    std::fs::write(p, out).unwrap();
+}

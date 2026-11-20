@@ -7,70 +7,73 @@ use brickie_web_api::GraphView;
 /// Space between two frame edges of the same neighbour.
 const SLOT: f64 = 16.0;
 
-/// One cubic route between outside neighbour `n` and the nearest wall of frame `f` (`into = true`
-/// goes neighbour -> frame, `false` goes frame -> neighbour), offset by `off` along the wall.
+/// One softly rounded orthogonal route between outside neighbour `n` and the nearest wall of
+/// frame `f` (`into = true` goes neighbour -> frame, `false` goes frame -> neighbour), offset by
+/// `off` along the wall.
 pub fn wall_route(n: &Rect, f: &Rect, into: bool, off: f64) -> Route {
     let (cx, cy) = (n.x + n.w / 2.0, n.y + n.h / 2.0);
     let clamp = |v: f64, lo: f64, len: f64| v.clamp(lo + SLOT, (lo + len - SLOT).max(lo + SLOT));
-    // Ends and the unit direction from the neighbour towards the frame.
-    let (p, q, dir) = if n.y + n.h <= f.y {
+    let mut pts: Vec<Pt> = if n.y + n.h <= f.y {
         let px = cx + off;
-        (
-            Pt {
-                x: px,
-                y: n.y + n.h,
-            },
-            Pt {
-                x: clamp(px, f.x, f.w),
-                y: f.y,
-            },
-            (0.0, 1.0),
-        )
+        let qx = clamp(px, f.x, f.w);
+        let p = Pt {
+            x: px,
+            y: n.y + n.h,
+        };
+        let q = Pt { x: qx, y: f.y };
+        let my = (p.y + q.y) / 2.0 + (off * 0.25).clamp(-14.0, 14.0);
+        if (p.x - q.x).abs() < 1.0 {
+            vec![p, q]
+        } else {
+            vec![p, Pt { x: p.x, y: my }, Pt { x: q.x, y: my }, q]
+        }
     } else if n.y >= f.y + f.h {
         let px = cx + off;
-        (
-            Pt { x: px, y: n.y },
-            Pt {
-                x: clamp(px, f.x, f.w),
-                y: f.y + f.h,
-            },
-            (0.0, -1.0),
-        )
+        let qx = clamp(px, f.x, f.w);
+        let p = Pt { x: px, y: n.y };
+        let q = Pt {
+            x: qx,
+            y: f.y + f.h,
+        };
+        let my = (p.y + q.y) / 2.0 + (off * 0.25).clamp(-14.0, 14.0);
+        if (p.x - q.x).abs() < 1.0 {
+            vec![p, q]
+        } else {
+            vec![p, Pt { x: p.x, y: my }, Pt { x: q.x, y: my }, q]
+        }
     } else if n.x + n.w <= f.x {
         let py = cy + off;
-        (
-            Pt {
-                x: n.x + n.w,
-                y: py,
-            },
-            Pt {
-                x: f.x,
-                y: clamp(py, f.y, f.h),
-            },
-            (1.0, 0.0),
-        )
+        let qy = clamp(py, f.y, f.h);
+        let p = Pt {
+            x: n.x + n.w,
+            y: py,
+        };
+        let q = Pt { x: f.x, y: qy };
+        let mx = (p.x + q.x) / 2.0;
+        if (p.y - q.y).abs() < 1.0 {
+            vec![p, q]
+        } else {
+            vec![p, Pt { x: mx, y: p.y }, Pt { x: mx, y: q.y }, q]
+        }
     } else {
         let py = cy + off;
-        (
-            Pt { x: n.x, y: py },
-            Pt {
-                x: f.x + f.w,
-                y: clamp(py, f.y, f.h),
-            },
-            (-1.0, 0.0),
-        )
+        let qy = clamp(py, f.y, f.h);
+        let p = Pt { x: n.x, y: py };
+        let q = Pt {
+            x: f.x + f.w,
+            y: qy,
+        };
+        let mx = (p.x + q.x) / 2.0;
+        if (p.y - q.y).abs() < 1.0 {
+            vec![p, q]
+        } else {
+            vec![p, Pt { x: mx, y: p.y }, Pt { x: mx, y: q.y }, q]
+        }
     };
-    let t = ((q.x - p.x).abs() + (q.y - p.y).abs()).max(20.0) * 0.45;
-    let c1 = Pt {
-        x: p.x + dir.0 * t,
-        y: p.y + dir.1 * t,
-    };
-    let c2 = Pt {
-        x: q.x - dir.0 * t,
-        y: q.y - dir.1 * t,
-    };
-    let seg = if into { [p, c1, c2, q] } else { [q, c2, c1, p] };
-    Route { segs: vec![seg] }
+    if !into {
+        pts.reverse();
+    }
+    Route::orthogonal(&pts, 12.0)
 }
 
 /// The route of frame edge `e` for box positions `pos` and the frame `f`.

@@ -1,7 +1,7 @@
 //! `routePath`: the path of one edge from its route kind, ports and the (possibly dragged) box
 //! positions. Layered routes pass through the dummy nodes of their chain.
 
-use super::geometry::{Route, bz_ctl, bz_port};
+use super::geometry::{CORNER_R, Route, bz_port, ortho_direct};
 use super::*;
 
 /// `routePath` for one edge: its route kind, ports and the box positions `p`.
@@ -22,33 +22,27 @@ pub fn route_with(
         bz_port(n, pt.side, pt.off)
     };
     let side = |end: End| po.get(&(e, end)).map_or(Side::T, |x| x.side);
+    let lane_frac = 0.30 + ((e % 5) as f64) * 0.10;
     match kind {
-        Kind::Bez => Some(Route {
-            segs: vec![bz_ctl(
-                port(a, End::A),
-                side(End::A),
-                port(b, End::B),
-                side(End::B),
-            )],
-        }),
+        Kind::Bez => Some(ortho_direct(
+            port(a, End::A),
+            side(End::A),
+            port(b, End::B),
+            side(End::B),
+            lane_frac,
+        )),
         Kind::Arc { top, level } => {
             let (pa, pb) = (port(a, End::A), port(b, End::B));
-            let sg = if *top { -1.0 } else { 1.0 };
-            let h = (14.0 + 13.0 * *level as f64) / 0.75;
-            Some(Route {
-                segs: vec![[
-                    pa,
-                    Pt {
-                        x: pa.x,
-                        y: pa.y + sg * h,
-                    },
-                    Pt {
-                        x: pb.x,
-                        y: pb.y + sg * h,
-                    },
-                    pb,
-                ]],
-            })
+            let h = 16.0 + 14.0 * *level as f64;
+            let y = if *top {
+                pa.y.min(pb.y) - h
+            } else {
+                pa.y.max(pb.y) + h
+            };
+            Some(Route::orthogonal(
+                &[pa, Pt { x: pa.x, y }, Pt { x: pb.x, y }, pb],
+                10.0,
+            ))
         }
         Kind::Chain {
             chain,
@@ -71,60 +65,34 @@ pub fn route_with(
             if *up_end == End::B {
                 c0.reverse();
             }
-            // One smooth curve: monotone cubic x(y); vertical tangents at ports; through a dummy
-            // the edge is a slightly tilted straight segment across the row band.
-            let n0 = c0.len();
-            let sc: Vec<f64> = (0..n0 - 1)
-                .map(|i| {
-                    let dy = c0[i + 1].1 - c0[i].1;
-                    if dy.abs() < 1.0 {
-                        0.0
-                    } else {
-                        (c0[i + 1].0 - c0[i].0) / dy
-                    }
-                })
-                .collect();
-            let mut arr: Vec<(f64, f64, f64)> = Vec::new();
+            // Orthogonal waypoints through each dummy corridor, with softly rounded bends in the
+            // inter-row channels.
+            let mut pts: Vec<Pt> = Vec::new();
             for (i, &(x, y, hh)) in c0.iter().enumerate() {
-                let Some(hh) = hh else {
-                    arr.push((x, y, 0.0));
-                    continue;
+                let (enter, leave) = match hh {
+                    None => (Pt { x, y }, Pt { x, y }),
+                    Some(hh) => {
+                        let dir = if c0[i + 1].1 >= c0[i - 1].1 {
+                            1.0
+                        } else {
+                            -1.0
+                        };
+                        (Pt { x, y: y - hh * dir }, Pt { x, y: y + hh * dir })
+                    }
                 };
-                let (sa, sb) = (sc[i - 1], sc[i]);
-                let m = if sa * sb <= 0.0 {
-                    0.0
-                } else {
-                    (2.0 * sa * sb / (sa + sb)).clamp(-0.2, 0.2)
-                };
-                let dir = if c0[i + 1].1 >= c0[i - 1].1 {
-                    1.0
-                } else {
-                    -1.0
-                };
-                let hh = hh * dir;
-                arr.push((x - m * hh, y - hh, m));
-                arr.push((x + m * hh, y + hh, m));
+                if let Some(&prev) = pts.last()
+                    && (prev.x - enter.x).abs() >= 1.0
+                {
+                    let my = prev.y + (enter.y - prev.y) * lane_frac;
+                    pts.push(Pt { x: prev.x, y: my });
+                    pts.push(Pt { x: enter.x, y: my });
+                }
+                pts.push(enter);
+                if hh.is_some() {
+                    pts.push(leave);
+                }
             }
-            let segs = arr
-                .windows(2)
-                .map(|w| {
-                    let (p, q) = (w[0], w[1]);
-                    let h = q.1 - p.1;
-                    [
-                        Pt { x: p.0, y: p.1 },
-                        Pt {
-                            x: p.0 + p.2 * h / 3.0,
-                            y: p.1 + h / 3.0,
-                        },
-                        Pt {
-                            x: q.0 - q.2 * h / 3.0,
-                            y: q.1 - h / 3.0,
-                        },
-                        Pt { x: q.0, y: q.1 },
-                    ]
-                })
-                .collect();
-            Some(Route { segs })
+            Some(Route::orthogonal(&pts, CORNER_R))
         }
     }
 }

@@ -172,7 +172,8 @@ impl<'a> Ctx<'a> {
         if !sources.is_empty() {
             rows.push(OUT_SOURCES.into());
         }
-        let mut bricks = self.children(cfg, &agg, &mut rows);
+        let child_row_start = rows.len();
+        let mut bricks = self.children(cfg, &agg, &mut rows, child_row_start);
         bricks.extend(self.ghosts(&mut rows, &sources, &outside));
         let index = index_of(&bricks, &outside, cfg.bricks.len());
         let hops = cycle_hops(&self.l.diagnostics, &name, &index);
@@ -210,13 +211,19 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// The children of `cfg`, each in the row of its first tag.
-    fn children(&self, cfg: &Config, agg: &Agg, rows: &mut Vec<String>) -> Vec<BrickView> {
+    /// The children of `cfg`, each in the row of its first tag (never sharing the ghost rows).
+    fn children(
+        &self,
+        cfg: &Config,
+        agg: &Agg,
+        rows: &mut Vec<String>,
+        start: usize,
+    ) -> Vec<BrickView> {
         let node = |b: &brickie_check::config::Brick| {
             let mut path = cfg.path.clone();
             path.push(b.name.clone());
             let tag = (b.tags.first().cloned()).unwrap_or_else(|| "(untagged)".into());
-            let row = row_of(rows, &tag);
+            let row = row_of_from(rows, &tag, start);
             BrickView {
                 tag,
                 row,
@@ -230,16 +237,21 @@ impl<'a> Ctx<'a> {
         cfg.bricks.iter().map(node).collect()
     }
 
-    /// The faded outside neighbours: sources in the inbound row, the rest in the outbound row.
+    /// The faded outside neighbours: sources in row 0 (`inbound`), the rest in a dedicated
+    /// `outbound` row at the end (never merged with a child tag of the same name).
     fn ghosts(&self, rows: &mut Vec<String>, sources: &Paths, outside: &Paths) -> Vec<BrickView> {
         let mut out = Vec::new();
+        let mut out_row: Option<usize> = None;
         for p in outside {
-            let label = if sources.contains(p) {
-                OUT_SOURCES
+            let (label, row) = if sources.contains(p) {
+                (OUT_SOURCES, 0)
             } else {
-                OUT_TARGETS
+                let r = *out_row.get_or_insert_with(|| {
+                    rows.push(OUT_TARGETS.into());
+                    rows.len() - 1
+                });
+                (OUT_TARGETS, r)
             };
-            let row = row_of(rows, label);
             out.push(BrickView {
                 tag: label.into(),
                 row,
@@ -323,11 +335,15 @@ fn index_of(bricks: &[BrickView], outside: &Paths, children: usize) -> BTreeMap<
         .collect()
 }
 
-fn row_of(rows: &mut Vec<String>, tag: &str) -> usize {
-    rows.iter().position(|r| r == tag).unwrap_or_else(|| {
-        rows.push(tag.to_string());
-        rows.len() - 1
-    })
+fn row_of_from(rows: &mut Vec<String>, tag: &str, start: usize) -> usize {
+    rows[start..]
+        .iter()
+        .position(|r| r == tag)
+        .map(|i| start + i)
+        .unwrap_or_else(|| {
+            rows.push(tag.to_string());
+            rows.len() - 1
+        })
 }
 
 /// Child index pairs on the path of each `deps/cycle` finding of level `level`, with the ids.
