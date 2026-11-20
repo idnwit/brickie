@@ -10,13 +10,21 @@ mod spot;
 
 pub use pair::end;
 
+use crate::components::canvas::{frame_rect, wall_route};
 use crate::layout::{Pt, Rect, Route};
 use crate::state::*;
 use brickie_web_api::LevelLink;
 use brickie_web_api::design::Op as DOp;
-use pair::{Pair, pairs};
+use pair::{BoundaryPair, Pair, boundary_pairs, pairs};
 use spot::mark_spot;
 use sycamore::prelude::*;
+
+/// Pick key distinguishing local sibling pairs from projected boundary pairs.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PickKey {
+    Local(usize, usize),
+    Boundary(usize, bool, Option<usize>),
+}
 
 /// Horizontal step between the marks of one link (world units).
 const SLOT: f64 = 18.0;
@@ -43,6 +51,33 @@ fn path_of(cx: &Cx, a: usize, b: usize, p: &[Rect]) -> Route {
     let at = |x, y| Pt { x, y };
     Route {
         segs: vec![[at(x1, y1), at(mx, y1), at(mx, y2), at(x2, y2)]],
+    }
+}
+
+/// Color key of a link's line and markers (`warn` in view mode, else `deny` / `agent` / kind).
+fn link_tone(ty: LinkType, editing: bool, denied: bool, agent: bool) -> &'static str {
+    if !editing {
+        "warn"
+    } else if denied {
+        "deny"
+    } else if agent {
+        "agent"
+    } else {
+        ty.name()
+    }
+}
+
+/// The arrowhead marker (`from -> to`) matching the link's kind shape and active tone.
+fn marker_end(ty: LinkType, tone: &str) -> String {
+    format!("url(#m-l-{}-{tone})", ty.name())
+}
+
+/// The start diamond marker for `reexports` links, empty for other kinds.
+fn marker_start(ty: LinkType, tone: &str) -> String {
+    if ty == LinkType::Reexports {
+        format!("url(#t-l-reexports-{tone})")
+    } else {
+        String::new()
     }
 }
 
@@ -109,31 +144,51 @@ fn select_next(ed: Edit, refs: &[RuleRef]) {
     ed.tab.set("inspect");
 }
 
-/// One pair: line, hit area, marks and the hover label.
-fn draw(
+/// One link pair along `route`: line, hit area, marks, kind label, and hover reason.
+#[allow(clippy::too_many_arguments)]
+fn draw_route(
     cx: &Cx,
     pr: &Pair,
+    route: Route,
     p: &[Rect],
     marks: &mut Vec<Pt>,
-    picked: Signal<Option<(usize, usize)>>,
+    picked: Signal<Option<PickKey>>,
+    key: PickKey,
+    tip: String,
+    projected: bool,
 ) -> View {
     let lead = pr.lead();
     let ty = LinkType::of_kinds(&lead.kinds);
     let flags = format!(
-        "{}{}",
+        "{}{}{}",
         if pr.denied() { " denied" } else { "" },
-        if pr.cycle() { " cycle" } else { "" }
+        if pr.cycle() { " cycle" } else { "" },
+        if projected { " projected" } else { "" }
     );
     let agent = pr.rules.iter().any(|e| by_agent(cx, e));
-    let route = path_of(cx, pr.a, pr.b, p);
     let d = route.d();
     let at = mark_spot(&route, p, marks);
     let (shown, label) = marks_of(pr, at, agent);
     let refs: Vec<RuleRef> = pr.rules.iter().map(|e| RuleRef::served(e)).collect();
-    let (ed, editing, key) = (cx.ed, cx.editing(), (pr.a, pr.b));
+    let (ed, editing) = (cx.ed, cx.editing());
+    let tone = link_tone(ty, editing, pr.denied(), agent);
+    let m_end = marker_end(ty, tone);
+    let m_start = marker_start(ty, tone);
+    let cap = if ty == LinkType::Reexports {
+        "round"
+    } else {
+        "butt"
+    };
+    let klabel = editing.then(|| {
+        let kx = at.x.to_string();
+        let ky = (at.y - 10.0).to_string();
+        let ktext = pr.kind_label();
+        view! { text(class="klabel", x=kx, y=ky, "text-anchor"="middle") { (ktext) } }
+    });
     let (sel_refs, dash) = (refs.clone(), kind_dash(lead));
     let cls = move || -> String {
         let sel = editing
+            && !projected
             && ed
                 .rule
                 .with(|x| x.as_ref().is_some_and(|r| sel_refs.contains(r)));
@@ -148,39 +203,145 @@ fn draw(
     let click = move |ev: Click| {
         ev.stop_propagation();
         picked.set((picked.get_untracked() != Some(key)).then_some(key));
-        if editing {
+        if editing && !projected {
             select_next(ed, &refs);
         }
     };
     let dash_style = dash.map_or_else(String::new, |s| format!("stroke-dasharray:{s}"));
     let d2 = d.clone();
     let shown = View::from(shown);
-    let tip = pr.tip();
     view! {
         g(class=cls, on:click=click) {
             svg_title { (tip) }
             path(class="hit", d=d2)
-            path(class="line", d=d, style=dash_style)
+            path(class="line", d=d, style=dash_style, "stroke-linecap"=cap, "marker-end"=m_end, "marker-start"=m_start)
             (shown)
+            (klabel)
             (label)
         }
     }
 }
 
+/// Route of a projected boundary pair: directly to its target child, or to the nearest frame wall.
+fn boundary_route(
+    cx: &Cx,
+    bp: &BoundaryPair,
+    all: &[BoundaryPair],
+    p: &[Rect],
+    frame: Option<&Rect>,
+) -> Option<Route> {
+    if let Some(c) = bp.child {
+        if bp.ghost >= p.len() || c >= p.len() {
+            return None;
+        }
+        let (a, b) = if bp.inbound {
+            (bp.ghost, c)
+        } else {
+            (c, bp.ghost)
+        };
+        return Some(path_of(cx, a, b, p));
+    }
+    let f = frame?;
+    let n = p.get(bp.ghost)?;
+    let same: Vec<usize> = (0..all.len())
+        .filter(|&i| all[i].child.is_none() && all[i].ghost == bp.ghost)
+        .collect();
+    let k = same
+        .iter()
+        .position(|&i| {
+            all[i].inbound == bp.inbound && all[i].ghost == bp.ghost && all[i].child.is_none()
+        })
+        .unwrap_or(0) as f64;
+    let off = (k - (same.len() as f64 - 1.0) / 2.0) * 16.0;
+    Some(wall_route(n, f, bp.inbound, off))
+}
+
 /// The links layer of the canvas (inside the pan/zoom group).
 pub fn layer(cx: &Cx, pos: ReadSignal<Vec<Rect>>) -> View {
     let c = cx.clone();
-    let picked: Signal<Option<(usize, usize)>> = create_signal(None);
+    let picked: Signal<Option<PickKey>> = create_signal(None);
+    let layer_cls = if cx.editing() {
+        "plinks editing"
+    } else {
+        "plinks view"
+    };
     let body = move || {
         let p = pos.get_clone();
         let mut marks = Vec::new();
-        let items: Vec<View> = pairs(&c)
+        let mut items: Vec<View> = pairs(&c)
             .iter()
             .filter(|pr| pr.a < p.len() && pr.b < p.len())
-            .map(|pr| draw(&c, pr, &p, &mut marks, picked))
+            .map(|pr| {
+                let route = path_of(&c, pr.a, pr.b, &p);
+                draw_route(
+                    &c,
+                    pr,
+                    route,
+                    &p,
+                    &mut marks,
+                    picked,
+                    PickKey::Local(pr.a, pr.b),
+                    pr.tip(),
+                    false,
+                )
+            })
             .collect();
+        let frame = frame_rect(&c.m.g, &p);
+        let b_pairs = boundary_pairs(&c);
+        for bp in &b_pairs {
+            if let Some(route) = boundary_route(&c, bp, &b_pairs, &p, frame.as_ref()) {
+                items.push(draw_route(
+                    &c,
+                    &bp.pair,
+                    route,
+                    &p,
+                    &mut marks,
+                    picked,
+                    PickKey::Boundary(bp.ghost, bp.inbound, bp.child),
+                    bp.tip(),
+                    true,
+                ));
+            }
+        }
         let items = View::from(items);
-        view! { g(class="plinks") { (items) } }
+        view! { g(class=layer_cls) { (items) } }
     };
     view! { (body) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn link_tone_and_markers_follow_mode_and_kind() {
+        assert_eq!(link_tone(LinkType::Uses, false, false, false), "warn");
+        assert_eq!(link_tone(LinkType::Implements, false, true, true), "warn");
+        assert_eq!(link_tone(LinkType::Uses, true, false, false), "uses");
+        assert_eq!(
+            link_tone(LinkType::Implements, true, false, false),
+            "implements"
+        );
+        assert_eq!(link_tone(LinkType::Reexports, true, false, true), "agent");
+        assert_eq!(link_tone(LinkType::Reexports, true, true, true), "deny");
+
+        assert_eq!(marker_end(LinkType::Uses, "uses"), "url(#m-l-uses-uses)");
+        assert_eq!(marker_start(LinkType::Uses, "uses"), "");
+        assert_eq!(
+            marker_end(LinkType::Implements, "implements"),
+            "url(#m-l-implements-implements)"
+        );
+        assert_eq!(
+            marker_end(LinkType::Reexports, "reexports"),
+            "url(#m-l-reexports-reexports)"
+        );
+        assert_eq!(
+            marker_start(LinkType::Reexports, "reexports"),
+            "url(#t-l-reexports-reexports)"
+        );
+        assert_eq!(
+            marker_start(LinkType::Reexports, "warn"),
+            "url(#t-l-reexports-warn)"
+        );
+    }
 }

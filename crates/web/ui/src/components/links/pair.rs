@@ -42,6 +42,35 @@ impl Pair<'_> {
         self.rules.iter().any(|e| e.cycle)
     }
 
+    /// Short kind summary for the draft canvas (`uses`, `impl`, `reexp`, joined with `/`, or `any`
+    /// when unrestricted).
+    pub fn kind_label(&self) -> String {
+        if self.rules.iter().all(|e| e.kinds.is_empty()) {
+            return "any".to_string();
+        }
+        let mut out: Vec<&str> = Vec::new();
+        for e in &self.rules {
+            if e.kinds.is_empty() {
+                if !out.contains(&"any") {
+                    out.push("any");
+                }
+            } else {
+                for k in &e.kinds {
+                    let a = match k.as_str() {
+                        "uses" => "uses",
+                        "implements" => "impl",
+                        "reexports" => "reexp",
+                        other => other,
+                    };
+                    if !out.contains(&a) {
+                        out.push(a);
+                    }
+                }
+            }
+        }
+        out.join("/")
+    }
+
     /// The first link's reason, cut, with the count of the other links.
     pub fn label(&self) -> Option<String> {
         let reason = self.lead().reason.as_str();
@@ -84,6 +113,56 @@ pub fn cut(s: &str, max: usize) -> String {
     }
     let head: String = s.chars().take(max.saturating_sub(1)).collect();
     format!("{}\u{2026}", head.trim_end())
+}
+
+/// Enclosing-level links crossing the current level's boundary, grouped per `(ghost, inbound, child)`.
+pub struct BoundaryPair<'a> {
+    pub ghost: usize,
+    pub inbound: bool,
+    pub child: Option<usize>,
+    pub pair: Pair<'a>,
+}
+
+impl BoundaryPair<'_> {
+    /// Tooltip prefixed with the enclosing level that owns the link.
+    pub fn tip(&self) -> String {
+        format!(
+            "from {} (boundary)\n{}",
+            self.pair.lead().level,
+            self.pair.tip()
+        )
+    }
+}
+
+/// The drawn enclosing-level links of the current level grouped per `(ghost, inbound, child)`.
+pub fn boundary_pairs(cx: &Cx) -> Vec<BoundaryPair<'_>> {
+    let mut out: Vec<BoundaryPair> = Vec::new();
+    let editing = cx.editing();
+    for bl in cx
+        .level()
+        .boundary_links
+        .iter()
+        .filter(|b| drawn(&b.link, editing))
+    {
+        let key = (bl.ghost, bl.inbound, bl.child);
+        match out
+            .iter_mut()
+            .find(|p| (p.ghost, p.inbound, p.child) == key)
+        {
+            Some(p) => p.pair.rules.push(&bl.link),
+            None => out.push(BoundaryPair {
+                ghost: bl.ghost,
+                inbound: bl.inbound,
+                child: bl.child,
+                pair: Pair {
+                    a: bl.ghost,
+                    b: bl.child.unwrap_or(bl.ghost),
+                    rules: vec![&bl.link],
+                },
+            }),
+        }
+    }
+    out
 }
 
 /// The drawn links of the current level grouped per pair, in file order.
@@ -156,5 +235,26 @@ mod tests {
             rules: vec![&p, &q],
         };
         assert_eq!(pair.label().as_deref(), Some("why (+1)"));
+    }
+
+    #[test]
+    fn kind_label_summarises_kinds_and_defaults_to_any() {
+        let mut a = edge("r1", None);
+        let pair = Pair {
+            a: 0,
+            b: 1,
+            rules: vec![&a],
+        };
+        assert_eq!(pair.kind_label(), "any");
+
+        a.kinds = vec!["implements".into()];
+        let mut b = edge("r2", None);
+        b.kinds = vec!["reexports".into(), "implements".into()];
+        let pair = Pair {
+            a: 0,
+            b: 1,
+            rules: vec![&a, &b],
+        };
+        assert_eq!(pair.kind_label(), "impl/reexp");
     }
 }

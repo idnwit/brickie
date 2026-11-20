@@ -14,6 +14,7 @@ mod stage;
 mod style;
 mod zoom_icon;
 
+pub use boundary::wall_route;
 use brick::node_view;
 use defs::defs;
 pub(in crate::components) use edge::dash;

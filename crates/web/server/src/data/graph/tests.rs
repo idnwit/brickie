@@ -66,3 +66,114 @@ fn complexity_limits_use_the_most_specific_rule() {
     let limits = rules::complexity_limits(&cfg, &["core".to_string()], &func);
     assert_eq!(limits, vec![("cognitive", 27, 30)]);
 }
+
+#[test]
+fn parent_links_project_onto_child_level_ghosts_without_cache() {
+    use brickie_check::check::Loaded;
+    use brickie_check::config::{Link, Rule, Scope, Sel};
+    use brickie_facts::Cache;
+
+    let leaf = |name: &str| Brick {
+        name: name.into(),
+        tags: vec![],
+        members: vec![],
+        path: None,
+        desc: None,
+        base: Default::default(),
+        independent: false,
+        sub: None,
+    };
+    let web_cfg = Config {
+        path: vec!["web".into()],
+        exports: vec!["api".into()],
+        bricks: vec![leaf("api")],
+        ..Default::default()
+    };
+    let web = Brick {
+        sub: Some(Box::new(web_cfg)),
+        ..leaf("web")
+    };
+    let root = Config {
+        bricks: vec![leaf("client"), web, leaf("proto")],
+        rules: vec![Rule {
+            from: Sel::Any,
+            to: Sel::Any,
+            kinds: vec![],
+            scope: Scope::All,
+            reason: "allow".into(),
+            loc: String::new(),
+        }],
+        links: vec![
+            Link {
+                from: "web".into(),
+                to: "proto".into(),
+                kinds: vec!["uses".into()],
+                scope: Scope::All,
+                reason: "web speaks proto".into(),
+                loc: String::new(),
+            },
+            Link {
+                from: "client".into(),
+                to: "web/api".into(),
+                kinds: vec!["uses".into()],
+                scope: Scope::All,
+                reason: "client calls web api".into(),
+                loc: String::new(),
+            },
+        ],
+        ..Default::default()
+    };
+    let loaded = Loaded {
+        cfg: root,
+        cache: Cache::default(),
+        diagnostics: vec![],
+        resolved: Default::default(),
+        owners: Default::default(),
+        issues: vec![],
+        todo: Default::default(),
+    };
+    let lvs = super::levels(&loaded);
+    let web_lv = lvs.iter().find(|l| l.path == "root/web").unwrap();
+
+    // Ghosts exist even with empty measured cache.
+    let g_client = web_lv
+        .graph
+        .bricks
+        .iter()
+        .position(|b| b.ghost && b.name == "root/client")
+        .expect("inbound ghost for client");
+    let g_proto = web_lv
+        .graph
+        .bricks
+        .iter()
+        .position(|b| b.ghost && b.name == "root/proto")
+        .expect("outbound ghost for proto");
+    let c_api = web_lv
+        .graph
+        .bricks
+        .iter()
+        .position(|b| !b.ghost && b.name == "api")
+        .expect("child api");
+
+    assert_eq!(web_lv.graph.bricks[g_client].tag, "inbound");
+    assert_eq!(web_lv.graph.bricks[g_proto].tag, "outbound");
+    assert_eq!(web_lv.boundary_links.len(), 2);
+
+    let out = web_lv
+        .boundary_links
+        .iter()
+        .find(|b| b.ghost == g_proto)
+        .unwrap();
+    assert!(!out.inbound);
+    assert_eq!(out.child, None);
+    assert_eq!(out.link.from, "web");
+
+    let inc = web_lv
+        .boundary_links
+        .iter()
+        .find(|b| b.ghost == g_client)
+        .unwrap();
+    assert!(inc.inbound);
+    assert_eq!(inc.child, Some(c_api));
+    assert_eq!(inc.link.to, "web/api");
+}

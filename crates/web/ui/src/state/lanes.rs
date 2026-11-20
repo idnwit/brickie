@@ -31,6 +31,22 @@ pub(super) fn unused_pairs(level: &LevelView, editing: bool) -> Vec<(usize, usiz
             out.push((a, b));
         }
     }
+    for bl in level
+        .boundary_links
+        .iter()
+        .filter(|b| drawn(&b.link, editing))
+    {
+        if let Some(c) = bl.child {
+            let pair = if bl.inbound {
+                (bl.ghost, c)
+            } else {
+                (c, bl.ghost)
+            };
+            if pair.0 != pair.1 && seen.insert(pair) {
+                out.push(pair);
+            }
+        }
+    }
     out
 }
 
