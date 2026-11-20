@@ -9,7 +9,124 @@ pub struct Route {
     pub segs: Vec<[Pt; 4]>,
 }
 
+/// Cubic Bezier kappa for a 90-degree circular corner arc.
+const KAPPA: f64 = 0.5522847498;
+
+/// Default corner radius for rounded-orthogonal routes.
+pub const CORNER_R: f64 = 12.0;
+
+fn line_seg(a: Pt, b: Pt) -> [Pt; 4] {
+    let dx = b.x - a.x;
+    let dy = b.y - a.y;
+    [
+        a,
+        Pt {
+            x: a.x + dx / 3.0,
+            y: a.y + dy / 3.0,
+        },
+        Pt {
+            x: a.x + dx * 2.0 / 3.0,
+            y: a.y + dy * 2.0 / 3.0,
+        },
+        b,
+    ]
+}
+
+fn is_straight(c: &[Pt; 4]) -> bool {
+    let (dx, dy) = (c[3].x - c[0].x, c[3].y - c[0].y);
+    let len = dx.hypot(dy);
+    if len < 1e-6 {
+        return true;
+    }
+    let cross1 = ((c[1].x - c[0].x) * dy - (c[1].y - c[0].y) * dx).abs() / len;
+    let cross2 = ((c[2].x - c[0].x) * dy - (c[2].y - c[0].y) * dx).abs() / len;
+    cross1 < 0.05 && cross2 < 0.05
+}
+
 impl Route {
+    /// Build a softly rounded orthogonal route from a sequence of waypoints.
+    pub fn orthogonal(raw: &[Pt], radius: f64) -> Route {
+        // Deduplicate near-identical consecutive points.
+        let mut pts: Vec<Pt> = Vec::with_capacity(raw.len());
+        for &p in raw {
+            if pts
+                .last()
+                .is_none_or(|q| (p.x - q.x).hypot(p.y - q.y) >= 0.5)
+            {
+                pts.push(p);
+            }
+        }
+        // Collapse collinear intermediate waypoints.
+        let mut clean: Vec<Pt> = Vec::with_capacity(pts.len());
+        for p in pts {
+            while clean.len() >= 2 {
+                let a = clean[clean.len() - 2];
+                let b = clean[clean.len() - 1];
+                let (d1x, d1y) = (b.x - a.x, b.y - a.y);
+                let (d2x, d2y) = (p.x - b.x, p.y - b.y);
+                let cross = (d1x * d2y - d1y * d2x).abs();
+                let dot = d1x * d2x + d1y * d2y;
+                if cross < 0.5 && dot >= 0.0 {
+                    clean.pop();
+                } else {
+                    break;
+                }
+            }
+            clean.push(p);
+        }
+        if clean.len() < 2 {
+            return Route::default();
+        }
+        if clean.len() == 2 {
+            return Route {
+                segs: vec![line_seg(clean[0], clean[1])],
+            };
+        }
+        let mut segs: Vec<[Pt; 4]> = Vec::new();
+        let mut cur = clean[0];
+        for i in 1..clean.len() - 1 {
+            let prev = clean[i - 1];
+            let p = clean[i];
+            let next = clean[i + 1];
+            let d_in = (p.x - prev.x).hypot(p.y - prev.y);
+            let d_out = (next.x - p.x).hypot(next.y - p.y);
+            let r = radius.min(d_in * 0.45).min(d_out * 0.45);
+            if r < 0.5 {
+                segs.push(line_seg(cur, p));
+                cur = p;
+                continue;
+            }
+            let (ux, uy) = ((p.x - prev.x) / d_in, (p.y - prev.y) / d_in);
+            let (vx, vy) = ((next.x - p.x) / d_out, (next.y - p.y) / d_out);
+            let c0 = Pt {
+                x: p.x - ux * r,
+                y: p.y - uy * r,
+            };
+            let c3 = Pt {
+                x: p.x + vx * r,
+                y: p.y + vy * r,
+            };
+            if (c0.x - cur.x).hypot(c0.y - cur.y) >= 0.5 {
+                segs.push(line_seg(cur, c0));
+            }
+            let c1 = Pt {
+                x: c0.x + ux * (r * KAPPA),
+                y: c0.y + uy * (r * KAPPA),
+            };
+            let c2 = Pt {
+                x: c3.x - vx * (r * KAPPA),
+                y: c3.y - vy * (r * KAPPA),
+            };
+            segs.push([c0, c1, c2, c3]);
+            cur = c3;
+        }
+        let last = clean[clean.len() - 1];
+        if (last.x - cur.x).hypot(last.y - cur.y) >= 0.5 {
+            segs.push(line_seg(cur, last));
+        }
+        Route { segs }
+    }
+
     /// SVG path data (`d` attribute), one decimal.
     pub fn d(&self) -> String {
         let mut s = String::new();
@@ -17,10 +134,14 @@ impl Route {
             if i == 0 {
                 s += &format!("M{:.1},{:.1}", c[0].x, c[0].y);
             }
-            s += &format!(
-                " C{:.1},{:.1} {:.1},{:.1} {:.1},{:.1}",
-                c[1].x, c[1].y, c[2].x, c[2].y, c[3].x, c[3].y
-            );
+            if is_straight(c) {
+                s += &format!(" L{:.1},{:.1}", c[3].x, c[3].y);
+            } else {
+                s += &format!(
+                    " C{:.1},{:.1} {:.1},{:.1} {:.1},{:.1}",
+                    c[1].x, c[1].y, c[2].x, c[2].y, c[3].x, c[3].y
+                );
+            }
         }
         s
     }
@@ -62,23 +183,47 @@ pub fn bz_port(n: &Rect, sd: Side, off: f64) -> Pt {
     }
 }
 
-/// `bzCtl`: control points of a cubic with tangents normal to the two sides.
-pub fn bz_ctl(p: Pt, sp: Side, q: Pt, sq: Side) -> [Pt; 4] {
-    let d = (q.x - p.x).hypot(q.y - p.y);
-    let c = (d * 0.42).clamp(22.0, 150.0);
-    let (np, nq) = (sp.normal(), sq.normal());
-    [
-        p,
-        Pt {
-            x: p.x + np.0 * c,
-            y: p.y + np.1 * c,
-        },
-        Pt {
-            x: q.x + nq.0 * c,
-            y: q.y + nq.1 * c,
-        },
-        q,
-    ]
+/// Orthogonal rounded-corner route between two box ports (`lane_frac` in `0.2..0.8` places the
+/// middle bend track inside the gap).
+pub fn ortho_direct(p: Pt, sp: Side, q: Pt, sq: Side, lane_frac: f64) -> Route {
+    let frac = lane_frac.clamp(0.22, 0.78);
+    let pts: Vec<Pt> = match (sp, sq) {
+        (Side::B, Side::T) | (Side::T, Side::B) => {
+            if (p.x - q.x).abs() < 1.0 {
+                vec![p, q]
+            } else {
+                let my = p.y + (q.y - p.y) * frac;
+                vec![p, Pt { x: p.x, y: my }, Pt { x: q.x, y: my }, q]
+            }
+        }
+        (Side::B, Side::B) => {
+            let my = p.y.max(q.y) + 22.0;
+            vec![p, Pt { x: p.x, y: my }, Pt { x: q.x, y: my }, q]
+        }
+        (Side::T, Side::T) => {
+            let my = p.y.min(q.y) - 22.0;
+            vec![p, Pt { x: p.x, y: my }, Pt { x: q.x, y: my }, q]
+        }
+        (Side::R, Side::L) | (Side::L, Side::R) => {
+            if (p.y - q.y).abs() < 1.0 {
+                vec![p, q]
+            } else {
+                let mx = p.x + (q.x - p.x) * frac;
+                vec![p, Pt { x: mx, y: p.y }, Pt { x: mx, y: q.y }, q]
+            }
+        }
+        (Side::R, Side::R) => {
+            let mx = p.x.max(q.x) + 22.0;
+            vec![p, Pt { x: mx, y: p.y }, Pt { x: mx, y: q.y }, q]
+        }
+        (Side::L, Side::L) => {
+            let mx = p.x.min(q.x) - 22.0;
+            vec![p, Pt { x: mx, y: p.y }, Pt { x: mx, y: q.y }, q]
+        }
+        (Side::T | Side::B, Side::L | Side::R) => vec![p, Pt { x: p.x, y: q.y }, q],
+        (Side::L | Side::R, Side::T | Side::B) => vec![p, Pt { x: q.x, y: p.y }, q],
+    };
+    Route::orthogonal(&pts, CORNER_R)
 }
 
 /// `bzSample`.

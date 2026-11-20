@@ -78,10 +78,10 @@ use std::collections::HashMap;
 
 /// `LAY` of the original.
 pub const H: f64 = 54.0;
-const GAPY: f64 = 72.0;
+const GAPY: f64 = 84.0;
 /// Row gap that no edge crosses (labels under the boxes only).
-pub const GAPY_FREE: f64 = 36.0;
-const GAP: f64 = 10.0;
+pub const GAPY_FREE: f64 = 42.0;
+const GAP: f64 = 18.0;
 const DUM: f64 = 28.0;
 const PADL: f64 = 40.0;
 const PADR: f64 = 20.0;
@@ -140,15 +140,6 @@ pub enum Side {
 
 impl Side {
     pub const ALL: [Side; 4] = [Side::T, Side::B, Side::L, Side::R];
-    /// `BZ.N`: outward normal.
-    fn normal(self) -> (f64, f64) {
-        match self {
-            Side::T => (0.0, -1.0),
-            Side::B => (0.0, 1.0),
-            Side::L => (-1.0, 0.0),
-            Side::R => (1.0, 0.0),
-        }
-    }
     fn horizontal(self) -> bool {
         matches!(self, Side::L | Side::R)
     }

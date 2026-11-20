@@ -93,12 +93,19 @@ pub fn lane_order(g: &GraphView, ends: &[(usize, usize)]) -> Vec<usize> {
         return all;
     };
     let rest: Vec<usize> = all.into_iter().filter(|&r| r != u).collect();
-    let lo = rest.iter().take_while(|&&r| g.rows[r] == INBOUND).count();
+    let is_ghost_row = |r: usize| {
+        g.bricks.iter().any(|b| b.row == r && b.ghost)
+            && !g.bricks.iter().any(|b| b.row == r && !b.ghost)
+    };
+    let lo = rest
+        .iter()
+        .take_while(|&&r| is_ghost_row(r) && g.rows[r] == INBOUND)
+        .count();
     let hi = rest.len()
         - rest
             .iter()
             .rev()
-            .take_while(|&&r| g.rows[r] == OUTBOUND)
+            .take_while(|&&r| is_ghost_row(r) && g.rows[r] == OUTBOUND)
             .count();
     let row = |b: usize| g.bricks.get(b).map(|b| b.row);
     let span = |order: &[usize]| -> usize {

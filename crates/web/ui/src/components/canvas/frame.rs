@@ -33,7 +33,7 @@ pub fn frame_view(cx: &Cx, pos: ReadSignal<Vec<Rect>>) -> View {
     // The config file by its last two components; the tooltip has the full path.
     let parts: Vec<&str> = lv.file.rsplit('/').take(2).collect();
     let file: String = parts.into_iter().rev().collect::<Vec<_>>().join("/");
-    let label = if lv.path == "root" {
+    let full_label = if lv.path == "root" {
         format!("workspace \u{00B7} {file}")
     } else {
         format!(
@@ -42,7 +42,7 @@ pub fn frame_view(cx: &Cx, pos: ReadSignal<Vec<Rect>>) -> View {
             lv.exports.join(", ")
         )
     };
-    let tip = lv.file.clone();
+    let tip = format!("{full_label} ({})", lv.file);
     // Counter the zoom so the caption stays about 12 px on screen.
     let view = cx.view;
     let size = move || format!("font-size:{:.1}px", (12.0 / view.get().k).clamp(10.0, 26.0));
@@ -50,6 +50,18 @@ pub fn frame_view(cx: &Cx, pos: ReadSignal<Vec<Rect>>) -> View {
     let fr: ReadSignal<Rect> =
         create_memo(move || pos.with(|p| frame_rect(&c.m.g, p)).unwrap_or_default());
     let rect = move || fr.get();
+    let label = move || {
+        let max_chars = (((rect().w - 16.0) / 7.2).floor() as usize).max(16);
+        if full_label.chars().count() <= max_chars {
+            full_label.clone()
+        } else {
+            let head: String = full_label
+                .chars()
+                .take(max_chars.saturating_sub(1))
+                .collect();
+            format!("{}\u{2026}", head.trim_end())
+        }
+    };
     let (x, y, w, h) = (
         move || rect().x.to_string(),
         move || rect().y.to_string(),
