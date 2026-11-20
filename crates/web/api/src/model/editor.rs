@@ -88,6 +88,21 @@ pub struct LevelLink {
     pub planned: bool,
 }
 
+/// An enclosing-level `[[link]]` projected onto a composite's boundary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BoundaryLink {
+    /// Ghost brick index in `LevelView.graph.bricks` (the outside neighbour).
+    pub ghost: usize,
+    /// `true`: outside -> this level (`inbound`); `false`: this level -> outside (`outbound`).
+    pub inbound: bool,
+    /// Target child brick index in `LevelView.graph.bricks` when the link targets
+    /// `composite/child` directly; `None` when it connects to the composite's frame.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub child: Option<usize>,
+    /// The enclosing-level link (carries kind, tone, reason, tooltip, and status flags).
+    pub link: LevelLink,
+}
+
 /// The names a level offers to rule selectors.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LevelInfo {

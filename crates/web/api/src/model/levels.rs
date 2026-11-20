@@ -19,6 +19,9 @@ pub struct LevelView {
     /// The `[[link]]`s declared at this level (view mode marks the planned ones).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub links: Vec<crate::LevelLink>,
+    /// Enclosing-level `[[link]]`s crossing this composite's boundary (projected from ancestors).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub boundary_links: Vec<crate::BoundaryLink>,
 }
 
 impl LevelView {

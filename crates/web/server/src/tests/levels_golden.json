@@ -144,6 +144,34 @@
     "path": "root"
   },
   {
+    "boundary_links": [
+      {
+        "ghost": 3,
+        "inbound": false,
+        "link": {
+          "file": "brickie.toml",
+          "filter": "edge in any scope",
+          "from": "web",
+          "level": "root",
+          "reason": "web serves the core",
+          "scope": "all",
+          "to": "core"
+        }
+      },
+      {
+        "ghost": 2,
+        "inbound": true,
+        "link": {
+          "file": "brickie.toml",
+          "filter": "edge in any scope",
+          "from": "client",
+          "level": "root",
+          "reason": "the client calls web",
+          "scope": "all",
+          "to": "web"
+        }
+      }
+    ],
     "exports": [
       "api"
     ],

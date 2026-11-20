@@ -30,13 +30,21 @@ struct Acc {
 }
 
 /// Leaf paths of outside neighbours.
-type Paths<'a> = BTreeSet<&'a Vec<String>>;
+type Paths = BTreeSet<Vec<String>>;
 
 fn outside_path(x: &End) -> Option<&Vec<String>> {
     match x {
         End::Outside(p) => Some(p),
         End::Child(_) => None,
     }
+}
+
+/// One projected enclosing-level link before ghost/child indices are resolved.
+struct Projected {
+    outside: Vec<String>,
+    inbound: bool,
+    child: Option<String>,
+    link: LevelLink,
 }
 
 /// The module edges of one level folded by (from, to, kind).
@@ -73,13 +81,15 @@ impl Agg {
     }
 
     /// The outside neighbours: those that are an edge source, and all of them.
-    fn outside(&self) -> (Paths<'_>, Paths<'_>) {
+    fn outside(&self) -> (Paths, Paths) {
         let keys = || self.edges.keys();
         (
-            keys().filter_map(|(a, _, _)| outside_path(a)).collect(),
+            keys()
+                .filter_map(|(a, _, _)| outside_path(a).cloned())
+                .collect(),
             keys()
                 .flat_map(|(a, b, _)| [a, b])
-                .filter_map(outside_path)
+                .filter_map(|x| outside_path(x).cloned())
                 .collect(),
         )
     }
@@ -97,10 +107,67 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    /// Enclosing-level `[[link]]`s that cross `cfg`'s boundary (from any ancestor level).
+    fn projected_links(&self, cfg: &Config) -> Vec<Projected> {
+        let mut out = Vec::new();
+        for k in 0..cfg.path.len() {
+            let anc = &cfg.path[..k];
+            let anc_name = level_name(anc);
+            let me = &cfg.path[k];
+            let immediate = k + 1 == cfg.path.len();
+            for (lv, link) in &self.links {
+                if *lv != anc_name {
+                    continue;
+                }
+                let (to_brick, to_child) = link
+                    .to
+                    .split_once('/')
+                    .map_or((link.to.as_str(), None), |(b, c)| (b, Some(c)));
+                if link.from == *me {
+                    let mut outside = anc.to_vec();
+                    outside.push(to_brick.to_string());
+                    out.push(Projected {
+                        outside,
+                        inbound: false,
+                        child: None,
+                        link: link.clone(),
+                    });
+                } else if to_brick == *me {
+                    if !immediate && to_child.is_some_and(|c| c != cfg.path[k + 1]) {
+                        continue;
+                    }
+                    let child = if immediate {
+                        to_child
+                            .filter(|c| cfg.brick(c).is_some())
+                            .map(str::to_string)
+                    } else {
+                        None
+                    };
+                    let mut outside = anc.to_vec();
+                    outside.push(link.from.clone());
+                    out.push(Projected {
+                        outside,
+                        inbound: true,
+                        child,
+                        link: link.clone(),
+                    });
+                }
+            }
+        }
+        out
+    }
+
     pub fn level(&self, cfg: &Config) -> LevelView {
         let name = cfg.level();
         let agg = Agg::new(&self.edges, &cfg.path);
-        let (sources, outside) = agg.outside();
+        let (mut sources, mut outside) = agg.outside();
+        let projected = self.projected_links(cfg);
+        for pr in &projected {
+            if pr.inbound {
+                sources.insert(pr.outside.clone());
+            }
+            outside.insert(pr.outside.clone());
+        }
         let mut rows: Vec<String> = Vec::new();
         if !sources.is_empty() {
             rows.push(OUT_SOURCES.into());
@@ -116,6 +183,19 @@ impl<'a> Ctx<'a> {
             .filter(|(lv, _)| *lv == name)
             .map(|(_, e)| e.clone())
             .collect();
+        let boundary_links = projected
+            .into_iter()
+            .filter_map(|pr| {
+                let ghost = *index.get(&End::Outside(pr.outside))?;
+                let child = pr.child.and_then(|c| index.get(&End::Child(c)).copied());
+                Some(BoundaryLink {
+                    ghost,
+                    inbound: pr.inbound,
+                    child,
+                    link: pr.link,
+                })
+            })
+            .collect();
         LevelView {
             path: name,
             file: cfg.file.clone(),
@@ -126,6 +206,7 @@ impl<'a> Ctx<'a> {
                 edges,
             },
             links,
+            boundary_links,
         }
     }
 
@@ -231,7 +312,7 @@ impl<'a> Ctx<'a> {
 fn index_of(bricks: &[BrickView], outside: &Paths, children: usize) -> BTreeMap<End, usize> {
     let key = |i: usize, b: &BrickView| {
         if b.ghost {
-            let p = outside.iter().nth(i - children).cloned().cloned();
+            let p = outside.iter().nth(i - children).cloned();
             End::Outside(p.unwrap_or_default())
         } else {
             End::Child(b.name.clone())
