@@ -11,8 +11,8 @@ mod version;
 pub use gate::{Blocker, Gate};
 pub use op::{BrickKind, BrickSpec, ComplexitySpec, Op, RuleKey, RulePatch, RuleSpec};
 pub use report::{
-    BrickView, DesignView, LevelView, LimitView, LinkView, PlanAction, PlanFile, RuleView, Task,
-    TaskKind,
+    BrickView, DesignView, LayoutScore, LevelView, LimitView, LinkView, PlanAction, PlanFile,
+    RuleView, Task, TaskKind,
 };
 pub use sheet::{FileSheet, LinkCheck, LinkOption};
 pub use version::{By, Track, Version};

@@ -23,10 +23,28 @@ impl Router<'_> {
             let n = c.pts.len();
             let k = n.saturating_sub(1).min(REFK);
             let (first, last) = (c.pts[0], c.pts[n - 1]);
+            // For orthogonal top/bottom ports, the initial stub is vertical so `pts[k].x` often
+            // equals the port x; look ahead to the first point that turns horizontally.
+            let ref_pt = |sd: Side, forward: bool| -> Pt {
+                if sd.horizontal() {
+                    return if forward { c.pts[k] } else { c.pts[n - 1 - k] };
+                }
+                let start_x = if forward { first.x } else { last.x };
+                let found = if forward {
+                    c.pts.iter().find(|p| (p.x - start_x).abs() >= 1.0).copied()
+                } else {
+                    c.pts
+                        .iter()
+                        .rev()
+                        .find(|p| (p.x - start_x).abs() >= 1.0)
+                        .copied()
+                };
+                found.unwrap_or(if forward { last } else { first })
+            };
             let (ea, eb) = self.edges[e];
             let ends = [
-                (End::A, ea, c.sa, c.pts[k], last),
-                (End::B, eb, c.sb, c.pts[n - 1 - k], first),
+                (End::A, ea, c.sa, ref_pt(c.sa, true), last),
+                (End::B, eb, c.sb, ref_pt(c.sb, false), first),
             ];
             for (end, brick, sd, q, far) in ends {
                 let key = (e, end);

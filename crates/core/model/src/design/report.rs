@@ -35,6 +35,39 @@ pub struct DesignView {
     pub todo: Vec<Task>,
 }
 
+/// Tidiness score of a level's automatic top-down layout (computed from its bricks and links).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LayoutScore {
+    /// Overall tidiness score in `0..=100` (100 = clean, no crossings, box hits or excess bends).
+    pub score: u8,
+    pub edges: usize,
+    pub crossings: usize,
+    pub box_hits: usize,
+    pub bends: usize,
+}
+
+impl LayoutScore {
+    /// Score from layout metrics: each box hit costs 20, each crossing 8, each bend past 2 per
+    /// edge costs 1.
+    pub fn from_metrics(edges: usize, crossings: usize, box_hits: usize, bends: usize) -> Self {
+        let penalty = if edges == 0 {
+            0
+        } else {
+            box_hits
+                .saturating_mul(20)
+                .saturating_add(crossings.saturating_mul(8))
+                .saturating_add(bends.saturating_sub(edges.saturating_mul(2)))
+        };
+        Self {
+            score: 100usize.saturating_sub(penalty) as u8,
+            edges,
+            crossings,
+            box_hits,
+            bends,
+        }
+    }
+}
+
 /// One level of the tree: a config file and what it includes.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LevelView {
@@ -51,6 +84,9 @@ pub struct LevelView {
     pub links: Vec<LinkView>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub limits: Vec<LimitView>,
+    /// Automatic top-down layout tidiness score of this level's bricks and links.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout: Option<LayoutScore>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

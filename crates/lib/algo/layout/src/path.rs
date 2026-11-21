@@ -4,11 +4,12 @@
 use super::geometry::{CORNER_R, Route, bz_port, ortho_direct};
 use super::*;
 
-/// `routePath` for one edge: its route kind, ports and the box positions `p`.
+/// `routePath` for one edge: its route kind, ports, channel tracks and the box positions `p`.
 pub fn route_with(
     kind: &Kind,
     po: &HashMap<(usize, End), Port>,
     dpos: &[Option<(f64, f64, f64)>],
+    tracks: &HashMap<(usize, usize), f64>,
     e: usize,
     ends: (usize, usize),
     p: &[Rect],
@@ -22,14 +23,14 @@ pub fn route_with(
         bz_port(n, pt.side, pt.off)
     };
     let side = |end: End| po.get(&(e, end)).map_or(Side::T, |x| x.side);
-    let lane_frac = 0.30 + ((e % 5) as f64) * 0.10;
+    let track = |hop: usize| tracks.get(&(e, hop)).copied().unwrap_or(0.5);
     match kind {
         Kind::Bez => Some(ortho_direct(
             port(a, End::A),
             side(End::A),
             port(b, End::B),
             side(End::B),
-            lane_frac,
+            track(0),
         )),
         Kind::Arc { top, level } => {
             let (pa, pb) = (port(a, End::A), port(b, End::B));
@@ -83,7 +84,7 @@ pub fn route_with(
                 if let Some(&prev) = pts.last()
                     && (prev.x - enter.x).abs() >= 1.0
                 {
-                    let my = prev.y + (enter.y - prev.y) * lane_frac;
+                    let my = prev.y + (enter.y - prev.y) * track(i);
                     pts.push(Pt { x: prev.x, y: my });
                     pts.push(Pt { x: enter.x, y: my });
                 }
@@ -97,7 +98,109 @@ pub fn route_with(
     }
 }
 
+fn rect_moved(a: &Rect, b: &Rect) -> bool {
+    (a.x - b.x).abs() > 0.5 || (a.y - b.y).abs() > 0.5
+}
+
+/// Dynamic orthogonal route for a dragged endpoint: picks the cleanest side pair and aligns
+/// ports along any shared x/y overlap so moving a brick adapts both shape and port positions.
+fn dynamic_route(p: &[Rect], ends: (usize, usize)) -> Option<Route> {
+    let (a, b) = (p.get(ends.0)?, p.get(ends.1)?);
+    let (sa, sb, pa, pb) = if a.y + a.h + 14.0 <= b.y {
+        let lo = (a.x + PAD).max(b.x + PAD);
+        let hi = (a.x + a.w - PAD).min(b.x + b.w - PAD);
+        let (xa, xb) = if lo <= hi {
+            let x = (lo + hi) / 2.0;
+            (x, x)
+        } else {
+            (a.x + a.w / 2.0, b.x + b.w / 2.0)
+        };
+        (
+            Side::B,
+            Side::T,
+            Pt {
+                x: xa,
+                y: a.y + a.h,
+            },
+            Pt { x: xb, y: b.y },
+        )
+    } else if b.y + b.h + 14.0 <= a.y {
+        let lo = (a.x + PAD).max(b.x + PAD);
+        let hi = (a.x + a.w - PAD).min(b.x + b.w - PAD);
+        let (xa, xb) = if lo <= hi {
+            let x = (lo + hi) / 2.0;
+            (x, x)
+        } else {
+            (a.x + a.w / 2.0, b.x + b.w / 2.0)
+        };
+        (
+            Side::T,
+            Side::B,
+            Pt { x: xa, y: a.y },
+            Pt {
+                x: xb,
+                y: b.y + b.h,
+            },
+        )
+    } else if a.x + a.w + 14.0 <= b.x {
+        let lo = (a.y + PAD).max(b.y + PAD);
+        let hi = (a.y + a.h - PAD).min(b.y + b.h - PAD);
+        let (ya, yb) = if lo <= hi {
+            let y = (lo + hi) / 2.0;
+            (y, y)
+        } else {
+            (a.y + a.h / 2.0, b.y + b.h / 2.0)
+        };
+        (
+            Side::R,
+            Side::L,
+            Pt {
+                x: a.x + a.w,
+                y: ya,
+            },
+            Pt { x: b.x, y: yb },
+        )
+    } else if b.x + b.w + 14.0 <= a.x {
+        let lo = (a.y + PAD).max(b.y + PAD);
+        let hi = (a.y + a.h - PAD).min(b.y + b.h - PAD);
+        let (ya, yb) = if lo <= hi {
+            let y = (lo + hi) / 2.0;
+            (y, y)
+        } else {
+            (a.y + a.h / 2.0, b.y + b.h / 2.0)
+        };
+        (
+            Side::L,
+            Side::R,
+            Pt { x: a.x, y: ya },
+            Pt {
+                x: b.x + b.w,
+                y: yb,
+            },
+        )
+    } else {
+        (
+            Side::B,
+            Side::B,
+            bz_port(a, Side::B, 0.0),
+            bz_port(b, Side::B, 0.0),
+        )
+    };
+    Some(ortho_direct(pa, sa, pb, sb, 0.5))
+}
+
 /// `routePath(e, L, P)`.
 pub fn route_path(l: &Layout, e: usize, p: &[Rect]) -> Option<Route> {
-    route_with(l.kinds[e].as_ref()?, &l.po, &l.dpos, e, l.edges[e], p)
+    let ends = l.edges[e];
+    let moved = p
+        .get(ends.0)
+        .zip(l.pos.get(ends.0))
+        .is_some_and(|(cur, orig)| rect_moved(cur, orig))
+        || p.get(ends.1)
+            .zip(l.pos.get(ends.1))
+            .is_some_and(|(cur, orig)| rect_moved(cur, orig));
+    if moved {
+        return dynamic_route(p, ends);
+    }
+    route_with(l.kinds[e].as_ref()?, &l.po, &l.dpos, &l.tracks, e, ends, p)
 }

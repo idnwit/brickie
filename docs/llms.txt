@@ -266,8 +266,9 @@ brickie design include add|rm FILE [--in P]
   last one; `--dry-run` prints `{dry_run, diff, new_todo, scaffold, notes}`; a write prints its version, plus `notes: [text]` when there are notes. `show` prints `{v, track, forked_from, hash, by, at, root: {path, file, bricks: [{name, kind,
   members, tags, desc, independent, children}], exports, rules: [{file, from, to, kinds, scope,
   reason}], links: [{file, from, to, kinds, scope, reason, denied?, cycle?}], limits: [{file,
-  bricks, metrics, scope}]}, todo: [{kind, text}]}` (nested levels repeat the shape; `denied` is
-  the reason text, `cycle` is true); `log` a list of versions `{v, track, forked_from, reverts, hash, prev, by, at, note,
+  bricks, metrics, scope}], layout?: {score, edges, crossings, box_hits, bends}}, todo: [{kind,
+  text}]}` (nested levels repeat the shape; `denied` is
+  the reason text, `cycle` is true; `layout.score` in `0..100` measures top-down layout tidiness); `log` a list of versions `{v, track, forked_from, reverts, hash, prev, by, at, note,
   ops, diff, files, removed}`; a write prints its version; `check` prints
   `{v, track, forked_from, ready, blocking: [{code, message, file, brick, member,
   module}], info: [text]}`.

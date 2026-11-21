@@ -7,9 +7,9 @@ use crate::paths::to_rel;
 use anyhow::Result;
 use brickie_check::config::{Brick, Config, Scope, judge_link, link_cycles};
 use brickie_model::design::{
-    BrickView, DesignView, LevelView, LimitView, LinkView, RuleView, Task,
+    BrickView, DesignView, LayoutScore, LevelView, LimitView, LinkView, RuleView, Task,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 impl Design {
@@ -130,7 +130,61 @@ fn level(cfg: &Config, root: &Path) -> LevelView {
         rules: rules.collect(),
         links: links.collect(),
         limits: limits.collect(),
+        layout: layout_score(cfg),
     }
+}
+
+/// Compute the automatic top-down layout tidiness score of `cfg` from its bricks and links.
+fn layout_score(cfg: &Config) -> Option<LayoutScore> {
+    if cfg.bricks.is_empty() {
+        return None;
+    }
+    let mut rows: Vec<String> = Vec::new();
+    let mut bricks = Vec::with_capacity(cfg.bricks.len());
+    for b in &cfg.bricks {
+        let tag = b
+            .tags
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "(untagged)".into());
+        let row = rows.iter().position(|r| r == &tag).unwrap_or_else(|| {
+            rows.push(tag);
+            rows.len() - 1
+        });
+        bricks.push(brickie_layout::InBrick {
+            id: b.name.clone(),
+            row,
+        });
+    }
+    let idx = |name: &str| cfg.bricks.iter().position(|b| b.name == name);
+    let mut seen = BTreeSet::new();
+    let mut edges = Vec::new();
+    for (i, l) in cfg.links.iter().enumerate() {
+        let (to, _) = l.target();
+        if let (Some(a), Some(b)) = (idx(&l.from), idx(to))
+            && a != b
+            && seen.insert((a, b))
+        {
+            edges.push(brickie_layout::InEdge {
+                id: format!("l{i:04}"),
+                a,
+                b,
+            });
+        }
+    }
+    let lay = brickie_layout::layout(&brickie_layout::Input {
+        bricks,
+        rows,
+        edges,
+    });
+    let all: Vec<usize> = (0..lay.routes.len()).collect();
+    let m = brickie_layout::score_layout(&lay, &all);
+    Some(LayoutScore::from_metrics(
+        m.edges,
+        m.crossings,
+        m.box_hits,
+        m.bends,
+    ))
 }
 
 fn brick(cfg: &Config, b: &Brick, root: &Path) -> BrickView {

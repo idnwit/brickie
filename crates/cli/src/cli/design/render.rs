@@ -176,9 +176,15 @@ fn list(name: &str, items: &[String]) -> String {
 
 fn level(s: &mut String, l: &LevelView, depth: usize) {
     let pad = "  ".repeat(depth);
+    let layout = l.layout.map_or_else(String::new, |ls| {
+        format!(
+            "  layout {}/100 ({} crossings, {} box_hits, {} bends)",
+            ls.score, ls.crossings, ls.box_hits, ls.bends
+        )
+    });
     let _ = writeln!(
         s,
-        "{pad}{} ({}){}",
+        "{pad}{} ({}){}{layout}",
         l.path,
         l.file,
         list("exports", &l.exports)
