@@ -107,50 +107,67 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    /// Project one ancestor `[[link]]` onto `cfg`'s boundary, if it crosses `cfg`.
+    fn project_link(
+        anc: &[String],
+        me: &str,
+        next: Option<&str>,
+        cfg: &Config,
+        link: &LevelLink,
+    ) -> Option<Projected> {
+        let (to_brick, to_child) = link
+            .to
+            .split_once('/')
+            .map_or((link.to.as_str(), None), |(b, c)| (b, Some(c)));
+        if link.from == me {
+            let mut outside = anc.to_vec();
+            outside.push(to_brick.to_string());
+            return Some(Projected {
+                outside,
+                inbound: false,
+                child: None,
+                link: link.clone(),
+            });
+        }
+        if to_brick != me {
+            return None;
+        }
+        if let Some(next_seg) = next
+            && to_child.is_some_and(|c| c != next_seg)
+        {
+            return None;
+        }
+        let child = next
+            .is_none()
+            .then(|| {
+                to_child
+                    .filter(|c| cfg.brick(c).is_some())
+                    .map(str::to_string)
+            })
+            .flatten();
+        let mut outside = anc.to_vec();
+        outside.push(link.from.clone());
+        Some(Projected {
+            outside,
+            inbound: true,
+            child,
+            link: link.clone(),
+        })
+    }
+
     /// Enclosing-level `[[link]]`s that cross `cfg`'s boundary (from any ancestor level).
     fn projected_links(&self, cfg: &Config) -> Vec<Projected> {
         let mut out = Vec::new();
         for k in 0..cfg.path.len() {
             let anc = &cfg.path[..k];
             let anc_name = level_name(anc);
-            let me = &cfg.path[k];
-            let immediate = k + 1 == cfg.path.len();
+            let me = cfg.path[k].as_str();
+            let next = cfg.path.get(k + 1).map(String::as_str);
             for (lv, link) in &self.links {
-                if *lv != anc_name {
-                    continue;
-                }
-                let (to_brick, to_child) = link
-                    .to
-                    .split_once('/')
-                    .map_or((link.to.as_str(), None), |(b, c)| (b, Some(c)));
-                if link.from == *me {
-                    let mut outside = anc.to_vec();
-                    outside.push(to_brick.to_string());
-                    out.push(Projected {
-                        outside,
-                        inbound: false,
-                        child: None,
-                        link: link.clone(),
-                    });
-                } else if to_brick == *me {
-                    if !immediate && to_child.is_some_and(|c| c != cfg.path[k + 1]) {
-                        continue;
-                    }
-                    let child = if immediate {
-                        to_child
-                            .filter(|c| cfg.brick(c).is_some())
-                            .map(str::to_string)
-                    } else {
-                        None
-                    };
-                    let mut outside = anc.to_vec();
-                    outside.push(link.from.clone());
-                    out.push(Projected {
-                        outside,
-                        inbound: true,
-                        child,
-                        link: link.clone(),
-                    });
+                if *lv == anc_name
+                    && let Some(pr) = Self::project_link(anc, me, next, cfg, link)
+                {
+                    out.push(pr);
                 }
             }
         }

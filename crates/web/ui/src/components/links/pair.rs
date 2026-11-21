@@ -51,21 +51,11 @@ impl Pair<'_> {
         let mut out: Vec<&str> = Vec::new();
         for e in &self.rules {
             if e.kinds.is_empty() {
-                if !out.contains(&"any") {
-                    out.push("any");
-                }
-            } else {
-                for k in &e.kinds {
-                    let a = match k.as_str() {
-                        "uses" => "uses",
-                        "implements" => "impl",
-                        "reexports" => "reexp",
-                        other => other,
-                    };
-                    if !out.contains(&a) {
-                        out.push(a);
-                    }
-                }
+                push_unique(&mut out, "any");
+                continue;
+            }
+            for k in &e.kinds {
+                push_unique(&mut out, short_kind(k));
             }
         }
         out.join("/")
@@ -107,6 +97,21 @@ impl Pair<'_> {
 }
 
 /// `s` cut to `max` characters with an ellipsis.
+fn short_kind(k: &str) -> &str {
+    match k {
+        "uses" => "uses",
+        "implements" => "impl",
+        "reexports" => "reexp",
+        other => other,
+    }
+}
+
+fn push_unique<'a>(out: &mut Vec<&'a str>, s: &'a str) {
+    if !out.contains(&s) {
+        out.push(s);
+    }
+}
+
 pub fn cut(s: &str, max: usize) -> String {
     if s.chars().count() <= max {
         return s.to_string();

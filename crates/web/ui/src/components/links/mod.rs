@@ -149,27 +149,44 @@ fn select_next(ed: Edit, refs: &[RuleRef]) {
     ed.tab.set("inspect");
 }
 
-/// One link pair along `route`: line, hit area, marks, kind label, and hover reason.
-#[allow(clippy::too_many_arguments)]
-fn draw_route(
-    cx: &Cx,
-    pr: &Pair,
+/// Per-route display metadata passed to [`draw_route`].
+struct RouteDraw {
     route: Route,
-    p: &[Rect],
-    marks: &mut Vec<Pt>,
     picked: Signal<Option<PickKey>>,
     key: PickKey,
     tip: String,
     projected: bool,
-) -> View {
-    let lead = pr.lead();
-    let ty = LinkType::of_kinds(&lead.kinds);
-    let flags = format!(
+}
+
+fn route_flags(pr: &Pair, projected: bool) -> String {
+    format!(
         "{}{}{}",
         if pr.denied() { " denied" } else { "" },
         if pr.cycle() { " cycle" } else { "" },
         if projected { " projected" } else { "" }
-    );
+    )
+}
+
+fn kind_label_view(editing: bool, ktext: String, at: Pt) -> Option<View> {
+    (editing && ktext != "any").then(|| {
+        let kx = at.x.to_string();
+        let ky = (at.y - 10.0).to_string();
+        view! { text(class="klabel", x=kx, y=ky, "text-anchor"="middle") { (ktext) } }
+    })
+}
+
+/// One link pair along `draw.route`: line, hit area, marks, kind label, and hover reason.
+fn draw_route(cx: &Cx, pr: &Pair, p: &[Rect], marks: &mut Vec<Pt>, draw: RouteDraw) -> View {
+    let RouteDraw {
+        route,
+        picked,
+        key,
+        tip,
+        projected,
+    } = draw;
+    let lead = pr.lead();
+    let ty = LinkType::of_kinds(&lead.kinds);
+    let flags = route_flags(pr, projected);
     let agent = pr.rules.iter().any(|e| by_agent(cx, e));
     let d = route.d();
     let at = mark_spot(&route, p, marks);
@@ -177,19 +194,13 @@ fn draw_route(
     let (shown, label) = marks_of(pr, at, agent, editing);
     let refs: Vec<RuleRef> = pr.rules.iter().map(|e| RuleRef::served(e)).collect();
     let tone = link_tone(ty, editing, pr.denied(), agent);
-    let m_end = marker_end(ty, tone);
-    let m_start = marker_start(ty, tone);
+    let (m_end, m_start) = (marker_end(ty, tone), marker_start(ty, tone));
     let cap = if ty == LinkType::Reexports {
         "round"
     } else {
         "butt"
     };
-    let ktext = pr.kind_label();
-    let klabel = (editing && ktext != "any").then(|| {
-        let kx = at.x.to_string();
-        let ky = (at.y - 10.0).to_string();
-        view! { text(class="klabel", x=kx, y=ky, "text-anchor"="middle") { (ktext) } }
-    });
+    let klabel = kind_label_view(editing, pr.kind_label(), at);
     let (sel_refs, dash) = (refs.clone(), kind_dash(lead));
     let cls = move || -> String {
         let sel = editing
@@ -199,10 +210,8 @@ fn draw_route(
                 .with(|x| x.as_ref().is_some_and(|r| sel_refs.contains(r)));
         let pick = picked.get() == Some(key);
         let agent = if agent { " agent" } else { "" };
-        let (sel, pick) = (
-            if sel { " sel" } else { "" },
-            if pick { " picked" } else { "" },
-        );
+        let sel = if sel { " sel" } else { "" };
+        let pick = if pick { " picked" } else { "" };
         format!("pedge plink l-{}{flags}{agent}{sel}{pick}", ty.name())
     };
     let click = move |ev: Click| {
@@ -277,35 +286,28 @@ pub fn layer(cx: &Cx, pos: ReadSignal<Vec<Rect>>) -> View {
             .iter()
             .filter(|pr| pr.a < p.len() && pr.b < p.len())
             .map(|pr| {
-                let route = path_of(&c, pr.a, pr.b, &p);
-                draw_route(
-                    &c,
-                    pr,
-                    route,
-                    &p,
-                    &mut marks,
+                let draw = RouteDraw {
+                    route: path_of(&c, pr.a, pr.b, &p),
                     picked,
-                    PickKey::Local(pr.a, pr.b),
-                    pr.tip(),
-                    false,
-                )
+                    key: PickKey::Local(pr.a, pr.b),
+                    tip: pr.tip(),
+                    projected: false,
+                };
+                draw_route(&c, pr, &p, &mut marks, draw)
             })
             .collect();
         let frame = frame_rect(&c.m.g, &p);
         let b_pairs = boundary_pairs(&c);
         for bp in &b_pairs {
             if let Some(route) = boundary_route(&c, bp, &b_pairs, &p, frame.as_ref()) {
-                items.push(draw_route(
-                    &c,
-                    &bp.pair,
+                let draw = RouteDraw {
                     route,
-                    &p,
-                    &mut marks,
                     picked,
-                    PickKey::Boundary(bp.ghost, bp.inbound, bp.child),
-                    bp.tip(),
-                    true,
-                ));
+                    key: PickKey::Boundary(bp.ghost, bp.inbound, bp.child),
+                    tip: bp.tip(),
+                    projected: true,
+                };
+                items.push(draw_route(&c, &bp.pair, &p, &mut marks, draw));
             }
         }
         let items = View::from(items);
