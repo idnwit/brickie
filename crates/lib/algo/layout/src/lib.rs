@@ -59,6 +59,7 @@
 #![allow(clippy::needless_range_loop, clippy::type_complexity)]
 
 mod anneal;
+mod channels;
 mod compute;
 #[cfg(test)]
 mod e2e_tests;
@@ -78,7 +79,7 @@ use std::collections::HashMap;
 
 /// `LAY` of the original.
 pub const H: f64 = 54.0;
-const GAPY: f64 = 84.0;
+const GAPY: f64 = 96.0;
 /// Row gap that no edge crosses (labels under the boxes only).
 pub const GAPY_FREE: f64 = 42.0;
 const GAP: f64 = 18.0;
@@ -244,6 +245,8 @@ pub struct Layout {
     pub po: HashMap<(usize, End), Port>,
     /// Cubic route by input edge index; `None` for self edges.
     pub routes: Vec<Option<Route>>,
+    /// Assigned vertical fraction per `(edge, hop)` in inter-row channels.
+    pub(crate) tracks: HashMap<(usize, usize), f64>,
     /// Weighted crossings of the final order (`bc`).
     pub cross: f64,
     /// Weighted crossings of the config order before minimisation (the baseline).

@@ -28,6 +28,13 @@
       }
     ],
     "file": "brickie.toml",
+    "layout": {
+      "bends": 0,
+      "box_hits": 0,
+      "crossings": 0,
+      "edges": 0,
+      "score": 100
+    },
     "limits": [
       {
         "bricks": "*",

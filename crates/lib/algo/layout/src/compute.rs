@@ -121,11 +121,13 @@ pub fn compute_layout(inp: &Input) -> Layout {
         kinds,
         po,
         routes: vec![None; inp.edges.len()],
+        tracks: HashMap::new(),
         cross: bc,
         cross0,
         edges: inp.edges.iter().map(|e| (e.a, e.b)).collect(),
     };
     let ids: Vec<String> = inp.edges.iter().map(|e| e.id.clone()).collect();
     smart_route(&mut lay, &ids);
+    super::channels::assign_channels(&mut lay);
     lay
 }

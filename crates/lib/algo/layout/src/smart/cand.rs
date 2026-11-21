@@ -127,7 +127,7 @@ pub(super) fn side_penalty(a: &Rect, b: &Rect, sa: Side, sb: Side) -> Option<f64
 /// The edge's current route as a candidate (penalty 45 for arcs, 12 otherwise).
 fn old_cand(l: &Layout, e: usize) -> Cand {
     let ok = l.kinds[e].clone().unwrap_or(Kind::Bez);
-    let pts = route_with(&ok, &l.po, &l.dpos, e, l.edges[e], &l.pos)
+    let pts = route_with(&ok, &l.po, &l.dpos, &l.tracks, e, l.edges[e], &l.pos)
         .map(|r| r.sample(7.0))
         .unwrap_or_default();
     let sa = l.po.get(&(e, End::A)).map_or(Side::T, |p| p.side);
@@ -146,11 +146,30 @@ pub(super) fn candidates(l: &Layout, e: usize) -> Vec<Cand> {
     let (ia, ib) = l.edges[e];
     let (a, b) = (&l.pos[ia], &l.pos[ib]);
     let mut list = vec![old_cand(l, e)];
+    let y_lo = (a.y + a.h).min(b.y + b.h);
+    let y_hi = a.y.max(b.y);
+    let x_lo = a.x.min(b.x);
+    let x_hi = (a.x + a.w).max(b.x + b.w);
+    let skips_row = y_hi > y_lo + 4.0
+        && l.pos.iter().any(|r| {
+            r.y + r.h > y_lo + 4.0
+                && r.y < y_hi - 4.0
+                && r.x < x_hi + 80.0
+                && r.x + r.w > x_lo - 80.0
+        });
+    // Keep the layered dummy corridor for edges that skip a nearby intermediate row when it is
+    // already box-free, so later single-row alignment never moves a middle brick into a direct line.
+    if skips_row && list[0].boxh == 0 {
+        return list;
+    }
     for sa in Side::ALL {
         for sb in Side::ALL {
-            let Some(pen) = side_penalty(a, b, sa, sb) else {
+            let Some(mut pen) = side_penalty(a, b, sa, sb) else {
                 continue;
             };
+            if skips_row {
+                pen += 35.0;
+            }
             let pts = direct((a, sa, 0.0), (b, sb, 0.0), 7.0);
             let boxh = box_hits(&l.pos, &pts, l.edges[e]);
             list.push(Cand::new(false, sa, sb, pen, pts, boxh));

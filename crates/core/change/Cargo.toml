@@ -10,6 +10,7 @@ publish = false
 [dependencies]
 brickie-check = { workspace = true }
 brickie-facts = { workspace = true }
+brickie-layout = { workspace = true }
 brickie-model = { workspace = true }
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }

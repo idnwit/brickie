@@ -182,6 +182,7 @@ dependencies = [
  "anyhow",
  "brickie-check",
  "brickie-facts",
+ "brickie-layout",
  "brickie-model",
  "serde",
  "serde_json",
