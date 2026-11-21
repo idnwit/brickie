@@ -95,10 +95,15 @@ fn glyph(x: f64, y: f64, g: &str) -> View {
     view! { g(class="qmark") { circle(cx=px2, cy=py, r="8") text(x=px, y=ty, "text-anchor"="middle") { (g) } } }
 }
 
-/// The marks of one link (`!` planned, denied, cycle, `A`) in a row from `at`, and the hover label after them.
-fn marks_of(pr: &Pair, at: Pt, agent: bool) -> (Vec<View>, Option<View>) {
-    // `!`: planned, no code uses the link yet.
-    let mut glyphs = if pr.planned() { vec!["!"] } else { vec![] };
+/// The marks of one link (`!` planned in view mode, denied, cycle, `A`) in a row from `at`, and the hover label after them.
+fn marks_of(pr: &Pair, at: Pt, agent: bool, editing: bool) -> (Vec<View>, Option<View>) {
+    // `!`: planned (no code uses the link yet) — shown in view mode; in design mode every drafted
+    // link is expected to be planned, so only show actual issues (`✕` denied, `↻` cycle).
+    let mut glyphs = if !editing && pr.planned() {
+        vec!["!"]
+    } else {
+        vec![]
+    };
     if pr.denied() {
         glyphs.push("\u{2715}");
     }
@@ -168,9 +173,9 @@ fn draw_route(
     let agent = pr.rules.iter().any(|e| by_agent(cx, e));
     let d = route.d();
     let at = mark_spot(&route, p, marks);
-    let (shown, label) = marks_of(pr, at, agent);
-    let refs: Vec<RuleRef> = pr.rules.iter().map(|e| RuleRef::served(e)).collect();
     let (ed, editing) = (cx.ed, cx.editing());
+    let (shown, label) = marks_of(pr, at, agent, editing);
+    let refs: Vec<RuleRef> = pr.rules.iter().map(|e| RuleRef::served(e)).collect();
     let tone = link_tone(ty, editing, pr.denied(), agent);
     let m_end = marker_end(ty, tone);
     let m_start = marker_start(ty, tone);
@@ -179,10 +184,10 @@ fn draw_route(
     } else {
         "butt"
     };
-    let klabel = editing.then(|| {
+    let ktext = pr.kind_label();
+    let klabel = (editing && ktext != "any").then(|| {
         let kx = at.x.to_string();
         let ky = (at.y - 10.0).to_string();
-        let ktext = pr.kind_label();
         view! { text(class="klabel", x=kx, y=ky, "text-anchor"="middle") { (ktext) } }
     });
     let (sel_refs, dash) = (refs.clone(), kind_dash(lead));

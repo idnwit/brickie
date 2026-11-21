@@ -5,23 +5,27 @@
 use crate::layout::{Pt, Rect, Route};
 
 /// Clearance of a mark from a box border and between two marks (world units).
-const BOX_ROOM: f64 = 8.0;
-const MARK_ROOM: f64 = 22.0;
+const BOX_ROOM: f64 = 14.0;
+const MARK_ROOM: f64 = 44.0;
 
 /// The mark anchor of route `r` among boxes `p`, avoiding the anchors in `placed` (and adding
 /// its own). Falls back to the route middle when no sampled point is clear.
 pub fn mark_spot(r: &Route, p: &[Rect], placed: &mut Vec<Pt>) -> Pt {
     let pts = r.sample(6.0);
     let n = pts.len();
+    let trim = if n > 8 { 3 } else { 0 };
+    let lo = trim;
+    let hi = n.saturating_sub(trim);
     let clear = |q: &Pt| {
         !p.iter().any(|b| b.contains(q, BOX_ROOM))
             && placed
                 .iter()
                 .all(|o| (o.x - q.x).hypot(o.y - q.y) >= MARK_ROOM)
     };
-    // Middle first, then alternately further towards both ends.
-    let mid = n / 2;
-    let spot = (0..n)
+    // Middle first, then alternately further towards both ends (staying clear of ports/arrows).
+    let mid = (lo + hi) / 2;
+    let span = hi.saturating_sub(lo);
+    let spot = (0..span)
         .map(|k| {
             if k % 2 == 0 {
                 mid + k / 2
@@ -29,7 +33,7 @@ pub fn mark_spot(r: &Route, p: &[Rect], placed: &mut Vec<Pt>) -> Pt {
                 mid.wrapping_sub(k / 2 + 1)
             }
         })
-        .filter(|&i| i < n)
+        .filter(|&i| i >= lo && i < hi)
         .map(|i| pts[i])
         .find(clear)
         .unwrap_or_else(|| r.mid());

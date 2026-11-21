@@ -116,7 +116,7 @@ table.fns th a.on{color:var(--ink);font-weight:700}
 .node.ghost{opacity:.5}.node.ghost .box{fill:var(--bg);stroke-dasharray:4 3}
 .node.independent .box{stroke-dasharray:2 2}
 .node:focus{outline:none}.node:focus-visible .box{stroke:var(--sel);stroke-width:2.5}
-.port circle,circle.port{fill:var(--sel);stroke:var(--node);stroke-width:1.5}.port text{fill:var(--sel);font:500 10px ui-monospace,monospace}
+.port circle,circle.port{fill:var(--sel);stroke:var(--node);stroke-width:1.5}.port text{display:none;fill:var(--sel);font:500 10px ui-monospace,monospace;paint-order:stroke;stroke:var(--panel);stroke-width:3px}.node:hover .port text,.node.sel .port text{display:block}
 .edge.wall .mark{display:inline;fill:var(--e-err);font-size:20px}
 #stage.zin svg{animation:zin .28s ease}#stage.zout svg{animation:zout .28s ease}
 @keyframes zin{from{transform:scale(.7);opacity:0}to{transform:none;opacity:1}}

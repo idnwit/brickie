@@ -201,8 +201,8 @@ fn space_boundary_rows(layout: &mut Layout, g: &GraphView, extra: &[(usize, usiz
     // 4. Refresh bounds and cached routes.
     let max_x = layout.pos.iter().map(|r| r.x + r.w).fold(0.0_f64, f64::max);
     let max_y = layout.pos.iter().map(|r| r.y + r.h).fold(0.0_f64, f64::max);
-    layout.w = layout.w.max(max_x + 20.0);
-    layout.h = layout.h.max(max_y + 50.0);
+    layout.w = max_x + 20.0;
+    layout.h = max_y + 50.0;
     for e in 0..layout.routes.len() {
         layout.routes[e] = layout.path(e, &layout.pos);
     }
@@ -282,11 +282,7 @@ impl Cx {
         let view = create_signal(match (&keep, stage.get()) {
             (Some(k), _) => k.view,
             (None, Some(s)) => fit_view(&m.layout, s, fit_room(editing)),
-            (None, None) => Vw {
-                x: 0.0,
-                y: 0.0,
-                k: 1.0,
-            },
+            (None, None) => fit_view(&m.layout, (920.0, 780.0), fit_room(editing)),
         });
         let (eval, scores) = memos(&m, params);
         Cx {
