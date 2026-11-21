@@ -85,99 +85,117 @@ const BOUNDARY_GAP: f64 = 64.0;
 /// Horizontal spacing when centring an unanchored ghost row over the level frame.
 const GHOST_GAP: f64 = 20.0;
 
-/// Give `inbound` / `outbound` ghost rows comfortable vertical clearance outside the level frame
-/// and centre ghost rows that have no direct child-to-ghost edges over the frame's middle.
-fn space_boundary_rows(layout: &mut Layout, g: &GraphView, extra: &[(usize, usize)]) {
-    let inner: Vec<usize> = (0..g.bricks.len().min(layout.pos.len()))
-        .filter(|&i| !g.bricks[i].ghost)
-        .collect();
-    if inner.is_empty() {
-        return;
-    }
-    let Some(frame) = frame_of(&g.bricks, &layout.pos, None) else {
-        return;
-    };
-    let mut inbound: Vec<usize> = Vec::new();
-    let mut outbound: Vec<usize> = Vec::new();
-    for (i, b) in g.bricks.iter().enumerate() {
-        if !b.ghost || i >= layout.pos.len() {
-            continue;
-        }
-        if b.tag == "inbound" {
+struct BoundaryGroups {
+    inner: Vec<usize>,
+    inbound: Vec<usize>,
+    outbound: Vec<usize>,
+}
+
+fn partition_boundary(g: &GraphView, len: usize) -> BoundaryGroups {
+    let mut inner = Vec::new();
+    let mut inbound = Vec::new();
+    let mut outbound = Vec::new();
+    for (i, b) in g.bricks.iter().take(len).enumerate() {
+        if !b.ghost {
+            inner.push(i);
+        } else if b.tag == "inbound" {
             inbound.push(i);
         } else {
             outbound.push(i);
         }
     }
-    if inbound.is_empty() && outbound.is_empty() {
+    BoundaryGroups {
+        inner,
+        inbound,
+        outbound,
+    }
+}
+
+fn shift_inbound_gap(layout: &mut Layout, frame_y: f64, bg: &BoundaryGroups) -> f64 {
+    if bg.inbound.is_empty() {
+        return 0.0;
+    }
+    let in_bot = bg
+        .inbound
+        .iter()
+        .map(|&i| layout.pos[i].y + layout.pos[i].h)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let shift = in_bot + BOUNDARY_GAP - frame_y;
+    if shift <= 0.0 {
+        return 0.0;
+    }
+    for &i in bg.inner.iter().chain(&bg.outbound) {
+        layout.pos[i].y += shift;
+    }
+    for r in &mut layout.rows {
+        if !r.ids.iter().all(|id| bg.inbound.contains(id)) {
+            r.y += shift;
+        }
+    }
+    for d in layout.dpos.iter_mut().flatten() {
+        d.1 += shift;
+    }
+    shift
+}
+
+fn shift_outbound_gap(layout: &mut Layout, frame_bot: f64, outbound: &[usize]) {
+    if outbound.is_empty() {
         return;
     }
-    // 1. Vertical clearance between inbound row and frame top.
-    let mut shift_inner = 0.0;
-    if !inbound.is_empty() {
-        let in_bot = inbound
-            .iter()
-            .map(|&i| layout.pos[i].y + layout.pos[i].h)
-            .fold(f64::NEG_INFINITY, f64::max);
-        let want_frame_y = in_bot + BOUNDARY_GAP;
-        if want_frame_y > frame.y {
-            shift_inner = want_frame_y - frame.y;
-            for &i in inner.iter().chain(&outbound) {
-                layout.pos[i].y += shift_inner;
-            }
-            for r in &mut layout.rows {
-                if !r.ids.iter().all(|&id| inbound.contains(&id)) {
-                    r.y += shift_inner;
-                }
-            }
-            for d in layout.dpos.iter_mut().flatten() {
-                d.1 += shift_inner;
-            }
+    let out_top = outbound
+        .iter()
+        .map(|&i| layout.pos[i].y)
+        .fold(f64::INFINITY, f64::min);
+    let dy = frame_bot + BOUNDARY_GAP - out_top;
+    if dy <= 0.0 {
+        return;
+    }
+    for &i in outbound {
+        layout.pos[i].y += dy;
+    }
+    for r in &mut layout.rows {
+        if !r.ids.is_empty() && r.ids.iter().all(|id| outbound.contains(id)) {
+            r.y += dy;
         }
     }
-    // 2. Vertical clearance between frame bottom and outbound row.
-    if !outbound.is_empty() {
-        let frame_bot = frame.y + frame.h + shift_inner;
-        let out_top = outbound
+}
+
+fn shift_boundary_vertical(layout: &mut Layout, frame: &Rect, bg: &BoundaryGroups) {
+    let shift_inner = shift_inbound_gap(layout, frame.y, bg);
+    shift_outbound_gap(layout, frame.y + frame.h + shift_inner, &bg.outbound);
+}
+
+fn row_width(pos: &[Rect], ids: &[usize]) -> f64 {
+    ids.iter().map(|&i| pos[i].w).sum::<f64>() + GHOST_GAP * ids.len().saturating_sub(1) as f64
+}
+
+fn has_direct_edge(g: &GraphView, extra: &[(usize, usize)], ids: &[usize]) -> bool {
+    g.edges
+        .iter()
+        .any(|e| ids.contains(&e.from) || ids.contains(&e.to))
+        || extra
             .iter()
-            .map(|&i| layout.pos[i].y)
-            .fold(f64::INFINITY, f64::min);
-        let want_out_y = frame_bot + BOUNDARY_GAP;
-        if want_out_y > out_top {
-            let dy = want_out_y - out_top;
-            for &i in &outbound {
-                layout.pos[i].y += dy;
-            }
-            for r in &mut layout.rows {
-                if !r.ids.is_empty() && r.ids.iter().all(|id| outbound.contains(id)) {
-                    r.y += dy;
-                }
-            }
-        }
-    }
-    // 3. Centre any ghost row whose bricks have no direct layout edges over the frame's middle
-    //    (shifting the inner boxes right if a ghost row is wider so all rows share one axis).
-    let has_edge = |ids: &[usize]| {
-        g.edges
-            .iter()
-            .any(|e| ids.contains(&e.from) || ids.contains(&e.to))
-            || extra
-                .iter()
-                .any(|&(a, b)| ids.contains(&a) || ids.contains(&b))
-    };
-    let row_width = |pos: &[Rect], ids: &[usize]| -> f64 {
-        ids.iter().map(|&i| pos[i].w).sum::<f64>() + GHOST_GAP * ids.len().saturating_sub(1) as f64
-    };
-    let max_ghost_w = [&inbound, &outbound]
+            .any(|&(a, b)| ids.contains(&a) || ids.contains(&b))
+}
+
+fn center_unanchored_ghosts(
+    layout: &mut Layout,
+    g: &GraphView,
+    extra: &[(usize, usize)],
+    frame: &Rect,
+    bg: &BoundaryGroups,
+) {
+    let groups = [&bg.inbound, &bg.outbound];
+    let max_ghost_w = groups
         .into_iter()
-        .filter(|g| !g.is_empty() && !has_edge(g))
-        .map(|g| row_width(&layout.pos, g))
+        .filter(|ids| !ids.is_empty() && !has_direct_edge(g, extra, ids))
+        .map(|ids| row_width(&layout.pos, ids))
         .fold(0.0_f64, f64::max);
     let mut frame_cx = frame.x + frame.w / 2.0;
     let min_cx = layout.px0 + max_ghost_w / 2.0;
     if min_cx > frame_cx {
         let dx = min_cx - frame_cx;
-        for &i in &inner {
+        for &i in &bg.inner {
             layout.pos[i].x += dx;
         }
         for d in layout.dpos.iter_mut().flatten() {
@@ -185,20 +203,32 @@ fn space_boundary_rows(layout: &mut Layout, g: &GraphView, extra: &[(usize, usiz
         }
         frame_cx = min_cx;
     }
-    for group in [&inbound, &outbound] {
-        if group.is_empty() || has_edge(group) {
+    for group in groups {
+        if group.is_empty() || has_direct_edge(g, extra, group) {
             continue;
         }
         let mut sorted = group.clone();
         sorted.sort_by(|&a, &b| layout.pos[a].x.total_cmp(&layout.pos[b].x));
-        let total_w = row_width(&layout.pos, &sorted);
-        let mut x = (frame_cx - total_w / 2.0).max(layout.px0);
+        let mut x = (frame_cx - row_width(&layout.pos, &sorted) / 2.0).max(layout.px0);
         for &i in &sorted {
             layout.pos[i].x = x;
             x += layout.pos[i].w + GHOST_GAP;
         }
     }
-    // 4. Refresh bounds and cached routes.
+}
+
+/// Give `inbound` / `outbound` ghost rows comfortable vertical clearance outside the level frame
+/// and centre ghost rows that have no direct child-to-ghost edges over the frame's middle.
+fn space_boundary_rows(layout: &mut Layout, g: &GraphView, extra: &[(usize, usize)]) {
+    let bg = partition_boundary(g, layout.pos.len());
+    if bg.inner.is_empty() || (bg.inbound.is_empty() && bg.outbound.is_empty()) {
+        return;
+    }
+    let Some(frame) = frame_of(&g.bricks, &layout.pos, None) else {
+        return;
+    };
+    shift_boundary_vertical(layout, &frame, &bg);
+    center_unanchored_ghosts(layout, g, extra, &frame, &bg);
     let max_x = layout.pos.iter().map(|r| r.x + r.w).fold(0.0_f64, f64::max);
     let max_y = layout.pos.iter().map(|r| r.y + r.h).fold(0.0_f64, f64::max);
     layout.w = max_x + 20.0;
