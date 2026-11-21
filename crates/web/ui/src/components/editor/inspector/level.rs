@@ -23,6 +23,18 @@ pub fn level_view(cx: &Cx) -> View {
         info.bricks.len(),
         sheet.rules.len()
     );
+    let all: Vec<usize> = (0..cx.m.layout.routes.len()).collect();
+    let m = brickie_layout::score_layout(&cx.m.layout, &all);
+    let ls = brickie_web_api::design::LayoutScore::from_metrics(
+        m.edges,
+        m.crossings,
+        m.box_hits,
+        m.bends,
+    );
+    let layout_text = format!(
+        "layout {}/100 \u{00B7} {} crossings \u{00B7} {} box hits \u{00B7} {} bends",
+        ls.score, ls.crossings, ls.box_hits, ls.bends
+    );
     let tags: Vec<View> = info
         .tags
         .iter()
@@ -37,6 +49,7 @@ pub fn level_view(cx: &Cx) -> View {
         h2 { (lv.name().to_string()) }
         p(class="muted mono") { (file) }
         p(class="muted") { (counts) " " a(href="#", on:click=move |e: Click| { e.prevent_default(); ed.tab.set("rules"); }) { "edit" } }
+        p(class="muted mono") { (layout_text) }
         label { "tags" }
         div(class="pills") { (tags) }
         p(class="muted") { "Nothing selected. Drag a brick tile from the toolbar onto the canvas; hover a brick and drag one of its typed ports onto a sibling to add a rule; drop a brick on another to move it inside (rest on a group to open it), or Ctrl+X / Ctrl+V across levels; select a rule and drag its arrowhead to retarget it. Press ? for all shortcuts." }

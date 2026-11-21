@@ -4,7 +4,7 @@
 #stage{user-select:none}
 /* One row, never wrapping: groups split by divider lines; labels hide when narrow, the rest
    scrolls sideways. */
-#toolbar{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:40;display:flex;flex-wrap:nowrap;white-space:nowrap;overflow-x:auto;scrollbar-width:thin;gap:6px;align-items:center;max-width:calc(100% - 24px);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 6px;box-shadow:0 4px 14px rgba(0,0,0,.15);cursor:default}
+#toolbar{position:absolute;top:44px;left:50%;transform:translateX(-50%);z-index:40;display:flex;flex-wrap:nowrap;white-space:nowrap;overflow-x:auto;scrollbar-width:thin;gap:6px;align-items:center;max-width:calc(100% - 24px);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:4px 6px;box-shadow:0 4px 14px rgba(0,0,0,.15);cursor:default}
 #toolbar .tgrp{display:inline-flex;flex:none;gap:2px;padding-right:6px;border-right:1px solid var(--line)}
 #toolbar .tb{flex:none}#toolbar .tl{margin-left:4px}
 @media (max-width:1280px){#toolbar .tl{display:none}}
@@ -25,7 +25,7 @@
 .klabel{fill:var(--lc);font-size:10px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:3px;pointer-events:none}
 .pedge.agent .klabel{fill:var(--agent)}.pedge.denied .klabel{fill:var(--l-deny)}
 .rlabel{display:none;fill:var(--ink);font-size:12px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:4px;pointer-events:none}.plink:hover .rlabel,.plink.picked .rlabel,.plink.sel .rlabel{display:block}
-.abadge{fill:var(--agent);font-weight:700;font-size:12px}
+.abadge{display:none;fill:var(--agent);font-weight:700;font-size:11px}.plink:hover .abadge,.plink.picked .abadge,.plink.sel .abadge{display:block}
 .ebadge circle{stroke:var(--panel);stroke-width:2}.ebadge text{fill:#fff;font-size:11px;font-weight:700;pointer-events:none}.ebadge.agent circle{fill:var(--agent)}.ebadge.conflict circle{fill:var(--err)}
 .band{fill:none;stroke:var(--lc);stroke-width:2.5;stroke-dasharray:6 4;pointer-events:none}
 .ltarget{fill:none;stroke:var(--ok);stroke-width:2;stroke-dasharray:4 3;pointer-events:none}.ltarget.no{stroke:var(--muted);fill:color-mix(in srgb,var(--muted) 12%,transparent)}
