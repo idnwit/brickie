@@ -7,7 +7,7 @@ use crate::scip::testutil::Builder;
 use brickie_facts::FileData;
 use std::collections::{BTreeMap, HashSet};
 
-fn file_data() -> FileData {
+pub(super) fn file_data() -> FileData {
     FileData {
         sha256: String::new(),
         compiled: true,

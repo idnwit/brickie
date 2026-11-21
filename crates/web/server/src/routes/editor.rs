@@ -1,5 +1,5 @@
 //! The design editor's endpoints (`/api/design/*`): the design at its head, writes as human
-//! versions of the draft (edit, move, undo), the draft's publish, rebase and discard, link options and checks, levels, and canvas layout hints.
+//! versions of the draft (edit, move, undo), the draft's publish and discard, link options and checks, levels, and canvas layout hints.
 //! Every write passes the [`Guard`]. A stale base answers 409 with the `design/stale` text and
 //! the head in the `x-brickie-head` header; any other refused write is a 409 with the engine's
 //! message.
@@ -106,8 +106,9 @@ pub async fn undo(
     reply(&st, out)
 }
 
-/// Publish, rebase and discard are refused as the engine says (no conflict lookup): a stale
-/// base, a draft behind the published head, or `design/blocked` with the blocking items.
+/// Publish and discard are refused as the engine says (no conflict lookup): a stale draft
+/// base, or `design/blocked` with the blocking items. A publish overwrites published changes
+/// made since the draft forked.
 pub async fn publish(
     State(st): State<AppState>,
     _: Guard,
@@ -122,15 +123,6 @@ pub async fn publish(
         return reply(&st, unchanged(&d)?);
     }
     let out = d.publish(req.base, By::Human, req.note).map_err(Refused)?;
-    reply(&st, out)
-}
-
-pub async fn rebase(
-    State(st): State<AppState>,
-    _: Guard,
-    Json(req): Json<ReqOf<DesignRebase>>,
-) -> Result<Json<EditReply>, Refused> {
-    let out = design(&st)?.rebase(req.base, By::Human).map_err(Refused)?;
     reply(&st, out)
 }
 

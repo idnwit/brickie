@@ -29,7 +29,7 @@ impl Design {
             (Track::Published, _) => published,
             (Track::Draft, Some(d)) if n >= segment_start(&entries) => d.files,
             (Track::Draft, Some(_)) => bail!(
-                "v{n} is before the draft's fork or rebase (v{}); undo that version instead",
+                "v{n} is before the draft's fork (v{}); undo that version instead",
                 segment_start(&entries)
             ),
             (Track::Draft, None) => {
@@ -97,7 +97,7 @@ fn allowed(t: &Version, by: By) -> Result<()> {
     Ok(())
 }
 
-/// The first version of the current draft: its last fork or rebase.
+/// The first version of the current draft: its last fork.
 pub(super) fn segment_start(entries: &[Version]) -> u64 {
     (entries.iter().rev())
         .find(|e| e.track == Track::Draft && e.forked_from.is_some())

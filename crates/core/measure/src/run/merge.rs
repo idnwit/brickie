@@ -105,6 +105,8 @@ mod tests {
             vis: "pub".into(),
             visible_in: "m".into(),
             exported,
+            surface: Vec::new(),
+            allow: None,
         }
     }
 

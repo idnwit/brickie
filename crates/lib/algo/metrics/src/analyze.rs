@@ -88,6 +88,10 @@ fn collect(cx: &Ctx, n: Node, in_test: bool, out: &mut Analysis) {
             "impl_item" => {
                 if let Some(p) = field(c, "trait").and_then(trait_name_node) {
                     out.impl_traits.push(pos(p.start_position()));
+                    if let Some(t) = field(c, "type").and_then(trait_name_node) {
+                        out.impls
+                            .push((cx.txt(t).to_string(), cx.txt(p).to_string()));
+                    }
                 }
             }
             "inner_attribute_item" if is_test_cfg(cx.txt(c)) => out.whole_file_test = true,
@@ -99,7 +103,10 @@ fn collect(cx: &Ctx, n: Node, in_test: bool, out: &mut Analysis) {
 
 /// Parse `src` and measure every function with a body plus test ranges and impl-trait positions.
 pub fn analyze(src: &str) -> Analysis {
-    let mut out = Analysis::default();
+    let mut out = Analysis {
+        directives: super::directive::directives(src),
+        ..Analysis::default()
+    };
     let mut parser = Parser::new();
     if parser
         .set_language(&tree_sitter_rust::LANGUAGE.into())

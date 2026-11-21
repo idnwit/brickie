@@ -58,7 +58,7 @@
 //! - [`Design`]: one workspace's design. Reads: [`Design::head`], [`Design::log`],
 //!   [`Design::diff`], [`Design::config`], [`Design::show_design`], [`Design::link_options`],
 //!   [`Design::link_check`]. Writes: [`Design::apply`], [`Design::apply_scaffold`],
-//!   [`Design::dry_run`], [`Design::publish`], [`Design::rebase`], [`Design::discard`],
+//!   [`Design::dry_run`], [`Design::publish`], [`Design::discard`],
 //!   [`Design::undo`].
 //! - [`Outcome`] and [`Plan`]: what a write did, and what it would do.
 //! - [`Stale`] (exit code 3) and [`Blocked`] (exit code 4): the refusals of a write.

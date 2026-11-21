@@ -41,7 +41,6 @@ pub fn router(state: AppState) -> Router {
         .route(DesignMove::PATH, post(editor::move_brick))
         .route(DesignUndo::PATH, post(editor::undo))
         .route(DesignPublish::PATH, post(editor::publish))
-        .route(DesignRebase::PATH, post(editor::rebase))
         .route(DesignDiscard::PATH, post(editor::discard))
         .route(DesignLinks::PATH, post(editor::links))
         .route(DesignLinkCheck::PATH, post(editor::link_check))

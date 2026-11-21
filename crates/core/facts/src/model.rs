@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 /// The cache layout version; a cache with another value must be measured again.
-pub const SCHEMA_VERSION: u32 = 9;
+pub const SCHEMA_VERSION: u32 = 12;
 
 /// The whole `.brickie/cache.json`: workspace shape plus per-file facts.
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -114,6 +114,10 @@ pub struct Crate {
     /// Package directory (holding `Cargo.toml`) relative to the workspace root, `""` for the
     /// root; `path:` brick members match against it.
     pub dir: String,
+    /// The package may be published (`publish` is not `false` in its `Cargo.toml`): code outside
+    /// the workspace may use its library API.
+    #[serde(default)]
+    pub publish: bool,
 }
 
 /// A Rust module (or crate root); its id is `<crate id>` for the crate root and
@@ -186,6 +190,34 @@ pub struct Item {
     /// Reachable from the crate root of a library target as public API (`pub` through public
     /// modules or a `pub use` re-export).
     pub exported: bool,
+    /// Text naming what a caller reaches through the item without writing the name: the
+    /// signatures of the `pub` fields and the variants of a struct, enum or union, the member
+    /// signatures of a trait, and the names of the traits a type implements. Sorted.
+    pub surface: Vec<String>,
+    /// The `// brickie: allow(..) -- reason` comment directly above the item, if any.
+    #[serde(default)]
+    pub allow: Option<Allow>,
+}
+
+impl Item {
+    /// The item carries a directive that exempts it from `code` and states a reason.
+    pub fn allows(&self, code: &str) -> bool {
+        (self.allow.as_ref())
+            .is_some_and(|a| !a.reason.is_empty() && a.codes.iter().any(|c| c == code))
+    }
+}
+
+/// A `// brickie: allow(code, ..) -- reason` comment above an item: it exempts the item from
+/// the listed per-item diagnostics (stable Rust has no custom tool attributes, so the
+/// directive is a comment).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Allow {
+    /// 1-based line of the comment.
+    pub line: u32,
+    /// The codes as written.
+    pub codes: Vec<String>,
+    /// Text after ` -- `; empty when missing (reported as `config/stale-allow`).
+    pub reason: String,
 }
 
 /// The doc comment as markdown, trimmed; rust-analyzer's alias banner paragraph is dropped.

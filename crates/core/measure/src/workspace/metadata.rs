@@ -10,6 +10,8 @@ pub struct Package {
     pub version: String,
     /// Package directory relative to the workspace root (`""` for the root).
     pub dir: String,
+    /// `publish` is not `false`: code outside the workspace may depend on the package.
+    pub publish: bool,
 }
 
 pub struct Target {
@@ -56,6 +58,7 @@ pub fn load(workspace: &Path) -> Result<Workspace> {
             name: p.name.to_string(),
             version: p.version.to_string(),
             dir,
+            publish: p.publish.as_ref().is_none_or(|r| !r.is_empty()),
         });
         for t in &p.targets {
             targets.push(Target {

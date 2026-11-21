@@ -2,6 +2,7 @@
 //! occurrence refers to.
 
 use super::helpers::{is_def, is_local, module_path};
+use super::layout::Layout;
 use super::normalise::Builder;
 use super::{Graph, SymbolRow, span};
 use ::scip::types::{Occurrence, SymbolInformation};
@@ -16,12 +17,16 @@ pub(super) struct DefIndex<'a> {
 
 impl DefIndex<'_> {
     /// The definition an occurrence of `scip` in `file` (of `target`) refers to: the one in the
-    /// same file, else the first in the same target, else the first. `None` for external symbols.
-    /// Candidates always share a package: `by_scip` is keyed by the full SCIP symbol (package and
-    /// version), so `None == None` for untargeted files cannot select an unrelated def.
+    /// same file, else the first in the same target, else the one in a library target, else the
+    /// first. `None` for external symbols. SCIP symbols name the package, not the target, so a
+    /// lib and a test target of one package can define the same symbol; code outside a target can
+    /// only depend on the package's lib, so that is the candidate to pick. Candidates always share
+    /// a package: `by_scip` is keyed by the full SCIP symbol (package and version), so
+    /// `None == None` for untargeted files cannot select an unrelated def.
     pub(super) fn resolve(
         &self,
         g: &Graph,
+        ws: &Layout,
         scip: &str,
         file: usize,
         target: Option<usize>,
@@ -30,10 +35,14 @@ impl DefIndex<'_> {
         if let Some(&id) = self.by_key.get(&(scip, file)) {
             return Some(id);
         }
-        let same = cands
-            .iter()
-            .find(|&&c| g.files[g.symbols[c].file].target == target);
-        Some(*same.unwrap_or(&cands[0]))
+        let target_of = |c: usize| g.files[g.symbols[c].file].target;
+        let same = cands.iter().find(|&&c| target_of(c) == target);
+        let lib = || {
+            cands
+                .iter()
+                .find(|&&c| target_of(c).is_some_and(|t| ws.targets.get(t).is_some_and(|t| t.lib)))
+        };
+        Some(*same.or_else(lib).unwrap_or(&cands[0]))
     }
 }
 
@@ -94,7 +103,22 @@ impl<'a> Builder<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scip::layout::Target;
     use crate::scip::testutil::Builder as Fixture;
+
+    /// Targets 0 and 1 of one package; only `lib_target` is a library.
+    fn layout(lib_target: usize) -> Layout {
+        let t = |i: usize| Target {
+            package: 0,
+            name: format!("t{i}"),
+            src_path: format!("t{i}.rs"),
+            lib: i == lib_target,
+        };
+        Layout {
+            packages: Vec::new(),
+            targets: (0..3).map(t).collect(),
+        }
+    }
 
     /// Files 0, 1, 2 in targets 0, 1, 1; `s` is defined in files 1 and 2 (symbols `a`, `b`).
     fn setup() -> (Graph, DefIndex<'static>, usize, usize) {
@@ -116,20 +140,34 @@ mod tests {
     #[test]
     fn prefers_the_same_file() {
         let (g, d, a, b) = setup();
-        assert_eq!(d.resolve(&g, "s", 1, Some(1)), Some(a));
-        assert_eq!(d.resolve(&g, "s", 2, Some(1)), Some(b));
+        let ws = layout(9);
+        assert_eq!(d.resolve(&g, &ws, "s", 1, Some(1)), Some(a));
+        assert_eq!(d.resolve(&g, &ws, "s", 2, Some(1)), Some(b));
     }
 
     #[test]
     fn then_the_same_target_then_the_first() {
         let (mut g, d, a, _) = setup();
+        let ws = layout(9);
         // File 0 defines no `s` and is in target 0, where no candidate lives: the first.
-        assert_eq!(d.resolve(&g, "s", 0, Some(0)), Some(a));
+        assert_eq!(d.resolve(&g, &ws, "s", 0, Some(0)), Some(a));
         // Candidates in targets 0 and 1: a target-1 reference skips the target-0 candidate.
         let mut d = d;
         d.by_scip.insert("s", vec![a, 2]);
         g.files[1].target = Some(0);
-        assert_eq!(d.resolve(&g, "s", 0, Some(1)), Some(2));
+        assert_eq!(d.resolve(&g, &ws, "s", 0, Some(1)), Some(2));
+    }
+
+    /// A lib and a test target of one package both define `s` (same SCIP symbol, different
+    /// modules); a reference from another target can only mean the lib's.
+    #[test]
+    fn otherwise_prefers_the_library_target() {
+        let (mut g, d, a, b) = setup();
+        g.files[1].target = Some(1);
+        g.files[2].target = Some(2);
+        // From target 0: the test-target candidate `a` comes first, but the lib `b` wins.
+        assert_eq!(d.resolve(&g, &layout(2), "s", 0, Some(0)), Some(b));
+        assert_eq!(d.resolve(&g, &layout(1), "s", 0, Some(0)), Some(a));
     }
 
     #[test]
@@ -158,6 +196,7 @@ mod tests {
     #[test]
     fn external_symbols_resolve_to_none() {
         let (g, d, ..) = setup();
-        assert_eq!(d.resolve(&g, "ext", 0, Some(0)), None);
+        let ws = layout(9);
+        assert_eq!(d.resolve(&g, &ws, "ext", 0, Some(0)), None);
     }
 }

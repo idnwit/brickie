@@ -89,27 +89,3 @@ fn since(entries: &[Version], base: u64) -> String {
     }
     lines
 }
-
-/// `Ok` when the published head (last of `published`) is the draft's base `forked_from`;
-/// otherwise the stale error of a publish, naming the published versions since the fork.
-pub fn published(published: &[Version], forked_from: u64, draft: u64) -> Result<(), Stale> {
-    let Some(head) = published.last() else {
-        return Ok(());
-    };
-    if head.v == forked_from {
-        return Ok(());
-    }
-    let message = format!(
-        "error[{DESIGN_STALE}]: the published design is at v{} (by {}, {} ago), the draft was \
-         forked from v{forked_from}. Nothing was published.\n{}Replay the draft on it with \
-         `brickie design rebase --base {draft}`, then publish again.",
-        head.v,
-        head.by.name(),
-        ago(head.at),
-        since(published, forked_from)
-    );
-    Err(Stale {
-        message,
-        head: head.v,
-    })
-}

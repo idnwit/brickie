@@ -4,10 +4,11 @@
 use super::complexity::Analysis;
 use super::edges::symbol_name;
 use super::reach::Reach;
+use super::surface::Surface;
 use crate::scip::modules::ModuleIds;
 use crate::scip::{Graph, SymbolRow};
 use ::scip::types::descriptor::Suffix;
-use brickie_facts::{FileData, Item, full_doc};
+use brickie_facts::{Allow, FileData, Item, full_doc};
 use std::collections::{BTreeMap, HashSet};
 
 /// `(vis, keyword)` of a signature: `pub fn f()` -> `("pub", "fn")`. `None` for private
@@ -98,6 +99,7 @@ struct Items<'a> {
     test_set: &'a HashSet<String>,
     traits: HashSet<String>,
     reach: Reach,
+    surface: Surface,
 }
 
 impl<'a> Items<'a> {
@@ -121,11 +123,25 @@ impl<'a> Items<'a> {
             test_set,
             traits,
             reach: Reach::new(g, ids, crate_ids),
+            surface: Surface::new(g, analyses),
         }
     }
 
     fn is_test(&self, path: &str, s: &SymbolRow) -> bool {
         self.test_set.contains(path) || self.analyses[path].is_test_at((s.range.0, s.range.1))
+    }
+
+    /// The directive comment above the item whose name is on `line` (1-based).
+    fn allow(&self, path: &str, line: u32) -> Option<Allow> {
+        let d = self.analyses[path]
+            .directives
+            .iter()
+            .find(|d| d.target == Some(line))?;
+        Some(Allow {
+            line: d.line,
+            codes: d.codes.clone(),
+            reason: d.reason.clone(),
+        })
     }
 
     /// `(kind, name, exported)` of symbol `i` in `module`; `None` for trait members and trait
@@ -172,6 +188,8 @@ impl<'a> Items<'a> {
             vis: vis.into(),
             visible_in: self.reach.visible_in(i, module, vis),
             exported,
+            surface: self.surface.of(&s.scip, kind, &s.name),
+            allow: self.allow(path, s.range.0 + 1),
         };
         Some((path, item))
     }

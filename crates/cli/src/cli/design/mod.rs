@@ -80,10 +80,6 @@ fn dispatch(a: DesignArgs) -> Result<()> {
             return print(json, &out.version, || render::outcome(&out));
         }
         Cmd::Publish { base, note } => return publish::publish(&d, json, base, note),
-        Cmd::Rebase { base } => {
-            let out = d.rebase(base, By::Agent)?;
-            return print(json, &render::outcome_json(&out), || render::outcome(&out));
-        }
         Cmd::Discard { base } => {
             let out = d.discard(base, By::Agent)?;
             return print(json, &render::outcome_json(&out), || render::outcome(&out));

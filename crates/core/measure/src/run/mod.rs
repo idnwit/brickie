@@ -42,6 +42,7 @@ mod hint;
 mod items;
 mod merge;
 mod reach;
+mod surface;
 
 pub use complexity::fn_tree;
 
@@ -229,6 +230,7 @@ fn cargo_layout(ws: &metadata::Workspace) -> layout::Layout {
                 package: t.package,
                 name: t.name.clone(),
                 src_path: t.src_path.clone(),
+                lib: crate::workspace::crates::is_lib_kind(&t.kind),
             })
             .collect(),
     }

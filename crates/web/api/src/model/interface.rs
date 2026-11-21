@@ -21,7 +21,7 @@ pub struct InterfaceView {
 impl InterfaceView {
     /// How many items no other brick uses.
     pub fn unused(&self) -> usize {
-        self.items.iter().filter(|i| i.uses.is_empty()).count()
+        self.items.iter().filter(|i| i.unused).count()
     }
 }
 
@@ -37,8 +37,10 @@ pub struct IfaceItemView {
     pub doc: String,
     pub file: String,
     pub line: u32,
-    /// By using brick at the interface's level; empty when unused.
+    /// By using brick at the interface's level.
     pub uses: Vec<UseGroupView>,
+    /// No use and not public API of a package that may be published (`interface/unused`).
+    pub unused: bool,
 }
 
 impl IfaceItemView {

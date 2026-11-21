@@ -181,6 +181,7 @@ mod tests {
                 package: 0,
                 name: "alpha".into(),
                 src_path: "lib.rs".into(),
+                lib: true,
             }],
         };
         let mut g = b.g;

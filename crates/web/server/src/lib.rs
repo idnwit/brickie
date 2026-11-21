@@ -40,7 +40,7 @@
 //! | `POST /api/interface`, `POST /api/edge-uses` | a brick's interface; the sites behind an edge |
 //! | `GET /api/events` | Server-Sent Events: design, cache, measure and config changes |
 //! | `GET /api/measure`, `POST /api/measure` | the measure job's state; start it (single flight) |
-//! | `GET /api/design`, `POST /api/design/{edit,move,undo,publish,rebase,discard}` | the design and its writes |
+//! | `GET /api/design`, `POST /api/design/{edit,move,undo,publish,discard}` | the design and its writes |
 //! | `POST /api/design/{links,link-check,levels,layout,relayout}` | link options, checks, levels, canvas hints |
 //! | `GET /static/ui/<hash>/...` | the embedded wasm bundle (404 without the `ui` feature) |
 //!

@@ -13,7 +13,7 @@ fn sym_edge(from: &str, to: &str, symbol: &str, scope: &str, line: u32) -> Value
            "written": symbol})
 }
 
-fn item(pkg: &str, symbol: &str, exported: bool) -> Item {
+pub(super) fn item(pkg: &str, symbol: &str, exported: bool) -> Item {
     Item {
         symbol: symbol.into(),
         module: format!("{pkg}::m"),
@@ -25,6 +25,8 @@ fn item(pkg: &str, symbol: &str, exported: bool) -> Item {
         vis: "pub".into(),
         visible_in: pkg.into(),
         exported,
+        surface: Vec::new(),
+        allow: None,
     }
 }
 
@@ -35,7 +37,7 @@ fn names(i: &Interface) -> Vec<&str> {
 /// api declares `Foo` (used by ui and core), `bar` (used only by a core test) and `dead`;
 /// `hidden` is not exported from its crate. ui declares `view` (used by a web-api test),
 /// shared declares `util`.
-fn world() -> (tempfile::TempDir, crate::config::Config, Resolved, Cache) {
+pub(super) fn world() -> (tempfile::TempDir, crate::config::Config, Resolved, Cache) {
     let web = WEB.replace("exports = [\"api\"]", "exports = [\"api\", \"ui\"]");
     let (dir, cfg) = fixture(ROOT, &web);
     let res = resolved(dir.path(), &cfg).unwrap();
@@ -125,6 +127,23 @@ fn uses_are_grouped_at_the_brick_level() {
     // ui -> api is inside `web`: only core's use is a use of web's interface.
     assert_eq!(foo.uses.len(), 1);
     assert_eq!(foo.uses[0].brick, "root/core");
+}
+
+/// Public API of a package that may be published has users brickie cannot see.
+#[test]
+fn published_public_api_is_never_unused() {
+    let (_d, cfg, res, mut c) = world();
+    c.crates
+        .iter_mut()
+        .for_each(|k| k.publish = k.id == "web-api");
+    let found: Vec<String> = unused(&c, &cfg, &res)
+        .iter()
+        .map(|f| diagnostic(f.as_ref()).message)
+        .collect();
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(found[0].contains("`util`"));
+    let api = interface(&c, &cfg, &res, &["web".into(), "api".into()]);
+    assert_eq!(api.unused(), 0);
 }
 
 #[test]

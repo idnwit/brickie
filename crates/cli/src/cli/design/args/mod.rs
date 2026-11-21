@@ -101,12 +101,6 @@ pub enum Cmd {
         #[arg(long)]
         note: Option<String>,
     },
-    /// Replay the draft's ops onto the new published head (after the published design moved).
-    Rebase {
-        /// The draft head.
-        #[arg(long, env = "BRICKIE_BASE")]
-        base: u64,
-    },
     /// Drop the draft; the published design stays as it is.
     Discard {
         /// The draft head.

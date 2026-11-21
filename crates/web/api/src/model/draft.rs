@@ -1,4 +1,4 @@
-//! The request bodies of the draft's lifecycle: publish, rebase and discard. Each is based on
+//! The request bodies of the draft's lifecycle: publish and discard. Each is based on
 //! the draft's head version; the reply is an [`EditReply`](crate::EditReply).
 
 use crate::Based;
@@ -15,7 +15,7 @@ pub struct PublishRequest {
     pub note: Option<String>,
 }
 
-/// Rebase or discard the draft at `base`.
+/// Discard the draft at `base`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DraftRequest {
     pub base: u64,

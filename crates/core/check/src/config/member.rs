@@ -75,6 +75,7 @@ mod tests {
             kind: "lib".into(),
             root: "crates/web/api/src/lib.rs".into(),
             dir: "crates/web/api".into(),
+            publish: false,
         };
         let s = Subject::new(&m, Some(&c), Path::new("/ws"));
         let base = Path::new("/ws");

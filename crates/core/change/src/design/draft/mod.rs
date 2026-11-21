@@ -4,9 +4,9 @@
 //! by `publish` (and by hand). The draft is read through the preview overlay, so `path =` and
 //! includes resolve as for the real files.
 
+mod discard;
 mod gate;
 mod publish;
-mod rebase;
 
 pub use publish::Blocked;
 

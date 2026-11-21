@@ -13,7 +13,7 @@ pub(super) struct Stamp {
     pub by: By,
     pub note: Option<String>,
     pub ops: Vec<Op>,
-    /// The write starts a draft based on this published version (a fork or a rebase).
+    /// The write starts a draft based on this published version (a fork).
     pub fork: Option<u64>,
     /// An undo: the version it reverts.
     pub reverts: Option<u64>,

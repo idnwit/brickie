@@ -75,11 +75,35 @@ from `git diff` / `git status` confirmed by sha256, workspace members unknown to
   works per leaf: a composite has no interface findings of its own, and exports do not widen it.
 - Uses come from reference edges (not `reexports`) from outside the brick or from unmapped
   modules, or from test code anywhere. Production edges inside the leaf never count. A `#[test]` in a `mod tests` child counts; one in the item's own module does not.
+- Public API (`exported`) of a package that may be published (`publish` is not `false`) is never
+  unused: brickie cannot see users outside the workspace. `publish = false` is the switch that says
+  every user is in the workspace, so it needs no `brickie.toml` key.
 - Doctests count as test uses of exported items: rust-analyzer does not index doc comments, so a
   compiled code block (no `ignore`, `text`, `compile_fail` or other language) in a module or item
   doc of the same crate uses an item whose own name (a method's name alone: `state.alloc(..)`
   never writes the type) appears in it as a word. A word match
   can over-count; it only silences a warning.
+- Surface uses: Rust lets a caller use a type without writing its name (`take() -> Rows`, a
+  bound `T: Elem`, a `pub` field, a trait a type implements), so an item with no use of its own
+  is used when it appears in the surface of a used item of its crate, transitively. Seeds are
+  items with a use of their own at their leaf, or published API. Surface of an item: its
+  signature; for a struct, enum or union the `pub` fields and variants; for a trait its member
+  signatures; for a type the traits it implements. Matching is by word against the names of
+  types, traits and consts of the same crate (over-counting only silences a warning). The fixpoint
+  is computed once per `Index` (`interface/uses.rs`, `interface/surface.rs`) so `check`, the CLI
+  and the viewer agree; it appears as a use group `<brick> (via surface)` with a `surface` site
+  at the definition of the used item. Usedness of that item is judged at its leaf, also when a
+  composite is shown. Facts: see the `surface` item field in [measure.md](measure.md).
+- Exemption: a line comment `// brickie: allow(interface/unused) -- <reason>` directly above an
+  item (doc comments and attributes may sit between; a blank line or other code breaks the link)
+  exempts it, for uses the indexer cannot see (macro bodies, proc-macro output, a type chosen by
+  `build.rs`). It is a comment because stable Rust has no custom tool attributes
+  (`#![register_tool]` is nightly only). `Item::allows` is the one decision, read by `check`, the
+  CLI and the viewer (`IfaceItem::unused`). `config/stale-allow` (an error finding at the comment
+  line) reports a directive with no reason, an unlisted code (only `interface/unused` is
+  allowed), or an item that is not unused anyway (`interface/stale_allow.rs`), so exemptions
+  cannot rot. A directive above anything that is not a recorded item is ignored. Facts: the
+  `allow` item field in [measure.md](measure.md).
 - Not items: `macro_rules!` (no `pub` signature from rust-analyzer), a `pub fn` in a private
   module. A `pub(crate)` item shared between folder bricks is an item.
 - Agents run `brickie interface <brick> [--json] [--from <brick>]`.
@@ -90,7 +114,7 @@ from `git diff` / `git status` confirmed by sha256, workspace members unknown to
   sha256 of `code\0subject`, so review decisions survive re-runs. Codes: `crates/core/model/src/codes.rs`.
 - Id subjects (what follows `code\0`): `deps/unlinked|private` `from->to:kind:scope` by
   module; `deps/cycle` member names (prefixed by the level below root); `complexity/m` `file::fn::m`; `interface/unused`
-  `leaf path:module:symbol`; `stale/file` the file; `stale/measure` `measure`; `bricks/unmapped`
+  `leaf path:module:symbol`; `config/stale-allow` `file:line`; `stale/file` the file; `stale/measure` `measure`; `bricks/unmapped`
   the module id.
 - Text output is cargo-style. JSON is `{summary, diagnostics}`; the webview consumes it.
 - `check --brick PATH` (repeatable) shows findings whose owner is the brick or a descendant,

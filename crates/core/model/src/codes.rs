@@ -22,6 +22,9 @@ pub const CONFIG_INVALID: &str = "config/invalid";
 pub const CONFIG_MEMBER_OUTSIDE_PARENT: &str = "config/member-outside-parent";
 pub const CONFIG_OVERLAP: &str = "config/overlap";
 pub const CONFIG_UNASSIGNED: &str = "config/unassigned";
+/// A `// brickie: allow(..)` directive that has no reason, names an unknown code, or exempts an
+/// item that is not unused anyway.
+pub const CONFIG_STALE_ALLOW: &str = "config/stale-allow";
 // The design (`brickie design`): the message starts with the code.
 pub const DESIGN_PLANNED: &str = "design/planned";
 pub const DESIGN_INVALID: &str = "design/invalid";
@@ -59,6 +62,7 @@ pub fn all() -> Vec<String> {
         CONFIG_MEMBER_OUTSIDE_PARENT,
         CONFIG_OVERLAP,
         CONFIG_UNASSIGNED,
+        CONFIG_STALE_ALLOW,
         DESIGN_PLANNED,
         DESIGN_INVALID,
         DESIGN_LINK_DENIED,
