@@ -47,7 +47,7 @@ brickie measure --> .brickie/cache.json --> brickie check  --> findings (text/js
 | [design/serve.md](design/serve.md) | webview decisions, brick score, layout port, embedded code viewer |
 | [design/levels.md](design/levels.md) | nested bricks, exports, map-style zoom |
 | [design/links.md](design/links.md) | decision record: allow-only rules and declared links |
-| [design/editor.md](design/editor.md) | versioned design editing: draft, publish gate, rebase (`brickie design` and the viewer's Design mode) |
+| [design/editor.md](design/editor.md) | versioned design editing: draft, publish gate (`brickie design` and the viewer's Design mode) |
 | [design/layout.md](design/layout.md) | crates, folders, crate boundaries |
 | [design/complexity.md](design/complexity.md) | lib vs wiring flow, test placement, limits per tag |
 | [design/roadmap.md](design/roadmap.md) | distribution, steps with status, open items, accepted behaviours |

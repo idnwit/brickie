@@ -1,4 +1,4 @@
-//! `publish`, `rebase` and `discard`: the draft's way into the published tree.
+//! `publish`: the draft's way into the published tree.
 
 use super::render;
 use anyhow::Result;

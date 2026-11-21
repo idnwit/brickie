@@ -3,12 +3,13 @@
 //! or a test references it.
 
 use super::declared::declared;
+use super::stale_allow;
 use super::uses::Index;
 use crate::config::{Config, Resolved, level_name};
 use crate::diag::{Finding, RuleRef, Span};
 use brickie_facts::Cache;
 use brickie_model::codes::INTERFACE_UNUSED;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 struct Unused {
     leaf: Vec<String>,
@@ -63,13 +64,20 @@ impl Finding for Unused {
 
 /// One `interface/unused` finding per declared item of every leaf brick without a use: an item
 /// counts as used when a sibling brick (or anything outside the leaf) or a test references it.
+/// An item with an `allow(interface/unused)` directive is skipped; directives that exempt
+/// nothing are reported as `config/stale-allow`.
 pub fn unused(cache: &Cache, cfg: &Config, res: &Resolved) -> Vec<Box<dyn Finding>> {
     let idx = Index::new(cache, res);
     let leaves: BTreeSet<&Vec<String>> = res.paths.values().collect();
     let mut out: Vec<Box<dyn Finding>> = Vec::new();
+    let mut exempt: HashSet<(&str, &str)> = HashSet::new();
     for leaf in leaves {
         for d in declared(cache, cfg, res, leaf) {
-            if !idx.uses(d.item, leaf).is_empty() {
+            if idx.published(d.item) || !idx.uses(d.item, leaf).is_empty() {
+                continue;
+            }
+            if d.item.allows(INTERFACE_UNUSED) {
+                exempt.insert((d.item.module.as_str(), d.item.symbol.as_str()));
                 continue;
             }
             out.push(Box::new(Unused {
@@ -83,5 +91,6 @@ pub fn unused(cache: &Cache, cfg: &Config, res: &Resolved) -> Vec<Box<dyn Findin
             }));
         }
     }
+    out.extend(stale_allow::stale_allows(cache, res, &exempt));
     out
 }

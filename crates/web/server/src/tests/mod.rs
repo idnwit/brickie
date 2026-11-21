@@ -65,7 +65,7 @@ impl Site {
             json!({"symbol": format!("x::{name}"), "module": "eng::x", "kind": "fn",
                    "name": name, "signature": format!("pub fn {name}()"),
                    "doc": format!("Does {name}.\n\nSee **{name}** <b>raw</b>."),
-                   "line": line, "vis": "pub", "visible_in": "eng", "exported": true})
+                   "line": line, "vis": "pub", "visible_in": "eng", "exported": true, "surface": []})
         };
         let func = |name: &str, line: u32, cog: u32| {
             json!({"name": name, "qname": name, "module": "eng::x", "line": line, "end_line": line,

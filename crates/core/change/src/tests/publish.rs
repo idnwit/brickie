@@ -132,6 +132,26 @@ fn a_clean_draft_publishes_one_version() {
 }
 
 #[test]
+fn publish_overwrites_published_changes_since_the_fork() {
+    let ws = measured_with(false);
+    let base = ws.apply(A, vec![desc("b", "the b")]).unwrap().version.v;
+    // A hand edit moves the published head after the fork.
+    ws.write("brickie.toml", &format!("{PUB_ROOT}\n# hand\n"));
+    let d = ws.design();
+    let out = d.publish(base, A, None).unwrap();
+    assert_eq!(out.version.track, Track::Published);
+    assert!(
+        out.version.note.as_deref().unwrap().contains("overwrote v"),
+        "{:?}",
+        out.version.note
+    );
+    let text = ws.read_published("brickie.toml");
+    assert!(text.contains("desc = \"the b\""), "{text}");
+    assert!(!text.contains("# hand"), "the draft wins: {text}");
+    assert_eq!(d.forked_from().unwrap(), None);
+}
+
+#[test]
 fn a_planned_brick_blocks() {
     let ws = measured_with(false);
     assert_eq!(blocked(&ws, vec![add("c", &["pc"])]), ["design/planned"]);

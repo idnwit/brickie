@@ -59,3 +59,14 @@ fn test_gating() {
     assert!(a.is_test_at((4, 4)));
     assert!(!a.is_test_at((0, 0)));
 }
+
+#[test]
+fn impls_list_type_and_trait_names() {
+    let a = analyze(
+        "impl a::Tr for S {}\nimpl<T> Other<T> for b::G<T> {}\nimpl S {}\nimpl Tr for &S {}",
+    );
+    assert_eq!(
+        a.impls,
+        vec![("S".into(), "Tr".into()), ("G".into(), "Other".into())]
+    );
+}

@@ -4,10 +4,11 @@
 //! name it are test uses inside the brick ([`super::doctest`]).
 
 use super::doctest::Doctests;
+use super::surface::{self, Via};
 use super::{Site, UseGroup, covers, key};
 use crate::config::{Resolved, level_name};
 use brickie_facts::{Cache, FileEdge, Item};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub(super) struct Ref<'a> {
     pub key: String,
@@ -36,6 +37,13 @@ impl Ref<'_> {
 pub(super) struct Index<'a> {
     pub by_to: HashMap<&'a str, Vec<Ref<'a>>>,
     doctests: Doctests,
+    /// Crate ids of packages that may be published.
+    published: HashSet<&'a str>,
+    /// Module id -> crate id.
+    crate_of: HashMap<&'a str, &'a str>,
+    res: &'a Resolved,
+    /// Items named by the surface of a used item ([`surface`]).
+    via: HashMap<surface::Id<'a>, Via<'a>>,
 }
 
 impl<'a> Index<'a> {
@@ -51,14 +59,73 @@ impl<'a> Index<'a> {
                 });
             }
         }
-        Index {
+        let mut idx = Index {
             by_to,
             doctests: Doctests::new(cache),
-        }
+            published: cache
+                .crates
+                .iter()
+                .filter(|c| c.publish)
+                .map(|c| c.id.as_str())
+                .collect(),
+            crate_of: cache
+                .modules
+                .iter()
+                .map(|m| (m.id.as_str(), m.krate.as_str()))
+                .collect(),
+            res,
+            via: HashMap::new(),
+        };
+        let via = surface::reach(cache, &idx.crate_of, |i| {
+            idx.published(i)
+                || res
+                    .path(&i.module)
+                    .is_some_and(|leaf| !idx.direct(i, leaf).is_empty())
+        });
+        idx.via = via;
+        idx
     }
 
-    /// Uses of `item` as part of the interface of the brick at `brick`.
+    /// The item is public API of a package that may be published: code outside the workspace,
+    /// which brickie cannot see, may use it, so it is never reported unused.
+    pub fn published(&self, item: &Item) -> bool {
+        item.exported
+            && self
+                .crate_of
+                .get(item.module.as_str())
+                .is_some_and(|k| self.published.contains(k))
+    }
+
+    /// Uses of `item` as part of the interface of the brick at `brick`: its own uses, or when it
+    /// has none, one group `<brick> (via surface)` with a `surface` site at the definition of
+    /// the used item whose surface names it. The brick is the one of that item at the level of
+    /// `brick`. Whether that item is used is judged at the level of its leaf brick.
     pub fn uses(&self, item: &Item, brick: &[String]) -> Vec<UseGroup> {
+        let mut groups = self.direct(item, brick);
+        if let (true, Some(v)) = (groups.is_empty(), self.via.get(&surface::id(item))) {
+            let label = match self.res.path(&v.item.module) {
+                Some(p) => level_name(&p[..brick.len().min(p.len())]),
+                None => "(unmapped)".to_string(),
+            };
+            groups.push(UseGroup {
+                brick: format!("{label} (via surface)"),
+                sites: vec![Site {
+                    file: v.file.to_string(),
+                    line: v.item.line,
+                    col: 1,
+                    end_col: 1,
+                    scope: "prod".into(),
+                    kind: "surface".into(),
+                    written: v.item.name.clone(),
+                    symbol: v.item.symbol.clone(),
+                }],
+            });
+        }
+        groups
+    }
+
+    /// References and doctests that use `item`, from outside the brick at `brick` or from tests.
+    fn direct(&self, item: &Item, brick: &[String]) -> Vec<UseGroup> {
         let k = key(&item.symbol);
         let mut groups: BTreeMap<String, Vec<Site>> = BTreeMap::new();
         for r in self.by_to.get(item.module.as_str()).into_iter().flatten() {

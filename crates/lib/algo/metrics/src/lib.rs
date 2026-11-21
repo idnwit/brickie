@@ -41,6 +41,8 @@
 //!
 //! * [`analyze`] measures a whole source text into an [`Analysis`].
 //! * [`fn_tree`] returns the [`FnTree`] (decision tree with [`TreeNode`]s) of the function at a line.
+//! * [`directives`] lists the `// brickie: allow(..)` comments of a file with the line each sits
+//!   above ([`Directive`]); [`Analysis::directives`] holds them.
 //! * [`FnMetrics`] holds the numbers of one function.
 //! * [`Analysis`] also lists test ranges, `mod name;` declarations and `impl Trait for Type`
 //!   positions; [`Analysis::is_test_at`] tests a position.
@@ -73,12 +75,14 @@
 
 mod analyze;
 mod cognitive;
+mod directive;
 mod paths;
 mod syntax;
 mod testcfg;
 mod tree;
 
 pub use analyze::analyze;
+pub use directive::{Directive, directives};
 pub use tree::fn_tree;
 
 /// One node of a function's decision tree, nodes in pre-order.
@@ -146,6 +150,11 @@ pub struct Analysis {
     pub mod_decls: Vec<(String, bool)>,
     /// Start of the trait name of every `impl Trait for Type`.
     pub impl_traits: Vec<Pos>,
+    /// `(type name, trait name)` of every `impl Trait for Type`, last path segments without
+    /// generic arguments; impls for reference, tuple or other non-path types are not listed.
+    pub impls: Vec<(String, String)>,
+    /// `// brickie: allow(..) -- reason` comments in file order.
+    pub directives: Vec<Directive>,
 }
 
 impl Analysis {

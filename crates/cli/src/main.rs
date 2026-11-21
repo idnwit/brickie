@@ -41,7 +41,7 @@
 //! | `measure` | Reads the workspace and writes the cache; `--scip` reuses an index, `--workspace` sets the directory. |
 //! | `check` | Prints findings from the cache; `--format text, json or short`, `--color`, `--brick` (repeatable), `--measure`. |
 //! | `interface <brick>` | Prints a brick's interface; `--json`, `--from <brick>`. |
-//! | `design ...` | Reads and edits the design: `show`, `log`, `diff`, `undo`, `apply`, `publish`, `rebase`, `discard`, `brick`, `rule`, `link`, `export`, `limit`, `include`. |
+//! | `design ...` | Reads and edits the design: `show`, `log`, `diff`, `undo`, `apply`, `publish`, `discard`, `brick`, `rule`, `link`, `export`, `limit`, `include`. |
 //! | `serve` | Starts the webview; `--port` (default 7881), `--bind` (default 127.0.0.1). |
 //! | `llms.txt` | Prints the guide for coding agents. |
 //!

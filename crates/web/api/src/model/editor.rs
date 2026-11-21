@@ -48,13 +48,6 @@ pub struct DesignState {
     pub error: Option<String>,
 }
 
-impl DesignState {
-    /// The draft is based on an older published version: it must be rebased before publish.
-    pub fn behind(&self) -> bool {
-        self.forked_from.is_some_and(|f| f != self.published)
-    }
-}
-
 /// How many versions [`DesignState::history`] carries.
 pub const HISTORY: usize = 50;
 

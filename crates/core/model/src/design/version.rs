@@ -53,7 +53,7 @@ pub struct Version {
     /// The tree this version belongs to; version numbers are shared by both tracks.
     #[serde(default)]
     pub track: Track,
-    /// A draft version that starts a draft (fork or rebase): the published version it is
+    /// A draft version that starts a draft (a fork): the published version it is
     /// based on. Its snapshot is `full`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub forked_from: Option<u64>,

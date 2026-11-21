@@ -29,6 +29,11 @@ Proposal and phases: [../proposals/features.md](../proposals/features.md).
 - Units: crate, module (`crate::a::b`), file. A module maps to at most one leaf brick.
 - **`to` of an edge is the module that defines the item** (SCIP). A re-export is not an edge
   target. There is no path-based re-attribution.
+- **A SCIP symbol names the package, not the target**, so a lib and a test target of one package
+  can define the same symbol in different modules. A reference resolves to the definition in the
+  same file, else in the same target, else in the package's lib (the only target others can
+  depend on), else the first. Alternatives kept for later: `rust-analyzer lsif` (links each
+  reference to its definition site) or rust-analyzer as a library.
 - Each reference site gives one edge kind:
 
   | kind | sites |
@@ -45,13 +50,13 @@ Proposal and phases: [../proposals/features.md](../proposals/features.md).
   `lines`, `scope`. Macro bodies are not parsed, so branches inside `println!`, `vec![]` and
   `view!` are invisible. Scoring follows SonarSource.
 
-## Cache layout (schema_version 9)
+## Cache layout (schema_version 12)
 
 `.brickie/cache.json` sits next to the config. Top level: `schema_version`, `tool_version`,
 `rust_analyzer`, `measured`, `workspace_root`, `git`, `crates`, `modules`, `files`.
 
 - Ids: a library crate is its package name, other targets `pkg/kind/target`, a module
-  `<crate id>::a::b`. A crate records `dir` (package dir) for `path:` members. A module
+  `<crate id>::a::b`. A crate records `dir` (package dir) for `path:` members and `publish` (its package may be published). A module
   records its `file`, `line` and `doc` (its inner `//!` doc comment, markdown, from the SCIP
   module symbol; omitted when empty).
 - `files` is keyed by path: hash, size, lines, scope, module, `functions`, outgoing `edges` with
@@ -60,6 +65,18 @@ Proposal and phases: [../proposals/features.md](../proposals/features.md).
 - Every `.rs` file under a crate root is recorded. One the compiler never saw has
   `compiled: false`, so staleness can tell it from an added file.
 - `items` per file: every non-test `pub` or `pub(crate)` item (`symbol`, `module`, `kind`, `name`,
-  one-line `signature`, `doc` (the whole doc comment, markdown), `line`, `vis`, `visible_in`, `exported`). Trait members, trait-impl
+  one-line `signature`, `doc` (the whole doc comment, markdown), `line`, `vis`, `visible_in`, `exported`, `surface`, `allow`). Trait members, trait-impl
   items, fields, variants and modules are not items. Only declared items are cached.
+- `surface` (sorted strings; text the `interface/unused` surface rule matches words against): for
+  a struct, enum or union the signatures of its `pub` fields and of its variants (and their `pub`
+  fields), for a trait the signatures of its members, and for a type the names of the traits it
+  implements. Fields and variants come from SCIP symbols nested under the type symbol; trait
+  names from `impl Trait for Type` in the syntax tree (`Analysis::impls`), since SCIP has no
+  impl symbol for a trait without members. Impls are matched to a type by name only. Tuple-struct
+  fields are covered by the struct signature, which `check` reads anyway.
+- `allow` (`line`, `codes`, `reason`; omitted when absent): the `// brickie: allow(..) -- reason`
+  comment directly above the item, read by `brickie_metrics::directives` from the source text
+  (`Analysis::directives`) and matched to an item by the line of the code it sits above. The
+  reason is empty when missing. It is a comment because stable Rust has no custom tool
+  attributes (`#![register_tool]` is nightly only). `check` decides what it exempts.
 - Unreadable source: `measure` warns once per path and records an empty row (`lines = 0`).

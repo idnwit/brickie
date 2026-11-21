@@ -38,7 +38,8 @@
 //! - [`interface`] and [`Interface`]: the declared items of one brick with their uses
 //!   ([`IfaceItem`], [`UseGroup`], [`Site`]).
 //! - [`unused`]: one `interface/unused` finding per declared item no code outside the brick and
-//!   no test uses.
+//!   no test uses, and the `config/stale-allow` findings for directive comments that no longer
+//!   exempt anything ([`stale_allow`]).
 //! - [`edge_uses`] and [`EdgeItem`]: the reference sites behind an edge between two bricks, any
 //!   kind and scope, allowed or not.
 //! - [`parse_path`]: `root/web/api` or `web/api` into brick names.
@@ -48,6 +49,13 @@
 //! - A use is a reference from outside the brick, or from test code anywhere. `pub use`
 //!   re-exports are routes, not uses. A doctest naming a public API item is a test use (a
 //!   word match: rust-analyzer does not index doc comments).
+//! - An item with no use of its own is also used when it appears in the surface of a used item
+//!   of its crate (signature, `pub` fields and variants, trait members, implemented traits),
+//!   transitively: see `surface`. It gets one group `<brick> (via surface)`.
+//! - An item with a `// brickie: allow(interface/unused) -- reason` comment above it is not
+//!   reported (`Item::allows`); the directive is stale when it has no reason, names an unknown
+//!   code, or the item is used or published anyway. Directives above anything that is not a
+//!   recorded item are ignored.
 //! - Uses are grouped by the using brick at the interface's level; modules outside the tree are
 //!   `(unmapped)`.
 //! - Items are sorted by use count, descending, unused last.
@@ -55,9 +63,15 @@
 mod declared;
 mod doctest;
 mod edge;
+mod stale_allow;
+mod surface;
 mod unused;
 mod uses;
 
+#[cfg(test)]
+mod stale_allow_tests;
+#[cfg(test)]
+mod surface_tests;
 #[cfg(test)]
 mod tests;
 
@@ -106,6 +120,11 @@ pub struct IfaceItem {
     pub line: u32,
     /// Uses grouped by the using brick at the interface's level.
     pub uses: Vec<UseGroup>,
+    /// Public API of a package that may be published: never unused.
+    pub published: bool,
+    /// Exempt from `interface/unused` by a `// brickie: allow(interface/unused) -- reason`
+    /// comment above the item.
+    pub allowed: bool,
 }
 
 impl IfaceItem {
@@ -114,9 +133,10 @@ impl IfaceItem {
         self.uses.iter().map(|g| g.sites.len()).sum()
     }
 
-    /// No code outside the brick and no test uses the item.
+    /// No code outside the brick and no test uses the item, and it is not public API of a
+    /// package that may be published, and it is not exempted by a directive.
     pub fn unused(&self) -> bool {
-        self.uses.is_empty()
+        self.uses.is_empty() && !self.published && !self.allowed
     }
 
     /// The first paragraph of the doc comment, on one line.
@@ -129,7 +149,8 @@ impl IfaceItem {
 #[derive(Debug, Clone, Serialize)]
 pub struct UseGroup {
     /// Using brick at the interface's level (`root/web/server`); the brick itself with
-    /// ` (tests)` for its own tests; `(unmapped)` for modules outside the tree.
+    /// ` (tests)` for its own tests; `(unmapped)` for modules outside the tree; the brick of
+    /// the used item at the interface's level with ` (via surface)` for a surface use.
     pub brick: String,
     pub sites: Vec<Site>,
 }
@@ -144,7 +165,8 @@ pub struct Site {
     pub end_col: u32,
     /// `prod` or `test`.
     pub scope: String,
-    /// `uses`, `implements`, `reexports` or `doctest`.
+    /// `uses`, `implements`, `reexports`, `doctest`, or `surface`: the item appears in the
+    /// surface of the used item defined at this site (`written` and `symbol` name that item).
     pub kind: String,
     /// The path as written at the site.
     pub written: String,
@@ -189,6 +211,8 @@ pub fn interface(cache: &Cache, cfg: &Config, res: &Resolved, path: &[String]) -
                 file: d.file.to_string(),
                 line: d.item.line,
                 uses,
+                published: idx.published(d.item),
+                allowed: d.item.allows(brickie_model::codes::INTERFACE_UNUSED),
             }
         })
         .collect();

@@ -1,5 +1,5 @@
 //! The design editor's endpoints (`/api/design/*`). Writes (`edit`, `move`, `undo`, `publish`,
-//! `rebase`, `discard`, `layout`, `relayout`) pass the server's write guard (loopback bind,
+//! `discard`, `layout`, `relayout`) pass the server's write guard (loopback bind,
 //! same-origin request). Edits go to the draft. A write based on another version than the head answers 409 with the `design/stale` text (header
 //! `x-brickie-head`: the head version); the page reloads the design and retries.
 
@@ -91,14 +91,6 @@ pub struct DesignPublish;
 impl Endpoint for DesignPublish {
     const PATH: &'static str = "/api/design/publish";
     type Req = PublishRequest;
-    type Res = EditReply;
-}
-
-/// `POST /api/design/rebase`: replay the draft's ops onto the published head.
-pub struct DesignRebase;
-impl Endpoint for DesignRebase {
-    const PATH: &'static str = "/api/design/rebase";
-    type Req = DraftRequest;
     type Res = EditReply;
 }
 

@@ -110,7 +110,7 @@ where
     attempt::<E>(cx.clone(), req, toast, true, then);
 }
 
-/// Call a draft action (publish, rebase, discard) based on the version on screen; never
+/// Call a draft action (publish, discard) based on the version on screen; never
 /// retried on a newer head, since what it acts on may have changed.
 fn act<E>(cx: &Cx, req: ReqOf<E>, toast: String)
 where

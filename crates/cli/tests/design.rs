@@ -736,7 +736,7 @@ fn publish_is_blocked_without_measurements_and_discard_drops_the_draft() {
     assert!(String::from_utf8_lossy(&out.stdout).starts_with("ok: draft v3"));
     assert_eq!(read(d, "brickie.toml"), ROOT);
     assert_eq!(
-        run(d, &["rebase", "--base", "3"]).status.code(),
+        run(d, &["discard", "--base", "3"]).status.code(),
         Some(2),
         "no draft"
     );

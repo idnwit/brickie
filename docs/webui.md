@@ -112,8 +112,8 @@ measured cache Design mode falls back to the design files alone and the bar show
 no measurements` chip (its tooltip says why); view mode needs the cache.
 
 - A bar under the header shows `published v<N>`; with a draft, `draft v<N> . from v<M>`, its
-  `behind: rebase` when the published head moved, and Publish (runs the gate; disabled when
-  behind), Rebase (enabled when behind) and Discard (asks first). A blocked publish lists its
+  Publish (runs the gate; overwrites published changes since the fork) and Discard (asks
+  first). A blocked publish lists its
   blocking items in the bar's message. Then `v<N> . <author>` (opens History; agent violet, you,
   hand edit), the chip of denied links (opens the Inspector on the first), an error chip when the
   design does not load, and Undo and Redo with tooltips naming what they would do.

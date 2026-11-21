@@ -1,4 +1,4 @@
-//! The draft: created by the first write, tagged by track, discarded, rebased.
+//! The draft: created by the first write, tagged by track, discarded.
 
 use super::*;
 use crate::{Stale, Track};
@@ -111,64 +111,4 @@ fn undo_of_the_fork_returns_the_draft_to_the_published_files() {
     assert_eq!((out.v, out.track, out.reverts), (3, Track::Draft, Some(2)));
     assert_eq!(ws.read("brickie.toml"), ROOT);
     assert_eq!(ws.read_published("brickie.toml"), ROOT);
-}
-
-#[test]
-fn rebase_replays_the_draft_onto_the_new_published_head() {
-    let ws = Ws::new();
-    ws.apply(A, vec![add("c", &["pc"])]).unwrap();
-    ws.apply(A, vec![desc("a", "x")]).unwrap();
-    ws.design().undo(3, A, Some(3)).unwrap();
-    ws.apply(A, vec![desc("a", "kept")]).unwrap();
-    ws.write(
-        "brickie.toml",
-        &ROOT.replace("name = \"b\"", "name = \"b\"\ndesc = \"hand\""),
-    );
-    let d = ws.design();
-    let e = d.publish(5, A, None).unwrap_err();
-    let stale = e.downcast_ref::<Stale>().expect("a stale publish");
-    assert!(
-        stale.message.contains("forked from v1"),
-        "{}",
-        stale.message
-    );
-    assert!(
-        stale.message.contains("brickie design rebase --base 5"),
-        "{}",
-        stale.message
-    );
-    let out = d.rebase(5, A).unwrap().version;
-    assert_eq!(
-        (out.v, out.forked_from, out.track),
-        (7, Some(6), Track::Draft)
-    );
-    let text = ws.read("brickie.toml");
-    for want in ["desc = \"hand\"", "name = \"c\"", "desc = \"kept\""] {
-        assert!(text.contains(want), "{want} in {text}");
-    }
-    assert!(
-        !text.contains("desc = \"x\""),
-        "an undone op is not replayed: {text}"
-    );
-    assert!(
-        d.rebase(7, A).is_ok_and(|o| !o.changed),
-        "nothing to rebase"
-    );
-}
-
-#[test]
-fn rebase_fails_on_a_clash_and_writes_nothing() {
-    let ws = Ws::new();
-    ws.apply(A, vec![desc("b", "x")]).unwrap();
-    let before = ws.read("brickie.toml");
-    let root = ROOT.replace("[[brick]]\nname = \"b\"\nmembers = [\"pb\"]\n", "");
-    let root = root.replace(
-        "[[rule]]\nfrom = \"a\"\nto = \"b\"\nreason = \"fixture\"\n",
-        "",
-    );
-    ws.write("brickie.toml", &root);
-    let e = format!("{:#}", ws.design().rebase(2, A).unwrap_err());
-    assert!(e.contains("clashes with the published changes"), "{e}");
-    assert_eq!(ws.read("brickie.toml"), before);
-    assert_eq!(ws.design().forked_from().unwrap(), Some(1));
 }

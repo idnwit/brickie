@@ -12,6 +12,7 @@ fn layout() -> Layout {
         package: 0,
         name: name.into(),
         src_path: src.into(),
+        lib: src.ends_with("lib.rs"),
     };
     Layout {
         packages: vec![Package { dir: "".into() }],

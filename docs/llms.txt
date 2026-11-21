@@ -138,11 +138,11 @@ hand; use `brickie design`.
    planned brick or a `design/link-denied` link, or the cache is missing or stale; there is no
    partial publish.
 
-If the published tree moved since the fork (a hand edit, an undo of a published version),
-`publish` exits 3 (`design/stale`) and lists those versions: run
-`brickie design rebase --base N` (N: the draft head) to replay the draft's ops onto the new
-published head; an op that clashes fails and nothing is written (undo that draft version, or
-discard). `brickie design discard --base N` drops the draft; the history keeps a marker.
+The draft is the intent: if the published tree moved since the fork (a hand edit, code moves
+that deleted nested `brickie.toml` files), `publish` still writes the draft over it and lists
+the overwritten published versions in its note (`publish draft vN (overwrote vA..vB)`). They
+stay in the log; `diff` and `undo` recover them. `brickie design discard --base N` drops the
+draft; the history keeps a marker.
 
 Concurrency contract (a human may edit at the same time):
 
@@ -211,14 +211,15 @@ Concurrency contract (a human may edit at the same time):
   nothing (no version, no code). With `--scaffold` it also lists the code it would create.
   Use it before a large `apply`.
 
-Commands (each write also takes `--base N`, `--note` and `--dry-run`; `undo`, `rebase` and
-`discard` take `--base` only; `--scaffold` is only on `brick add` and `apply`):
+Commands (each write also takes `--base N`, `--note` and `--dry-run`; `publish` takes `--base`
+and `--note`, `undo` and `discard` take `--base` only; `--scaffold` is only on `brick add` and
+`apply`):
 
 ```
 brickie design show [--since N] [--in P] [--format json]
 brickie design log | diff A [B] | undo [V]
 brickie design apply [--scaffold]   (ops on stdin, one per line)
-brickie design publish --base N [--note W] | rebase --base N | discard --base N
+brickie design publish --base N [--note W] | discard --base N
 brickie design brick add NAME [--in P] [--kind crate|module|group] [--members a,b] [--tags a,b] [--desc D] [--path DIR] [--scaffold]
 brickie design brick set PATH [--members] [--tags] [--desc] [--path] [--independent true|false]   (empty --desc/--path removes; false removes the key)
 brickie design brick rename PATH NEW | move PATH --into P|root | rm PATH
@@ -397,12 +398,43 @@ re-measure is needed.
 ### interface/unused (error)
 
 A leaf brick declares an item (reachable from outside: public API of its crate, or a `pub` /
-`pub(crate)` item whose module is visible to another brick) that no code outside the brick and no
-test uses (tests anywhere count, including the brick's own; a doctest in the crate's docs counts
-for public API items it names, by word match on the item's own name (a method's name alone)). The location is the definition. Fix:
-if only the brick needs it, make it private, or remove it if nothing uses it; or add a test that
-exercises it. Methods, fields and variants count as uses of their type; `pub use` re-exports are
-not uses.
+`pub(crate)` item whose module is visible to another brick) that nothing uses. The location is the
+definition. A use is any of:
+
+- a reference from outside the brick, or from a test anywhere (including the brick's own);
+  methods, fields and variants count as uses of their type; `pub use` re-exports do not count;
+- a doctest in the crate's docs that names the item (a method by its own name alone);
+- the surface of a used item of the same crate, transitively, because callers can use a type
+  without writing its name: a type or trait named in the signature of a used fn, method, alias or
+  const (parameters, return type, bounds, where clauses), in the `pub` fields or variants of a
+  used struct, enum or union, in the members of a used trait, or a trait a used type implements.
+  Matching is by name; such an item shows a use group `<brick> (via surface)`.
+
+Public API of a package that may be published (no `publish = false` in its `Cargo.toml`) is never
+reported: users outside the workspace cannot be seen. Set `publish = false` on a package used only
+inside the workspace so its public API is checked; keep it publishable (or set `publish = true`)
+when code outside the repository uses it.
+
+Fix: if only the brick needs it, make it private, or remove it if nothing uses it; or add a test
+that exercises it. If the use is real but brickie cannot see it (inside a `macro_rules!` body, in
+code a proc macro generates, or a type `build.rs` selects through
+`include!(concat!(env!("OUT_DIR"), ..))`), put a directive with a reason after ` -- ` directly
+above the item:
+
+    // brickie: allow(interface/unused) -- build.rs selects one profile as `Active`
+    pub struct Rtx5090;
+
+Doc comments and attributes may sit between the directive and the item; a blank line or other code
+breaks the link. `interface/unused` is the only code it accepts. Directives above anything that is
+not a declared item (a private fn, a field) are ignored.
+
+### config/stale-allow (error)
+
+An `// brickie: allow(..) -- reason` directive is stale, so the exemption would rot. The location
+is the comment line; the message says why: it has no reason (add ` -- <why>`; until then the item
+is still reported), it names a code other than `interface/unused`, or the item is not unused
+anyway (it has a real use, a surface use, a doctest, or is public API of a publishable package, or
+is not an interface item). Fix: remove the directive, or correct the code or reason.
 
 ### config/missing, config/invalid, config/overlap, config/unassigned, config/member-outside-parent
 
@@ -450,8 +482,7 @@ The design (see "Editing the design"):
   an unknown brick, or a rule without a reason). Nothing was written. Fix the edit, or make the
   related change in the same order the message suggests (for example change the rule first).
 - `design/stale` (exit code 3): your `--base` is not the head; nothing was written. Follow the
-  concurrency contract in "Editing the design". From `publish`: the published tree moved since
-  the draft's fork; run `brickie design rebase --base N`, then publish again.
+  concurrency contract in "Editing the design". From `publish`: `--base` is not the draft head.
 - `design/blocked` (exit code 4): `publish` refused because the code does not match the draft's
   structure yet; nothing was published. The message lists the items; work through
   `brickie check` (see "Draft workflow").

@@ -3,7 +3,7 @@
 use super::metadata::Workspace;
 use brickie_facts::Crate;
 
-fn is_lib_kind(kind: &str) -> bool {
+pub(crate) fn is_lib_kind(kind: &str) -> bool {
     kind.split(',').any(|k| {
         matches!(
             k,
@@ -43,6 +43,7 @@ pub fn crates(ws: &Workspace, ids: &[String]) -> Vec<Crate> {
             kind: t.kind.clone(),
             root: t.src_path.clone(),
             dir: ws.packages[t.package].dir.clone(),
+            publish: ws.packages[t.package].publish,
         })
         .collect()
 }

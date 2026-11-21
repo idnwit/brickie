@@ -1,5 +1,5 @@
 //! The draft's lifecycle from the viewer: publish (blocked while the code lacks the draft's
-//! structure, dry run with the gate), rebase onto a newer published head, and discard.
+//! structure, dry run with the gate), publish over a moved published head, and discard.
 
 use super::*;
 
@@ -100,31 +100,19 @@ async fn a_ready_draft_is_published_and_dropped() {
 }
 
 #[tokio::test]
-async fn a_draft_behind_the_published_head_is_rebased() {
+async fn publish_overwrites_a_published_head_that_moved() {
     let s = measured();
     let d = edit(&s, 1, rename()).await;
     let base = d["v"].as_u64().unwrap();
     // A hand edit of the published file: a newer published version.
     std::fs::write(s.config(), CONFIG.replace("cognitive = 5", "cognitive = 6")).unwrap();
 
-    let (_, text) = s.get("/api/design").await;
-    let d: Value = serde_json::from_str(&text).unwrap();
-    let head = d["published"].as_u64().unwrap();
-    assert!(head > 1 && d["forked_from"] == 1, "behind: {d}");
-    let (st, _) = s.post("/api/design/publish", json!({"base": base})).await;
-    assert_eq!(st, StatusCode::CONFLICT, "a draft behind is not published");
-
-    let (st, text) = s.post("/api/design/rebase", json!({"base": base})).await;
+    let (st, text) = s.post("/api/design/publish", json!({"base": base})).await;
     assert_eq!(st, StatusCode::OK, "{text}");
-    let d = &serde_json::from_str::<Value>(&text).unwrap()["design"];
-    assert_eq!(d["forked_from"].as_u64(), Some(head), "{d}");
-    let draft = s
-        .config()
-        .with_file_name(".brickie/draft/files/brickie.toml");
-    let text = std::fs::read_to_string(draft).unwrap();
+    let text = published(&s);
     assert!(
-        text.contains("\"core\"") && text.contains("cognitive = 6"),
-        "{text}"
+        text.contains("\"core\"") && text.contains("cognitive = 5"),
+        "the draft wins: {text}"
     );
 }
 
