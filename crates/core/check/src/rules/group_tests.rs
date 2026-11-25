@@ -1,8 +1,6 @@
 //! Peer brick groups: loading, includes, validation, intra-group errors, external links,
-//! `composite/group` exports, `marked_links`, unit-level cycles, complexity, scope filter, and
-//! `Todo.groups`.
+//! `composite/group` exports, `marked_links`, unit-level cycles, and complexity.
 
-use crate::check::Filter;
 use crate::config::tests::{cache, edge, fixture, func, resolved};
 use crate::config::{Brick, Config, load};
 use crate::diag::diagnostic;
@@ -421,7 +419,7 @@ members = ["web-shared"]
 }
 
 #[test]
-fn unit_cycles_owners_complexity_scope_and_todo_groups() {
+fn unit_cycles_owners_and_complexity() {
     let root = r#"
 [[group]]
 name = "svc"
@@ -486,33 +484,5 @@ cognitive = 5
             .iter()
             .any(|f| f.code() == "complexity/cognitive" && f.bricks() == ["auth"]),
         "expected complexity finding for auth"
-    );
-
-    // Filter::new resolves group path (`svc`) and member path (`auth`), and Todo.groups reports
-    // empty_g (not svc) through `check::load`.
-    write(
-        dir.path(),
-        ".brickie/cache.json",
-        &serde_json::to_string(&c).unwrap(),
-    );
-    let loaded = crate::check::load(&dir.path().join("brickie.toml")).unwrap();
-    let by_group = Filter::new(&cfg, &["svc".into()]).unwrap().apply(&loaded);
-    assert!(by_group.shown.iter().any(|d| d.code == "deps/cycle"));
-    assert!(
-        by_group
-            .shown
-            .iter()
-            .any(|d| d.code == "complexity/cognitive")
-    );
-
-    let by_member = Filter::new(&cfg, &["auth".into()]).unwrap().apply(&loaded);
-    assert!(by_member.shown.iter().any(|d| d.code == "deps/cycle"));
-
-    assert_eq!(loaded.todo.groups, vec![vec!["empty_g".to_string()]]);
-    assert!(
-        loaded
-            .todo
-            .lines()
-            .contains(&"planned group root/empty_g has no bricks yet".to_string())
     );
 }

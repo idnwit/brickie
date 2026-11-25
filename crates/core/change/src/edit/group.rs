@@ -83,56 +83,71 @@ pub fn set(
     Ok(())
 }
 
-/// All files belonging to the same level as `file`: any file that includes `file` (transitively)
-/// plus every file reachable via `include` from them.
-pub fn level_files(docs: &Docs, file: &str) -> Vec<String> {
-    let direct_includes = |f: &str| -> Vec<String> {
-        let Some(doc) = docs.get(f) else {
-            return Vec::new();
-        };
-        let Some(arr) = doc.get("include").and_then(Item::as_array) else {
-            return Vec::new();
-        };
-        arr.iter()
-            .filter_map(|v| v.as_str().map(|i| join_rel(f, i)))
-            .collect()
+fn include_paths(doc: &DocumentMut, cur: &str) -> Vec<String> {
+    let Some(arr) = doc.get("include").and_then(Item::as_array) else {
+        return Vec::new();
     };
+    arr.iter()
+        .filter_map(|v| v.as_str().map(|i| join_rel(cur, i)))
+        .collect()
+}
 
-    // Walk upwards to find any level file(s) that include `file`.
+fn level_roots(docs: &Docs, file: &str) -> BTreeSet<String> {
     let all = docs.files();
-    let mut roots: BTreeSet<String> = BTreeSet::new();
-    let mut up_queue = vec![file.to_string()];
-    let mut up_seen = BTreeSet::new();
-    while let Some(cur) = up_queue.pop() {
-        if !up_seen.insert(cur.clone()) {
-            continue;
-        }
-        let mut included_by_any = false;
-        for f in &all {
-            if direct_includes(f).iter().any(|inc| inc == &cur) {
-                included_by_any = true;
-                up_queue.push(f.clone());
-            }
-        }
-        if !included_by_any {
-            roots.insert(cur);
-        }
-    }
-
-    // Walk downwards from each root through `include`.
+    let mut roots = BTreeSet::new();
+    let mut queue = vec![file.to_string()];
     let mut seen = BTreeSet::new();
-    let mut queue: Vec<String> = roots.into_iter().collect();
     while let Some(cur) = queue.pop() {
         if !seen.insert(cur.clone()) {
             continue;
         }
-        for inc in direct_includes(&cur) {
-            if docs.get(&inc).is_some() {
-                queue.push(inc);
-            }
+        let parents: Vec<String> = all
+            .iter()
+            .filter(|f| {
+                docs.get(f)
+                    .is_some_and(|d| include_paths(d, f).iter().any(|inc| inc == &cur))
+            })
+            .cloned()
+            .collect();
+        if parents.is_empty() {
+            roots.insert(cur);
+        } else {
+            queue.extend(parents);
         }
     }
+    roots
+}
+
+/// All files belonging to the same level as `file`: any file that includes `file` (transitively)
+/// plus every file reachable via `include` from them.
+pub fn level_files(docs: &Docs, file: &str) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    let mut queue: Vec<String> = level_roots(docs, file).into_iter().collect();
+    while let Some(cur) = queue.pop() {
+        if !seen.insert(cur.clone()) {
+            continue;
+        }
+        let Some(doc) = docs.get(&cur) else {
+            continue;
+        };
+        queue.extend(
+            include_paths(doc, &cur)
+                .into_iter()
+                .filter(|inc| docs.get(inc).is_some()),
+        );
+    }
     seen.into_iter().collect()
+}
+
+fn rename_brick_groups(doc: &mut DocumentMut, name: &str, new_name: &str) {
+    let Ok(bricks) = aot_mut(doc, &["brick"]) else {
+        return;
+    };
+    for t in bricks.iter_mut() {
+        if t.get("group").and_then(Item::as_str) == Some(name) {
+            t["group"] = value(new_name);
+        }
+    }
 }
 
 /// Rename `[[group]]` `name` -> `new_name` in `file`, rewriting `brick.group`, local
@@ -154,13 +169,7 @@ pub fn rename(docs: &mut Docs, file: &str, name: &str, new_name: &str) -> Result
     group_mut(docs.get_mut(&target)?, name)?["name"] = value(new_name);
     for f in &files {
         let doc = docs.get_mut(f)?;
-        if let Ok(bricks) = aot_mut(doc, &["brick"]) {
-            for t in bricks.iter_mut() {
-                if t.get("group").and_then(Item::as_str) == Some(name) {
-                    t["group"] = value(new_name);
-                }
-            }
-        }
+        rename_brick_groups(doc, name, new_name);
         rename_refs(doc, name, new_name)?;
     }
     for f in &files {

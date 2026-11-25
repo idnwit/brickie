@@ -7,70 +7,28 @@ use sycamore::prelude::*;
 
 pub(super) fn brick_detail(cx: &Cx, b: usize) -> View {
     let br = cx.m.g.bricks[b].clone();
-    let g = &cx.m.g;
-    let out: Vec<View> = (0..g.edges.len())
-        .filter(|&e| g.edges[e].from == b && !g.edges[e].frame())
-        .map(|e| edge_link(cx, e, g.edges[e].to))
-        .collect();
-    let inn: Vec<View> = (0..g.edges.len())
-        .filter(|&e| g.edges[e].to == b && !g.edges[e].frame())
-        .map(|e| edge_link(cx, e, g.edges[e].from))
-        .collect();
+    let (no, out) = brick_edges(cx, b, true);
+    let (ni, inn) = brick_edges(cx, b, false);
     let name = br
         .name
         .strip_prefix("root/")
         .unwrap_or(&br.name)
         .to_string();
     let is_local_group = br.is_group && !br.ghost;
-    let header_links = if is_local_group {
-        View::default()
-    } else {
-        let open_code = src_link(
-            cx.modal,
-            code_brick_href(&br.name),
-            "</> Code".into(),
-            "codebtn",
-        );
-        let docs_url = docs_href(&br.name);
-        view! {
-            span(title="Open this brick's code") { (open_code) }
-            a(class="codebtn", href=docs_url, target="_blank", title="Open this brick's documentation page") { "Docs" }
-        }
-    };
-    let (no, ni) = (out.len(), inn.len());
-    let (out, inn) = (View::from(out), View::from(inn));
-    let tags: Vec<View> = br
+    let header_links = brick_header_links(cx, &br, is_local_group);
+    let tags: View = br
         .tags
         .iter()
         .cloned()
         .map(|t| view! { span(class="tag") { (t) } })
-        .collect();
-    let tags = View::from(tags);
-    let used_by = format!("Used by ({ni})");
-    let hidden = if br.independent && br.hidden_in > 0 {
-        let note = format!(
-            "used by {} more brick(s); edges hidden: independent lib, no rule violated",
-            br.hidden_in
-        );
-        view! { div(class="muted small", title=INDEPENDENT_TIP) { (note) } }
-    } else {
-        View::default()
-    };
-    let mark = if br.independent {
-        view! { span(class="tag", title=INDEPENDENT_TIP) { (INDEPENDENT_LABEL) } }
-    } else {
-        View::default()
-    };
+        .collect::<Vec<_>>()
+        .into();
+    let (mark, hidden) = independent_views(&br);
     let desc = super::super::node::desc(&br);
-    let members = if is_local_group {
-        View::default()
-    } else {
-        super::super::node::tree_info(cx, &br)
-    };
-    let group_list = if is_local_group {
+    let body = if is_local_group {
         group_members_section(cx, b, &br)
     } else {
-        View::default()
+        super::super::node::tree_info(cx, &br)
     };
     let card = scorecard(cx, b);
     let iface = if br.is_group {
@@ -86,15 +44,67 @@ pub(super) fn brick_detail(cx: &Cx, b: usize) -> View {
         (desc)
         div { (tags) (mark) }
         (card)
-        (group_list)
-        (members)
+        (body)
         h4 { (format!("Depends on ({no})")) }
         (out)
-        h4 { (used_by) }
+        h4 { (format!("Used by ({ni})")) }
         (hidden)
         (inn)
         (iface)
     }
+}
+
+fn brick_edges(cx: &Cx, b: usize, outgoing: bool) -> (usize, View) {
+    let g = &cx.m.g;
+    let items: Vec<View> = (0..g.edges.len())
+        .filter(|&e| !g.edges[e].frame())
+        .filter_map(|e| {
+            let edge = &g.edges[e];
+            let other = if outgoing && edge.from == b {
+                edge.to
+            } else if !outgoing && edge.to == b {
+                edge.from
+            } else {
+                return None;
+            };
+            Some(edge_link(cx, e, other))
+        })
+        .collect();
+    (items.len(), View::from(items))
+}
+
+fn brick_header_links(cx: &Cx, br: &BrickView, is_local_group: bool) -> View {
+    if is_local_group {
+        return View::default();
+    }
+    let open_code = src_link(
+        cx.modal,
+        code_brick_href(&br.name),
+        "</> Code".into(),
+        "codebtn",
+    );
+    let docs_url = docs_href(&br.name);
+    view! {
+        span(title="Open this brick's code") { (open_code) }
+        a(class="codebtn", href=docs_url, target="_blank", title="Open this brick's documentation page") { "Docs" }
+    }
+}
+
+fn independent_views(br: &BrickView) -> (View, View) {
+    if !br.independent {
+        return (View::default(), View::default());
+    }
+    let mark = view! { span(class="tag", title=INDEPENDENT_TIP) { (INDEPENDENT_LABEL) } };
+    let hidden = if br.hidden_in > 0 {
+        let note = format!(
+            "used by {} more brick(s); edges hidden: independent lib, no rule violated",
+            br.hidden_in
+        );
+        view! { div(class="muted small", title=INDEPENDENT_TIP) { (note) } }
+    } else {
+        View::default()
+    };
+    (mark, hidden)
 }
 
 /// Detail panel for a single member brick inside a peer group.

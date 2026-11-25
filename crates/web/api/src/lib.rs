@@ -57,7 +57,7 @@
 //! - [`PageData`]: everything the page needs, embedded in the HTML as JSON.
 //! - [`LevelView`] and [`GraphView`]: one level of the brick tree with its bricks and edges, no
 //!   geometry (layout runs in the viewer crate).
-//! - [`diag_visible`], [`fn_rows`], [`brick_scores`]: pure filters and scores both sides share.
+//! - [`diag_visible_in`], [`fn_rows`], [`brick_scores`]: pure filters and scores both sides share.
 //! - [`code_href`], [`docs_href`], [`code_brick_href`]: links into the code viewer and docs.
 //!
 //! # Invariants

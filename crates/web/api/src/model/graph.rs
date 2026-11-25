@@ -11,13 +11,13 @@ pub const INDEPENDENT_TIP: &str = "independent lib: used like an external librar
 
 /// Shared layout constants for peer group container boxes (used by both layout input and SVG rendering).
 pub const GROUP_HEADER_H: f64 = 48.0;
-pub const GROUP_PAD: f64 = 10.0;
-pub const GROUP_CARD_W: f64 = 128.0;
-pub const GROUP_CARD_H: f64 = 42.0;
-pub const GROUP_GAP: f64 = 8.0;
-pub const GROUP_MAX_COLS: usize = 3;
-pub const GROUP_EMPTY_W: f64 = 160.0;
-pub const GROUP_EMPTY_H: f64 = 86.0;
+const GROUP_PAD: f64 = 10.0;
+const GROUP_CARD_W: f64 = 128.0;
+const GROUP_CARD_H: f64 = 42.0;
+const GROUP_GAP: f64 = 8.0;
+const GROUP_MAX_COLS: usize = 3;
+const GROUP_EMPTY_W: f64 = 160.0;
+const GROUP_EMPTY_H: f64 = 86.0;
 
 /// Container `(width, height)` for a peer group with `n_members` member bricks.
 pub fn group_box_size(n_members: usize) -> (f64, f64) {

@@ -139,11 +139,6 @@ pub fn group_sub(code: &str) -> (&'static str, String) {
     ("stale", sub.into())
 }
 
-/// Whether a diagnostic passes the filters (without graph-based group expansion).
-pub fn diag_visible(d: &DiagView, p: &Params) -> bool {
-    diag_visible_in(d, p, &super::GraphView::default())
-}
-
 /// Whether a diagnostic passes the filters in the context of `g`: `?brick=<group>` shows findings
 /// for the group and all its members while `?brick=<member>` shows that member's findings (plus
 /// `deps/cycle` findings on its enclosing group).
@@ -159,11 +154,11 @@ fn diag_matches_sel(d: &DiagView, sel: &str, g: &super::GraphView) -> bool {
         .iter()
         .find(|b| b.is_group && (b.name == sel || b.path == sel))
     {
-        return super::diag_hits(d, &grp.path, &grp.name)
+        return super::levels::diag_hits(d, &grp.path, &grp.name)
             || grp
                 .group_members
                 .iter()
-                .any(|m| super::diag_hits(d, &m.path, &m.name));
+                .any(|m| super::levels::diag_hits(d, &m.path, &m.name));
     }
     if let Some((grp, m)) = g.bricks.iter().find_map(|b| {
         b.group_members
@@ -174,9 +169,9 @@ fn diag_matches_sel(d: &DiagView, sel: &str, g: &super::GraphView) -> bool {
         return super::diag_hits_member(d, &m.path, &m.name, &grp.path, &grp.name);
     }
     if let Some(b) = g.bricks.iter().find(|b| b.name == sel || b.path == sel) {
-        return super::diag_hits(d, &b.path, &b.name);
+        return super::levels::diag_hits(d, &b.path, &b.name);
     }
-    super::diag_hits(d, "", sel)
+    super::levels::diag_hits(d, "", sel)
 }
 
 #[cfg(test)]
