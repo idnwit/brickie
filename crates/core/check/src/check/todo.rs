@@ -11,6 +11,8 @@ use std::collections::BTreeSet;
 pub struct Todo {
     /// Paths (from the root) of the bricks with no measured module, in tree order.
     pub bricks: Vec<Vec<String>>,
+    /// Paths (from the root) of the groups with no member bricks yet, in tree order.
+    pub groups: Vec<Vec<String>>,
     /// Valid links no measured edge goes through yet.
     pub links: Vec<LinkState>,
     /// Links on a cycle of their level's links.
@@ -23,6 +25,9 @@ impl Todo {
         let mut out = Vec::new();
         for p in &self.bricks {
             out.push(format!("planned brick {} has no code yet", level_name(p)));
+        }
+        for p in &self.groups {
+            out.push(format!("planned group {} has no bricks yet", level_name(p)));
         }
         for s in &self.links {
             out.push(format!(
@@ -41,10 +46,33 @@ impl Todo {
 pub(super) fn todo(cache: &Cache, cfg: &Config, res: &Resolved) -> Todo {
     Todo {
         bricks: planned(cfg, res),
+        groups: empty_groups(cfg),
         links: rules::planned_links(cache, cfg, res),
         cycles: (rules::design_links(cfg).into_iter())
             .filter(|s| s.cycle)
             .collect(),
+    }
+}
+
+/// Paths (from the root) of groups with zero member bricks, in tree order.
+fn empty_groups(cfg: &Config) -> Vec<Vec<String>> {
+    let mut out = Vec::new();
+    walk_groups(cfg, &mut out);
+    out
+}
+
+fn walk_groups(level: &Config, out: &mut Vec<Vec<String>>) {
+    for g in &level.groups {
+        if level.group_members(&g.name).next().is_none() {
+            let mut path = level.path.clone();
+            path.push(g.name.clone());
+            out.push(path);
+        }
+    }
+    for b in &level.bricks {
+        if let Some(sub) = &b.sub {
+            walk_groups(sub, out);
+        }
     }
 }
 

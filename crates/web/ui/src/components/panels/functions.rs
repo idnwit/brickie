@@ -81,14 +81,28 @@ fn resort(p: &Params, m: &str) -> Params {
     })
 }
 
-/// Functions of the selected brick (by tree path; no selection: the whole level), through
-/// the same filter the JSON API uses.
+/// Functions of the selected brick or member (by tree path; no selection: the whole level),
+/// through the same filter the JSON API uses.
 fn scoped(cx: &Cx) -> Params {
     let p = cx.params.get_clone();
-    let name = cx
-        .eval
-        .with(|ev| ev.sel.brick())
-        .map(|b| cx.m.g.bricks[b].path.clone());
+    let name = cx.eval.with(|ev| match ev.sel {
+        Sel::Brick(b) => {
+            let br = &cx.m.g.bricks[b];
+            if br.is_group && !br.group_members.is_empty() {
+                Some(
+                    br.group_members
+                        .iter()
+                        .map(|m| m.path.as_str())
+                        .collect::<Vec<_>>()
+                        .join(","),
+                )
+            } else {
+                Some(br.path.clone())
+            }
+        }
+        Sel::Member(b, m) => Some(cx.m.g.bricks[b].group_members[m].path.clone()),
+        _ => None,
+    });
     with_bricks(&p, name, cx.level().path.clone())
 }
 

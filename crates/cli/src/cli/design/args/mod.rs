@@ -4,7 +4,7 @@
 use crate::cli::args::Format;
 pub use brick::{BrickCmd, Kind};
 use clap::{Args, Subcommand};
-pub use other::{ExportCmd, IncludeCmd, LimitCmd, Limits};
+pub use other::{ExportCmd, GroupCmd, IncludeCmd, LimitCmd, Limits};
 pub use rule::{RuleCmd, RuleSel};
 use std::path::PathBuf;
 
@@ -113,9 +113,12 @@ pub enum Cmd {
 
 #[derive(Subcommand)]
 pub enum Edit {
-    /// Add, change, rename, move, remove, group or ungroup bricks.
+    /// Add, change, rename, move, remove, nest or unnest bricks.
     #[command(subcommand)]
     Brick(BrickCmd),
+    /// Add, change, rename or remove peer brick groups.
+    #[command(subcommand)]
+    Group(GroupCmd),
     /// Add, change or remove rules: the links a level allows.
     #[command(subcommand)]
     Rule(RuleCmd),

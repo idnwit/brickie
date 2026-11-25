@@ -27,12 +27,40 @@ pub struct Brick {
     /// The brick acts like a library of its level: its siblings (and what they nest) use it freely.
     #[serde(default)]
     pub independent: bool,
+    /// Optional peer group of this level that this brick belongs to.
+    #[serde(default)]
+    pub group: Option<String>,
     /// Canonical directory of the declaring file; `path:` members are relative to it.
     #[serde(skip)]
     pub base: PathBuf,
     /// The composite's own config, loaded from `<path>/brickie.toml`; `None` for a leaf.
     #[serde(skip)]
     pub sub: Option<Box<Config>>,
+}
+
+/// A config-level grouping of peer bricks that share one contract at a level.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Group {
+    /// The group's name, unique among bricks and groups in this level.
+    pub name: String,
+    /// Labels that rules select with `tag:<tag>`.
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// One-line description shown in the viewer; no effect on checks.
+    pub desc: Option<String>,
+    /// `file:line` of the group header, filled in while loading.
+    #[serde(skip)]
+    pub loc: String,
+}
+
+/// A logical unit of a level: either an ungrouped brick or a `[[group]]`.
+#[derive(Debug, Clone, Copy)]
+pub struct Unit<'a> {
+    pub name: &'a str,
+    pub tags: &'a [String],
+    pub independent: bool,
+    pub is_group: bool,
 }
 
 /// Which code a rule or link covers; the default is all code.
@@ -159,6 +187,8 @@ pub struct Config {
     /// The config file, as `file:line` locations print it.
     pub file: String,
     pub bricks: Vec<Brick>,
+    /// Peer brick groups of this level.
+    pub groups: Vec<Group>,
     /// Children visible from outside this composite (unused at the root).
     pub exports: Vec<String>,
     /// `[[rule]]`: the principles links between this level's children must follow.
@@ -198,9 +228,84 @@ impl Config {
         self.bricks.iter().find(|b| b.name == name)
     }
 
+    /// The direct peer group named `name`.
+    pub fn group(&self, name: &str) -> Option<&Group> {
+        self.groups.iter().find(|g| g.name == name)
+    }
+
+    /// All bricks in this level that belong to the group `name`.
+    pub fn group_members<'a>(&'a self, name: &'a str) -> impl Iterator<Item = &'a Brick> {
+        self.bricks
+            .iter()
+            .filter(move |b| b.group.as_deref() == Some(name))
+    }
+
+    /// The logical unit named `name` (an ungrouped brick or a group); `None` for a grouped member.
+    pub fn unit_by_name(&self, name: &str) -> Option<Unit<'_>> {
+        if let Some(g) = self.group(name) {
+            return Some(Unit {
+                name: &g.name,
+                tags: &g.tags,
+                independent: false,
+                is_group: true,
+            });
+        }
+        let b = self.brick(name)?;
+        b.group.is_none().then_some(Unit {
+            name: &b.name,
+            tags: &b.tags,
+            independent: b.independent,
+            is_group: false,
+        })
+    }
+
+    /// The logical unit representing `brick`: its group when grouped, else the brick itself.
+    /// Falls back to the brick itself if `brick.group` names a missing group.
+    pub fn unit_of<'a>(&'a self, brick: &'a Brick) -> Unit<'a> {
+        if let Some(g) = brick.group.as_deref().and_then(|n| self.group(n)) {
+            return Unit {
+                name: &g.name,
+                tags: &g.tags,
+                independent: false,
+                is_group: true,
+            };
+        }
+        Unit {
+            name: &brick.name,
+            tags: &brick.tags,
+            independent: brick.independent,
+            is_group: false,
+        }
+    }
+
     /// Whether child `name` is visible from outside this composite.
     pub fn exports(&self, name: &str) -> bool {
         self.exports.iter().any(|e| e == name)
+    }
+
+    /// Whether `brick` (or its enclosing group) is exported by this composite.
+    pub fn exports_brick(&self, brick: &Brick) -> bool {
+        self.exports(self.unit_of(brick).name)
+    }
+
+    /// All logical units of this level (ungrouped bricks, then groups, in declaration order).
+    pub fn units(&self) -> Vec<Unit<'_>> {
+        self.bricks
+            .iter()
+            .filter(|b| b.group.is_none())
+            .map(|b| Unit {
+                name: &b.name,
+                tags: &b.tags,
+                independent: b.independent,
+                is_group: false,
+            })
+            .chain(self.groups.iter().map(|g| Unit {
+                name: &g.name,
+                tags: &g.tags,
+                independent: false,
+                is_group: true,
+            }))
+            .collect()
     }
 }
 

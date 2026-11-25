@@ -72,7 +72,7 @@ pub(super) fn focus_of(g: &GraphView, sel: &Sel, p: &Params, diags: &[DiagView])
     };
     match sel {
         Sel::None => None,
-        Sel::Brick(b) => {
+        Sel::Brick(b) | Sel::Member(b, _) => {
             let set: BTreeSet<usize> = [*b].into();
             let k = touching(&set);
             Some(with_lit(

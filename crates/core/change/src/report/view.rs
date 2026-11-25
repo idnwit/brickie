@@ -7,7 +7,7 @@ use crate::paths::to_rel;
 use anyhow::Result;
 use brickie_check::config::{Brick, Config, Scope, judge_link, link_cycles};
 use brickie_model::design::{
-    BrickView, DesignView, LayoutScore, LevelView, LimitView, LinkView, RuleView, Task,
+    BrickView, DesignView, GroupView, LayoutScore, LevelView, LimitView, LinkView, RuleView, Task,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -122,10 +122,21 @@ fn level(cfg: &Config, root: &Path) -> LevelView {
             scope: scope(c.scope),
         }
     });
+    let groups = cfg
+        .groups
+        .iter()
+        .map(|g| GroupView {
+            name: g.name.clone(),
+            tags: g.tags.clone(),
+            desc: g.desc.clone(),
+            members: cfg.group_members(&g.name).map(|b| b.name.clone()).collect(),
+        })
+        .collect();
     LevelView {
         path: cfg.level(),
         file: rel(root, &cfg.file),
         bricks: cfg.bricks.iter().map(|b| brick(cfg, b, root)).collect(),
+        groups,
         exports: cfg.exports.clone(),
         rules: rules.collect(),
         links: links.collect(),
@@ -134,15 +145,16 @@ fn level(cfg: &Config, root: &Path) -> LevelView {
     }
 }
 
-/// Compute the automatic top-down layout tidiness score of `cfg` from its bricks and links.
+/// Compute the automatic top-down layout tidiness score of `cfg` from its logical units and links.
 fn layout_score(cfg: &Config) -> Option<LayoutScore> {
-    if cfg.bricks.is_empty() {
+    let units = cfg.units();
+    if units.is_empty() {
         return None;
     }
     let mut rows: Vec<String> = Vec::new();
-    let mut bricks = Vec::with_capacity(cfg.bricks.len());
-    for b in &cfg.bricks {
-        let tag = b
+    let mut bricks = Vec::with_capacity(units.len());
+    for u in &units {
+        let tag = u
             .tags
             .first()
             .cloned()
@@ -152,11 +164,13 @@ fn layout_score(cfg: &Config) -> Option<LayoutScore> {
             rows.len() - 1
         });
         bricks.push(brickie_layout::InBrick {
-            id: b.name.clone(),
+            id: u.name.to_string(),
             row,
+            min_w: None,
+            min_h: None,
         });
     }
-    let idx = |name: &str| cfg.bricks.iter().position(|b| b.name == name);
+    let idx = |name: &str| units.iter().position(|u| u.name == name);
     let mut seen = BTreeSet::new();
     let mut edges = Vec::new();
     for (i, l) in cfg.links.iter().enumerate() {
@@ -189,7 +203,7 @@ fn layout_score(cfg: &Config) -> Option<LayoutScore> {
 
 fn brick(cfg: &Config, b: &Brick, root: &Path) -> BrickView {
     let kind = match (&b.sub, b.members.iter().all(|x| x.starts_with("path:"))) {
-        (Some(_), _) => "group",
+        (Some(_), _) => "composite",
         (None, true) if !b.members.is_empty() => "crate",
         _ => "module",
     };
@@ -202,6 +216,7 @@ fn brick(cfg: &Config, b: &Brick, root: &Path) -> BrickView {
         tags: b.tags.clone(),
         desc: b.desc.clone(),
         independent: b.independent,
+        group: b.group.clone(),
         children: b.sub.as_ref().map(|s| Box::new(level(s, root))),
     }
 }

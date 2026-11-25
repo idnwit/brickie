@@ -4,7 +4,7 @@
 use super::MeasureCfg;
 use super::source::{Disk, FileSource};
 use super::validate::{validate, validate_links};
-use super::{Brick, ComplexityRule, Config, Issue, Link, Rule};
+use super::{Brick, ComplexityRule, Config, Group, Issue, Link, Rule};
 use anyhow::{Context, Result, bail};
 use brickie_model::codes::CONFIG_MISSING;
 use serde::Deserialize;
@@ -20,6 +20,8 @@ struct Raw {
     exports: Vec<String>,
     #[serde(default)]
     brick: Vec<Brick>,
+    #[serde(default)]
+    group: Vec<Group>,
     #[serde(default)]
     rule: Vec<Rule>,
     #[serde(default)]
@@ -195,6 +197,11 @@ fn load_file(
     let loc = |lines: &[usize], i: usize| {
         format!("{}:{}", path.display(), lines.get(i).copied().unwrap_or(0))
     };
+    let lines = header_lines(&text, "[[group]]");
+    for (i, mut g) in raw.group.into_iter().enumerate() {
+        g.loc = loc(&lines, i);
+        cfg.groups.push(g);
+    }
     let lines = header_lines(&text, "[[rule]]");
     for (i, mut r) in raw.rule.into_iter().enumerate() {
         r.loc = loc(&lines, i);

@@ -7,6 +7,7 @@ mod brick;
 mod defs;
 mod edge;
 mod frame;
+mod group;
 mod pointer;
 mod route;
 mod rows;

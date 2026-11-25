@@ -42,8 +42,13 @@ pub fn marked_links(cache: &Cache, cfg: &Config, res: &Resolved) -> Vec<LinkStat
         let Some(l) = super::lift::lift(cfg, p1, p2) else {
             continue;
         };
-        let entered = p2.get(l.k + 1).map(String::as_str);
-        if let Ok(Some(link)) = covering_link(l.level, l.from, l.to, entered, &e.kind, &e.scope) {
+        if l.from.group.is_some() && l.from.group == l.to.group {
+            continue;
+        }
+        let from = l.level.unit_of(l.from);
+        let to = l.level.unit_of(l.to);
+        let entered = super::lift::entered(&l, p2);
+        if let Ok(Some(link)) = covering_link(l.level, from, to, entered, &e.kind, &e.scope) {
             used.push(link.loc.clone());
         }
     }

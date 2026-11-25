@@ -139,11 +139,44 @@ pub fn group_sub(code: &str) -> (&'static str, String) {
     ("stale", sub.into())
 }
 
-/// Whether a diagnostic passes the filters.
+/// Whether a diagnostic passes the filters (without graph-based group expansion).
 pub fn diag_visible(d: &DiagView, p: &Params) -> bool {
+    diag_visible_in(d, p, &super::GraphView::default())
+}
+
+/// Whether a diagnostic passes the filters in the context of `g`: `?brick=<group>` shows findings
+/// for the group and all its members while `?brick=<member>` shows that member's findings (plus
+/// `deps/cycle` findings on its enclosing group).
+pub fn diag_visible_in(d: &DiagView, p: &Params, g: &super::GraphView) -> bool {
     code_matches(&d.code, &p.code)
         && (p.grp.is_empty() || group_sub(&d.code).0 == p.grp)
-        && (p.brick.is_empty() || p.bricks().iter().any(|b| d.bricks.iter().any(|x| x == b)))
+        && (p.brick.is_empty() || p.bricks().iter().any(|sel| diag_matches_sel(d, sel, g)))
+}
+
+fn diag_matches_sel(d: &DiagView, sel: &str, g: &super::GraphView) -> bool {
+    if let Some(grp) = g
+        .bricks
+        .iter()
+        .find(|b| b.is_group && (b.name == sel || b.path == sel))
+    {
+        return super::diag_hits(d, &grp.path, &grp.name)
+            || grp
+                .group_members
+                .iter()
+                .any(|m| super::diag_hits(d, &m.path, &m.name));
+    }
+    if let Some((grp, m)) = g.bricks.iter().find_map(|b| {
+        b.group_members
+            .iter()
+            .find(|m| m.name == sel || m.path == sel)
+            .map(|m| (b, m))
+    }) {
+        return super::diag_hits_member(d, &m.path, &m.name, &grp.path, &grp.name);
+    }
+    if let Some(b) = g.bricks.iter().find(|b| b.name == sel || b.path == sel) {
+        return super::diag_hits(d, &b.path, &b.name);
+    }
+    super::diag_hits(d, "", sel)
 }
 
 #[cfg(test)]
@@ -157,5 +190,79 @@ mod tests {
             "/code/?path=crates/a%20b.rs&line=12&col=5"
         );
         assert_eq!(code_href("a.rs", 3, None), "/code/?path=a.rs&line=3");
+    }
+
+    #[test]
+    fn diag_visible_in_expands_group_but_keeps_member_scoped() {
+        let g = super::super::GraphView {
+            bricks: vec![super::super::BrickView {
+                name: "services".into(),
+                path: "root/services".into(),
+                is_group: true,
+                group_members: vec![
+                    super::super::GroupMemberView {
+                        name: "auth".into(),
+                        path: "root/auth".into(),
+                        ..Default::default()
+                    },
+                    super::super::GroupMemberView {
+                        name: "billing".into(),
+                        path: "root/billing".into(),
+                        ..Default::default()
+                    },
+                ],
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let d_auth = DiagView {
+            id: "1".into(),
+            code: "complexity/cognitive".into(),
+            message: String::new(),
+            span: None,
+            spans: vec![],
+            rule: None,
+            help: None,
+            notes: vec![],
+            bricks: vec!["auth".into()],
+            brick_level: Some("root".into()),
+            snippet: None,
+        };
+        let d_bill = DiagView {
+            id: "2".into(),
+            bricks: vec!["billing".into()],
+            ..d_auth.clone()
+        };
+        let p_grp = Params::from_query("brick=services");
+        assert!(diag_visible_in(&d_auth, &p_grp, &g));
+        assert!(diag_visible_in(&d_bill, &p_grp, &g));
+        let p_mem = Params::from_query("brick=auth");
+        assert!(diag_visible_in(&d_auth, &p_mem, &g));
+        assert!(!diag_visible_in(&d_bill, &p_mem, &g));
+
+        // Enclosing-group deps/cycle matches member selection, while other group findings do not.
+        let d_cycle = DiagView {
+            id: "3".into(),
+            code: "deps/cycle".into(),
+            bricks: vec!["services".into()],
+            ..d_auth.clone()
+        };
+        let d_grp_other = DiagView {
+            id: "4".into(),
+            code: "design/planned".into(),
+            bricks: vec!["services".into()],
+            ..d_auth.clone()
+        };
+        assert!(diag_visible_in(&d_cycle, &p_mem, &g));
+        assert!(!diag_visible_in(&d_grp_other, &p_mem, &g));
+
+        // Same-named brick in a different composite must not collide.
+        let d_other_level = DiagView {
+            id: "5".into(),
+            brick_level: Some("root/other".into()),
+            ..d_auth.clone()
+        };
+        assert!(!diag_visible_in(&d_other_level, &p_mem, &g));
+        assert!(!diag_visible_in(&d_other_level, &p_grp, &g));
     }
 }

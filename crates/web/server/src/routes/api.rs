@@ -12,10 +12,12 @@ pub async fn diagnostics(
     Query(p): Query<ReqOf<Diagnostics>>,
 ) -> Result<Json<ResOf<Diagnostics>>, Failure> {
     let data = view::page(&st, &p)?;
+    let lv = brickie_web_api::level_index(&data.levels, p.level_path());
+    let g = &data.levels[lv].graph;
     let out = data
         .diags
         .into_iter()
-        .filter(|d| brickie_web_api::diag_visible(d, &p))
+        .filter(|d| brickie_web_api::diag_visible_in(d, &p, g))
         .collect();
     Ok(Json(out))
 }

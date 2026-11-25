@@ -43,12 +43,16 @@ fn two_rows(n_top: usize, n_bot: usize, pairs: &[(usize, usize)]) -> Input {
         bricks.push(InBrick {
             id: format!("t{i}"),
             row: 0,
+            min_w: None,
+            min_h: None,
         });
     }
     for i in 0..n_bot {
         bricks.push(InBrick {
             id: format!("b{i}"),
             row: 1,
+            min_w: None,
+            min_h: None,
         });
     }
     Input {

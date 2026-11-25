@@ -9,6 +9,65 @@ pub const INDEPENDENT_LABEL: &str = "independent lib";
 /// What an independent lib is, for tooltips.
 pub const INDEPENDENT_TIP: &str = "independent lib: used like an external library. Edges into it are hidden unless they violate a rule; its own outgoing edges are errors unless allowed between independent libs.";
 
+/// Shared layout constants for peer group container boxes (used by both layout input and SVG rendering).
+pub const GROUP_HEADER_H: f64 = 48.0;
+pub const GROUP_PAD: f64 = 10.0;
+pub const GROUP_CARD_W: f64 = 128.0;
+pub const GROUP_CARD_H: f64 = 42.0;
+pub const GROUP_GAP: f64 = 8.0;
+pub const GROUP_MAX_COLS: usize = 3;
+pub const GROUP_EMPTY_W: f64 = 160.0;
+pub const GROUP_EMPTY_H: f64 = 86.0;
+
+/// Container `(width, height)` for a peer group with `n_members` member bricks.
+pub fn group_box_size(n_members: usize) -> (f64, f64) {
+    if n_members == 0 {
+        return (GROUP_EMPTY_W, GROUP_EMPTY_H);
+    }
+    let cols = n_members.min(GROUP_MAX_COLS);
+    let rows = n_members.div_ceil(GROUP_MAX_COLS);
+    let w = 2.0 * GROUP_PAD + cols as f64 * GROUP_CARD_W + (cols - 1) as f64 * GROUP_GAP;
+    let h = GROUP_HEADER_H
+        + GROUP_PAD
+        + rows as f64 * GROUP_CARD_H
+        + (rows - 1) as f64 * GROUP_GAP
+        + GROUP_PAD;
+    (w, h)
+}
+
+/// Relative `(x, y, w, h)` of member card `index` inside a group container box.
+pub fn group_member_rect(index: usize) -> (f64, f64, f64, f64) {
+    let col = index % GROUP_MAX_COLS;
+    let row = index / GROUP_MAX_COLS;
+    let x = GROUP_PAD + col as f64 * (GROUP_CARD_W + GROUP_GAP);
+    let y = GROUP_HEADER_H + GROUP_PAD + row as f64 * (GROUP_CARD_H + GROUP_GAP);
+    (x, y, GROUP_CARD_W, GROUP_CARD_H)
+}
+
+/// One member brick displayed as a card inside a peer group container.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GroupMemberView {
+    pub name: String,
+    pub path: String,
+    pub is_composite: bool,
+    pub score: f64,
+    pub worst_ratio: f64,
+    pub errors: usize,
+}
+
+/// A forbidden dependency edge between two members of the same peer group.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct InternalEdgeView {
+    pub from_member: String,
+    pub to_member: String,
+    pub kind: String,
+    pub test: bool,
+    pub count: usize,
+    pub diags: Vec<String>,
+}
+
 /// One brick of a level: its identity, tags, members, children and complexity heat. A faded
 /// outside neighbour (`ghost`) is a brick of another level shown for context.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -53,6 +112,15 @@ pub struct BrickView {
     /// none of its bricks claims yet (`config/unassigned`); `members` covers them. Dropping
     /// it onto a brick adds those members there.
     pub unassigned: bool,
+    /// True when this node represents a peer `[[group]]` container rather than a single brick.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_group: bool,
+    /// Member bricks rendered as cards inside a peer group container.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub group_members: Vec<GroupMemberView>,
+    /// Forbidden intra-group dependency edges between members of this peer group.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub internal_edges: Vec<InternalEdgeView>,
 }
 
 impl BrickView {

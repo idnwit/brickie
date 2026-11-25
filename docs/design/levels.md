@@ -5,7 +5,7 @@ Scope: nested bricks, per-level checks, map-style zoom. Back to [../design.md](.
 Map-style zoom over the brick tree. Inner parts may use only what the outer level allows. A
 wrapping brick exposes something and outsiders may use only that. A brick without
 `brickie.toml` is a leaf. A brick is a crate, a module or a folder of crates. Rules and
-resolution: [check.md](check.md).
+resolution: [check.md](check.md). Inline peer groups (same role, shared rules, no separate file): [groups.md](groups.md).
 
 | Question | Decision | Reason |
 | --- | --- | --- |

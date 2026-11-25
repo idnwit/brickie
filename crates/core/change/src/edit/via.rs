@@ -36,14 +36,23 @@ fn names(t: &toml_edit::Table, composite: &str, child: &str) -> bool {
 }
 
 /// Rewrite links `composite/from` -> `composite/to` that target the composite owning
-/// `child_file` (a child brick was renamed).
+/// `child_file` (a child brick or group was renamed).
 pub fn rename(docs: &mut Docs, child_file: &str, from: &str, to: &str) -> Result<()> {
     for (file, composite) in owners(docs, child_file) {
-        let links = aot_mut(docs.get_mut(&file)?, LINKS)?;
-        for t in links.iter_mut().filter(|t| names(t, &composite, from)) {
-            t["to"] = value(format!("{composite}/{to}"));
+        for f in super::group::level_files(docs, &file) {
+            if docs
+                .get(&f)
+                .and_then(|d| aot(d, LINKS))
+                .is_none_or(|l| !l.iter().any(|t| names(t, &composite, from)))
+            {
+                continue;
+            }
+            let links = aot_mut(docs.get_mut(&f)?, LINKS)?;
+            for t in links.iter_mut().filter(|t| names(t, &composite, from)) {
+                t["to"] = value(format!("{composite}/{to}"));
+            }
+            super::brick::prune_empty(docs.get_mut(&f)?);
         }
-        super::brick::prune_empty(docs.get_mut(&file)?);
     }
     Ok(())
 }
@@ -52,33 +61,37 @@ pub fn rename(docs: &mut Docs, child_file: &str, from: &str, to: &str) -> Result
 /// is about to leave that level's exports (`why` says how).
 pub fn guard_child(docs: &Docs, child_file: &str, child: &str, why: &str) -> Result<()> {
     for (file, composite) in owners(docs, child_file) {
-        let Some(links) = docs.get(&file).and_then(|d| aot(d, LINKS)) else {
-            continue;
-        };
-        if links.iter().any(|t| names(t, &composite, child)) {
-            bail!(
-                "{DESIGN_INVALID}: a link in {file} goes to '{composite}/{child}'; {why} would \
-                 leave it dangling, edit or remove the link first"
-            );
+        for f in super::group::level_files(docs, &file) {
+            let Some(links) = docs.get(&f).and_then(|d| aot(d, LINKS)) else {
+                continue;
+            };
+            if links.iter().any(|t| names(t, &composite, child)) {
+                bail!(
+                    "{DESIGN_INVALID}: a link in {f} goes to '{composite}/{child}'; {why} would \
+                     leave it dangling, edit or remove the link first"
+                );
+            }
         }
     }
     Ok(())
 }
 
-/// Fail when a link of `file` names a child of composite `name` (it is about to become a
-/// leaf).
+/// Fail when a link of `file` (or an `include`d file of the same level) names a child of composite
+/// `name` (it is about to become a leaf).
 pub fn guard_composite(docs: &Docs, file: &str, name: &str, why: &str) -> Result<()> {
-    let Some(links) = docs.get(file).and_then(|d| aot(d, LINKS)) else {
-        return Ok(());
-    };
     let prefix = format!("{name}/");
-    for t in links.iter() {
-        let to = t.get("to").and_then(Item::as_str).unwrap_or_default();
-        if to.starts_with(&prefix) {
-            bail!(
-                "{DESIGN_INVALID}: a link in {file} goes to '{to}'; {why} would leave it \
-                 dangling, edit or remove the link first"
-            );
+    for f in super::group::level_files(docs, file) {
+        let Some(links) = docs.get(&f).and_then(|d| aot(d, LINKS)) else {
+            continue;
+        };
+        for t in links.iter() {
+            let to = t.get("to").and_then(Item::as_str).unwrap_or_default();
+            if to.starts_with(&prefix) {
+                bail!(
+                    "{DESIGN_INVALID}: a link in {f} goes to '{to}'; {why} would leave it \
+                     dangling, edit or remove the link first"
+                );
+            }
         }
     }
     Ok(())

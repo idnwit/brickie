@@ -26,6 +26,10 @@ pub fn elements(doc: &DocumentMut) -> Vec<(String, String)> {
         let name = t.get("name").and_then(Item::as_str).unwrap_or_default();
         push(format!("brick {name}"), canon(t.iter()));
     }
+    for t in aot(doc, &["group"]).into_iter().flat_map(|a| a.iter()) {
+        let name = t.get("name").and_then(Item::as_str).unwrap_or_default();
+        push(format!("group {name}"), canon(t.iter()));
+    }
     for (noun, table) in [("rule", RULES), ("link", LINKS)] {
         for t in aot(doc, table).into_iter().flat_map(|a| a.iter()) {
             push(rule_label(noun, t), canon(t.iter()));

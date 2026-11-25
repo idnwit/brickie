@@ -63,8 +63,22 @@ pub(super) fn coarse(p: &[Pt]) -> Vec<Pt> {
 pub(super) type Anchor<'a> = (&'a Rect, Side, f64);
 
 /// The direct orthogonal rounded route from `(a, sa, pa)` to `(b, sb, pb)` sampled every `step`.
-pub(super) fn direct((a, sa, pa): Anchor, (b, sb, pb): Anchor, step: f64) -> Vec<Pt> {
-    ortho_direct(bz_port(a, sa, pa), sa, bz_port(b, sb, pb), sb, 0.5).sample(step)
+pub(super) fn direct(
+    (a, sa, pa): Anchor,
+    (b, sb, pb): Anchor,
+    row_bots: (Option<f64>, Option<f64>),
+    step: f64,
+) -> Vec<Pt> {
+    ortho_direct(
+        bz_port(a, sa, pa),
+        sa,
+        bz_port(b, sb, pb),
+        sb,
+        0.5,
+        row_bots.0,
+        row_bots.1,
+    )
+    .sample(step)
 }
 
 /// Number of boxes in `pos` that the polyline `pts` of an edge with ends `(a, b)` touches.
@@ -127,9 +141,11 @@ pub(super) fn side_penalty(a: &Rect, b: &Rect, sa: Side, sb: Side) -> Option<f64
 /// The edge's current route as a candidate (penalty 45 for arcs, 12 otherwise).
 fn old_cand(l: &Layout, e: usize) -> Cand {
     let ok = l.kinds[e].clone().unwrap_or(Kind::Bez);
-    let pts = route_with(&ok, &l.po, &l.dpos, &l.tracks, e, l.edges[e], &l.pos)
-        .map(|r| r.sample(7.0))
-        .unwrap_or_default();
+    let pts = route_with(
+        &ok, &l.po, &l.dpos, &l.tracks, &l.rows, e, l.edges[e], &l.pos,
+    )
+    .map(|r| r.sample(7.0))
+    .unwrap_or_default();
     let sa = l.po.get(&(e, End::A)).map_or(Side::T, |p| p.side);
     let sb = l.po.get(&(e, End::B)).map_or(Side::T, |p| p.side);
     let pen = match ok {
@@ -146,22 +162,39 @@ pub(super) fn candidates(l: &Layout, e: usize) -> Vec<Cand> {
     let (ia, ib) = l.edges[e];
     let (a, b) = (&l.pos[ia], &l.pos[ib]);
     let mut list = vec![old_cand(l, e)];
-    let y_lo = (a.y + a.h).min(b.y + b.h);
-    let y_hi = a.y.max(b.y);
     let x_lo = a.x.min(b.x);
     let x_hi = (a.x + a.w).max(b.x + b.w);
-    let skips_row = y_hi > y_lo + 4.0
-        && l.pos.iter().any(|r| {
-            r.y + r.h > y_lo + 4.0
-                && r.y < y_hi - 4.0
-                && r.x < x_hi + 80.0
-                && r.x + r.w > x_lo - 80.0
-        });
+    let skips_row = match (row_of_brick(&l.rows, ia), row_of_brick(&l.rows, ib)) {
+        (Some(ra), Some(rb)) => {
+            let (lo, hi) = (ra.min(rb), ra.max(rb));
+            lo + 1 < hi
+                && l.rows[lo + 1..hi]
+                    .iter()
+                    .flat_map(|row| &row.ids)
+                    .map(|&k| &l.pos[k])
+                    .any(|r| r.x < x_hi + 80.0 && r.x + r.w > x_lo - 80.0)
+        }
+        _ => {
+            let y_lo = (a.y + a.h).min(b.y + b.h);
+            let y_hi = a.y.max(b.y);
+            y_hi > y_lo + 4.0
+                && l.pos.iter().any(|r| {
+                    r.y + r.h > y_lo + 4.0
+                        && r.y < y_hi - 4.0
+                        && r.x < x_hi + 80.0
+                        && r.x + r.w > x_lo - 80.0
+                })
+        }
+    };
     // Keep the layered dummy corridor for edges that skip a nearby intermediate row when it is
     // already box-free, so later single-row alignment never moves a middle brick into a direct line.
     if skips_row && list[0].boxh == 0 {
         return list;
     }
+    let row_bots = (
+        Some(row_bottom(&l.rows, ia, a)),
+        Some(row_bottom(&l.rows, ib, b)),
+    );
     for sa in Side::ALL {
         for sb in Side::ALL {
             let Some(mut pen) = side_penalty(a, b, sa, sb) else {
@@ -170,7 +203,7 @@ pub(super) fn candidates(l: &Layout, e: usize) -> Vec<Cand> {
             if skips_row {
                 pen += 35.0;
             }
-            let pts = direct((a, sa, 0.0), (b, sb, 0.0), 7.0);
+            let pts = direct((a, sa, 0.0), (b, sb, 0.0), row_bots, 7.0);
             let boxh = box_hits(&l.pos, &pts, l.edges[e]);
             list.push(Cand::new(false, sa, sb, pen, pts, boxh));
         }
@@ -234,13 +267,15 @@ mod tests {
     #[test]
     fn direct_is_the_sampled_orthogonal_route_between_the_two_ports() {
         let (a, b) = (r(0.0, 0.0, 100.0, 50.0), r(300.0, 0.0, 100.0, 50.0));
-        let pts = direct((&a, Side::R, 5.0), (&b, Side::L, -5.0), 7.0);
+        let pts = direct((&a, Side::R, 5.0), (&b, Side::L, -5.0), (None, None), 7.0);
         let route = ortho_direct(
             bz_port(&a, Side::R, 5.0),
             Side::R,
             bz_port(&b, Side::L, -5.0),
             Side::L,
             0.5,
+            None,
+            None,
         );
         assert_eq!(pts, route.sample(7.0));
         assert_eq!(pts[0], bz_port(&a, Side::R, 5.0));
@@ -372,6 +407,8 @@ mod tests {
             .map(|i| InBrick {
                 id: format!("b{i}"),
                 row: i,
+                min_w: None,
+                min_h: None,
             })
             .collect();
         let input = Input {

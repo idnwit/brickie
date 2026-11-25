@@ -20,7 +20,7 @@ reason = "fixture"
 "#;
 
 fn ungroup(name: &str) -> Op {
-    Op::Ungroup {
+    Op::Unnest {
         file: "brickie.toml".into(),
         name: name.into(),
     }
@@ -82,7 +82,7 @@ fn group_leaves_no_self_rule() {
         file: "brickie.toml".into(),
         brick: BrickSpec {
             name: "g".into(),
-            kind: Some(crate::BrickKind::Group),
+            kind: Some(crate::BrickKind::Composite),
             ..BrickSpec::default()
         },
     };
@@ -98,7 +98,7 @@ fn group_rewrites_outside_rule() {
         file: "brickie.toml".into(),
         brick: BrickSpec {
             name: "g".into(),
-            kind: Some(crate::BrickKind::Group),
+            kind: Some(crate::BrickKind::Composite),
             ..BrickSpec::default()
         },
     };

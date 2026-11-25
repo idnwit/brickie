@@ -9,7 +9,9 @@ use brickie_change::{Op, RuleKey, RuleSpec, Version};
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Ident {
     Brick(String),
-    /// A brick a rule names: clashes with changes to the brick, not with other rules naming it.
+    Group(String),
+    /// A unit (brick or group) a rule, link or brick.group names: clashes with changes to that
+    /// brick or group, not with other references naming it.
     Named(String),
     /// A `[[rule]]` (`false`) or `[[link]]` (`true`) by file and key.
     Rule(String, bool, RuleKey),
@@ -31,7 +33,12 @@ impl Ident {
                     && same_set(&a.kinds, &b.kinds)
                     && a.scope.as_deref().unwrap_or("all") == b.scope.as_deref().unwrap_or("all")
             }
-            (Ident::Named(a), Ident::Brick(b)) | (Ident::Brick(a), Ident::Named(b)) => a == b,
+            (Ident::Group(a), Ident::Brick(b))
+            | (Ident::Brick(a), Ident::Group(b))
+            | (Ident::Named(a), Ident::Brick(b))
+            | (Ident::Brick(a), Ident::Named(b))
+            | (Ident::Named(a), Ident::Group(b))
+            | (Ident::Group(a), Ident::Named(b)) => a == b,
             (Ident::Named(_), Ident::Named(_)) => false,
             _ => self == other,
         }
@@ -39,7 +46,9 @@ impl Ident {
 
     fn text(&self) -> String {
         match self {
-            Ident::Brick(n) | Ident::Named(n) => format!("brick {n}"),
+            Ident::Brick(n) => format!("brick {n}"),
+            Ident::Named(n) => n.clone(),
+            Ident::Group(n) => format!("group {n}"),
             Ident::Rule(_, link, k) => {
                 let kinds = match &k.kinds {
                     Some(k) if !k.is_empty() => format!(" [{}]", k.join(",")),
@@ -83,29 +92,66 @@ fn limit(file: &str, bricks: &Option<String>) -> Ident {
     Ident::Limit(file.into(), bricks.clone().unwrap_or_else(|| "*".into()))
 }
 
-/// A rule or link also depends on the bricks it names (a link's `composite/child` names the
-/// composite): renaming or removing one stales the write.
+fn limit_idents(file: &str, bricks: &Option<String>) -> Vec<Ident> {
+    let mut out = vec![limit(file, bricks)];
+    if let Some(b) = bricks.as_deref()
+        && !b.is_empty()
+        && b != "*"
+        && !b.starts_with("tag:")
+    {
+        out.push(Ident::Named(b.to_string()));
+    }
+    out
+}
+
+/// A rule or link also depends on the units it names (a link's `composite/child` names both the
+/// composite and the exported child brick or group): renaming or removing either stales the write.
 fn rule_idents(file: &str, link: bool, key: RuleKey) -> Vec<Ident> {
-    let brick = |s: &str| Ident::Named(s.split('/').next().unwrap_or(s).to_string());
-    vec![
-        brick(&key.from),
-        brick(&key.to),
-        Ident::Rule(file.into(), link, key),
-    ]
+    let mut out = Vec::with_capacity(4);
+    let mut push_end = |s: &str| {
+        if let Some((parent, child)) = s.split_once('/') {
+            out.push(Ident::Named(parent.to_string()));
+            if !child.is_empty() {
+                out.push(Ident::Named(child.to_string()));
+            }
+        } else {
+            out.push(Ident::Named(s.to_string()));
+        }
+    };
+    push_end(&key.from);
+    push_end(&key.to);
+    out.push(Ident::Rule(file.into(), link, key));
+    out
 }
 
 fn touched(op: &Op) -> Vec<Ident> {
     let brick = |n: &String| Ident::Brick(n.clone());
+    let group = |n: &String| Ident::Group(n.clone());
     match op {
-        Op::AddBrick { brick: b, .. } => vec![Ident::Brick(b.name.clone())],
-        Op::RemoveBrick { name, .. }
-        | Op::SetBrick { name, .. }
-        | Op::MakeComposite { name, .. }
-        | Op::Ungroup { name, .. } => vec![brick(name)],
+        Op::AddBrick { brick: b, .. } => {
+            let mut out = vec![Ident::Brick(b.name.clone())];
+            if let Some(g) = b.group.as_deref().filter(|g| !g.is_empty()) {
+                out.push(Ident::Named(g.to_string()));
+            }
+            out
+        }
+        Op::SetBrick { name, group: g, .. } => {
+            let mut out = vec![brick(name)];
+            if let Some(g) = g.as_deref().filter(|g| !g.is_empty()) {
+                out.push(Ident::Named(g.to_string()));
+            }
+            out
+        }
+        Op::RemoveBrick { name, .. } | Op::MakeComposite { name, .. } | Op::Unnest { name, .. } => {
+            vec![brick(name)]
+        }
         Op::RenameBrick { from, to, .. } => vec![brick(from), brick(to)],
         Op::MoveBrick { name, into, .. } => std::iter::once(brick(name))
             .chain(into.iter().map(brick))
             .collect(),
+        Op::AddGroup { group: g, .. } => vec![group(&g.name)],
+        Op::SetGroup { name, .. } | Op::RemoveGroup { name, .. } => vec![group(name)],
+        Op::RenameGroup { name, new_name, .. } => vec![group(name), group(new_name)],
         Op::AddRule { file, rule } => rule_idents(file, false, spec_key(rule)),
         Op::RemoveRule { file, key } | Op::SetRule { file, key, .. } => {
             rule_idents(file, false, key.clone())
@@ -114,15 +160,16 @@ fn touched(op: &Op) -> Vec<Ident> {
         Op::RemoveLink { file, key } | Op::SetLink { file, key, .. } => {
             rule_idents(file, true, key.clone())
         }
-        Op::AddComplexity { file, rule } => vec![limit(file, &rule.bricks)],
+        Op::AddComplexity { file, rule } => limit_idents(file, &rule.bricks),
         Op::RemoveComplexity { file, bricks } | Op::SetComplexity { file, bricks, .. } => {
-            vec![limit(file, bricks)]
+            limit_idents(file, bricks)
         }
-        Op::AddExport { file, .. }
-        | Op::RemoveExport { file, .. }
-        | Op::AddInclude { file, .. }
-        | Op::RemoveInclude { file, .. }
-        | Op::CreateFile { file } => vec![Ident::File(file.clone())],
+        Op::AddExport { file, brick } | Op::RemoveExport { file, brick } => {
+            vec![Ident::File(file.clone()), Ident::Named(brick.clone())]
+        }
+        Op::AddInclude { file, .. } | Op::RemoveInclude { file, .. } | Op::CreateFile { file } => {
+            vec![Ident::File(file.clone())]
+        }
     }
 }
 
@@ -135,7 +182,10 @@ pub fn first_conflict(log: &[Version], base: u64, ops: &[Op]) -> Option<String> 
         if v.ops.is_empty() {
             return Some(format!("{who} changed the design"));
         }
-        let theirs = v.ops.iter().flat_map(touched);
+        let mut theirs: Vec<Ident> = v.ops.iter().flat_map(touched).collect();
+        if v.ops.iter().any(|op| matches!(op, Op::RenameGroup { .. })) {
+            theirs.extend(v.files.iter().cloned().map(Ident::File));
+        }
         for t in theirs {
             if mine.iter().any(|m| m.clashes(&t)) {
                 return Some(format!("{who} changed {}", t.text()));
@@ -274,6 +324,115 @@ mod tests {
         assert_eq!(
             first_conflict(&hand, 1, &[add("a")]).as_deref(),
             Some("external v2 changed the design")
+        );
+    }
+
+    #[test]
+    fn group_conflicts_cover_namespace_and_membership() {
+        use brickie_change::GroupSpec;
+        let add_grp = |name: &str| Op::AddGroup {
+            file: "brickie.toml".into(),
+            group: GroupSpec {
+                name: name.into(),
+                ..Default::default()
+            },
+        };
+        let rm_grp = |name: &str| Op::RemoveGroup {
+            file: "brickie.toml".into(),
+            name: name.into(),
+        };
+        let ren_grp = |name: &str, new_name: &str| Op::RenameGroup {
+            file: "brickie.toml".into(),
+            name: name.into(),
+            new_name: new_name.into(),
+        };
+        let set_mem = |brick: &str, grp: &str| Op::SetBrick {
+            file: "brickie.toml".into(),
+            name: brick.into(),
+            desc: None,
+            tags: None,
+            members: None,
+            path: None,
+            independent: None,
+            group: Some(grp.into()),
+        };
+        let add_mem = |brick: &str, grp: &str| Op::AddBrick {
+            file: "brickie.toml".into(),
+            brick: BrickSpec {
+                name: brick.into(),
+                group: Some(grp.into()),
+                ..Default::default()
+            },
+        };
+
+        // Group and brick share one namespace.
+        let log = vec![ver(2, By::Agent, vec![add_grp("services")])];
+        assert!(first_conflict(&log, 1, &[add("services")]).is_some());
+        assert_eq!(first_conflict(&log, 1, &[add("other")]), None);
+
+        // Rule naming a group clashes with RemoveGroup / RenameGroup.
+        let log_rm = vec![ver(2, By::Human, vec![rm_grp("services")])];
+        assert!(first_conflict(&log_rm, 1, &[rule("services", None)]).is_some());
+
+        // SetBrick.group and AddBrick.group clash with RenameGroup/RemoveGroup.
+        assert!(first_conflict(&log_rm, 1, &[set_mem("auth", "services")]).is_some());
+        assert!(first_conflict(&log_rm, 1, &[add_mem("notify", "services")]).is_some());
+        let log_ren = vec![ver(2, By::Human, vec![ren_grp("services", "svc")])];
+        assert!(first_conflict(&log_ren, 1, &[set_mem("auth", "services")]).is_some());
+
+        // Two different bricks joining the same group do NOT conflict with each other.
+        let log_join = vec![ver(2, By::Agent, vec![set_mem("auth", "services")])];
+        assert_eq!(
+            first_conflict(&log_join, 1, &[set_mem("billing", "services")]),
+            None
+        );
+
+        // Link to `composite/group` clashes with renaming or removing `group`.
+        let link_via = Op::AddLink {
+            file: "brickie.toml".into(),
+            link: RuleSpec {
+                from: "cli".into(),
+                to: "web/services".into(),
+                ..Default::default()
+            },
+        };
+        assert!(first_conflict(&log_rm, 1, std::slice::from_ref(&link_via)).is_some());
+        assert!(first_conflict(&log_ren, 1, &[link_via]).is_some());
+
+        // Export and concrete complexity ops clash with renaming or removing the named unit.
+        let add_exp = Op::AddExport {
+            file: "web/brickie.toml".into(),
+            brick: "services".into(),
+        };
+        assert!(first_conflict(&log_rm, 1, &[add_exp]).is_some());
+        let rm_cx = Op::RemoveComplexity {
+            file: "brickie.toml".into(),
+            bricks: Some("services".into()),
+        };
+        assert!(first_conflict(&log_rm, 1, &[rm_cx]).is_some());
+        let tag_cx = Op::RemoveComplexity {
+            file: "brickie.toml".into(),
+            bricks: Some("tag:services".into()),
+        };
+        assert_eq!(first_conflict(&log_rm, 1, &[tag_cx]), None);
+
+        // Multi-file RenameGroup clashes its rewritten files against File-level ops.
+        let mut v_ren = ver(2, By::Human, vec![ren_grp("services", "svc")]);
+        v_ren.files = vec!["brickie.toml".into(), "parent/brickie.toml".into()];
+        let inc = Op::AddInclude {
+            file: "parent/brickie.toml".into(),
+            path: "extra.toml".into(),
+        };
+        assert_eq!(
+            first_conflict(&[v_ren], 1, &[inc]).as_deref(),
+            Some("human v2 changed settings of parent/brickie.toml")
+        );
+
+        // Ident::Named formats neutrally without a "brick" prefix.
+        let log_link = vec![ver(2, By::Agent, vec![rule("services", None)])];
+        assert_eq!(
+            first_conflict(&log_link, 1, &[rm_grp("services")]).as_deref(),
+            Some("agent v2 changed services")
         );
     }
 }

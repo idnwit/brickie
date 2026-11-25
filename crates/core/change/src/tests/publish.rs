@@ -89,6 +89,7 @@ fn members(file: &str, name: &str, m: &[&str]) -> Op {
         members: Some(m.iter().map(|s| s.to_string()).collect()),
         path: None,
         independent: None,
+        group: None,
     }
 }
 

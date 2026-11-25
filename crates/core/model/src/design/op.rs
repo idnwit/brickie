@@ -14,8 +14,19 @@ pub enum BrickKind {
     Crate,
     /// A module of a crate: members must name it (`<crate>::<module>`).
     Module,
-    /// A composite group: `path` defaults to `<name>`, and `<name>/brickie.toml` is created.
-    Group,
+    /// A composite brick: `path` defaults to `<name>`, and `<name>/brickie.toml` is created.
+    Composite,
+}
+
+/// A `[[group]]` table.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GroupSpec {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desc: Option<String>,
 }
 
 /// A `[[brick]]` table.
@@ -32,6 +43,8 @@ pub struct BrickSpec {
     pub path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub desc: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
 }
 
 /// A `[[rule]]` or `[[link]]` table (both have the same fields); `None` and empty fields are
@@ -121,6 +134,9 @@ pub enum Op {
         /// `true` writes `independent = true`, `false` removes the key; allowed at any level.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         independent: Option<bool>,
+        /// `Some("")` removes the `group` key.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        group: Option<String>,
     },
     RenameBrick {
         file: String,
@@ -144,10 +160,31 @@ pub enum Op {
         name: String,
         path: String,
     },
-    /// Undo a composite: its children (with their rules and complexity rules) are lifted into
-    /// `file`, the brick stays as a leaf without `path`, and its level file is dropped from the
-    /// design (the file itself is left on disk).
-    Ungroup {
+    /// Undo a composite: its children (with their groups, rules and complexity rules) are lifted
+    /// into `file`, the brick stays as a leaf without `path`, and its level file is dropped from
+    /// the design (the file itself is left on disk).
+    Unnest {
+        file: String,
+        name: String,
+    },
+    AddGroup {
+        file: String,
+        group: GroupSpec,
+    },
+    SetGroup {
+        file: String,
+        name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tags: Option<Vec<String>>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        desc: Option<String>,
+    },
+    RenameGroup {
+        file: String,
+        name: String,
+        new_name: String,
+    },
+    RemoveGroup {
         file: String,
         name: String,
     },
@@ -225,7 +262,11 @@ impl Op {
             | Op::RenameBrick { file, .. }
             | Op::MoveBrick { file, .. }
             | Op::MakeComposite { file, .. }
-            | Op::Ungroup { file, .. }
+            | Op::Unnest { file, .. }
+            | Op::AddGroup { file, .. }
+            | Op::SetGroup { file, .. }
+            | Op::RenameGroup { file, .. }
+            | Op::RemoveGroup { file, .. }
             | Op::AddExport { file, .. }
             | Op::RemoveExport { file, .. }
             | Op::AddRule { file, .. }
@@ -252,7 +293,11 @@ impl Op {
             Op::RenameBrick { .. } => "rename_brick",
             Op::MoveBrick { .. } => "move_brick",
             Op::MakeComposite { .. } => "make_composite",
-            Op::Ungroup { .. } => "ungroup",
+            Op::Unnest { .. } => "unnest",
+            Op::AddGroup { .. } => "add_group",
+            Op::SetGroup { .. } => "set_group",
+            Op::RenameGroup { .. } => "rename_group",
+            Op::RemoveGroup { .. } => "remove_group",
             Op::AddExport { .. } => "add_export",
             Op::RemoveExport { .. } => "remove_export",
             Op::AddRule { .. } => "add_rule",

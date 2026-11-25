@@ -67,7 +67,7 @@ fn double_quoted(chars: &mut Chars, cur: &mut String) -> Result<()> {
 }
 
 /// The ops of one line.
-fn parse(d: &Design, line: &str) -> Result<Vec<Op>> {
+fn parse(d: &Design, line: &str, pending: &ops::Pending) -> Result<Vec<Op>> {
     let mut args = words(line)?;
     // The write arguments are required by the subcommands; a line must not carry its own.
     args.extend(["--base".into(), "0".into()]);
@@ -76,7 +76,7 @@ fn parse(d: &Design, line: &str) -> Result<Vec<Op>> {
         let first = text.lines().next().unwrap_or("invalid line");
         anyhow::anyhow!("{}", first.trim_start_matches("error: "))
     })?;
-    let (ops, w) = ops::edit(d, l.edit)?;
+    let (ops, w) = ops::edit_with(d, l.edit, pending)?;
     if w.base != 0 || w.note.is_some() || w.dry_run || w.scaffold {
         bail!(
             "--base, --note, --dry-run and --scaffold belong to the `apply` command, not to a line"
@@ -88,14 +88,18 @@ fn parse(d: &Design, line: &str) -> Result<Vec<Op>> {
 /// Every op of the script; the first bad line stops it, named by its number.
 pub fn ops(d: &Design, script: &str) -> Result<Vec<Op>> {
     let mut all = Vec::new();
+    let mut pending = ops::Pending::default();
     for (i, raw) in script.lines().enumerate() {
         let line = raw.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
         let n = i + 1;
-        match parse(d, line) {
-            Ok(ops) => all.extend(ops),
+        match parse(d, line, &pending) {
+            Ok(ops) => {
+                pending.record(&ops);
+                all.extend(ops);
+            }
             Err(e) => bail!("line {n}: {e:#}; nothing was written"),
         }
     }

@@ -2,7 +2,7 @@
 //! path apply (each level's rules select its own child on the path); per metric the tightest
 //! limit wins, so a nested config can only tighten.
 
-use crate::config::{Brick, ComplexityRule, Config, Resolved, level_name};
+use crate::config::{ComplexityRule, Config, Resolved, Unit, level_name};
 use crate::diag::{Finding, RuleRef, Span};
 use brickie_facts::Cache;
 use brickie_model::codes::METRICS;
@@ -55,22 +55,23 @@ fn best_rule<'a>(
     (0..path.len())
         .filter_map(|i| {
             let level = cfg.node(&path[..i])?;
-            level_rule(level, level.brick(&path[i])?, scope, limit_of)
+            let unit = level.unit_of(level.brick(&path[i])?);
+            level_rule(level, unit, scope, limit_of)
         })
         .min_by_key(|(l, _, _)| *l)
 }
 
-/// The rule of one level that sets a metric's limit for a brick and scope: the most specific
+/// The rule of one level that sets a metric's limit for a unit and scope: the most specific
 /// rule that sets it, the lower limit on a tie.
 fn level_rule<'a>(
     cfg: &'a Config,
-    brick: &Brick,
+    unit: Unit<'_>,
     scope: &str,
     limit_of: fn(&ComplexityRule) -> Option<u64>,
 ) -> Option<(u64, usize, &'a ComplexityRule)> {
     let mut best: Option<(u32, u64, usize, &ComplexityRule)> = None;
     for (i, r) in cfg.complexity.iter().enumerate() {
-        let (Some(limit), Some(spec)) = (limit_of(r), r.bricks.specificity(brick)) else {
+        let (Some(limit), Some(spec)) = (limit_of(r), r.bricks.specificity(unit)) else {
             continue;
         };
         if !r.scope.matches(scope) {

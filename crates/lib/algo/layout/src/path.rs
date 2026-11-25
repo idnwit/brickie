@@ -4,12 +4,14 @@
 use super::geometry::{CORNER_R, Route, bz_port, ortho_direct};
 use super::*;
 
-/// `routePath` for one edge: its route kind, ports, channel tracks and the box positions `p`.
+/// `routePath` for one edge: its route kind, ports, channel tracks, row bands and box positions `p`.
+#[allow(clippy::too_many_arguments)]
 pub fn route_with(
     kind: &Kind,
     po: &HashMap<(usize, End), Port>,
     dpos: &[Option<(f64, f64, f64)>],
     tracks: &HashMap<(usize, usize), f64>,
+    rows: &[RowOut],
     e: usize,
     ends: (usize, usize),
     p: &[Rect],
@@ -31,6 +33,8 @@ pub fn route_with(
             port(b, End::B),
             side(End::B),
             track(0),
+            Some(row_bottom(rows, ends.0, a)),
+            Some(row_bottom(rows, ends.1, b)),
         )),
         Kind::Arc { top, level } => {
             let (pa, pb) = (port(a, End::A), port(b, End::B));
@@ -38,7 +42,10 @@ pub fn route_with(
             let y = if *top {
                 pa.y.min(pb.y) - h
             } else {
-                pa.y.max(pb.y) + h
+                row_bottom(rows, ends.0, a)
+                    .max(row_bottom(rows, ends.1, b))
+                    .max(pa.y.max(pb.y))
+                    + h
             };
             Some(Route::orthogonal(
                 &[pa, Pt { x: pa.x, y }, Pt { x: pb.x, y }, pb],
@@ -55,36 +62,50 @@ pub fn route_with(
             let lo = p.get(chain[chain.len() - 1])?;
             let u_pt = port(u, *up_end);
             let l_pt = port(lo, up_end.other());
+            let u_chan_y = if side(*up_end) == Side::B {
+                row_bottom(rows, chain[0], u).max(u_pt.y)
+            } else {
+                u_pt.y
+            };
             let lat = (*idx as f64 - (*cnt as f64 - 1.0) / 2.0) * LANE;
-            // (x, y, half height; None for the end ports)
-            let mut c0: Vec<(f64, f64, Option<f64>)> = vec![(u_pt.x, u_pt.y, None)];
+            // (x, y, half height; None for the end ports, channel boundary y)
+            let mut c0: Vec<(f64, f64, Option<f64>, f64)> = vec![(u_pt.x, u_pt.y, None, u_chan_y)];
             for &k in &chain[1..chain.len() - 1] {
                 let (dx, dy, dh) = dpos.get(k).copied().flatten()?;
-                c0.push((dx + lat, dy + dh / 2.0, Some(dh / 2.0)));
+                c0.push((dx + lat, dy + dh / 2.0, Some(dh / 2.0), dy));
             }
-            c0.push((l_pt.x, l_pt.y, None));
+            c0.push((l_pt.x, l_pt.y, None, l_pt.y));
             if *up_end == End::B {
                 c0.reverse();
             }
             // Orthogonal waypoints through each dummy corridor, with softly rounded bends in the
             // inter-row channels.
             let mut pts: Vec<Pt> = Vec::new();
-            for (i, &(x, y, hh)) in c0.iter().enumerate() {
-                let (enter, leave) = match hh {
-                    None => (Pt { x, y }, Pt { x, y }),
+            let mut prev_chan_y = 0.0;
+            for (i, &(x, y, hh, chan_y)) in c0.iter().enumerate() {
+                let (enter, leave, enter_chan_y, leave_chan_y) = match hh {
+                    None => (Pt { x, y }, Pt { x, y }, chan_y, chan_y),
                     Some(hh) => {
                         let dir = if c0[i + 1].1 >= c0[i - 1].1 {
                             1.0
                         } else {
                             -1.0
                         };
-                        (Pt { x, y: y - hh * dir }, Pt { x, y: y + hh * dir })
+                        let ey = y - hh * dir;
+                        let ly = y + hh * dir;
+                        (Pt { x, y: ey }, Pt { x, y: ly }, ey, ly)
                     }
                 };
                 if let Some(&prev) = pts.last()
                     && (prev.x - enter.x).abs() >= 1.0
                 {
-                    let my = prev.y + (enter.y - prev.y) * track(i);
+                    let (y0, y1) = if (enter_chan_y - prev_chan_y) * (enter.y - prev.y) > 0.0 {
+                        (prev_chan_y, enter_chan_y)
+                    } else {
+                        (prev.y, enter.y)
+                    };
+                    let (top_y, bot_y) = if y0 <= y1 { (y0, y1) } else { (y1, y0) };
+                    let my = top_y + (bot_y - top_y) * track(i);
                     pts.push(Pt { x: prev.x, y: my });
                     pts.push(Pt { x: enter.x, y: my });
                 }
@@ -92,6 +113,7 @@ pub fn route_with(
                 if hh.is_some() {
                     pts.push(leave);
                 }
+                prev_chan_y = leave_chan_y;
             }
             Some(Route::orthogonal(&pts, CORNER_R))
         }
@@ -186,7 +208,7 @@ fn dynamic_route(p: &[Rect], ends: (usize, usize)) -> Option<Route> {
             bz_port(b, Side::B, 0.0),
         )
     };
-    Some(ortho_direct(pa, sa, pb, sb, 0.5))
+    Some(ortho_direct(pa, sa, pb, sb, 0.5, None, None))
 }
 
 /// `routePath(e, L, P)`.
@@ -202,5 +224,14 @@ pub fn route_path(l: &Layout, e: usize, p: &[Rect]) -> Option<Route> {
     if moved {
         return dynamic_route(p, ends);
     }
-    route_with(l.kinds[e].as_ref()?, &l.po, &l.dpos, &l.tracks, e, ends, p)
+    route_with(
+        l.kinds[e].as_ref()?,
+        &l.po,
+        &l.dpos,
+        &l.tracks,
+        &l.rows,
+        e,
+        ends,
+        p,
+    )
 }

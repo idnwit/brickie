@@ -89,6 +89,19 @@ impl Design {
                 )
             });
         }
+        for path in l.todo.groups.iter().cloned() {
+            let parent = &path[..path.len().saturating_sub(1)];
+            let file = l.cfg.node(parent).map(|lv| self.rel(&lv.file));
+            let name = level_name(&path);
+            g.blocking.push(Blocker {
+                file,
+                brick: Some(name.clone()),
+                ..item(
+                    DESIGN_PLANNED,
+                    format!("planned group {name} has no bricks yet"),
+                )
+            });
+        }
     }
 
     /// A config file path as the loader names it, relative to the root.

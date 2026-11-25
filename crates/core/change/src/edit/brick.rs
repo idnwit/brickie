@@ -64,6 +64,7 @@ pub fn add(doc: &mut DocumentMut, spec: &BrickSpec) -> Result<()> {
     set_list(&mut t, "tags", &spec.tags);
     set_opt(&mut t, "path", spec.path.as_deref());
     set_opt(&mut t, "desc", spec.desc.as_deref());
+    set_opt(&mut t, "group", spec.group.as_deref());
     bricks.push(t);
     Ok(())
 }
@@ -81,6 +82,7 @@ pub struct Fields<'a> {
     pub members: Option<&'a [String]>,
     pub path: Option<&'a str>,
     pub independent: Option<bool>,
+    pub group: Option<&'a str>,
 }
 
 pub fn set(doc: &mut DocumentMut, name: &str, f: Fields) -> Result<()> {
@@ -97,6 +99,9 @@ pub fn set(doc: &mut DocumentMut, name: &str, f: Fields) -> Result<()> {
             t.remove("independent");
         }
         None => {}
+    }
+    if let Some(g) = f.group {
+        set_opt(t, "group", Some(g));
     }
     if let Some(v) = f.tags {
         set_list(t, "tags", v);
@@ -165,6 +170,9 @@ pub fn prune_empty(doc: &mut DocumentMut) {
     }
     if doc.get("brick").is_some_and(empty) {
         doc.remove("brick");
+    }
+    if doc.get("group").is_some_and(empty) {
+        doc.remove("group");
     }
     if doc.get("rule").is_some_and(empty) {
         doc.remove("rule");

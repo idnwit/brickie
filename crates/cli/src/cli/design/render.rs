@@ -192,6 +192,20 @@ fn level(s: &mut String, l: &LevelView, depth: usize) {
     for b in &l.bricks {
         brick(s, b, depth + 1);
     }
+    for g in &l.groups {
+        let desc = g
+            .desc
+            .as_deref()
+            .map(|d| format!("  \"{d}\""))
+            .unwrap_or_default();
+        let _ = writeln!(
+            s,
+            "{pad}  group {}{}{}{desc}",
+            g.name,
+            list("members", &g.members),
+            list("tags", &g.tags)
+        );
+    }
     for r in &l.rules {
         let kinds = list("kinds", &r.kinds);
         let _ = writeln!(
@@ -233,9 +247,14 @@ fn brick(s: &mut String, b: &BrickView, depth: usize) {
         .map(|d| format!("  \"{d}\""))
         .unwrap_or_default();
     let lib = if b.independent { " independent" } else { "" };
+    let grp = b
+        .group
+        .as_deref()
+        .map(|g| format!("  group {g}"))
+        .unwrap_or_default();
     let _ = writeln!(
         s,
-        "{pad}brick {} {}{lib}{}{}{desc}",
+        "{pad}brick {} {}{lib}{grp}{}{}{desc}",
         b.name,
         b.kind,
         list("members", &b.members),

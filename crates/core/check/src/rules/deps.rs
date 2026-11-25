@@ -2,7 +2,7 @@
 //! allowed there only through a valid link ([`covering_link`]); `deps/private` (see
 //! `private.rs`) checks the target's visibility on the same pass.
 
-use super::lift::{hidden, lift};
+use super::lift::{entered, hidden, lift};
 use super::private::Private;
 use super::{span, tags};
 use crate::config::{Brick, Config, Resolved, Why, covering_link};
@@ -10,21 +10,34 @@ use crate::diag::{Finding, Note, RuleRef, Span};
 use brickie_facts::{Cache, Evidence};
 use brickie_model::codes::DEPS_UNLINKED;
 
+enum DepReason {
+    /// Edge between two members of the same peer group: `(group_name, loc)`.
+    IntraGroup(String, String),
+    /// A link covers the edge, but no rule allows it: `(loc, why)`.
+    Denied(String, String),
+    /// No link covers the edge.
+    Unlinked,
+}
+
 struct Dep {
     /// Level name of the common ancestor (`root/web`) and its config file.
     level: String,
     file: String,
     from: Brick,
     to: Brick,
+    /// Logical unit names for `from` and `to` (group name when grouped, else brick name).
+    from_unit: String,
+    to_unit: String,
+    /// Whether `to_unit` is a group at `level` (not a composite exporting a group).
+    to_is_group: bool,
     from_module: String,
     to_module: String,
     kind: String,
     scope: String,
-    /// The child of `to` the edge enters through, for a composite target.
+    /// The unit inside `to` the edge enters through, for a composite target.
     entered: Option<String>,
     evidence: Vec<Evidence>,
-    /// The link that covers the edge but that no rule allows (`loc`, why), if any.
-    denied: Option<(String, String)>,
+    reason: DepReason,
 }
 
 pub(super) fn deps(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Box<dyn Finding>>) {
@@ -48,24 +61,40 @@ pub(super) fn deps(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Bo
                 evidence: e.evidence.clone(),
             }));
         }
-        let entered = p2.get(l.k + 1).map(String::as_str);
-        let denied = match covering_link(l.level, l.from, l.to, entered, &e.kind, &e.scope) {
-            Ok(_) => continue,
-            Err(Why::Unlinked) => None,
-            Err(Why::Denied(link, why)) => Some((link.loc.clone(), why)),
+        let entered = entered(&l, p2);
+        let from_unit = l.level.unit_of(l.from);
+        let to_unit = l.level.unit_of(l.to);
+        let reason = if let Some(g) = l.from.group.as_deref()
+            && l.to.group.as_deref() == Some(g)
+        {
+            let loc = l
+                .level
+                .group(g)
+                .map(|gr| gr.loc.clone())
+                .unwrap_or_else(|| l.level.file.clone());
+            DepReason::IntraGroup(g.to_string(), loc)
+        } else {
+            match covering_link(l.level, from_unit, to_unit, entered, &e.kind, &e.scope) {
+                Ok(_) => continue,
+                Err(Why::Unlinked) => DepReason::Unlinked,
+                Err(Why::Denied(link, why)) => DepReason::Denied(link.loc.clone(), why),
+            }
         };
         out.push(Box::new(Dep {
             level: l.level.level(),
             file: l.level.file.clone(),
             from: l.from.clone(),
             to: l.to.clone(),
+            from_unit: from_unit.name.to_string(),
+            to_unit: to_unit.name.to_string(),
+            to_is_group: to_unit.is_group,
             from_module: e.from,
             to_module: e.to,
             kind: e.kind,
             scope: e.scope,
             entered: entered.map(String::from),
             evidence: e.evidence,
-            denied,
+            reason,
         }));
     }
 }
@@ -134,21 +163,28 @@ impl Finding for Dep {
             .collect()
     }
     fn rule(&self) -> Option<RuleRef> {
-        Some(match &self.denied {
-            Some((loc, why)) => RuleRef {
+        Some(match &self.reason {
+            DepReason::IntraGroup(g, loc) => RuleRef {
+                name: format!("bricks in group '{g}' cannot depend on each other"),
+                loc: Some(loc.clone()),
+            },
+            DepReason::Denied(loc, why) => RuleRef {
                 name: format!("link denied: {why}"),
                 loc: Some(loc.clone()),
             },
-            None => RuleRef {
+            DepReason::Unlinked => RuleRef {
                 name: "no link covers it".into(),
                 loc: Some(self.file.clone()),
             },
         })
     }
     fn help(&self) -> Option<String> {
+        if matches!(self.reason, DepReason::IntraGroup(..)) {
+            return Some("remove the dependency".into());
+        }
         let to = match &self.entered {
-            Some(c) => format!("{}/{c}", self.to.name),
-            None => self.to.name.clone(),
+            Some(c) if !self.to_is_group => format!("{}/{c}", self.to_unit),
+            _ => self.to_unit.clone(),
         };
         let level = match self.level.strip_prefix("root") {
             Some("") | None => String::new(),
@@ -156,16 +192,19 @@ impl Finding for Dep {
         };
         let add = format!(
             "brickie design link add {} {to} --kind {} --scope {}{level} --reason \"...\"",
-            self.from.name, self.kind, self.scope
+            self.from_unit, self.kind, self.scope
         );
-        Some(match &self.denied {
+        Some(match &self.reason {
             _ if self.from.independent && !self.to.independent => "remove the dependency: an \
                 independent brick may use only itself, other independent bricks and external crates"
                 .into(),
-            Some(_) => "remove the dependency, or ask the reviewer for a [[rule]] that allows \
+            DepReason::Denied(..) => {
+                "remove the dependency, or ask the reviewer for a [[rule]] that allows \
                 the link"
-                .into(),
-            None => format!("remove the dependency, or declare the link: `{add}`"),
+                    .into()
+            }
+            DepReason::Unlinked => format!("remove the dependency, or declare the link: `{add}`"),
+            DepReason::IntraGroup(..) => unreachable!(),
         })
     }
     fn bricks(&self) -> Vec<String> {

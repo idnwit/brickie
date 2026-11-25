@@ -16,6 +16,7 @@ pub fn inspector(cx: &Cx) -> View {
         untrack(|| match (rule, sel) {
             (Some(r), _) => edge::rule_view(&c, r),
             (None, Sel::Brick(b)) if !c.m.g.bricks[b].ghost => brick::brick_view(&c, b),
+            (None, Sel::Member(b, m)) => brick::member_view(&c, b, m),
             _ => level::level_view(&c),
         })
     };

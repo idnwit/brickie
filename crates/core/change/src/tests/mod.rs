@@ -2,6 +2,7 @@
 
 mod draft;
 mod exports;
+mod groups;
 mod independent;
 mod keys;
 mod levels;
@@ -123,6 +124,7 @@ pub fn desc(name: &str, d: &str) -> Op {
         members: None,
         path: None,
         independent: None,
+        group: None,
     }
 }
 

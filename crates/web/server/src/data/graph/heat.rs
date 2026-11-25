@@ -10,7 +10,8 @@ use std::collections::BTreeMap;
 /// The worst ratio of a node and its functions over a limit.
 type Node = (f64, Vec<HotFn>);
 
-/// Keyed by node level path (`root/web/api`); a composite collects its whole subtree.
+/// Keyed by node level path (`root/web/api`); a composite collects its whole subtree, and a
+/// peer group collects its member bricks while each member retains its own entry.
 pub fn heat(l: &Loaded) -> BTreeMap<String, Node> {
     let mut out: BTreeMap<String, Node> = BTreeMap::new();
     for (path, f) in &l.cache.files {
@@ -21,7 +22,7 @@ pub fn heat(l: &Loaded) -> BTreeMap<String, Node> {
             let Some(hot) = worst_limit(l, leaf, func, path) else {
                 continue;
             };
-            add_to_nodes(&mut out, leaf, &hot);
+            add_to_nodes(&mut out, &l.cfg, leaf, &hot);
         }
     }
     for (_, hot) in out.values_mut() {
@@ -30,13 +31,33 @@ pub fn heat(l: &Loaded) -> BTreeMap<String, Node> {
     out
 }
 
-/// Count `hot` on every node from the root to `leaf`; only a ratio over 1 is listed.
-fn add_to_nodes(out: &mut BTreeMap<String, Node>, leaf: &[String], hot: &HotFn) {
+fn push_hot(out: &mut BTreeMap<String, Node>, key: String, hot: &HotFn) {
+    let e = out.entry(key).or_default();
+    e.0 = e.0.max(hot.ratio);
+    if hot.ratio > 1.0 {
+        e.1.push(hot.clone());
+    }
+}
+
+/// Count `hot` on every node from the root to `leaf` (and any enclosing peer group at each
+/// level); only a ratio over 1 is listed.
+fn add_to_nodes(
+    out: &mut BTreeMap<String, Node>,
+    cfg: &brickie_check::config::Config,
+    leaf: &[String],
+    hot: &HotFn,
+) {
     for n in 1..=leaf.len() {
-        let e = out.entry(level_name(&leaf[..n])).or_default();
-        e.0 = e.0.max(hot.ratio);
-        if hot.ratio > 1.0 {
-            e.1.push(hot.clone());
+        let prefix = &leaf[..n];
+        push_hot(out, level_name(prefix), hot);
+        let parent = &leaf[..n - 1];
+        if let Some(lv) = cfg.node(parent)
+            && let Some(b) = lv.brick(&leaf[n - 1])
+            && let Some(g) = &b.group
+        {
+            let mut gpath = parent.to_vec();
+            gpath.push(g.clone());
+            push_hot(out, level_name(&gpath), hot);
         }
     }
 }

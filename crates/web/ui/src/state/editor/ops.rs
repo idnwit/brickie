@@ -1,7 +1,7 @@
 //! Ops the editor's gestures and fields build, and the paths and keys they name bricks by.
 
 use brickie_web_api::BrickView;
-use brickie_web_api::design::{BrickKind, BrickSpec, ComplexitySpec, Op};
+use brickie_web_api::design::{BrickKind, BrickSpec, ComplexitySpec, GroupSpec, Op};
 
 /// The brick path from the root (without `root`) of brick `name` at level `lv`.
 pub fn brick_path(lv: &str, name: &str) -> Vec<String> {
@@ -64,6 +64,7 @@ pub fn set_field(file: &str, b: &BrickView, f: Field) -> Option<Op> {
         members: None,
         path: None,
         independent: None,
+        group: None,
     };
     let Op::SetBrick {
         desc,
@@ -98,6 +99,47 @@ pub fn rename_op(file: &str, from: &str, to: &str) -> Option<Op> {
         from: from.to_string(),
         to: to.to_string(),
     })
+}
+
+/// `add_group` for a new peer group.
+pub fn add_group_op(file: &str, name: &str, tags: Vec<String>) -> Op {
+    Op::AddGroup {
+        file: file.to_string(),
+        group: GroupSpec {
+            name: name.trim().to_string(),
+            tags,
+            desc: None,
+        },
+    }
+}
+
+/// `rename_group`, `None` when the name is empty or unchanged.
+pub fn rename_group_op(file: &str, from: &str, to: &str) -> Option<Op> {
+    let to = to.trim();
+    (!to.is_empty() && to != from).then(|| Op::RenameGroup {
+        file: file.to_string(),
+        name: from.to_string(),
+        new_name: to.to_string(),
+    })
+}
+
+/// `set_group` with the one changed field (`Desc` or `Tags`); `None` when unchanged.
+pub fn set_group_field(file: &str, b: &BrickView, f: Field) -> Option<Op> {
+    match f {
+        Field::Desc(d) if d.trim() != b.desc.as_deref().unwrap_or("") => Some(Op::SetGroup {
+            file: file.to_string(),
+            name: b.name.clone(),
+            tags: None,
+            desc: Some(d.trim().to_string()),
+        }),
+        Field::Tags(t) if t != b.tags => Some(Op::SetGroup {
+            file: file.to_string(),
+            name: b.name.clone(),
+            tags: Some(t),
+            desc: None,
+        }),
+        _ => None,
+    }
 }
 
 /// `vec` with `item` added (once) or removed.

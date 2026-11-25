@@ -48,6 +48,7 @@ fn a_write_that_changes_nothing_creates_no_draft() {
         members: Some(vec!["pb".into()]),
         path: None,
         independent: None,
+        group: None,
     };
     assert!(!ws.apply(A, vec![same]).unwrap().changed);
     assert_eq!(ws.design().forked_from().unwrap(), None);

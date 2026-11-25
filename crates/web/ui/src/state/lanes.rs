@@ -75,9 +75,19 @@ pub fn layout_input(g: &GraphView, extra: &[(usize, usize)]) -> layout::Input {
     }));
     layout::Input {
         bricks: (g.bricks.iter())
-            .map(|b| layout::InBrick {
-                id: b.name.clone(),
-                row: at.get(b.row).copied().unwrap_or(b.row),
+            .map(|b| {
+                let (min_w, min_h) = if b.is_group && !b.ghost {
+                    let (w, h) = group_box_size(b.group_members.len());
+                    (Some(w), Some(h))
+                } else {
+                    (None, None)
+                };
+                layout::InBrick {
+                    id: b.name.clone(),
+                    row: at.get(b.row).copied().unwrap_or(b.row),
+                    min_w,
+                    min_h,
+                }
             })
             .collect(),
         rows: order.iter().map(|&r| g.rows[r].clone()).collect(),

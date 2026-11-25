@@ -51,6 +51,7 @@ fn complexity_limits_use_the_most_specific_rule() {
         desc: None,
         base: Default::default(),
         independent: false,
+        group: None,
         sub: None,
     };
     let cfg = Config {
@@ -81,6 +82,7 @@ fn parent_links_project_onto_child_level_ghosts_without_cache() {
         desc: None,
         base: Default::default(),
         independent: false,
+        group: None,
         sub: None,
     };
     let web_cfg = Config {
@@ -176,4 +178,148 @@ fn parent_links_project_onto_child_level_ghosts_without_cache() {
     assert!(inc.inbound);
     assert_eq!(inc.child, Some(c_api));
     assert_eq!(inc.link.to, "web/api");
+}
+
+#[test]
+fn group_level_view_emits_units_internal_edges_heat_and_projected_links() {
+    use brickie_check::check::Loaded;
+    use brickie_check::config::{Group, Link, Rule, Scope, Sel};
+    use brickie_facts::{Cache, FileData};
+    use std::collections::BTreeMap;
+
+    let leaf = |name: &str, group: Option<&str>| Brick {
+        name: name.into(),
+        tags: vec![],
+        members: vec![name.into()],
+        path: None,
+        desc: None,
+        base: Default::default(),
+        independent: false,
+        group: group.map(str::to_string),
+        sub: None,
+    };
+
+    // Composite `auth` inside group `services`, plus leaf `billing` inside `services`, plus `api`.
+    let auth_sub = Config {
+        path: vec!["auth".into()],
+        exports: vec!["jwt".into()],
+        bricks: vec![leaf("jwt", None)],
+        ..Default::default()
+    };
+    let mut auth = leaf("auth", Some("services"));
+    auth.sub = Some(Box::new(auth_sub));
+    let billing = leaf("billing", Some("services"));
+    let api = leaf("api", None);
+
+    let root = Config {
+        bricks: vec![api, auth, billing],
+        groups: vec![Group {
+            name: "services".into(),
+            tags: vec!["domain".into()],
+            desc: Some("Domain services".into()),
+            loc: String::new(),
+        }],
+        rules: vec![Rule {
+            from: Sel::Any,
+            to: Sel::Any,
+            kinds: vec![],
+            scope: Scope::All,
+            reason: "allow".into(),
+            loc: String::new(),
+        }],
+        links: vec![Link {
+            from: "api".into(),
+            to: "services".into(),
+            kinds: vec!["uses".into()],
+            scope: Scope::All,
+            reason: "api calls services".into(),
+            loc: String::new(),
+        }],
+        complexity: vec![toml::from_str("bricks = \"services\"\ncognitive = 10").unwrap()],
+        ..Default::default()
+    };
+
+    let mut files = BTreeMap::new();
+    let file_data: FileData = serde_json::from_value(serde_json::json!({
+        "sha256": "",
+        "compiled": true,
+        "size": 100,
+        "lines": 20,
+        "scope": "prod",
+        "module": "billing",
+        "functions": [{
+            "qname": "billing::charge", "name": "charge", "module": "billing",
+            "line": 1, "end_line": 20, "scope": "prod",
+            "cognitive": 20, "cyclomatic": 1, "nesting": 1, "paths": 1, "params": 1, "lines": 20
+        }],
+        "edges": [{
+            "from": "auth::jwt", "to": "billing", "kind": "uses", "scope": "prod",
+            "line": 3, "col": 1, "end_col": 5, "symbol": "charge", "written": "charge"
+        }],
+        "items": []
+    }))
+    .unwrap();
+    files.insert("billing/src/lib.rs".into(), file_data);
+    let cache = Cache {
+        files,
+        ..Default::default()
+    };
+
+    let mut resolved = brickie_check::config::Resolved::default();
+    resolved.paths.insert("api".into(), vec!["api".into()]);
+    resolved
+        .paths
+        .insert("auth::jwt".into(), vec!["auth".into(), "jwt".into()]);
+    resolved
+        .paths
+        .insert("billing".into(), vec!["billing".into()]);
+
+    let loaded = Loaded {
+        cfg: root,
+        cache,
+        diagnostics: vec![],
+        resolved,
+        owners: Default::default(),
+        issues: vec![],
+        todo: Default::default(),
+    };
+
+    let lvs = super::levels(&loaded);
+    // Only root and root/auth levels (no level for group `services`).
+    assert_eq!(lvs.len(), 2);
+    let root_lv = &lvs[0];
+    // Two logical units at root: `api` and group `services` (not 3 bricks).
+    assert_eq!(root_lv.graph.bricks.len(), 2);
+    let grp = root_lv
+        .graph
+        .bricks
+        .iter()
+        .find(|b| b.name == "services")
+        .expect("services group");
+    assert!(grp.is_group);
+    assert_eq!(grp.group_members.len(), 2);
+    assert!(grp.group_members[0].is_composite);
+    assert_eq!(grp.group_members[1].name, "billing");
+    assert!((grp.worst_ratio - 2.0).abs() < 1e-9);
+    assert!((grp.group_members[1].worst_ratio - 2.0).abs() < 1e-9);
+    // Intra-group edge auth -> billing is preserved in internal_edges, not dropped.
+    assert_eq!(grp.internal_edges.len(), 1);
+    assert_eq!(grp.internal_edges[0].from_member, "auth");
+    assert_eq!(grp.internal_edges[0].to_member, "billing");
+
+    // Zoomed into grouped composite `root/auth`: projected link `api -> services` appears as
+    // inbound ghost `root/api`, and ghost index offset works with unit count.
+    let auth_lv = lvs.iter().find(|l| l.path == "root/auth").unwrap();
+    let g_api = auth_lv
+        .graph
+        .bricks
+        .iter()
+        .position(|b| b.ghost && b.name == "root/api")
+        .expect("projected inbound ghost for api");
+    assert!(
+        auth_lv
+            .boundary_links
+            .iter()
+            .any(|bl| bl.inbound && bl.ghost == g_api)
+    );
 }

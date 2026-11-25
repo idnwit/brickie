@@ -5,20 +5,20 @@
 //! - [`judge_link`]: whether a declared link is valid (every kind and scope it names is allowed);
 //! - [`covering_link`]: whether a measured edge is allowed (a valid link covers it).
 
-use super::{Brick, Config, KINDS, Link, Rule, Scope, Sel};
+use super::{Config, KINDS, Link, Rule, Scope, Sel, Unit};
 
-/// Whether a rule side matches a brick; `*` never matches an independent brick.
-fn matches(sel: &Sel, b: &Brick) -> bool {
+/// Whether a rule side matches a logical unit; `*` never matches an independent brick.
+fn matches(sel: &Sel, u: Unit<'_>) -> bool {
     match sel {
-        Sel::Any => !b.independent,
-        Sel::Tag(t) => b.tags.contains(t),
-        Sel::Brick(n) => b.name == *n,
+        Sel::Any => !u.independent,
+        Sel::Tag(t) => u.tags.contains(t),
+        Sel::Brick(n) => u.name == *n,
     }
 }
 
 /// Edges into an independent brick from a normal one need no rule and no link: it acts like
 /// an external library.
-pub fn free(from: &Brick, to: &Brick) -> bool {
+pub fn free(from: Unit<'_>, to: Unit<'_>) -> bool {
     to.independent && !from.independent
 }
 
@@ -27,8 +27,8 @@ pub fn free(from: &Brick, to: &Brick) -> bool {
 /// edge from it to a normal brick.
 pub fn rule_allows<'a>(
     level: &'a Config,
-    from: &Brick,
-    to: &Brick,
+    from: Unit<'_>,
+    to: Unit<'_>,
     kind: &str,
     scope: &str,
 ) -> Option<&'a Rule> {
@@ -64,9 +64,10 @@ fn scopes_of(scope: Scope) -> &'static [&'static str] {
 /// scope it names is allowed by a rule. A link into an independent brick needs no rule.
 pub fn judge_link(level: &Config, link: &Link) -> Option<String> {
     let (to_name, _) = link.target();
-    let (Some(from), Some(to)) = (level.brick(&link.from), level.brick(to_name)) else {
+    let (Some(from), Some(to)) = (level.unit_by_name(&link.from), level.unit_by_name(to_name))
+    else {
         return Some(format!(
-            "`{}` or `{to_name}` is not a brick of this level",
+            "`{}` or `{to_name}` is not a brick or group of this level",
             link.from
         ));
     };
@@ -110,8 +111,8 @@ pub enum Why<'a> {
 /// enter through that child.
 pub fn covering_link<'a>(
     level: &'a Config,
-    from: &Brick,
-    to: &Brick,
+    from: Unit<'_>,
+    to: Unit<'_>,
     entered: Option<&str>,
     kind: &str,
     scope: &str,

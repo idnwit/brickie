@@ -7,6 +7,8 @@ use brickie_web_api::*;
 pub enum Sel {
     None,
     Brick(usize),
+    /// Member `m` inside peer group brick `b` (`g.bricks[b].group_members[m]`).
+    Member(usize, usize),
     /// Index into [`GraphView::edges`].
     Edge(usize),
 }
@@ -26,8 +28,21 @@ impl Sel {
     /// known one wins.
     pub fn from_params(p: &Params, g: &GraphView) -> Sel {
         let idx = |n: &str| g.bricks.iter().position(|b| b.name == n);
-        if let Some(b) = p.bricks().iter().find_map(|n| idx(n)) {
-            return Sel::Brick(b);
+        let mem = |n: &str| {
+            g.bricks.iter().enumerate().find_map(|(bi, b)| {
+                b.group_members
+                    .iter()
+                    .position(|m| m.name == n)
+                    .map(|mi| (bi, mi))
+            })
+        };
+        for n in p.bricks() {
+            if let Some(b) = idx(n) {
+                return Sel::Brick(b);
+            }
+            if let Some((b, m)) = mem(n) {
+                return Sel::Member(b, m);
+            }
         }
         if let Some(e) = (0..g.edges.len()).find(|&e| edge_key(g, e) == p.edge) {
             return Sel::Edge(e);
@@ -44,6 +59,7 @@ impl Sel {
             match self {
                 Sel::None => {}
                 Sel::Brick(b) => p.brick = g.bricks[*b].name.clone(),
+                Sel::Member(b, m) => p.brick = g.bricks[*b].group_members[*m].name.clone(),
                 Sel::Edge(e) => p.edge = edge_key(g, *e),
             }
         })
@@ -61,7 +77,15 @@ impl Sel {
     pub fn name(&self, g: &GraphView) -> String {
         match self {
             Sel::None => "everything".into(),
-            Sel::Brick(b) => format!("brick {}", g.bricks[*b].name),
+            Sel::Brick(b) => {
+                let br = &g.bricks[*b];
+                if br.is_group {
+                    format!("group {}", br.name)
+                } else {
+                    format!("brick {}", br.name)
+                }
+            }
+            Sel::Member(b, m) => format!("brick {}", g.bricks[*b].group_members[*m].name),
             Sel::Edge(e) => {
                 let x = &g.edges[*e];
                 format!(
@@ -79,6 +103,15 @@ impl Sel {
             Sel::None
         } else {
             Sel::Brick(b)
+        }
+    }
+
+    /// Click toggles a member card inside group `b`.
+    pub fn click_member(&self, b: usize, m: usize) -> Sel {
+        if *self == Sel::Member(b, m) {
+            Sel::None
+        } else {
+            Sel::Member(b, m)
         }
     }
 }

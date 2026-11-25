@@ -167,11 +167,16 @@ pub fn list_findings(g: &GraphView, diags: &[DiagView], p: &Params, ev: &Eval) -
 }
 
 /// Whether finding `d` belongs to the selection: a brick scopes to the findings touching it, a
-/// link to its own findings only, nothing to every finding.
+/// member scopes to that member only, a link to its own findings only, nothing to every finding.
 fn in_selection(g: &GraphView, d: &DiagView, sel: &Sel) -> bool {
     match sel {
         Sel::None => true,
         Sel::Brick(b) => diag_bricks(g, d).contains(b),
+        Sel::Member(b, m) => {
+            let grp = &g.bricks[*b];
+            let mem = &grp.group_members[*m];
+            diag_hits_member(d, &mem.path, &mem.name, &grp.path, &grp.name)
+        }
         Sel::Edge(e) => g.edges[*e].diags.contains(&d.id),
     }
 }

@@ -1,14 +1,16 @@
 //! One level of the tree: children (rows by first tag), faded outside neighbours and the edges
 //! aggregated by (from, to, kind) with their findings.
 
-use super::edges::{End, ModEdge, end, mod_edges};
+use super::agg::{Acc, Agg, Paths};
+use super::edges::{End, ModEdge, mod_edges};
 use super::heat::heat;
+use super::project::projected_links;
 use brickie_check::check as rules;
 use brickie_check::check::Loaded;
 use brickie_check::config::{Config, level_name};
 use brickie_check::diag::Diagnostic;
 use brickie_web_api::*;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 /// Row captions of the outside neighbours: sources first, targets last.
 pub const OUT_SOURCES: &str = "inbound";
@@ -20,79 +22,6 @@ pub struct Ctx<'a> {
     heat: BTreeMap<String, (f64, Vec<HotFn>)>,
     diags: BTreeMap<&'a str, &'a Diagnostic>,
     links: Vec<(String, LevelLink)>,
-}
-
-#[derive(Default)]
-struct Acc {
-    prod: bool,
-    refs: usize,
-    ids: BTreeSet<String>,
-}
-
-/// Leaf paths of outside neighbours.
-type Paths = BTreeSet<Vec<String>>;
-
-fn outside_path(x: &End) -> Option<&Vec<String>> {
-    match x {
-        End::Outside(p) => Some(p),
-        End::Child(_) => None,
-    }
-}
-
-/// One projected enclosing-level link before ghost/child indices are resolved.
-struct Projected {
-    outside: Vec<String>,
-    inbound: bool,
-    child: Option<String>,
-    link: LevelLink,
-}
-
-/// The module edges of one level folded by (from, to, kind).
-struct Agg {
-    edges: BTreeMap<(End, End, String), Acc>,
-    /// Per independent target, the ends whose clean edges into it are left out (no ghost, no
-    /// edge, no count).
-    hidden: BTreeMap<End, BTreeSet<End>>,
-}
-
-impl Agg {
-    /// Edges with a child of `level` at either end; both ends outside are not this level's.
-    fn new(edges: &[ModEdge], level: &[String]) -> Agg {
-        let mut agg: BTreeMap<(End, End, String), Acc> = BTreeMap::new();
-        let mut hidden: BTreeMap<End, BTreeSet<End>> = BTreeMap::new();
-        for e in edges {
-            let (Some(a), Some(b)) = (end(&e.from, level), end(&e.to, level)) else {
-                continue;
-            };
-            let inside = |x: &End| matches!(x, End::Child(_));
-            if a == b || !(inside(&a) || inside(&b)) {
-                continue;
-            }
-            if e.hidden {
-                hidden.entry(b).or_default().insert(a);
-                continue;
-            }
-            let acc = agg.entry((a, b, e.kind.clone())).or_default();
-            acc.prod |= e.prod;
-            acc.refs += e.refs;
-            acc.ids.extend(e.diags.iter().cloned());
-        }
-        Agg { edges: agg, hidden }
-    }
-
-    /// The outside neighbours: those that are an edge source, and all of them.
-    fn outside(&self) -> (Paths, Paths) {
-        let keys = || self.edges.keys();
-        (
-            keys()
-                .filter_map(|(a, _, _)| outside_path(a).cloned())
-                .collect(),
-            keys()
-                .flat_map(|(a, b, _)| [a, b])
-                .filter_map(|x| outside_path(x).cloned())
-                .collect(),
-        )
-    }
 }
 
 impl<'a> Ctx<'a> {
@@ -107,78 +36,11 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// Project one ancestor `[[link]]` onto `cfg`'s boundary, if it crosses `cfg`.
-    fn project_link(
-        anc: &[String],
-        me: &str,
-        next: Option<&str>,
-        cfg: &Config,
-        link: &LevelLink,
-    ) -> Option<Projected> {
-        let (to_brick, to_child) = link
-            .to
-            .split_once('/')
-            .map_or((link.to.as_str(), None), |(b, c)| (b, Some(c)));
-        if link.from == me {
-            let mut outside = anc.to_vec();
-            outside.push(to_brick.to_string());
-            return Some(Projected {
-                outside,
-                inbound: false,
-                child: None,
-                link: link.clone(),
-            });
-        }
-        if to_brick != me {
-            return None;
-        }
-        if let Some(next_seg) = next
-            && to_child.is_some_and(|c| c != next_seg)
-        {
-            return None;
-        }
-        let child = next
-            .is_none()
-            .then(|| {
-                to_child
-                    .filter(|c| cfg.brick(c).is_some())
-                    .map(str::to_string)
-            })
-            .flatten();
-        let mut outside = anc.to_vec();
-        outside.push(link.from.clone());
-        Some(Projected {
-            outside,
-            inbound: true,
-            child,
-            link: link.clone(),
-        })
-    }
-
-    /// Enclosing-level `[[link]]`s that cross `cfg`'s boundary (from any ancestor level).
-    fn projected_links(&self, cfg: &Config) -> Vec<Projected> {
-        let mut out = Vec::new();
-        for k in 0..cfg.path.len() {
-            let anc = &cfg.path[..k];
-            let anc_name = level_name(anc);
-            let me = cfg.path[k].as_str();
-            let next = cfg.path.get(k + 1).map(String::as_str);
-            for (lv, link) in &self.links {
-                if *lv == anc_name
-                    && let Some(pr) = Self::project_link(anc, me, next, cfg, link)
-                {
-                    out.push(pr);
-                }
-            }
-        }
-        out
-    }
-
     pub fn level(&self, cfg: &Config) -> LevelView {
         let name = cfg.level();
-        let agg = Agg::new(&self.edges, &cfg.path);
+        let agg = Agg::new(&self.l.cfg, &self.edges, &cfg.path);
         let (mut sources, mut outside) = agg.outside();
-        let projected = self.projected_links(cfg);
+        let projected = projected_links(&self.l.cfg, &self.links, cfg);
         for pr in &projected {
             if pr.inbound {
                 sources.insert(pr.outside.clone());
@@ -191,8 +53,9 @@ impl<'a> Ctx<'a> {
         }
         let child_row_start = rows.len();
         let mut bricks = self.children(cfg, &agg, &mut rows, child_row_start);
+        let unit_count = bricks.len();
         bricks.extend(self.ghosts(&mut rows, &sources, &outside));
-        let index = index_of(&bricks, &outside, cfg.bricks.len());
+        let index = index_of(&bricks, &outside, unit_count);
         let hops = cycle_hops(&self.l.diagnostics, &name, &index);
         let edges = (agg.edges.into_iter())
             .map(|(key, acc)| self.edge_view(key, acc, &index, &hops, &name))
@@ -228,7 +91,8 @@ impl<'a> Ctx<'a> {
         }
     }
 
-    /// The children of `cfg`, each in the row of its first tag (never sharing the ghost rows).
+    /// The logical units of `cfg` (ungrouped bricks, then peer groups), each in the row of its
+    /// first tag (never sharing the ghost rows).
     fn children(
         &self,
         cfg: &Config,
@@ -236,12 +100,13 @@ impl<'a> Ctx<'a> {
         rows: &mut Vec<String>,
         start: usize,
     ) -> Vec<BrickView> {
-        let node = |b: &brickie_check::config::Brick| {
+        let mut out: Vec<BrickView> = Vec::new();
+        for b in cfg.bricks.iter().filter(|b| b.group.is_none()) {
             let mut path = cfg.path.clone();
             path.push(b.name.clone());
             let tag = (b.tags.first().cloned()).unwrap_or_else(|| "(untagged)".into());
             let row = row_of_from(rows, &tag, start);
-            BrickView {
+            out.push(BrickView {
                 tag,
                 row,
                 tags: b.tags.clone(),
@@ -249,9 +114,82 @@ impl<'a> Ctx<'a> {
                 hidden_in: (agg.hidden.get(&End::Child(b.name.clone()))).map_or(0, |s| s.len()),
                 exported: cfg.exports(&b.name),
                 ..self.node(&path, b.name.clone())
-            }
-        };
-        cfg.bricks.iter().map(node).collect()
+            });
+        }
+        for g in &cfg.groups {
+            let mut path = cfg.path.clone();
+            path.push(g.name.clone());
+            let key = level_name(&path);
+            let tag = (g.tags.first().cloned()).unwrap_or_else(|| "(untagged)".into());
+            let row = row_of_from(rows, &tag, start);
+            let (worst_ratio, hot) = self.heat.get(&key).cloned().unwrap_or_default();
+            let group_members: Vec<GroupMemberView> = cfg
+                .group_members(&g.name)
+                .map(|mb| self.group_member(cfg, mb, &key, &g.name))
+                .collect();
+            let internal_edges: Vec<InternalEdgeView> = agg
+                .internal
+                .iter()
+                .filter(|((grp, _, _, _), _)| grp == &g.name)
+                .map(|((_, fm, tm, kind), acc)| InternalEdgeView {
+                    from_member: fm.clone(),
+                    to_member: tm.clone(),
+                    kind: kind.clone(),
+                    test: !acc.prod,
+                    count: acc.refs,
+                    diags: acc.ids.iter().cloned().collect(),
+                })
+                .collect();
+            out.push(BrickView {
+                name: g.name.clone(),
+                path: key,
+                desc: g.desc.clone(),
+                tag,
+                row,
+                tags: g.tags.clone(),
+                worst_ratio,
+                hot,
+                exported: cfg.exports(&g.name),
+                is_group: true,
+                group_members,
+                internal_edges,
+                ..Default::default()
+            });
+        }
+        out
+    }
+
+    fn group_member(
+        &self,
+        cfg: &Config,
+        mb: &brickie_check::config::Brick,
+        group_key: &str,
+        group_name: &str,
+    ) -> GroupMemberView {
+        let mut mpath = cfg.path.clone();
+        mpath.push(mb.name.clone());
+        let mkey = level_name(&mpath);
+        let (worst_ratio, hot) = self.heat.get(&mkey).cloned().unwrap_or_default();
+        let excess = excess_of(&hot);
+        let errors = self
+            .l
+            .diagnostics
+            .iter()
+            .filter(|d| {
+                let lv = d.brick_level.as_deref();
+                bricks_hit(&d.bricks, lv, &mkey, &mb.name)
+                    || (d.code == rules::DEPS_CYCLE
+                        && bricks_hit(&d.bricks, lv, group_key, group_name))
+            })
+            .count();
+        GroupMemberView {
+            name: mb.name.clone(),
+            path: mkey,
+            is_composite: mb.sub.is_some(),
+            score: errors as f64 + excess,
+            worst_ratio,
+            errors,
+        }
     }
 
     /// The faded outside neighbours: sources in row 0 (`inbound`), the rest in a dedicated
@@ -319,11 +257,18 @@ impl<'a> Ctx<'a> {
         let key = level_name(path);
         let (worst_ratio, hot) = self.heat.get(&key).cloned().unwrap_or_default();
         let sub = self.l.cfg.node(path);
+        let brick = self.l.cfg.brick_at(path);
+        let group = path
+            .split_last()
+            .and_then(|(n, parent)| self.l.cfg.node(parent)?.group(n));
         BrickView {
             name,
             path: key,
-            desc: self.l.cfg.brick_at(path).and_then(|b| b.desc.clone()),
-            independent: self.l.cfg.brick_at(path).is_some_and(|b| b.independent),
+            desc: brick
+                .and_then(|b| b.desc.clone())
+                .or_else(|| group.and_then(|g| g.desc.clone())),
+            independent: brick.is_some_and(|b| b.independent),
+            is_group: group.is_some(),
             worst_ratio,
             hot,
             children: sub

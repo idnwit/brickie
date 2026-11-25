@@ -114,12 +114,12 @@ fn every_write_verb() {
     .unwrap();
     ok(d, 14, &["include", "add", "preset.toml"]);
     ok(d, 15, &["include", "rm", "preset.toml"]);
-    ok(d, 16, &["brick", "group", "app", "a", "b"]);
+    ok(d, 16, &["brick", "nest", "app", "a", "b"]);
     assert!(read(d, "app/brickie.toml").contains("name = \"a\"   # first"));
     ok(d, 17, &["export", "set", "app/a"]);
     ok(d, 18, &["export", "rm", "app/a"]);
     ok(d, 19, &["brick", "move", "app/b", "--into", "root"]);
-    ok(d, 20, &["brick", "ungroup", "app"]);
+    ok(d, 20, &["brick", "unnest", "app"]);
     ok(d, 21, &["brick", "rm", "db"]);
     let log = json(d, &["log"]);
     assert_eq!(log.as_array().unwrap().len(), 22);
@@ -348,7 +348,7 @@ fn show_starts_with_the_versions_after_the_agents_last() {
 fn show_in_prints_only_that_level() {
     let tmp = ws();
     let d = tmp.path();
-    ok(d, 1, &["brick", "group", "app", "a", "b"]);
+    ok(d, 1, &["brick", "nest", "app", "a", "b"]);
     let full = String::from_utf8_lossy(&run(d, &["show"]).stdout).to_string();
     let part = String::from_utf8_lossy(&run(d, &["show", "--in", "app"]).stdout).to_string();
     assert!(full.contains("root (brickie.toml)") && !part.contains("root (brickie.toml)"));
@@ -438,13 +438,13 @@ fn add_and_group_print_the_chosen_folder() {
     let d = tmp.path();
     let out = run(
         d,
-        &["brick", "add", "dom", "--kind", "group", "--base", "1"],
+        &["brick", "add", "dom", "--kind", "composite", "--base", "1"],
     );
     let text = String::from_utf8_lossy(&out.stdout);
-    assert!(text.contains("created dom/ (group)"), "{text}");
-    let out = run(d, &["brick", "group", "gg", "a", "b", "--base", "2"]);
+    assert!(text.contains("created dom/ (composite)"), "{text}");
+    let out = run(d, &["brick", "nest", "gg", "a", "b", "--base", "2"]);
     let text = String::from_utf8_lossy(&out.stdout);
-    assert!(text.contains("created gg/ (group)"), "{text}");
+    assert!(text.contains("created gg/ (composite)"), "{text}");
 }
 
 /// The exported brick names of `app/brickie.toml`, sorted (the array may span lines).
@@ -482,7 +482,7 @@ fn grouped() -> tempfile::TempDir {
         1,
         &["brick", "add", "c", "--kind", "crate", "--desc", "c"],
     );
-    let out = apply(d, &["--base", "2"], "brick group app a b c\n");
+    let out = apply(d, &["--base", "2"], "brick nest app a b c\n");
     assert!(
         out.status.success(),
         "{}",
@@ -657,9 +657,9 @@ fn a_new_group_starts_with_an_empty_file() {
     let tmp = ws();
     let d = tmp.path();
     run(d, &["show"]);
-    ok(d, 1, &["brick", "add", "grp", "--kind", "group"]);
+    ok(d, 1, &["brick", "add", "grp", "--kind", "composite"]);
     assert!(!read(d, "grp/brickie.toml").contains("[[rule]]"));
-    ok(d, 2, &["brick", "group", "g2", "a", "b"]);
+    ok(d, 2, &["brick", "nest", "g2", "a", "b"]);
     let text = read(d, "g2/brickie.toml");
     assert!(!text.contains("deny") && !text.contains("deps"), "{text}");
     ok(d, 3, &["brick", "add", "k", "--members", "pk"]);

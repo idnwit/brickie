@@ -83,7 +83,7 @@ pub fn hash(files: &Files) -> String {
     format!("{h:016x}")
 }
 
-/// One `created <dir>/` entry per `brickie.toml` in `new` that `old` lacks (a group's folder).
+/// One `created <dir>/` entry per `brickie.toml` in `new` that `old` lacks (a composite's folder).
 pub fn created(old: &Files, new: &Files) -> Vec<PlanFile> {
     (new.keys())
         .filter(|p| !old.contains_key(*p))
@@ -92,7 +92,7 @@ pub fn created(old: &Files, new: &Files) -> Vec<PlanFile> {
         .map(|dir| PlanFile {
             path: dir.to_string(),
             action: PlanAction::Create,
-            note: "(group)".into(),
+            note: "(composite)".into(),
             content: None,
         })
         .collect()

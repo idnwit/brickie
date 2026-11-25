@@ -31,6 +31,7 @@ pub fn detail(cx: &Cx) -> View {
             match cx.eval.with(|ev| ev.sel.clone()) {
                 Sel::None => summary(&cx),
                 Sel::Brick(b) => brick_detail(&cx, b),
+                Sel::Member(b, m) => brick::member_detail(&cx, b, m),
                 Sel::Edge(e) => edge_detail(&cx, e),
             }
         }

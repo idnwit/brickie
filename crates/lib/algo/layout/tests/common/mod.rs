@@ -64,6 +64,8 @@ pub fn fixture() -> Input {
             .map(|(n, r)| InBrick {
                 id: n.to_string(),
                 row: *r,
+                min_w: None,
+                min_h: None,
             })
             .collect(),
         edges: pairs

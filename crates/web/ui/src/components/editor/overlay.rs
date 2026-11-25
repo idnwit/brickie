@@ -4,7 +4,7 @@
 //! the shortcuts sheet.
 
 use super::op;
-use super::place::{draft_box, lane_box};
+use super::place::{draft_box, group_draft_box, lane_box};
 use super::toolbar::{kind_name, toolbar};
 use crate::state::*;
 
@@ -27,13 +27,18 @@ fn rename_box(cx: &Cx, from: String) -> View {
         return View::default();
     };
     let r = positions(&cx.m.layout, &cx.drag.get_clone_untracked())[b];
+    let is_group = cx.m.g.bricks[b].is_group;
     let name = create_signal(from.clone());
     let (c, file) = (cx.clone(), cx.level_file().unwrap_or_default());
     let enter = move |e: web_sys::KeyboardEvent| match e.key().as_str() {
         "Enter" => {
             let to = name.get_clone();
             ed.rename.set(None);
-            super::rename(&c, &file, &from, &to);
+            if is_group {
+                super::rename_group(&c, &file, &from, &to);
+            } else {
+                super::rename(&c, &file, &from, &to);
+            }
         }
         "Escape" => ed.rename.set(None),
         _ => {}
@@ -52,6 +57,7 @@ fn confirm_delete(cx: &Cx) -> View {
     let Sel::Brick(b) = cx.eval.with(|ev| ev.sel.clone()) else {
         return View::default();
     };
+    let is_group = cx.m.g.bricks[b].is_group;
     let name = cx.m.g.bricks[b].name.clone();
     let refs =
         cx.m.design
@@ -69,9 +75,16 @@ fn confirm_delete(cx: &Cx) -> View {
         c.select(Sel::None);
         op(
             &c,
-            brickie_web_api::design::Op::RemoveBrick {
-                file: file.clone(),
-                name: n2.clone(),
+            if is_group {
+                brickie_web_api::design::Op::RemoveGroup {
+                    file: file.clone(),
+                    name: n2.clone(),
+                }
+            } else {
+                brickie_web_api::design::Op::RemoveBrick {
+                    file: file.clone(),
+                    name: n2.clone(),
+                }
             },
         );
     };
@@ -137,6 +150,10 @@ pub fn overlay(cx: &Cx) -> View {
     let floating = move || {
         let c = c.clone();
         let draft = ed.draft.get_clone().map(|d| untrack(|| draft_box(&c, d)));
+        let gdraft = ed
+            .group_draft
+            .get_clone()
+            .map(|(x, y, tags)| untrack(|| group_draft_box(&c, x, y, tags)));
         let lane = ed
             .lane_ask
             .get_clone()
@@ -144,13 +161,14 @@ pub fn overlay(cx: &Cx) -> View {
         let rename = ed.rename.get_clone().map(|n| untrack(|| rename_box(&c, n)));
         let del = ed.confirm.get().then(|| untrack(|| confirm_delete(&c)));
         let help = super::help::sheet(ed);
-        view! { (draft) (lane) (rename) (del) (help) }
+        view! { (draft) (gdraft) (lane) (rename) (del) (help) }
     };
     let ghost = move || match ed.carry.get_clone() {
         Some((k, x, y)) => {
             let what = match k {
                 Carry::Tile(k) => kind_name(k).to_string(),
-                Carry::Brick { name, .. } => name,
+                Carry::GroupTile => "Group".to_string(),
+                Carry::Brick { name, .. } | Carry::Member { name, .. } => name,
             };
             let no = ed.target.with(|t| matches!(t, Some(MoveTarget::No(_))));
             let cls = if no { "tghost no" } else { "tghost" };

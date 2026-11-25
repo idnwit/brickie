@@ -135,8 +135,8 @@ hand; use `brickie design`.
    `--scaffold` is allowed and creates the code of draft bricks.
 4. `brickie design publish --base N` writes the draft as ONE published version and removes the
    draft. It exits 4 (`design/blocked`) and publishes nothing while `check` has a finding, a
-   planned brick or a `design/link-denied` link, or the cache is missing or stale; there is no
-   partial publish.
+   planned brick or empty planned group, a `design/link-denied` link, or the cache is missing or
+   stale; there is no partial publish.
 
 The draft is the intent: if the published tree moved since the fork (a hand edit, code moves
 that deleted nested `brickie.toml` files), `publish` still writes the draft over it and lists
@@ -205,7 +205,8 @@ Concurrency contract (a human may edit at the same time):
 
   A bad line stops everything: the error names the line number and nothing is written. Names
   in a line resolve against the design as it is now, so a line cannot refer to a brick an
-  earlier line adds, except by `brick add --in` or in a rule's or link's `FROM`/`TO`.
+  earlier line adds, except by `brick add --in` or in a rule's or link's `FROM`/`TO`, or to a
+  group added or renamed on an earlier line (in `group set|rename|rm` or `export set|rm`).
 - `--dry-run` (on `apply` and on every write command) checks the base, applies and validates
   everything in memory, prints the diff, the todos the change adds and the notes, and writes
   nothing (no version, no code). With `--scaffold` it also lists the code it would create.
@@ -220,10 +221,13 @@ brickie design show [--since N] [--in P] [--format json]
 brickie design log | diff A [B] | undo [V]
 brickie design apply [--scaffold]   (ops on stdin, one per line)
 brickie design publish --base N [--note W] | discard --base N
-brickie design brick add NAME [--in P] [--kind crate|module|group] [--members a,b] [--tags a,b] [--desc D] [--path DIR] [--scaffold]
-brickie design brick set PATH [--members] [--tags] [--desc] [--path] [--independent true|false]   (empty --desc/--path removes; false removes the key)
+brickie design brick add NAME [--in P] [--kind crate|module|composite] [--members a,b] [--tags a,b] [--desc D] [--path DIR] [--group G] [--scaffold]
+brickie design brick set PATH [--members] [--tags] [--desc] [--path] [--group G] [--independent true|false]   (empty --desc/--path/--group removes; false removes the key)
 brickie design brick rename PATH NEW | move PATH --into P|root | rm PATH
-brickie design brick group NAME CHILD... | ungroup PATH
+brickie design brick nest NAME CHILD... | unnest PATH
+brickie design group add NAME [--in P] [--tags a,b] [--desc D]
+brickie design group set PATH [--tags a,b] [--desc D]
+brickie design group rename PATH NEW | rm PATH
 brickie design rule add FROM TO [--kind K]... [--scope S] --reason R [--in P]
 brickie design rule set FROM TO [--kind K]... [--scope S] --reason R [--in P]
 brickie design rule rm FROM TO [--kind K]... [--scope S] [--in P]
@@ -244,7 +248,7 @@ brickie design include add|rm FILE [--in P]
 - A limit is named by its `bricks` selector (default `*`); in `limit set` a metric of `0` removes
   it.
 - `brick add --kind crate` with no members defaults them to `path:crates/<name>/`
-  (`path:<name>/` in a nested file); `--kind group` makes a composite in its own folder
+  (`path:<name>/` in a nested file); `--kind composite` makes a composite in its own folder
   `<name>/` next to its parent file, with a new `brickie.toml`. Pass `--path` or `--members` to
   choose. `brick set NAME --path P` makes a module composite and creates
   `P/brickie.toml` when it is absent. brickie writes no source code unless asked: the brick
@@ -252,19 +256,24 @@ brickie design include add|rm FILE [--in P]
   for every line; not allowed inside a line) also creates the missing code (folder, crate
   `Cargo.toml` and `src/lib.rs` plus a workspace member, or a module file plus `pub mod` in the
   crate root; the write lists what it created); existing files are never overwritten. The
-  design files of a group and of `set --path` are always created.
+  design files of a composite and of `set --path` are always created.
 - `link add` prints `note: design/link-denied: ...` when no rule of the level allows the link;
   the link is still written (a draft may hold it) but blocks `publish` until a human adds a
   rule or you remove the link. The same text is a `link_denied` todo of `show`.
 - A rule or link `scope` is `all` unless set: `--scope prod|test` narrows it.
-- `brick group NAME CHILD...` makes composite NAME next to the children and moves them in;
-  `ungroup` lifts the children, their rules and limits back up (the child file stays on disk).
+- `brick nest NAME CHILD...` makes composite NAME next to the children and moves them in;
+  `unnest` lifts the children, their groups, rules and limits back up (the child file stays on disk).
   `brick move` rebases `path:` members; it moves no code.
+- `group add|set|rename|rm` manages peer `[[group]]`s in a level; `brick set PATH --group G`
+  assigns or removes (`--group ""`) a brick's group. `group rename` updates `brick.group`,
+  local rules/links/exports/limits and parent `composite/group` links; `group rm` refuses while
+  any brick, rule, link, export or limit still names it.
 - `brick rename` also renames the brick in the rules, limit selectors and exports of its file.
 - After code changes run `brickie measure`, then `brickie check`.
 - `--format json`: `show` also has `since_agent: [version...]` when there are versions after your
   last one; `--dry-run` prints `{dry_run, diff, new_todo, scaffold, notes}`; a write prints its version, plus `notes: [text]` when there are notes. `show` prints `{v, track, forked_from, hash, by, at, root: {path, file, bricks: [{name, kind,
-  members, tags, desc, independent, children}], exports, rules: [{file, from, to, kinds, scope,
+  members, tags, desc, independent, group?, children}], groups: [{name, tags, desc, members}],
+  exports, rules: [{file, from, to, kinds, scope,
   reason}], links: [{file, from, to, kinds, scope, reason, denied?, cycle?}], limits: [{file,
   bricks, metrics, scope}], layout?: {score, edges, crossings, box_hits, bends}}, todo: [{kind,
   text}]}` (nested levels repeat the shape; `denied` is
@@ -472,7 +481,8 @@ members inside their composite. `check` lists every partition error at once.
 The design (see "Editing the design"):
 
 - `design/planned` (a `todo` of `check`, not a finding; blocks `publish`): a brick has no
-  measured module. Create its code as its members say, then `brickie measure`.
+  measured module, or a group has no bricks. Create its code as its members say (or assign bricks
+  to the group), then `brickie measure`.
 - `design/link-denied` (a finding of `check`; todo `link_denied` of `design show`; blocks `publish`): no rule of the
   level allows a link, for some kind and scope it names (the message says which). It is read from
   the design files alone. A draft may hold it; fix it by removing the link
@@ -496,15 +506,21 @@ The design (see "Editing the design"):
 ## brickie.toml reference
 
 ```toml
+[[group]]
+name = "services"              # unique among bricks and groups in this level
+tags = ["core"]                # optional labels applied to the whole group
+desc = "Domain services"       # optional one-liner shown in the viewer; no effect on checks
+
 [[brick]]
-name = "engine"                # unique in this file
+name = "engine"                # unique in this level
 members = ["my-engine", "my-app::api", "path:crates/engine/"]
                                # package name (all targets) | module prefix (and descendants) |
                                # path:<dir>/ (crates whose manifest, or modules whose file, are under the folder, relative
                                # to this file). Default: none
-tags = ["core"]                # optional labels for rule selectors
+tags = ["core"]                # optional labels for rule selectors (cannot be set on grouped bricks)
 desc = "Rule evaluation"       # optional one-liner shown in the viewer; no effect on checks
 independent = false            # a library that serves the bricks around it (see "Rules")
+# group = "services"           # optional peer group of this level (cannot combine with tags or independent)
 
 [[brick]]
 name = "app"
@@ -551,7 +567,7 @@ path = "crates/web"            # composite: children in crates/web/brickie.toml 
 ```
 
 Every `brickie.toml` (root or composite) has the same schema; `include` works in each. Lists
-(`brick`, `exports`, `rule`, `link`, `complexity`, `additional_targets`) of included files and the
+(`group`, `brick`, `exports`, `rule`, `link`, `complexity`, `additional_targets`) of included files and the
 including file are concatenated. An include cycle, a duplicate brick name in a level, a composite
 path that leads back to a file already being loaded, and unknown fields are configuration errors
 (exit 2). Each target triple is trimmed, non-empty and has only ASCII letters, digits, `-`, `_`
@@ -613,6 +629,17 @@ Each rule below holds for every level and has one reason.
    most specific matching rule (an equal selector takes the lower limit); across levels the
    tightest limit wins, so a nested file only tightens. Reason: a nested file cannot hide code
    from a limit set above it.
+10. Groups: a `[[group]]` (`name`, optional `tags`, `desc`) groups sibling `[[brick]]`s of the
+    same level whose `group` field names it. Group and brick names share one namespace in the
+    level. At its level, a group acts as one unit for `[[rule]]`, `[[link]]`, `tags`, `exports`
+    (of the enclosing composite), `[[complexity]]`, and `deps/cycle`: target the group name (or
+    `tag:<t>` matching its tags), never a member brick or `group/member`. Member bricks keep
+    their own brick path (grouping does not nest paths), cannot set non-empty `tags` or
+    `independent = true`, and cannot depend on each other in any scope (`prod` or `test`;
+    `deps/unlinked`). A member brick may be a composite (`path = "<dir>"`): outside edges enter
+    the group transparently and still obey that composite's `exports`, while links target `group`
+    (never `group/member/child`). Reason: peers with the same role share one contract and one
+    visual box without a separate folder, path change, or facade.
 
 Severity and exit: every finding is an error and gives exit 1; there is no warning level and
 no way to accept a finding or skip a code. Passing means fixing the code or, for a human, relaxing

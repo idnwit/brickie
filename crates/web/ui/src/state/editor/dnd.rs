@@ -113,6 +113,7 @@ pub fn new_lane_rect(rows: &[RowOut], frame: &Rect) -> Rect {
 /// What releasing `what` over `under` would do; `None`: place / reposition where dropped.
 pub fn drop_target(bricks: &[BrickView], what: Carried, under: &Under) -> Option<MoveTarget> {
     let placeholder = matches!(what, Carried::Brick(b) if bricks[b].unassigned);
+    let dragging_group = matches!(what, Carried::Brick(b) if bricks[b].is_group);
     if let Some(t) = under.brick {
         let b = &bricks[t];
         return Some(if b.ghost {
@@ -121,6 +122,12 @@ pub fn drop_target(bricks: &[BrickView], what: Carried, under: &Under) -> Option
             MoveTarget::No("unassigned modules are not a brick".into())
         } else if Carried::Brick(t) == what {
             MoveTarget::No("cannot go into itself".into())
+        } else if dragging_group {
+            MoveTarget::No("groups cannot be nested".into())
+        } else if b.is_group && placeholder {
+            MoveTarget::No("cannot assign modules to a group".into())
+        } else if b.is_group && what == Carried::Lifted {
+            MoveTarget::No("move to this level first, then add to group".into())
         } else {
             MoveTarget::Into(t)
         });
@@ -133,6 +140,11 @@ pub fn drop_target(bricks: &[BrickView], what: Carried, under: &Under) -> Option
         return Some(MoveTarget::NewLane);
     }
     if let (Carried::Brick(_) | Carried::Lifted, Some(up)) = (what, &under.up) {
+        if dragging_group {
+            return Some(MoveTarget::No(
+                "groups cannot be moved across levels".into(),
+            ));
+        }
         return Some(MoveTarget::Up(up.clone()));
     }
     match (what, under.lane.clone()) {
@@ -151,10 +163,12 @@ pub fn drop_label(bricks: &[BrickView], what: Carried, t: Option<&MoveTarget>) -
         }
         Some(MoveTarget::Into(i)) => {
             let b = &bricks[*i];
-            if b.file.is_some() {
+            if b.is_group {
+                format!("add to group {}", b.name)
+            } else if b.file.is_some() {
                 format!("into {} ({} inside)", b.name, b.children.len())
             } else {
-                format!("into {} (becomes a group)", b.name)
+                format!("into {} (becomes a composite)", b.name)
             }
         }
         Some(MoveTarget::Lane(Some(t))) => format!("tag: {t}"),
@@ -187,6 +201,21 @@ pub fn assign_op(file: &str, into: &BrickView, placeholder: &BrickView) -> Op {
         members: Some(members),
         path: None,
         independent: None,
+        group: None,
+    }
+}
+
+/// Set or clear a brick's peer group (`group = ""` ungroups it).
+pub fn set_brick_group_op(file: &str, name: &str, group: &str) -> Op {
+    Op::SetBrick {
+        file: file.to_string(),
+        name: name.to_string(),
+        desc: None,
+        tags: None,
+        members: None,
+        path: None,
+        independent: None,
+        group: Some(group.to_string()),
     }
 }
 
@@ -201,17 +230,31 @@ pub fn retag(tags: &[String], lane: Option<&str>) -> Vec<String> {
     }
 }
 
-/// The `set_brick {tags}` that moves brick `b` (of `file`) to lane `lane`; `None`: no change.
+/// The `set_brick {tags}` (or `set_group {tags}` for a peer group) that moves `b` to lane
+/// `lane`; `None`: no change.
 pub fn retag_op(file: &str, b: &BrickView, lane: Option<&str>) -> Option<Op> {
     let tags = retag(&b.tags, lane);
-    (tags != b.tags).then(|| Op::SetBrick {
-        file: file.to_string(),
-        name: b.name.clone(),
-        desc: None,
-        tags: Some(tags),
-        members: None,
-        path: None,
-        independent: None,
+    if tags == b.tags {
+        return None;
+    }
+    Some(if b.is_group {
+        Op::SetGroup {
+            file: file.to_string(),
+            name: b.name.clone(),
+            tags: Some(tags),
+            desc: None,
+        }
+    } else {
+        Op::SetBrick {
+            file: file.to_string(),
+            name: b.name.clone(),
+            desc: None,
+            tags: Some(tags),
+            members: None,
+            path: None,
+            independent: None,
+            group: None,
+        }
     })
 }
 

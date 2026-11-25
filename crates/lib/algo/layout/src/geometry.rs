@@ -184,20 +184,45 @@ pub fn bz_port(n: &Rect, sd: Side, off: f64) -> Pt {
 }
 
 /// Orthogonal rounded-corner route between two box ports (`lane_frac` in `0.2..0.8` places the
-/// middle bend track inside the gap).
-pub fn ortho_direct(p: Pt, sp: Side, q: Pt, sq: Side, lane_frac: f64) -> Route {
+/// middle bend track inside the gap). Optional `p_row_bot` / `q_row_bot` anchor bottom-side bends
+/// below the enclosing row band so horizontal tracks clear taller siblings in the same row.
+pub fn ortho_direct(
+    p: Pt,
+    sp: Side,
+    q: Pt,
+    sq: Side,
+    lane_frac: f64,
+    p_row_bot: Option<f64>,
+    q_row_bot: Option<f64>,
+) -> Route {
     let frac = lane_frac.clamp(0.22, 0.78);
+    let py_chan = if sp == Side::B {
+        p_row_bot.map_or(p.y, |b| b.max(p.y))
+    } else {
+        p.y
+    };
+    let qy_chan = if sq == Side::B {
+        q_row_bot.map_or(q.y, |b| b.max(q.y))
+    } else {
+        q.y
+    };
     let pts: Vec<Pt> = match (sp, sq) {
         (Side::B, Side::T) | (Side::T, Side::B) => {
             if (p.x - q.x).abs() < 1.0 {
                 vec![p, q]
             } else {
-                let my = p.y + (q.y - p.y) * frac;
+                let (y0, y1) = if (qy_chan - py_chan) * (q.y - p.y) > 0.0 {
+                    (py_chan, qy_chan)
+                } else {
+                    (p.y, q.y)
+                };
+                let (top_y, bot_y) = if y0 <= y1 { (y0, y1) } else { (y1, y0) };
+                let my = top_y + (bot_y - top_y) * frac;
                 vec![p, Pt { x: p.x, y: my }, Pt { x: q.x, y: my }, q]
             }
         }
         (Side::B, Side::B) => {
-            let my = p.y.max(q.y) + 22.0;
+            let my = py_chan.max(qy_chan) + 22.0;
             vec![p, Pt { x: p.x, y: my }, Pt { x: q.x, y: my }, q]
         }
         (Side::T, Side::T) => {

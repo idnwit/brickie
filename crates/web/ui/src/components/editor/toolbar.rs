@@ -23,8 +23,8 @@ pub const KINDS: [(BrickKind, &str, &str, &str); 3] = [
         "A module of a crate: members name it, crate::module",
     ),
     (
-        BrickKind::Group,
-        "Group",
+        BrickKind::Composite,
+        "Composite",
         "\u{25A6}",
         "A composite with its own brickie.toml; zoom in to add children",
     ),
@@ -59,7 +59,7 @@ fn tools(ed: Edit) -> View {
 }
 
 fn tiles(ed: Edit) -> View {
-    let items: Vec<View> = KINDS
+    let mut items: Vec<View> = KINDS
         .iter()
         .map(|&(kind, name, glyph, tip)| {
             let cls = move || on(ed.brick_tool.get() == Some(kind), "tb tile");
@@ -73,6 +73,19 @@ fn tiles(ed: Edit) -> View {
             view! { button(class=cls, title=format!("{name}: {tip}"), "data-kind"=name, on:mousedown=down) { (glyph) span(class="tl") { (name) } } }
         })
         .collect();
+    let group_down = move |e: Click| {
+        e.prevent_default();
+        e.stop_propagation();
+        ed.link_type.set(None);
+        ed.brick_tool.set(None);
+        let at = (e.client_x() as f64, e.client_y() as f64);
+        ed.carry.set(Some((Carry::GroupTile, at.0, at.1)));
+    };
+    items.push(view! {
+        button(class="tb tile", title="Group: a peer group container sharing one contract; drag onto the canvas", "data-kind"="Group", on:mousedown=group_down) {
+            "\u{25A2}" span(class="tl") { "Group" }
+        }
+    });
     View::from(items)
 }
 
