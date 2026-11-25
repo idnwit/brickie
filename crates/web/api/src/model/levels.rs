@@ -62,7 +62,7 @@ pub fn bricks_hit(bricks: &[String], brick_level: Option<&str>, path: &str, name
 }
 
 /// Whether finding `d` names the brick at `(path, name)` (or a descendant of `path`).
-pub fn diag_hits(d: &DiagView, path: &str, name: &str) -> bool {
+pub(crate) fn diag_hits(d: &DiagView, path: &str, name: &str) -> bool {
     bricks_hit(&d.bricks, d.brick_level.as_deref(), path, name)
 }
 

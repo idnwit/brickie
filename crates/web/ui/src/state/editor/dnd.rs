@@ -115,22 +115,7 @@ pub fn drop_target(bricks: &[BrickView], what: Carried, under: &Under) -> Option
     let placeholder = matches!(what, Carried::Brick(b) if bricks[b].unassigned);
     let dragging_group = matches!(what, Carried::Brick(b) if bricks[b].is_group);
     if let Some(t) = under.brick {
-        let b = &bricks[t];
-        return Some(if b.ghost {
-            MoveTarget::No("a faded neighbour is outside this level".into())
-        } else if b.unassigned {
-            MoveTarget::No("unassigned modules are not a brick".into())
-        } else if Carried::Brick(t) == what {
-            MoveTarget::No("cannot go into itself".into())
-        } else if dragging_group {
-            MoveTarget::No("groups cannot be nested".into())
-        } else if b.is_group && placeholder {
-            MoveTarget::No("cannot assign modules to a group".into())
-        } else if b.is_group && what == Carried::Lifted {
-            MoveTarget::No("move to this level first, then add to group".into())
-        } else {
-            MoveTarget::Into(t)
-        });
+        return Some(drop_on_brick(bricks, what, t, placeholder, dragging_group));
     }
     if placeholder {
         // The unassigned placeholder only goes into a brick (its members move there).
@@ -139,18 +124,63 @@ pub fn drop_target(bricks: &[BrickView], what: Carried, under: &Under) -> Option
     if under.new_lane && what != Carried::Lifted {
         return Some(MoveTarget::NewLane);
     }
-    if let (Carried::Brick(_) | Carried::Lifted, Some(up)) = (what, &under.up) {
-        if dragging_group {
-            return Some(MoveTarget::No(
-                "groups cannot be moved across levels".into(),
-            ));
-        }
-        return Some(MoveTarget::Up(up.clone()));
+    if let Some(target) = drop_on_up(what, under.up.as_deref(), dragging_group) {
+        return Some(target);
     }
-    match (what, under.lane.clone()) {
+    drop_on_lane(bricks, what, under.lane.as_ref())
+}
+
+fn drop_on_brick(
+    bricks: &[BrickView],
+    what: Carried,
+    t: usize,
+    placeholder: bool,
+    dragging_group: bool,
+) -> MoveTarget {
+    let b = &bricks[t];
+    if b.ghost {
+        return MoveTarget::No("a faded neighbour is outside this level".into());
+    }
+    if b.unassigned {
+        return MoveTarget::No("unassigned modules are not a brick".into());
+    }
+    if Carried::Brick(t) == what {
+        return MoveTarget::No("cannot go into itself".into());
+    }
+    if dragging_group {
+        return MoveTarget::No("groups cannot be nested".into());
+    }
+    if b.is_group && placeholder {
+        return MoveTarget::No("cannot assign modules to a group".into());
+    }
+    if b.is_group && what == Carried::Lifted {
+        return MoveTarget::No("move to this level first, then add to group".into());
+    }
+    MoveTarget::Into(t)
+}
+
+fn drop_on_up(what: Carried, up: Option<&str>, dragging_group: bool) -> Option<MoveTarget> {
+    let up = up?;
+    if !matches!(what, Carried::Brick(_) | Carried::Lifted) {
+        return None;
+    }
+    if dragging_group {
+        return Some(MoveTarget::No(
+            "groups cannot be moved across levels".into(),
+        ));
+    }
+    Some(MoveTarget::Up(up.to_string()))
+}
+
+fn drop_on_lane(
+    bricks: &[BrickView],
+    what: Carried,
+    lane: Option<&Option<String>>,
+) -> Option<MoveTarget> {
+    match (what, lane) {
         (Carried::Lifted, _) => None,
         (Carried::Brick(b), Some(l)) if bricks[b].tags.first() == l.as_ref() => None,
-        (_, Some(l)) => Some(MoveTarget::Lane(l)),
+        (_, Some(l)) => Some(MoveTarget::Lane(l.clone())),
         _ => None,
     }
 }

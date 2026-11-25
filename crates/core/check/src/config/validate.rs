@@ -32,6 +32,14 @@ fn grouped_target_error(cfg: &Config, name: &str) -> Option<String> {
 }
 
 pub fn validate(cfg: &Config) -> Result<()> {
+    let group_names = validate_groups(cfg)?;
+    validate_bricks(cfg, &group_names)?;
+    let tags = all_tags(cfg);
+    validate_rules_and_limits(cfg, &tags)?;
+    validate_exports(cfg)
+}
+
+fn validate_groups(cfg: &Config) -> Result<BTreeSet<&str>> {
     let brick_names: BTreeSet<&str> = cfg.bricks.iter().map(|b| b.name.as_str()).collect();
     let mut group_names: BTreeSet<&str> = BTreeSet::new();
     for g in &cfg.groups {
@@ -46,33 +54,41 @@ pub fn validate(cfg: &Config) -> Result<()> {
             bail!("{CONFIG_INVALID}: {}: duplicate name '{}'", g.loc, g.name);
         }
     }
+    Ok(group_names)
+}
+
+fn validate_bricks(cfg: &Config, group_names: &BTreeSet<&str>) -> Result<()> {
     for b in &cfg.bricks {
-        if let Some(g) = &b.group {
-            if !group_names.contains(g.as_str()) {
-                bail!(
-                    "{CONFIG_INVALID}: {}: brick '{}' references unknown group '{g}'",
-                    cfg.file,
-                    b.name
-                );
-            }
-            if !b.tags.is_empty() {
-                bail!(
-                    "{CONFIG_INVALID}: {}: brick '{}' is in group '{g}': tags must be set on the group",
-                    cfg.file,
-                    b.name
-                );
-            }
-            if b.independent {
-                bail!(
-                    "{CONFIG_INVALID}: {}: brick '{}' is in group '{g}': grouped bricks cannot be independent",
-                    cfg.file,
-                    b.name
-                );
-            }
+        let Some(g) = &b.group else {
+            continue;
+        };
+        if !group_names.contains(g.as_str()) {
+            bail!(
+                "{CONFIG_INVALID}: {}: brick '{}' references unknown group '{g}'",
+                cfg.file,
+                b.name
+            );
+        }
+        if !b.tags.is_empty() {
+            bail!(
+                "{CONFIG_INVALID}: {}: brick '{}' is in group '{g}': tags must be set on the group",
+                cfg.file,
+                b.name
+            );
+        }
+        if b.independent {
+            bail!(
+                "{CONFIG_INVALID}: {}: brick '{}' is in group '{g}': grouped bricks cannot be independent",
+                cfg.file,
+                b.name
+            );
         }
     }
-    let tags: BTreeSet<&str> = cfg
-        .bricks
+    Ok(())
+}
+
+fn all_tags(cfg: &Config) -> BTreeSet<&str> {
+    cfg.bricks
         .iter()
         .flat_map(|b| b.tags.iter().map(String::as_str))
         .chain(
@@ -80,35 +96,43 @@ pub fn validate(cfg: &Config) -> Result<()> {
                 .iter()
                 .flat_map(|g| g.tags.iter().map(String::as_str)),
         )
-        .collect();
-    let check = |sel: &Sel, loc: &str| -> Result<()> {
-        match sel {
-            Sel::Tag(t) if !tags.contains(t.as_str()) => {
-                bail!("{CONFIG_INVALID}: {loc}: unknown tag '{t}'")
-            }
-            Sel::Brick(n) => {
-                if let Some(why) = grouped_target_error(cfg, n) {
-                    bail!("{CONFIG_INVALID}: {loc}: {why}");
-                }
-                if cfg.unit_by_name(n).is_none() {
-                    bail!("{CONFIG_INVALID}: {loc}: unknown brick '{n}'");
-                }
-                Ok(())
-            }
-            _ => Ok(()),
+        .collect()
+}
+
+fn validate_selector(cfg: &Config, tags: &BTreeSet<&str>, sel: &Sel, loc: &str) -> Result<()> {
+    match sel {
+        Sel::Tag(t) if !tags.contains(t.as_str()) => {
+            bail!("{CONFIG_INVALID}: {loc}: unknown tag '{t}'")
         }
-    };
+        Sel::Brick(n) => {
+            if let Some(why) = grouped_target_error(cfg, n) {
+                bail!("{CONFIG_INVALID}: {loc}: {why}");
+            }
+            if cfg.unit_by_name(n).is_none() {
+                bail!("{CONFIG_INVALID}: {loc}: unknown brick '{n}'");
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
+}
+
+fn validate_rules_and_limits(cfg: &Config, tags: &BTreeSet<&str>) -> Result<()> {
     for r in &cfg.rules {
-        check(&r.from, &r.loc)?;
-        check(&r.to, &r.loc)?;
+        validate_selector(cfg, tags, &r.from, &r.loc)?;
+        validate_selector(cfg, tags, &r.to, &r.loc)?;
         kinds(&r.kinds, &r.loc)?;
         if r.reason.trim().is_empty() {
             bail!("{CONFIG_INVALID}: {}: a rule needs a reason", r.loc);
         }
     }
     for r in &cfg.complexity {
-        check(&r.bricks, &r.loc)?;
+        validate_selector(cfg, tags, &r.bricks, &r.loc)?;
     }
+    Ok(())
+}
+
+fn validate_exports(cfg: &Config) -> Result<()> {
     for e in &cfg.exports {
         if let Some(why) = grouped_target_error(cfg, e) {
             bail!("{CONFIG_INVALID}: {}: {why}", cfg.file);
@@ -128,44 +152,58 @@ pub fn validate(cfg: &Config) -> Result<()> {
 /// the composites below `cfg` are loaded, because it reads their `exports`.
 pub fn validate_links(cfg: &Config) -> Result<()> {
     for l in &cfg.links {
-        let bad = |why: String| bail!("{CONFIG_INVALID}: {}: {why}", l.loc);
-        let (to, child) = l.target();
-        if let Some(why) = grouped_target_error(cfg, &l.from) {
-            return bad(why);
-        }
-        if cfg.unit_by_name(&l.from).is_none() {
-            return bad(format!("unknown brick '{}'", l.from));
-        }
-        if let Some(why) = grouped_target_error(cfg, to) {
-            return bad(why);
-        }
-        let target_brick = if cfg.group(to).is_some() {
-            if child.is_some() {
-                return bad(format!(
-                    "'{}' names a member of group '{to}'; target the group name '{to}' instead",
-                    l.to
-                ));
-            }
-            None
-        } else if let Some(b) = cfg.brick(to) {
-            Some(b)
-        } else {
-            return bad(format!("unknown brick '{to}'"));
-        };
-        if to == l.from {
-            return bad(format!("link from '{to}' to itself"));
-        }
-        kinds(&l.kinds, &l.loc)?;
-        if l.reason.trim().is_empty() {
-            return bad("a link needs a reason".into());
-        }
-        if let Some(target) = target_brick
-            && let Some(why) = child.and_then(|c| child_error(target, c))
-        {
-            return bad(why);
-        }
+        validate_link(cfg, l)?;
     }
     Ok(())
+}
+
+fn validate_link(cfg: &Config, l: &super::Link) -> Result<()> {
+    let (to, child) = l.target();
+    if let Some(why) = grouped_target_error(cfg, &l.from) {
+        bail!("{CONFIG_INVALID}: {}: {why}", l.loc);
+    }
+    if cfg.unit_by_name(&l.from).is_none() {
+        bail!("{CONFIG_INVALID}: {}: unknown brick '{}'", l.loc, l.from);
+    }
+    let target_brick = validate_link_to(cfg, l, to, child)?;
+    if to == l.from {
+        bail!("{CONFIG_INVALID}: {}: link from '{to}' to itself", l.loc);
+    }
+    kinds(&l.kinds, &l.loc)?;
+    if l.reason.trim().is_empty() {
+        bail!("{CONFIG_INVALID}: {}: a link needs a reason", l.loc);
+    }
+    if let Some(target) = target_brick
+        && let Some(why) = child.and_then(|c| child_error(target, c))
+    {
+        bail!("{CONFIG_INVALID}: {}: {why}", l.loc);
+    }
+    Ok(())
+}
+
+fn validate_link_to<'a>(
+    cfg: &'a Config,
+    l: &super::Link,
+    to: &str,
+    child: Option<&str>,
+) -> Result<Option<&'a super::Brick>> {
+    if let Some(why) = grouped_target_error(cfg, to) {
+        bail!("{CONFIG_INVALID}: {}: {why}", l.loc);
+    }
+    if cfg.group(to).is_some() {
+        if child.is_some() {
+            bail!(
+                "{CONFIG_INVALID}: {}: '{}' names a member of group '{to}'; target the group name '{to}' instead",
+                l.loc,
+                l.to
+            );
+        }
+        return Ok(None);
+    }
+    if let Some(b) = cfg.brick(to) {
+        return Ok(Some(b));
+    }
+    bail!("{CONFIG_INVALID}: {}: unknown brick '{to}'", l.loc)
 }
 
 /// Why `child` of `target` cannot be the end of a link, if it cannot.
