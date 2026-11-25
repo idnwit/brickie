@@ -217,6 +217,15 @@ fn rename(cx: &Cx, file: &str, from: &str, to: &str) {
     ops_then(cx, vec![o], move |now, _| select_brick(now, &to));
 }
 
+/// Rename peer group `from` of `file` to `to` (when it changes) and keep it selected.
+fn rename_group(cx: &Cx, file: &str, from: &str, to: &str) {
+    let Some(o) = rename_group_op(file, from, to) else {
+        return;
+    };
+    let to = to.trim().to_string();
+    ops_then(cx, vec![o], move |now, _| select_brick(now, &to));
+}
+
 /// Apply ops as one version, then `then` with the new state.
 fn ops_then(cx: &Cx, ops: Vec<Op>, then: impl FnOnce(&Cx, bool) + 'static) {
     let text = match ops.as_slice() {

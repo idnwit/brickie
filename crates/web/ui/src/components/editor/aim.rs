@@ -82,11 +82,11 @@ pub fn aim(cx: &Cx, what: Carried, x: f64, y: f64) {
 /// drag there.
 pub fn carried(cx: &Cx, c: &Carry) -> Carried {
     match c {
-        Carry::Tile(_) => Carried::Tile,
+        Carry::Tile(_) | Carry::GroupTile => Carried::Tile,
         Carry::Brick { level, name } if *level == cx.level().path => {
             cx.brick(name).map_or(Carried::Lifted, Carried::Brick)
         }
-        Carry::Brick { .. } => Carried::Lifted,
+        Carry::Brick { .. } | Carry::Member { .. } => Carried::Lifted,
     }
 }
 

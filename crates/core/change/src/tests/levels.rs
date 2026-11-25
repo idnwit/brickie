@@ -8,7 +8,7 @@ fn group(name: &str) -> Op {
         file: "brickie.toml".into(),
         brick: BrickSpec {
             name: name.into(),
-            kind: Some(BrickKind::Group),
+            kind: Some(BrickKind::Composite),
             ..BrickSpec::default()
         },
     }
@@ -39,6 +39,7 @@ fn an_existing_level_file_is_never_changed() {
         members: None,
         path: Some("g".into()),
         independent: None,
+        group: None,
     };
     ws.apply(A, vec![set]).unwrap();
     assert_eq!(ws.read("g/brickie.toml"), "# mine\n");

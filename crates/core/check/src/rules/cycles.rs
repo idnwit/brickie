@@ -13,6 +13,8 @@ struct Cycle {
     level: String,
     file: String,
     bricks: Vec<String>,
+    /// Expanded owner paths: each unit in `bricks` plus all member brick paths of any group.
+    owners: Vec<String>,
     path: Vec<String>,
     /// Every brick edge inside the component, with the first reference of each.
     hops: Vec<DiagEdge>,
@@ -20,22 +22,27 @@ struct Cycle {
 
 type Graph = BTreeMap<String, BTreeMap<String, Evidence>>;
 
-/// Per level, cycles among its children over lifted prod edges.
+/// Per level, cycles among its logical units over lifted prod edges.
 pub(super) fn cycles(cache: &Cache, cfg: &Config, res: &Resolved, out: &mut Vec<Box<dyn Finding>>) {
-    // Level path -> child graph; the first evidence per ordered pair.
+    // Level path -> unit graph; the first evidence per ordered pair.
     let mut graphs: BTreeMap<Vec<String>, Graph> = BTreeMap::new();
     for e in cache.edges().into_iter().filter(|e| e.scope == "prod") {
         let (Some(p1), Some(p2)) = (res.path(&e.from), res.path(&e.to)) else {
             continue;
         };
         let Some(l) = lift(cfg, p1, p2) else { continue };
+        if l.from.group.is_some() && l.from.group == l.to.group {
+            continue;
+        }
         if let Some(ev) = e.evidence.into_iter().next() {
+            let from = l.level.unit_of(l.from).name.to_string();
+            let to = l.level.unit_of(l.to).name.to_string();
             graphs
                 .entry(l.level.path.clone())
                 .or_default()
-                .entry(l.from.name.clone())
+                .entry(from)
                 .or_default()
-                .entry(l.to.name.clone())
+                .entry(to)
                 .or_insert(ev);
         }
     }
@@ -74,10 +81,21 @@ fn level_cycles(level: &Config, graph: &Graph, out: &mut Vec<Box<dyn Finding>>) 
                     .collect::<Vec<_>>()
             })
             .collect();
+        let level_name = level.level();
+        let mut owners = Vec::new();
+        for name in &scc {
+            owners.push(format!("{level_name}/{name}"));
+            if level.group(name).is_some() {
+                for m in level.group_members(name) {
+                    owners.push(format!("{level_name}/{}", m.name));
+                }
+            }
+        }
         out.push(Box::new(Cycle {
-            level: level.level(),
+            level: level_name,
             file: level.file.clone(),
             bricks: scc,
+            owners,
             path,
             hops,
         }));
@@ -128,6 +146,9 @@ impl Finding for Cycle {
     }
     fn bricks(&self) -> Vec<String> {
         self.bricks.clone()
+    }
+    fn owners(&self) -> Vec<String> {
+        self.owners.clone()
     }
     fn notes(&self) -> Vec<Note> {
         let mut notes = vec![Note {

@@ -35,10 +35,30 @@ impl Filter {
                 Some((root, rest)) if root == "root" => rest.to_vec(),
                 _ => names,
             };
-            if names.is_empty() || cfg.brick_at(&names).is_none() {
-                bail!("--brick {b}: no such brick (give the path from the root, like `web/api`)");
+            let Some((name, parent)) = names.split_last() else {
+                bail!(
+                    "--brick {b}: no such brick or group (give the path from the root, like `web/api`)"
+                );
+            };
+            let Some(level) = cfg.node(parent) else {
+                bail!(
+                    "--brick {b}: no such brick or group (give the path from the root, like `web/api`)"
+                );
+            };
+            if level.brick(name).is_some() {
+                paths.push(level_name(&names));
+            } else if level.group(name).is_some() {
+                paths.push(level_name(&names));
+                for m in level.group_members(name) {
+                    let mut member = parent.to_vec();
+                    member.push(m.name.clone());
+                    paths.push(level_name(&member));
+                }
+            } else {
+                bail!(
+                    "--brick {b}: no such brick or group (give the path from the root, like `web/api`)"
+                );
             }
-            paths.push(level_name(&names));
         }
         Ok(Filter { bricks: paths })
     }

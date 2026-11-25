@@ -67,6 +67,20 @@ fn invalid_targets_say_why() {
     let t = drop_target(&bricks, Carried::Brick(0), &over(0));
     assert!(matches!(t, Some(MoveTarget::No(_))));
     assert!(drop_label(&bricks, Carried::Tile, t.as_ref()).starts_with('\u{2715}'));
+
+    // A peer group cannot be dragged across levels (to frame edge / breadcrumb).
+    let mut grp = brick("services", &[]);
+    grp.is_group = true;
+    let up = Under {
+        up: Some("root".into()),
+        ..Default::default()
+    };
+    assert_eq!(
+        drop_target(&[grp], Carried::Brick(0), &up),
+        Some(MoveTarget::No(
+            "groups cannot be moved across levels".into()
+        ))
+    );
 }
 
 #[test]
@@ -94,7 +108,7 @@ fn lanes_and_labels() {
     let into = Some(MoveTarget::Into(0));
     assert_eq!(
         drop_label(&b, Carried::Tile, into.as_ref()),
-        "into web (becomes a group)"
+        "into web (becomes a composite)"
     );
     web.file = Some("web/brickie.toml".into());
     web.children = vec!["api".into()];

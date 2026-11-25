@@ -41,7 +41,16 @@ fn brick_row(cx: &Cx, b: usize, brick: &BrickView) -> View {
     };
     let href = Sel::Brick(b).apply(&cx.params.get_clone(), &cx.m.g).url();
     let (name, name2) = (brick.name.clone(), brick.name.clone());
-    let members = brick.members.join(", ");
+    let members = if brick.is_group {
+        brick
+            .group_members
+            .iter()
+            .map(|m| m.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    } else {
+        brick.members.join(", ")
+    };
     view! {
         a(class=on, href=href, "data-b"=name2, on:click=move |e: Click| {
             e.prevent_default();

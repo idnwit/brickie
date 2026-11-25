@@ -89,6 +89,8 @@ mod private;
 mod unmapped;
 
 #[cfg(test)]
+mod group_tests;
+#[cfg(test)]
 mod independent_tests;
 #[cfg(test)]
 mod tests;

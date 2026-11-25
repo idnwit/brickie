@@ -16,9 +16,9 @@
 //! let input = Input {
 //!     rows: vec!["port".into(), "core".into()],
 //!     bricks: vec![
-//!         InBrick { id: "api".into(), row: 0 },
-//!         InBrick { id: "engine".into(), row: 1 },
-//!         InBrick { id: "store".into(), row: 1 },
+//!         InBrick { id: "api".into(), row: 0, min_w: None, min_h: None },
+//!         InBrick { id: "engine".into(), row: 1, min_w: None, min_h: None },
+//!         InBrick { id: "store".into(), row: 1, min_w: None, min_h: None },
 //!     ],
 //!     edges: vec![
 //!         InEdge { id: "engine|api".into(), a: 1, b: 0 },
@@ -58,6 +58,7 @@
 // The index loops and tuple-heavy tables mirror the original line by line.
 #![allow(clippy::needless_range_loop, clippy::type_complexity)]
 
+mod align;
 mod anneal;
 mod channels;
 mod compute;
@@ -169,6 +170,10 @@ pub struct InBrick {
     pub id: String,
     /// Row (layer) index; rows are the tags in config order.
     pub row: usize,
+    /// Optional minimum box width (e.g. for group containers).
+    pub min_w: Option<f64>,
+    /// Optional minimum box height (e.g. for group containers).
+    pub min_h: Option<f64>,
 }
 
 /// A directed edge between two bricks, by index into [`Input::bricks`].
@@ -252,6 +257,20 @@ pub struct Layout {
     /// Weighted crossings of the config order before minimisation (the baseline).
     pub cross0: f64,
     edges: Vec<(usize, usize)>,
+}
+
+/// Index of the row containing brick `b`.
+pub(crate) fn row_of_brick(rows: &[RowOut], b: usize) -> Option<usize> {
+    rows.iter().position(|r| r.ids.contains(&b))
+}
+
+/// Bottom `y` of the row band containing brick `b` when `rect` sits at that row's `y`.
+pub(crate) fn row_bottom(rows: &[RowOut], b: usize, rect: &Rect) -> f64 {
+    row_of_brick(rows, b)
+        .filter(|&r| (rect.y - rows[r].y).abs() < 1.0)
+        .map_or(rect.y + rect.h, |r| {
+            (rows[r].y + rows[r].h).max(rect.y + rect.h)
+        })
 }
 
 /// Lay out `input` (`layoutFor`; one layout per graph, independent of layers, focus and filters).

@@ -58,10 +58,14 @@ mod tests {
                 InBrick {
                     id: "a".into(),
                     row: 0,
+                    min_w: None,
+                    min_h: None,
                 },
                 InBrick {
                     id: "b".into(),
                     row: 1,
+                    min_w: None,
+                    min_h: None,
                 },
             ],
             rows: vec!["core".into(), "app".into()],

@@ -42,6 +42,7 @@ fn set_independent(file: &str, name: &str, on: bool) -> Op {
         members: None,
         path: None,
         independent: Some(on),
+        group: None,
     }
 }
 

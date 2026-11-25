@@ -115,7 +115,16 @@ impl Router<'_> {
         let (sa, sb) = (cands[e][ci].sa, cands[e][ci].sb);
         let (pa, pb) = (po[&(e, End::A)].off, po[&(e, End::B)].off);
         let (ea, eb) = self.edges[e];
-        let pts = direct((&self.pos[ea], sa, pa), (&self.pos[eb], sb, pb), 4.0);
+        let row_bots = (
+            Some(row_bottom(self.rows, ea, &self.pos[ea])),
+            Some(row_bottom(self.rows, eb, &self.pos[eb])),
+        );
+        let pts = direct(
+            (&self.pos[ea], sa, pa),
+            (&self.pos[eb], sb, pb),
+            row_bots,
+            4.0,
+        );
         if box_hits(self.pos, &pts, self.edges[e]) > 0 {
             choice[e] = 0;
             true
@@ -184,6 +193,7 @@ mod tests {
         let ids = ids(&["e"]);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0],
             ids: &ids,
@@ -224,6 +234,7 @@ mod tests {
         let ids = ids(&["a", "b", "c"]);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1, 2],
             ids: &ids,
@@ -248,6 +259,7 @@ mod tests {
         let ids = ids(&["a", "b", "c"]);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1, 2],
             ids: &ids,
@@ -265,6 +277,7 @@ mod tests {
         // two ports on 400 wide: 380 -> capped at 26 -> -13, 13
         let rt2 = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1],
             ids: &ids,
@@ -284,6 +297,7 @@ mod tests {
         let ids = ids(&["a", "b", "c"]);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1, 2],
             ids: &ids,
@@ -316,6 +330,7 @@ mod tests {
         let ids = ids(&["b", "a"]); // edge 1 has the smaller id
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1],
             ids: &ids,
@@ -340,6 +355,7 @@ mod tests {
         let ids = ids(&["a", "b"]);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1],
             ids: &ids,
@@ -368,6 +384,7 @@ mod tests {
         let ids = ids(&["a", "b"]);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1],
             ids: &ids,
@@ -392,6 +409,7 @@ mod tests {
         let edges = [(0, 1), (0, 1)];
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1],
             ids: &ids,
@@ -415,6 +433,7 @@ mod tests {
         let ids = ids(&["a", "b"]);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1],
             ids: &ids,
@@ -446,6 +465,7 @@ mod tests {
         let ids = ids(&["a"]);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0],
             ids: &ids,
@@ -475,6 +495,7 @@ mod tests {
         let ids = ids(&["e"]);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0],
             ids: &ids,
@@ -499,6 +520,7 @@ mod tests {
         let ids = ids(&["e"]);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0],
             ids: &ids,
@@ -518,6 +540,7 @@ mod tests {
         let ids = ids(&["e", "f"]);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0],
             ids: &ids,
@@ -542,6 +565,7 @@ mod tests {
         let ids = ids(&["a", "b"]);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1],
             ids: &ids,
@@ -566,6 +590,7 @@ mod tests {
         let ids = vec!["b".to_string(), "a".to_string()];
         let rt = Router {
             pos: &[],
+            rows: &[],
             edges: &[],
             eids: &[],
             ids: &ids,

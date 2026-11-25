@@ -1,6 +1,6 @@
 //! Brick selectors used by rules: a brick name, `tag:<tag>` or `*`.
 
-use super::Brick;
+use super::Unit;
 use serde::Deserialize;
 
 /// A brick selector as written in a rule: `*`, `tag:<tag>` or a brick name.
@@ -36,12 +36,12 @@ impl<'de> Deserialize<'de> for Sel {
 }
 
 impl Sel {
-    /// 3 for a brick name, 2 for a tag, 1 for `*`; `None` when the brick does not match.
-    pub fn specificity(&self, brick: &Brick) -> Option<u32> {
+    /// 3 for a brick/group name, 2 for a tag, 1 for `*`; `None` when the unit does not match.
+    pub fn specificity(&self, unit: Unit<'_>) -> Option<u32> {
         match self {
             Sel::Any => Some(1),
-            Sel::Tag(t) => brick.tags.contains(t).then_some(2),
-            Sel::Brick(n) => (brick.name == *n).then_some(3),
+            Sel::Tag(t) => unit.tags.contains(t).then_some(2),
+            Sel::Brick(n) => (unit.name == *n).then_some(3),
         }
     }
 }

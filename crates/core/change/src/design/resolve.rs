@@ -2,13 +2,12 @@
 //! owns them; ops need the physical config file. Read from the working tree (the draft, if any).
 
 use super::Design;
-use crate::edit::{Docs, find_rule};
-use crate::paths::{join_rel, to_rel};
+use crate::edit::{Docs, find_rule, level_files};
+use crate::paths::to_rel;
 use anyhow::{Context, Result, bail};
 use brickie_check::config::{self, Config};
 use brickie_model::codes::DESIGN_NO_MATCH;
 use brickie_model::design::{Op, RuleKey};
-use toml_edit::Item;
 
 /// `root/web/api`, `web/api` -> `["web", "api"]`; `root`, `.`, `` -> `[]`.
 pub fn brick_path(s: &str) -> Vec<String> {
@@ -39,12 +38,20 @@ impl Design {
     }
 
     pub(super) fn file_of(&self, cfg: &Config, level: &[String]) -> Result<String> {
-        let node = cfg.node(level).with_context(|| {
-            format!(
+        let Some(node) = cfg.node(level) else {
+            if let Some((name, parent)) = level.split_last()
+                && cfg.node(parent).and_then(|lv| lv.group(name)).is_some()
+            {
+                bail!(
+                    "{DESIGN_NO_MATCH}: '{}' is a group, not a composite brick",
+                    level.join("/")
+                );
+            }
+            bail!(
                 "{DESIGN_NO_MATCH}: no composite brick '{}'",
                 level.join("/")
-            )
-        })?;
+            );
+        };
         to_rel(&self.root, &std::path::absolute(&node.file)?)
             .context("level file outside the workspace")
     }
@@ -55,6 +62,53 @@ impl Design {
         let (name, parent) = path.split_last().context("name a brick")?;
         if cfg.brick_at(path).is_none() {
             bail!("{DESIGN_NO_MATCH}: no brick '{}'", path.join("/"));
+        }
+        Ok((self.file_of(&cfg, parent)?, name.clone()))
+    }
+
+    /// The file declaring the group at `path` (which may be an `include`d file) and its name.
+    pub fn group_file(&self, path: &[String]) -> Result<(String, String)> {
+        let cfg = self.config()?;
+        let (name, parent) = path.split_last().context("name a group")?;
+        let lv = cfg.node(parent).with_context(|| {
+            format!(
+                "{DESIGN_NO_MATCH}: no composite brick '{}'",
+                parent.join("/")
+            )
+        })?;
+        let Some(g) = lv.group(name) else {
+            bail!("{DESIGN_NO_MATCH}: no group '{}'", path.join("/"));
+        };
+        let loc_file = g.loc.rsplit_once(':').map_or(g.loc.as_str(), |(f, _)| f);
+        if !loc_file.is_empty()
+            && let Ok(abs) = std::path::absolute(loc_file)
+            && let Some(rel) = to_rel(&self.root, &abs)
+        {
+            return Ok((rel, name.clone()));
+        }
+        Ok((self.file_of(&cfg, parent)?, name.clone()))
+    }
+
+    /// The level file owning the ungrouped brick or group at `path`, and its name.
+    pub fn unit_file(&self, path: &[String]) -> Result<(String, String)> {
+        let cfg = self.config()?;
+        let (name, parent) = path.split_last().context("name a brick or group")?;
+        let lv = cfg.node(parent).with_context(|| {
+            format!(
+                "{DESIGN_NO_MATCH}: no composite brick '{}'",
+                parent.join("/")
+            )
+        })?;
+        if lv.unit_by_name(name).is_none() {
+            if let Some(b) = lv.brick(name)
+                && let Some(g) = &b.group
+            {
+                bail!(
+                    "{DESIGN_NO_MATCH}: '{}' is in group '{g}'; target the group instead",
+                    path.join("/")
+                );
+            }
+            bail!("{DESIGN_NO_MATCH}: no brick or group '{}'", path.join("/"));
         }
         Ok((self.file_of(&cfg, parent)?, name.clone()))
     }
@@ -91,25 +145,9 @@ impl Design {
     pub fn rule_file(&self, level_file: &str, link: bool, key: &RuleKey) -> Result<String> {
         let table: &[&str] = if link { &["link"] } else { &["rule"] };
         let docs = Docs::from_base(&self.files()?, None)?;
-        let mut queue = vec![level_file.to_string()];
-        let mut seen = Vec::new();
-        while let Some(f) = queue.pop() {
-            if seen.contains(&f) {
-                continue;
-            }
-            if let Some(doc) = docs.get(&f) {
-                let inc = doc.get("include").and_then(Item::as_array);
-                for i in inc
-                    .into_iter()
-                    .flat_map(|a| a.iter())
-                    .filter_map(|v| v.as_str())
-                {
-                    queue.push(join_rel(&f, i));
-                }
-            }
-            seen.push(f);
-        }
-        let hits: Vec<&String> = (seen.iter())
+        let files = level_files(&docs, level_file);
+        let hits: Vec<&String> = files
+            .iter()
             .filter(|f| {
                 docs.get(f)
                     .is_some_and(|d| find_rule(d, table, f, key).is_ok())

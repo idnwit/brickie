@@ -27,11 +27,18 @@ pub fn lift<'a>(cfg: &'a Config, p1: &[String], p2: &[String]) -> Option<Lifted<
 }
 
 /// The first composite on the target path below the common ancestor that does not export the
-/// next brick: (composite level, hidden child name).
+/// next brick (or its enclosing group): (composite level, hidden unit name).
 pub fn hidden<'a>(cfg: &'a Config, p2: &'a [String], k: usize) -> Option<(&'a Config, &'a str)> {
     (k + 1..p2.len()).find_map(|j| {
         let composite = cfg.node(&p2[..j])?;
-        let child = p2[j].as_str();
-        (!composite.exports(child)).then_some((composite, child))
+        let child = composite.brick(&p2[j])?;
+        (!composite.exports_brick(child)).then_some((composite, composite.unit_of(child).name))
     })
+}
+
+/// The logical unit inside `l.to` that the edge enters through, for a composite target.
+pub fn entered<'a>(l: &Lifted<'a>, p2: &[String]) -> Option<&'a str> {
+    let sub = l.to.sub.as_deref()?;
+    let child = p2.get(l.k + 1)?;
+    sub.brick(child).map(|b| sub.unit_of(b).name)
 }

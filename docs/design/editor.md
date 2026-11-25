@@ -28,8 +28,9 @@ because the draft is committed with the code, so CI and local runs read the same
 3. Planned work is not a finding. A brick with no measured module (`design/planned`) and a
    valid link with no measured edge are the **todo** of `check`: printed, never counted in the
    exit code. Reason: a drawn target is work to do, not a violation.
-4. `publish` is allowed when `check` on the draft has no finding and no planned brick (a stale
-   cache also blocks). It calls the same function as `check`; there is no separate gate.
+4. `publish` is allowed when `check` on the draft has no finding and no planned brick or empty
+   planned group (a stale cache also blocks). It calls the same function as `check`; there is no
+   separate gate.
 
 | Topic | Decision | Reason |
 | --- | --- | --- |
@@ -38,10 +39,10 @@ because the draft is committed with the code, so CI and local runs read the same
 | Storage | `.brickie/draft/draft.json` (`{forked_from}`) and `files/` mirroring the relative config paths (`..` as `^`); read through the `Preview` overlay, so `path =` and includes resolve as for real files | a `Files` snapshot, no op log to replay on read |
 | History | one shared version counter; each version has `track` (`draft` or `published`); a fork version carries `forked_from` and a full snapshot; an undo carries `reverts`; states replay their own track only; compaction keeps each track's head and makes the first kept version of each track full | one log, one undo model; `--base` and stale checks use the head of the track written |
 | Free-style draft | a draft write validates config syntax and self-consistency only (`load_config`), never against the code; `show` todo lists design-file items only (`link_denied`, `link_cycle`); headers name the track (`draft v42 from published v37`) | the target may be far from the code |
-| Publish gate | `design publish --base N` runs `check` on the draft over the cache on disk; blocked (`design/blocked`, exit 4) by any finding, any `design/planned` brick, a `design/link-denied` link or a missing, mismatched or stale cache; no partial publish | publish means "the code now has this structure"; one function decides it |
+| Publish gate | `design publish --base N` runs `check` on the draft over the cache on disk; blocked (`design/blocked`, exit 4) by any finding, any `design/planned` brick or empty group, a `design/link-denied` link or a missing, mismatched or stale cache; no partial publish | publish means "the code now has this structure"; one function decides it |
 | Checklist | `brickie check` on the working design is the refactor checklist: findings (exit 1) plus the todo (planned bricks and links); the viewer's `publish` with `dry_run` calls the same function | one command, one answer |
 | Code reading | `check`, `serve` and `publish` compare the code with the working design; `design show` and the writes read the design files alone (no cache needed) | writes stay usable before any measure |
-| Publish write | one published version (author: who runs it, note `publish draft vN`, plus `(overwrote ...)` when the published head moved), files left only by ungroup stay on disk, the draft is removed; undoable by restoring bytes like any published version | same write path as before |
+| Publish write | one published version (author: who runs it, note `publish draft vN`, plus `(overwrote ...)` when the published head moved), files left only by unnest stay on disk, the draft is removed; undoable by restoring bytes like any published version | same write path as before |
 | Moved published head | no stale check on publish (only `--base` = draft head): publish writes the draft over the published files and notes the overwritten published versions since the fork (`publish draft vN (overwrote vA..vB)`); they stay in the log, recoverable by `undo` and `diff`; files only dropped from the draft are not deleted | the draft is the intent; moving code deletes nested brickie.toml files, so a stale check blocked every structural refactor |
 | Discard | `design discard --base N` removes the draft and appends a draft-track marker | history stays append-only |
 | Scaffold | allowed on draft writes: writing code for draft bricks is the intended refactor path; with a draft that code is mapped at once | the code moves toward the target step by step |

@@ -69,24 +69,32 @@ pub fn compute_layout(inp: &Input) -> Layout {
     let mut rows: Vec<RowOut> = Vec::new();
     let mut y = 40.0;
     for (l, row) in layers.iter().enumerate() {
+        let row_h = row
+            .iter()
+            .filter(|&&n| ns[n].real)
+            .map(|&n| ns[n].h)
+            .reduce(f64::max)
+            .unwrap_or(H);
         if l > 0 {
             let gap = if busy(l) { GAPY } else { GAPY_FREE };
-            y += H + gap + 12.0 * (max_l(l - 1, false) + max_l(l, true));
+            y += rows[l - 1].h + gap + 12.0 * (max_l(l - 1, false) + max_l(l, true));
         } else {
             y += 12.0 * max_l(0, true);
         }
         for &n in row {
             ns[n].y = y;
-            ns[n].h = H;
+            if !ns[n].real {
+                ns[n].h = row_h;
+            }
         }
         rows.push(RowOut {
             y,
-            h: H,
+            h: row_h,
             label: inp.rows.get(used[l]).cloned().unwrap_or_default(),
             ids: row.iter().filter(|&&n| ns[n].real).copied().collect(),
         });
     }
-    let main_bottom = if rows.is_empty() { 60.0 } else { y + H };
+    let main_bottom = rows.last().map_or(60.0, |r| r.y + r.h);
     let x0 = PADL;
     let shift = x0 - min_x;
     for n in ns.iter_mut() {

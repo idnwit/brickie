@@ -1,7 +1,46 @@
-//! Export, limit and include commands.
+//! Group, export, limit and include commands.
 
 use super::Write;
 use clap::{Args, Subcommand};
+
+#[derive(Subcommand)]
+pub enum GroupCmd {
+    /// Add a peer brick group to a level.
+    Add {
+        name: String,
+        #[arg(long = "in")]
+        level: Option<String>,
+        #[arg(long, value_delimiter = ',')]
+        tags: Option<Vec<String>>,
+        #[arg(long)]
+        desc: Option<String>,
+        #[command(flatten)]
+        w: Write,
+    },
+    /// Change the tags or description of a group; empty values clear them.
+    Set {
+        group: String,
+        #[arg(long, value_delimiter = ',')]
+        tags: Option<Vec<String>>,
+        #[arg(long)]
+        desc: Option<String>,
+        #[command(flatten)]
+        w: Write,
+    },
+    /// Rename a group and every reference to it.
+    Rename {
+        group: String,
+        to: String,
+        #[command(flatten)]
+        w: Write,
+    },
+    /// Remove an unused group.
+    Rm {
+        group: String,
+        #[command(flatten)]
+        w: Write,
+    },
+}
 
 #[derive(Subcommand)]
 pub enum ExportCmd {

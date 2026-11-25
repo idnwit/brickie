@@ -24,6 +24,7 @@ use cand::{Cand, candidates};
 /// passed to its methods are indexed by edge, and only `eids` entries are meaningful.
 pub(super) struct Router<'a> {
     pub(super) pos: &'a [Rect],
+    pub(super) rows: &'a [RowOut],
     pub(super) edges: &'a [(usize, usize)],
     pub(super) eids: &'a [usize],
     pub(super) ids: &'a [String],
@@ -32,6 +33,7 @@ pub(super) struct Router<'a> {
 /// `smartRoute`: pick a direct cubic or the layered route per edge, then spread the ports.
 pub fn smart_route(l: &mut Layout, ids: &[String]) {
     let pos = l.pos.clone();
+    let rows = l.rows.clone();
     let edges = l.edges.clone();
     let eids: Vec<usize> = (0..edges.len())
         .filter(|&e| l.kinds[e].is_some() && edges[e].0 != edges[e].1)
@@ -39,6 +41,7 @@ pub fn smart_route(l: &mut Layout, ids: &[String]) {
     let old_kind = l.kinds.clone();
     let r = Router {
         pos: &pos,
+        rows: &rows,
         edges: &edges,
         eids: &eids,
         ids,

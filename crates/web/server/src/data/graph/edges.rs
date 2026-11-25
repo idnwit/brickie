@@ -4,6 +4,7 @@
 
 use brickie_check::check as rules;
 use brickie_check::check::Loaded;
+use brickie_check::config::Config;
 use brickie_check::diag;
 use std::collections::BTreeSet;
 
@@ -71,12 +72,25 @@ pub enum End {
     Outside(Vec<String>),
 }
 
-/// Where leaf path `p` lands seen from level `level`; `None` for a path that is the level or
-/// above it (cannot happen for leaves of a composite level).
-pub fn end(p: &[String], level: &[String]) -> Option<End> {
+/// Where leaf path `p` lands seen from level `level`, lifted to logical units (a grouped brick
+/// lifts to its enclosing group both inside `level` and in any ancestor level). Returns the
+/// lifted [`End`] and, for a child of `level`, the raw child brick name before group lifting.
+pub fn end_unit(root: &Config, p: &[String], level: &[String]) -> Option<(End, Option<String>)> {
     if p.starts_with(level) {
-        return p.get(level.len()).map(|c| End::Child(c.clone()));
+        let child = p.get(level.len())?;
+        let unit = root
+            .node(level)
+            .and_then(|c| c.brick(child).map(|b| c.unit_of(b).name.to_string()))
+            .unwrap_or_else(|| child.clone());
+        return Some((End::Child(unit), Some(child.clone())));
     }
     let k = p.iter().zip(level).take_while(|(a, b)| a == b).count();
-    p.get(..k + 1).map(|q| End::Outside(q.to_vec()))
+    let q = p.get(..k + 1)?;
+    let mut lifted = q.to_vec();
+    if let Some(anc) = root.node(&q[..k])
+        && let Some(b) = anc.brick(&q[k])
+    {
+        lifted[k] = anc.unit_of(b).name.to_string();
+    }
+    Some((End::Outside(lifted), None))
 }

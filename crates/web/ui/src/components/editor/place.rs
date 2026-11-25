@@ -25,10 +25,15 @@ fn commit(cx: &Cx, d: Draft, name: String, members: String, tag: String) {
         Dest::NewLane => (split_list(&tag), None),
         Dest::Into(p) => (vec![], cx.brick(p)),
     };
-    let spec = tile_spec(d.kind, &name, &members, tags);
+    let mut spec = tile_spec(d.kind, &name, &members, tags);
     if let Some(p) = into {
         let parent = cx.m.g.bricks[p].clone();
-        let ops = add_inside_ops(&file, &parent, spec);
+        let ops = if parent.is_group {
+            spec.group = Some(parent.name.clone());
+            vec![Op::AddBrick { file, brick: spec }]
+        } else {
+            add_inside_ops(&file, &parent, spec)
+        };
         let note = format!("Added {name} into {} \u{00B7} Ctrl+Z undoes", parent.name);
         return record(cx, ops, move |now| super::toast(now.ed, note));
     }
@@ -89,6 +94,40 @@ pub fn draft_box(cx: &Cx, d: Draft) -> View {
             span(class="whither") { (whither) }
             input(id="inline-name", r#type="text", placeholder=ph, bind:value=name, on:keydown=enter)
             (lane) (module)
+        }
+    }
+}
+
+/// The inline name box of a new peer group being placed: Enter adds it via `Op::AddGroup`.
+pub fn group_draft_box(cx: &Cx, x: f64, y: f64, tags: Vec<String>) -> View {
+    let ed = cx.ed;
+    let name = create_signal(String::new());
+    let c = cx.clone();
+    let tags2 = tags.clone();
+    let enter = move |e: web_sys::KeyboardEvent| match e.key().as_str() {
+        "Enter" => {
+            let n = name.get_clone().trim().to_string();
+            if n.is_empty() {
+                return;
+            }
+            ed.group_draft.set(None);
+            let file = c.level_file().unwrap_or_default();
+            let o = add_group_op(&file, &n, tags2.clone());
+            record(&c, vec![o], move |now| select_brick(now, &n));
+        }
+        "Escape" => ed.group_draft.set(None),
+        _ => {}
+    };
+    let whither = if tags.is_empty() {
+        "new group".to_string()
+    } else {
+        format!("new group (tag: {})", tags.join(", "))
+    };
+    let style = at(cx, x, y);
+    view! {
+        div(class="inbox draft", style=style, on:mousedown=stop, on:click=stop) {
+            span(class="whither") { (whither) }
+            input(id="inline-name", r#type="text", placeholder="group name, Enter", bind:value=name, on:keydown=enter)
         }
     }
 }

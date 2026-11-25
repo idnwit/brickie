@@ -7,7 +7,7 @@ use clap::{Args, Subcommand};
 pub enum Kind {
     Crate,
     Module,
-    Group,
+    Composite,
 }
 
 /// Fields of a brick; lists are comma-separated.
@@ -22,14 +22,17 @@ pub struct BrickFields {
     /// Folder of a composite (its brickie.toml), relative to the level file.
     #[arg(long)]
     pub path: Option<String>,
-    /// Act like an external library (root bricks only); `false` removes the key.
+    /// Act like an external library; `false` removes the key.
     #[arg(long)]
     pub independent: Option<bool>,
+    /// Peer group of this level that the brick belongs to; `""` ungroups it.
+    #[arg(long)]
+    pub group: Option<String>,
 }
 
 #[derive(Subcommand)]
 pub enum BrickCmd {
-    /// Add a brick to a level; a crate defaults to `path:crates/<name>/`, a group to its own
+    /// Add a brick to a level; a crate defaults to `path:crates/<name>/`, a composite to its own
     /// folder. No source code is written unless `--scaffold` asks for it.
     Add {
         name: String,
@@ -46,7 +49,7 @@ pub enum BrickCmd {
         #[command(flatten)]
         w: Write,
     },
-    /// Change the fields given; an empty `--desc` or `--path` removes it.
+    /// Change the fields given; an empty `--desc`, `--path` or `--group` removes it.
     Set {
         brick: String,
         #[command(flatten)]
@@ -76,15 +79,15 @@ pub enum BrickCmd {
         w: Write,
     },
     /// Create composite NAME next to the children and move them into it.
-    Group {
+    Nest {
         name: String,
         #[arg(required = true)]
         children: Vec<String>,
         #[command(flatten)]
         w: Write,
     },
-    /// Lift a composite's children (and their rules) into its level.
-    Ungroup {
+    /// Lift a composite's children (and their groups and rules) into its level.
+    Unnest {
         brick: String,
         #[command(flatten)]
         w: Write,

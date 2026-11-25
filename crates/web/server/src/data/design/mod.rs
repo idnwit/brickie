@@ -52,11 +52,23 @@ fn fill(out: &mut DesignState, view: &DesignView) {
     }
 }
 
-/// The bricks, tags and valid rule selectors of a level.
+/// The logical units (ungrouped bricks and groups), tags and valid rule selectors of a level.
 fn level_info(lv: &DesignLevel) -> LevelInfo {
-    let bricks: Vec<String> = lv.bricks.iter().map(|b| b.name.clone()).collect();
+    let mut bricks: Vec<String> = lv
+        .bricks
+        .iter()
+        .filter(|b| b.group.is_none())
+        .map(|b| b.name.clone())
+        .collect();
+    bricks.extend(lv.groups.iter().map(|g| g.name.clone()));
     let mut tags: Vec<String> = Vec::new();
-    for t in lv.bricks.iter().flat_map(|b| &b.tags) {
+    let all_tags = lv
+        .bricks
+        .iter()
+        .filter(|b| b.group.is_none())
+        .flat_map(|b| &b.tags)
+        .chain(lv.groups.iter().flat_map(|g| &g.tags));
+    for t in all_tags {
         if !tags.contains(t) {
             tags.push(t.clone());
         }

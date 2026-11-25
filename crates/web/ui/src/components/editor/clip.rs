@@ -18,6 +18,12 @@ pub fn cut(cx: &Cx) {
             .msg
             .set("A faded neighbour is outside this level: open its level to cut it.".into());
     }
+    if brick.is_group {
+        return cx
+            .ed
+            .msg
+            .set("Peer groups cannot be cut or moved across levels.".into());
+    }
     cx.ed.clip.set(Some(Clip {
         level: cx.level().path.clone(),
         name: brick.name.clone(),
@@ -40,7 +46,15 @@ pub fn paste(cx: &Cx) {
     };
     let here = cx.level().path.clone();
     let into = match cx.eval.with(|ev| ev.sel.clone()) {
-        Sel::Brick(b) if !cx.m.g.bricks[b].ghost => Some(cx.m.g.bricks[b].name.clone()),
+        Sel::Brick(b) if !cx.m.g.bricks[b].ghost => {
+            if cx.m.g.bricks[b].is_group {
+                return cx.ed.msg.set(
+                    "Cannot paste into a peer group: paste onto this level first, then drag into the group."
+                        .into(),
+                );
+            }
+            Some(cx.m.g.bricks[b].name.clone())
+        }
         _ => None,
     };
     let (path, place) = match into {

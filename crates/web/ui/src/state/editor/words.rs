@@ -28,8 +28,12 @@ fn brick_words(op: &Op) -> Option<String> {
         } => {
             format!("Moved {name} into {}", into.as_deref().unwrap_or(into_file))
         }
-        Op::MakeComposite { name, .. } => format!("Made {name} a group"),
-        Op::Ungroup { name, .. } => format!("Ungrouped {name}"),
+        Op::MakeComposite { name, .. } => format!("Made {name} a composite"),
+        Op::Unnest { name, .. } => format!("Unnested {name}"),
+        Op::AddGroup { group, .. } => format!("Added group {}", group.name),
+        Op::SetGroup { name, .. } => format!("Edited group {name}"),
+        Op::RenameGroup { name, new_name, .. } => format!("Renamed group {name} to {new_name}"),
+        Op::RemoveGroup { name, .. } => format!("Removed group {name}"),
         _ => return None,
     })
 }
@@ -68,16 +72,20 @@ pub fn describe(op: &Op) -> String {
     }
 }
 
-/// The brick an op is about (by name in its file), if any.
+/// The brick or group an op is about (by name in its file), if any.
 pub fn op_brick(op: &Op) -> Option<&str> {
     match op {
         Op::AddBrick { brick, .. } => Some(&brick.name),
+        Op::AddGroup { group, .. } => Some(&group.name),
         Op::RemoveBrick { name, .. }
         | Op::SetBrick { name, .. }
         | Op::MoveBrick { name, .. }
         | Op::MakeComposite { name, .. }
-        | Op::Ungroup { name, .. } => Some(name),
+        | Op::Unnest { name, .. }
+        | Op::SetGroup { name, .. }
+        | Op::RemoveGroup { name, .. } => Some(name),
         Op::RenameBrick { to, .. } => Some(to),
+        Op::RenameGroup { new_name, .. } => Some(new_name),
         _ => None,
     }
 }

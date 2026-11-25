@@ -71,7 +71,7 @@ fn removing_or_unexporting_a_linked_child_is_rejected() {
         brick: "ports-in".into(),
     };
     assert!(ws.apply(A, vec![unexport]).is_err());
-    let ungroup = Op::Ungroup {
+    let ungroup = Op::Unnest {
         file: "brickie.toml".into(),
         name: "a".into(),
     };

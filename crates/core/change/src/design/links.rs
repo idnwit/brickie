@@ -39,22 +39,22 @@ fn same(l: &CfgLink, want: &CfgLink) -> bool {
 }
 
 impl Design {
-    /// For the brick at `path`, every link it may draw to a sibling: each edge kind and scope
-    /// with whether a rule of the level allows it.
+    /// For the brick or group at `path`, every link it may draw to a sibling unit: each edge kind
+    /// and scope with whether a rule of the level allows it.
     pub fn link_options(&self, path: &[String]) -> Result<Vec<LinkOption>> {
         let cfg = self.config()?;
-        let (_, parent) = path.split_last().context("empty brick path")?;
+        let (name, parent) = path.split_last().context("empty brick path")?;
         let level = cfg.node(parent).context("no such level")?;
-        let from = cfg
-            .brick_at(path)
-            .with_context(|| format!("no brick {path:?}"))?;
+        let from = level
+            .unit_by_name(name)
+            .with_context(|| format!("no brick or group {path:?}"))?;
         let mut out = Vec::new();
-        for to in level.bricks.iter().filter(|b| b.name != from.name) {
+        for to in level.units().into_iter().filter(|u| u.name != from.name) {
             for kind in KINDS {
                 for scope in ["prod", "test"] {
                     let r = rule_allows(level, from, to, kind, scope);
                     out.push(LinkOption {
-                        to: to.name.clone(),
+                        to: to.name.to_string(),
                         kind: kind.into(),
                         scope: scope.into(),
                         allowed: r.is_some() || free(from, to),
@@ -107,9 +107,9 @@ impl Design {
             loc: String::new(),
         };
         let (to, _) = want.target();
-        let (Some(f), Some(t)) = (lv.brick(link.from), lv.brick(to)) else {
+        let (Some(f), Some(t)) = (lv.unit_by_name(link.from), lv.unit_by_name(to)) else {
             bail!(
-                "'{}' or '{to}' is not a brick of level {}",
+                "'{}' or '{to}' is not a brick or group of level {}",
                 link.from,
                 lv.level()
             );

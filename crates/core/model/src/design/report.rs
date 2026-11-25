@@ -77,6 +77,8 @@ pub struct LevelView {
     pub file: String,
     pub bricks: Vec<BrickView>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<GroupView>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exports: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<RuleView>,
@@ -90,9 +92,20 @@ pub struct LevelView {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GroupView {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desc: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub members: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BrickView {
     pub name: String,
-    /// `crate`, `module` or `group`.
+    /// `crate`, `module` or `composite`.
     pub kind: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub members: Vec<String>,
@@ -103,6 +116,8 @@ pub struct BrickView {
     /// An independent lib (`independent = true`): usable only within its parent's subtree.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub independent: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub children: Option<Box<LevelView>>,
 }

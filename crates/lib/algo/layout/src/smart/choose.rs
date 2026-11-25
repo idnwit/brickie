@@ -180,6 +180,7 @@ mod tests {
         let ids = ids(1);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0],
             ids: &ids,
@@ -201,6 +202,7 @@ mod tests {
         let ids = ids(2);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1],
             ids: &ids,
@@ -275,6 +277,7 @@ mod tests {
         let edges = [(0, 1), (2, 3)];
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1],
             ids: &ids,
@@ -292,6 +295,7 @@ mod tests {
         let ids: Vec<String> = ["b", "a", "c", "z"].map(String::from).to_vec();
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1, 2, 3],
             ids: &ids,
@@ -318,6 +322,7 @@ mod tests {
         let ids = ids(3);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 2],
             ids: &ids,
@@ -333,6 +338,7 @@ mod tests {
         let ids = ids(2);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0],
             ids: &ids,
@@ -354,6 +360,7 @@ mod tests {
         let ids = ids(1);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0],
             ids: &ids,
@@ -383,6 +390,7 @@ mod tests {
         let ids = ids(2);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1],
             ids: &ids,
@@ -395,6 +403,7 @@ mod tests {
         let pos = wide(3);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1],
             ids: &ids,
@@ -410,6 +419,7 @@ mod tests {
         let ids = ids(3);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[1, 2],
             ids: &ids,
@@ -425,6 +435,7 @@ mod tests {
         let ids = ids(2);
         let rt = Router {
             pos: &pos,
+            rows: &[],
             edges: &edges,
             eids: &[0, 1],
             ids: &ids,

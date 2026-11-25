@@ -57,13 +57,15 @@ pub fn build(inp: &Input) -> Built {
     let mut ns: Vec<LNode> = Vec::new();
     let mut layers: Layers = vec![Vec::new(); n_l];
     for (i, b) in inp.bricks.iter().enumerate() {
-        let w = wd(&b.id).max(2.0 * PAD + PORT * (d_u[i].max(d_d[i]) as f64 - 1.0));
+        let base_w = wd(&b.id).max(2.0 * PAD + PORT * (d_u[i].max(d_d[i]) as f64 - 1.0));
+        let w = b.min_w.map_or(base_w, |m| base_w.max(m));
+        let h = b.min_h.map_or(H, |m| H.max(m));
         ns.push(LNode {
             id: b.id.clone(),
             real: true,
             li: li_of(b.row),
             w,
-            h: H,
+            h,
             bi: i,
             up: vec![],
             upw: vec![],

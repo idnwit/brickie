@@ -95,7 +95,7 @@ fn zoom(cx: &Cx, f: f64) {
 fn brick_tool(ed: Edit, tab: bool) {
     let next = match (ed.brick_tool.get(), tab) {
         (Some(BrickKind::Crate), true) => BrickKind::Module,
-        (Some(BrickKind::Module), true) => BrickKind::Group,
+        (Some(BrickKind::Module), true) => BrickKind::Composite,
         (Some(k), false) => k,
         _ => BrickKind::Crate,
     };

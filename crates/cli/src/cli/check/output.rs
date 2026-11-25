@@ -37,11 +37,15 @@ fn todo_json(l: &Loaded) -> serde_json::Value {
             })
             .collect()
     };
-    serde_json::json!({
+    let mut v = serde_json::json!({
         "planned_bricks": names(&t.bricks),
         "planned_links": links(&t.links),
         "link_cycles": links(&t.cycles),
-    })
+    });
+    if !t.groups.is_empty() {
+        v["planned_groups"] = serde_json::json!(names(&t.groups));
+    }
+    v
 }
 
 /// The `todo:` section after the findings; nothing when there is no planned work.

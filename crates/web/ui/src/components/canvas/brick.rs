@@ -2,6 +2,7 @@
 //! composite has a double border, its exported children as ports on the bottom border and
 //! zooms in on double-click; a faded outside neighbour goes to its own level.
 
+use super::group::{group_contents, internal_viol_badge};
 use super::style::{Badge, Heat, NodeFlags, fit_name};
 use crate::layout::Rect;
 use crate::state::*;
@@ -59,6 +60,17 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
     } else {
         8.0
     };
+    let is_local_group = brick.is_group && !brick.ghost;
+    let group_body = if is_local_group {
+        group_contents(cx, b, &brick, r0.w, r0.h)
+    } else {
+        View::default()
+    };
+    let internal_badge = if is_local_group && !brick.internal_edges.is_empty() {
+        internal_viol_badge(&brick, r0.w)
+    } else {
+        View::default()
+    };
     view! {
         g(class=cls, transform=transform, "data-id"=brick.name.clone(), tabindex="0",
             on:mousedown=down, on:click=click) {
@@ -70,7 +82,9 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
             (heat)
             text(x=tag_x.to_string(), y="48", class="sub") { (tag) }
             (badge)
+            (internal_badge)
             (zoom)
+            (group_body)
         }
     }
 }
@@ -108,10 +122,12 @@ fn book_icon() -> View {
     }
 }
 
-/// The sub line: tag and child count of a composite.
+/// The sub line: tag and child/member count of a composite or peer group.
 fn tag_line(b: &BrickView) -> String {
     let mut tag = b.tag.clone();
-    if b.composite() {
+    if b.is_group && !b.ghost {
+        tag = format!("{tag} \u{00B7} {} bricks", b.group_members.len());
+    } else if b.composite() {
         tag = format!("{tag} \u{00B7} {} bricks", b.children.len());
     }
     tag
@@ -164,9 +180,10 @@ fn node_flags(cx: &Cx, b: usize) -> NodeFlags {
 
 /// The box classes of a brick's kind.
 fn kind_class(b: &BrickView) -> String {
-    let kind = match (b.ghost, b.composite()) {
-        (true, _) => " ghost",
-        (_, true) => " comp",
+    let kind = match (b.ghost, b.is_group, b.composite()) {
+        (true, _, _) => " ghost",
+        (_, true, _) => " grp",
+        (_, _, true) => " comp",
         _ => "",
     };
     let independent = if b.independent { " independent" } else { "" };
@@ -199,13 +216,7 @@ fn click_brick(cx: &Cx, b: usize, target: Option<&str>, e: &Click) {
         cx.moved.set(false);
         return;
     }
-    let now = e.time_stamp();
-    let double = LAST_CLICK.with(|l| {
-        let hit = matches!(l.get(), Some((lb, t)) if lb == b && now - t < DOUBLE_MS);
-        l.set(if hit { None } else { Some((b, now)) });
-        hit
-    });
-    if double {
+    if is_double_click(b, e.time_stamp()) {
         if let Some(t) = target {
             cx.go(cx.params.with(|p| p.at_level(t)));
         }
@@ -216,8 +227,17 @@ fn click_brick(cx: &Cx, b: usize, target: Option<&str>, e: &Click) {
 }
 
 /// A press that grabs the brick: left button, not the Hand tool (which pans from anywhere).
-fn grabs(cx: &Cx, e: &Click) -> bool {
+pub(super) fn grabs(cx: &Cx, e: &Click) -> bool {
     e.button() == 0 && cx.ed.tool.get() != Tool::Hand
+}
+
+/// Whether clicking `key` at `now` completes a double-click within `DOUBLE_MS`.
+pub(super) fn is_double_click(key: usize, now: f64) -> bool {
+    LAST_CLICK.with(|l| {
+        let hit = matches!(l.get(), Some((lk, t)) if lk == key && now - t < DOUBLE_MS);
+        l.set(if hit { None } else { Some((key, now)) });
+        hit
+    })
 }
 
 /// Two clicks on one brick closer than this (ms) are a double-click.

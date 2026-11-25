@@ -49,15 +49,24 @@ pub enum Dest {
     NewLane,
 }
 
-/// What follows the pointer outside a brick drag: a new tile from the toolbar, or a brick
-/// lifted off its level (spring-loaded zoom) that keeps following across levels.
+/// What follows the pointer outside a brick drag: a new tile from the toolbar, a new peer group
+/// tile, a brick lifted off its level (spring-loaded zoom), or a member card dragged out of a
+/// peer group.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Carry {
     Tile(BrickKind),
+    GroupTile,
     /// Brick `name` of level `level` (`root/core`).
     Brick {
         level: String,
         name: String,
+    },
+    /// Member `name` dragged out of peer group `group`, started at client `(sx, sy)`.
+    Member {
+        group: String,
+        name: String,
+        sx: f64,
+        sy: f64,
     },
 }
 
@@ -184,6 +193,8 @@ pub struct Edit {
     /// The keyboard shortcuts sheet (`?`) is open.
     pub help: Signal<bool>,
     pub draft: Signal<Option<Draft>>,
+    /// A peer group being added inline at `(world_x, world_y)` with optional tag lane.
+    pub group_draft: Signal<Option<(f64, f64, Vec<String>)>>,
     /// The brick renamed inline on its box.
     pub rename: Signal<Option<String>>,
     /// The armed link type: ports show on every brick.
@@ -229,6 +240,7 @@ impl Edit {
             clip: create_signal(None),
             help: create_signal(false),
             draft: create_signal(None),
+            group_draft: create_signal(None),
             rename: create_signal(None),
             link_type: create_signal(None),
             scope: create_signal("all"),
@@ -255,6 +267,7 @@ impl Edit {
     pub fn cancel(&self) -> bool {
         let armed = self.brick_tool.get().is_some() || self.link_type.get().is_some();
         let open = self.draft.with(Option::is_some)
+            || self.group_draft.with(Option::is_some)
             || self.lane_ask.with(Option::is_some)
             || self.rename.with(Option::is_some)
             || self.connect.with(Option::is_some)
@@ -265,6 +278,7 @@ impl Edit {
         self.brick_tool.set(None);
         self.link_type.set(None);
         self.draft.set(None);
+        self.group_draft.set(None);
         self.lane_ask.set(None);
         self.aim_label.set(String::new());
         self.target.set(None);

@@ -37,7 +37,19 @@ fn apply_one(docs: &mut Docs, op: &Op) -> Result<()> {
         Op::MakeComposite { file, name, path } => return make_composite(docs, file, name, path),
         Op::AddBrick { file, brick } => return super::moves::add_brick(docs, file, brick),
         Op::MoveBrick { .. } => return super::moves::move_brick(docs, op),
-        Op::Ungroup { file, name } => return super::ungroup::ungroup(docs, file, name),
+        Op::Unnest { file, name } => return super::unnest::unnest(docs, file, name),
+        Op::SetGroup {
+            file,
+            name,
+            tags,
+            desc,
+        } => return super::group::set(docs, file, name, tags.as_deref(), desc.as_deref()),
+        Op::RenameGroup {
+            file,
+            name,
+            new_name,
+        } => return super::group::rename(docs, file, name, new_name),
+        Op::RemoveGroup { file, name } => return super::group::remove(docs, file, name),
         Op::RemoveBrick { file, name } => {
             via::guard_child(docs, file, name, "removing it")?;
             return brick::remove(docs.get_mut(file)?, name);
@@ -80,6 +92,7 @@ fn apply_to_doc(doc: &mut DocumentMut, op: &Op) -> Result<()> {
             members,
             path,
             independent,
+            group,
             ..
         } => brick::set(
             doc,
@@ -90,8 +103,10 @@ fn apply_to_doc(doc: &mut DocumentMut, op: &Op) -> Result<()> {
                 members: members.as_deref(),
                 path: path.as_deref(),
                 independent: *independent,
+                group: group.as_deref(),
             },
         ),
+        Op::AddGroup { group, .. } => super::group::add(doc, group),
         Op::AddRule { file, rule: r } | Op::AddLink { file, link: r } => {
             let t = table(op);
             find::new_rule(doc, t, file, r)?;
@@ -127,7 +142,10 @@ fn apply_to_doc(doc: &mut DocumentMut, op: &Op) -> Result<()> {
         | Op::MakeComposite { .. }
         | Op::AddBrick { .. }
         | Op::MoveBrick { .. }
-        | Op::Ungroup { .. } => unreachable!("handled above"),
+        | Op::Unnest { .. }
+        | Op::SetGroup { .. }
+        | Op::RenameGroup { .. }
+        | Op::RemoveGroup { .. } => unreachable!("handled above"),
     }
 }
 

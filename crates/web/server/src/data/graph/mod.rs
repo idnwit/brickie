@@ -2,10 +2,12 @@
 //! composite), each with its children, the faded outside neighbours its boundary edges reach
 //! and the edges aggregated for that level. The UI only picks a level; nothing is lifted there.
 
+mod agg;
 mod edges;
 mod heat;
 mod level;
 mod links;
+mod project;
 #[cfg(test)]
 mod tests;
 

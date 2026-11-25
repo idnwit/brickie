@@ -2,12 +2,15 @@
 
 use super::Docs;
 use super::brick::{self, brick_mut, insert, rename_refs, take, unexport};
+use super::group::has_direct_refs;
+use super::table::{aot, find_named};
 use crate::paths::{dir_of, join_dir, join_rel, relative};
 use anyhow::{Context, Result, bail};
+use brickie_model::codes::DESIGN_INVALID;
 use brickie_model::design::{BrickKind, BrickSpec, Op};
 use toml_edit::{Item, Table, value};
 
-/// `add_brick`: `kind` fills in `members` (crate) or `path` (group, whose file is created).
+/// `add_brick`: `kind` fills in `members` (crate) or `path` (composite, whose file is created).
 pub fn add_brick(docs: &mut Docs, file: &str, spec: &BrickSpec) -> Result<()> {
     let mut spec = spec.clone();
     let unset = spec.members.is_empty() && spec.path.is_none();
@@ -20,11 +23,11 @@ pub fn add_brick(docs: &mut Docs, file: &str, spec: &BrickSpec) -> Result<()> {
             };
             spec.members = vec![format!("path:{dir}{}/", spec.name)];
         }
-        Some(BrickKind::Group) if spec.path.is_none() => spec.path = Some(spec.name.clone()),
+        Some(BrickKind::Composite) if spec.path.is_none() => spec.path = Some(spec.name.clone()),
         _ => {}
     }
     brick::add(docs.get_mut(file)?, &spec)?;
-    if let (Some(BrickKind::Group), Some(p)) = (spec.kind, &spec.path) {
+    if let (Some(BrickKind::Composite), Some(p)) = (spec.kind, &spec.path) {
         let new = join_rel(file, &format!("{}/brickie.toml", p.trim_end_matches('/')));
         docs.create_level(&new)?;
     }
@@ -65,7 +68,41 @@ pub fn move_brick(docs: &mut Docs, op: &Op) -> Result<()> {
         bail!("cannot move brick '{name}' into itself");
     }
     super::via::guard_child(docs, file, name, "moving it")?;
+    if let Some(g) = docs
+        .get(file)
+        .and_then(|d| aot(d, &["brick"]))
+        .and_then(|a| find_named(a, name).and_then(|i| a.get(i)))
+        .and_then(|t| t.get("group").and_then(Item::as_str))
+        .filter(|g| !g.is_empty())
+    {
+        bail!("{DESIGN_INVALID}: brick '{name}' is in group '{g}'; ungroup it first before moving");
+    }
     if let Some(parent) = into {
+        if docs
+            .get(into_file)
+            .and_then(|d| aot(d, &["group"]))
+            .is_some_and(|a| find_named(a, parent).is_some())
+        {
+            bail!(
+                "{DESIGN_INVALID}: '{parent}' is a group, not a composite; \
+                 use `brick set --group {parent}` instead"
+            );
+        }
+        let parent_grouped = docs
+            .get(into_file)
+            .and_then(|d| aot(d, &["brick"]))
+            .and_then(|a| find_named(a, parent).and_then(|i| a.get(i)))
+            .and_then(|t| t.get("group").and_then(Item::as_str))
+            .is_some_and(|g| !g.is_empty());
+        if parent_grouped
+            && into_file == file
+            && docs.get(file).is_some_and(|d| has_direct_refs(d, name))
+        {
+            bail!(
+                "{DESIGN_INVALID}: cannot move '{name}' into grouped composite '{parent}' while \
+                 '{name}' has direct rules, links, limits or exports"
+            );
+        }
         let t = brick_mut(docs.get_mut(into_file)?, parent)?;
         if !t.contains_key("path") {
             let p = path.clone().unwrap_or_else(|| parent.clone());

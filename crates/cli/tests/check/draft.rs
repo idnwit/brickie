@@ -9,7 +9,14 @@ use std::process::Command;
 fn add_ghost(config: &std::path::Path) {
     let o = Command::new(BIN)
         .args([
-            "design", "brick", "add", "ghost", "--kind", "group", "--base", "1",
+            "design",
+            "brick",
+            "add",
+            "ghost",
+            "--kind",
+            "composite",
+            "--base",
+            "1",
         ])
         .arg("--config")
         .arg(config)

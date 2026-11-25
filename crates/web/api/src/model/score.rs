@@ -53,6 +53,8 @@ pub struct BrickScore {
     /// Edges with a finding.
     pub viol_in: u32,
     pub viol_out: u32,
+    /// Intra-group violating edges (counted once per edge, never doubled as `viol_out` + `viol_in`).
+    pub viol_internal: u32,
 }
 
 impl BrickScore {
@@ -62,9 +64,14 @@ impl BrickScore {
     }
 }
 
+/// Complexity excess of a slice of hot functions: the sum of `max(0, ratio - 1)`.
+pub fn excess_of(hot: &[HotFn]) -> f64 {
+    hot.iter().map(|f| (f.ratio - 1.0).max(0.0)).sum()
+}
+
 /// Complexity excess of one brick: the sum of `ratio - 1` over its hot functions.
 fn excess(b: &BrickView) -> f64 {
-    b.hot.iter().map(|f| (f.ratio - 1.0).max(0.0)).sum()
+    excess_of(&b.hot)
 }
 
 /// Scores of all bricks: every finding counts, whatever layers are shown.
@@ -97,6 +104,14 @@ pub fn brick_scores(g: &GraphView, diags: &[DiagView]) -> Vec<BrickScore> {
         if viol {
             out[e.from].viol_out += 1;
             out[e.to].viol_in += 1;
+        }
+    }
+    // Intra-group violations are attached to the group node and counted once each.
+    for (i, b) in g.bricks.iter().enumerate() {
+        for ie in &b.internal_edges {
+            if ie.diags.iter().any(|id| diags.iter().any(|d| d.id == *id)) {
+                out[i].viol_internal += 1;
+            }
         }
     }
     out
@@ -212,5 +227,47 @@ mod tests {
         assert_eq!(heat_len(3.0), 1.0);
         assert_eq!(heat_len(0.5), 0.25);
         assert_eq!([0.5, 0.9, 1.2, 1.8].map(heat_level), [0, 1, 2, 3]);
+    }
+
+    #[test]
+    fn group_score_counts_internal_edge_once_without_doubling() {
+        let g = GraphView {
+            rows: vec!["domain".into()],
+            bricks: vec![BrickView {
+                name: "services".into(),
+                path: "root/services".into(),
+                is_group: true,
+                group_members: vec![
+                    crate::model::GroupMemberView {
+                        name: "auth".into(),
+                        path: "root/auth".into(),
+                        ..Default::default()
+                    },
+                    crate::model::GroupMemberView {
+                        name: "billing".into(),
+                        path: "root/billing".into(),
+                        ..Default::default()
+                    },
+                ],
+                internal_edges: vec![crate::model::InternalEdgeView {
+                    from_member: "auth".into(),
+                    to_member: "billing".into(),
+                    kind: "uses".into(),
+                    test: false,
+                    count: 2,
+                    diags: vec!["d_intra".into()],
+                }],
+                hot: vec![hot(1.5)],
+                worst_ratio: 1.5,
+                ..Default::default()
+            }],
+            edges: vec![],
+        };
+        let diags = vec![diag("d_intra", "deps/unlinked", &["auth", "billing"])];
+        let s = brick_scores(&g, &diags);
+        assert_eq!(s[0].errors, 1);
+        assert_eq!(s[0].viol_internal, 1);
+        assert_eq!((s[0].viol_in, s[0].viol_out), (0, 0));
+        assert!((s[0].score - 1.5).abs() < 1e-9);
     }
 }

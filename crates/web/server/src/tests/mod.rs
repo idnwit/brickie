@@ -7,6 +7,7 @@ mod docs;
 mod draft;
 mod editor;
 mod events;
+mod groups;
 mod independent;
 mod index;
 mod interface;

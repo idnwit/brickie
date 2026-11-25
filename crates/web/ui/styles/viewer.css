@@ -113,6 +113,13 @@ table.fns th a.on{color:var(--ink);font-weight:700}
 .node.comp .box{stroke:var(--ink)}
 /* A composite (has a level inside) gets a tinted fill; error fills still win. */
 .node.comp:not(.bd-red) .box{fill:var(--comp-fill)}.node .box2{fill:none;stroke:var(--ink);stroke-width:1;opacity:.45;pointer-events:none}
+.node.grp:not(.bd-red) .box{fill:color-mix(in srgb,var(--comp-fill) 65%,var(--bg));stroke-dasharray:6 3}
+.node.grp .grp-empty{fill:var(--muted);font:italic 12px ui-sans-serif,sans-serif;pointer-events:none}
+.node.grp .mcard{cursor:pointer}.node.grp .mcard .mbox{fill:var(--node);stroke:var(--line);stroke-width:1.2}
+.node.grp .mcard.comp .mbox{fill:var(--comp-fill);stroke:var(--ink)}
+.node.grp .mcard.bd-red .mbox{stroke:var(--e-err);stroke-width:1.6}
+.node.grp .mcard.sel .mbox{stroke:var(--sel);stroke-width:2.2}
+.node.grp .iedge{fill:none;stroke:var(--e-err);stroke-width:1.8;stroke-dasharray:4 2;pointer-events:stroke}
 .node.ghost{opacity:.5}.node.ghost .box{fill:var(--bg);stroke-dasharray:4 3}
 .node.independent .box{stroke-dasharray:2 2}
 .node:focus{outline:none}.node:focus-visible .box{stroke:var(--sel);stroke-width:2.5}

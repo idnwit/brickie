@@ -101,6 +101,8 @@ pub use link::LinkState;
 pub use load::{load, load_from, load_measure};
 pub use measure::MeasureCfg;
 pub use resolve::{Issue, Resolved, resolve};
-pub use schema::{Brick, ComplexityRule, Config, KINDS, Link, Rule, Scope, level_name};
+pub use schema::{
+    Brick, ComplexityRule, Config, Group, KINDS, Link, Rule, Scope, Unit, level_name,
+};
 pub use selector::Sel;
 pub use source::{Disk, FileSource};

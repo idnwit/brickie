@@ -34,6 +34,16 @@ fn pointer_move(cx: &Cx, x: f64, y: f64) -> bool {
     }
     let ed = cx.ed;
     if let Some((k, _, _)) = ed.carry.get_clone() {
+        if let Carry::Member { sx, sy, .. } = &k {
+            if (x - sx).abs() + (y - sy).abs() > 3.0 {
+                cx.moved.set(true);
+            }
+            ed.carry.set(Some((k, x, y)));
+            if cx.moved.get() {
+                ed.aim_label.set("drop outside group to ungroup".into());
+            }
+            return true;
+        }
         let what = carried(cx, &k);
         ed.carry.set(Some((k, x, y)));
         aim(cx, what, x, y);
@@ -153,10 +163,16 @@ fn drop_brick(cx: &Cx, b: usize, back: (f64, f64)) {
     }
     match target {
         Some(MoveTarget::Into(t)) => {
-            let into = &cx.m.g.bricks[t].name;
-            let place = format!("into {into}");
-            let lv = &cx.level().path;
-            move_brick(cx, lv, name, brick_path(lv, into), place);
+            let target_brick = &cx.m.g.bricks[t];
+            if target_brick.is_group {
+                let file = cx.level_file().unwrap_or_default();
+                op(cx, set_brick_group_op(&file, &name, &target_brick.name));
+            } else {
+                let into = &target_brick.name;
+                let place = format!("into {into}");
+                let lv = &cx.level().path;
+                move_brick(cx, lv, name, brick_path(lv, into), place);
+            }
         }
         Some(MoveTarget::Up(level)) => {
             let place = format!("up to {level}");
@@ -232,9 +248,43 @@ pub fn release(cx: &Cx, x: f64, y: f64, op: Option<Op>) {
             ed.carry.set(None);
             return drop_tile(cx, kind, x, y);
         }
+        Some((Carry::GroupTile, _, _)) => {
+            ed.carry.set(None);
+            let target = ed.target.get_clone();
+            clear(ed);
+            let tags = match target {
+                Some(MoveTarget::Lane(l)) => l.into_iter().collect(),
+                _ => Vec::new(),
+            };
+            if let Some((wx, wy)) = world(cx, x, y) {
+                ed.group_draft.set(Some((wx, wy, tags)));
+                platform::focus("inline-name");
+                platform::next_frame(|| platform::focus("inline-name"));
+            }
+            return;
+        }
         Some((Carry::Brick { level, name }, _, _)) => {
             ed.carry.set(None);
             return drop_lifted(cx, &level, name);
+        }
+        Some((Carry::Member { group, name, .. }, _, _)) => {
+            ed.carry.set(None);
+            clear(ed);
+            if !cx.moved.get() {
+                return;
+            }
+            let outside_group = world(cx, x, y).is_none_or(|(wx, wy)| {
+                cx.brick(&group).is_none_or(|gi| {
+                    let pos = positions(&cx.m.layout, &cx.drag.get_clone_untracked());
+                    let r = &pos[gi];
+                    wx < r.x || wx > r.x + r.w || wy < r.y || wy > r.y + r.h
+                })
+            });
+            if outside_group {
+                let file = cx.level_file().unwrap_or_default();
+                super::op(cx, set_brick_group_op(&file, &name, ""));
+            }
+            return;
         }
         None => {}
     }
