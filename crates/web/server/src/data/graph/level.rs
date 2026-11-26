@@ -4,6 +4,7 @@
 use super::agg::{Acc, Agg, Paths};
 use super::edges::{End, ModEdge, mod_edges};
 use super::heat::heat;
+use super::lines::line_counts;
 use super::project::projected_links;
 use brickie_check::check as rules;
 use brickie_check::check::Loaded;
@@ -20,6 +21,7 @@ pub struct Ctx<'a> {
     l: &'a Loaded,
     edges: Vec<ModEdge>,
     heat: BTreeMap<String, (f64, Vec<HotFn>)>,
+    lines: BTreeMap<String, (u32, u32)>,
     diags: BTreeMap<&'a str, &'a Diagnostic>,
     links: Vec<(String, LevelLink)>,
 }
@@ -31,6 +33,7 @@ impl<'a> Ctx<'a> {
             l,
             edges: mod_edges(l),
             heat: heat(l),
+            lines: line_counts(l),
             diags: l.diagnostics.iter().map(|d| (d.id.as_str(), d)).collect(),
             links,
         }
@@ -77,6 +80,7 @@ impl<'a> Ctx<'a> {
                 })
             })
             .collect();
+        let (code_lines, test_lines) = self.lines.get(&name).copied().unwrap_or_default();
         LevelView {
             path: name,
             file: cfg.file.clone(),
@@ -88,6 +92,9 @@ impl<'a> Ctx<'a> {
             },
             links,
             boundary_links,
+            has_readme: crate::data::has_readme(self.l, &cfg.path),
+            code_lines,
+            test_lines,
         }
     }
 
@@ -123,6 +130,7 @@ impl<'a> Ctx<'a> {
             let tag = (g.tags.first().cloned()).unwrap_or_else(|| "(untagged)".into());
             let row = row_of_from(rows, &tag, start);
             let (worst_ratio, hot) = self.heat.get(&key).cloned().unwrap_or_default();
+            let (code_lines, test_lines) = self.lines.get(&key).copied().unwrap_or_default();
             let group_members: Vec<GroupMemberView> = cfg
                 .group_members(&g.name)
                 .map(|mb| self.group_member(cfg, mb, &key, &g.name))
@@ -153,6 +161,8 @@ impl<'a> Ctx<'a> {
                 is_group: true,
                 group_members,
                 internal_edges,
+                code_lines,
+                test_lines,
                 ..Default::default()
             });
         }
@@ -182,6 +192,7 @@ impl<'a> Ctx<'a> {
                         && bricks_hit(&d.bricks, lv, group_key, group_name))
             })
             .count();
+        let (code_lines, test_lines) = self.lines.get(&mkey).copied().unwrap_or_default();
         GroupMemberView {
             name: mb.name.clone(),
             path: mkey,
@@ -189,6 +200,9 @@ impl<'a> Ctx<'a> {
             score: errors as f64 + excess,
             worst_ratio,
             errors,
+            has_readme: crate::data::has_readme(self.l, &mpath),
+            code_lines,
+            test_lines,
         }
     }
 
@@ -256,6 +270,7 @@ impl<'a> Ctx<'a> {
     fn node(&self, path: &[String], name: String) -> BrickView {
         let key = level_name(path);
         let (worst_ratio, hot) = self.heat.get(&key).cloned().unwrap_or_default();
+        let (code_lines, test_lines) = self.lines.get(&key).copied().unwrap_or_default();
         let sub = self.l.cfg.node(path);
         let brick = self.l.cfg.brick_at(path);
         let group = path
@@ -276,6 +291,9 @@ impl<'a> Ctx<'a> {
                 .unwrap_or_default(),
             exports: sub.map(|s| s.exports.clone()).unwrap_or_default(),
             file: sub.map(|s| s.file.clone()),
+            has_readme: crate::data::has_readme(self.l, path),
+            code_lines,
+            test_lines,
             ..Default::default()
         }
     }

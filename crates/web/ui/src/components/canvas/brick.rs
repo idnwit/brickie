@@ -6,7 +6,7 @@ use super::group::{group_contents, internal_viol_badge};
 use super::style::{Badge, Heat, NodeFlags, fit_name};
 use crate::layout::Rect;
 use crate::state::*;
-use brickie_web_api::{BrickScore, BrickView, INDEPENDENT_TIP, fmt_score};
+use brickie_web_api::{BrickScore, BrickView, INDEPENDENT_TIP, fmt_lines_detail, fmt_score};
 use sycamore::prelude::*;
 
 /// One brick: box, name, heat bar, tag line and the score badge (`renderGraph` node part).
@@ -42,7 +42,7 @@ pub fn node_view(cx: &Cx, b: usize, pos: ReadSignal<Vec<Rect>>) -> View {
     let heat = heat_view(brick.worst_ratio, r0.w);
     let (w, h) = (r0.w.to_string(), r0.h.to_string());
     let name = name_view(&brick, r0.w);
-    let tag = tag_line(&brick);
+    let tag = brick.sub_line();
     let (c1, c2) = (cx.clone(), cx.clone());
     let down = move |e: Click| press(&c1, b, &e);
     let target = zoom_target(&brick);
@@ -122,18 +122,7 @@ fn book_icon() -> View {
     }
 }
 
-/// The sub line: tag and child/member count of a composite or peer group.
-fn tag_line(b: &BrickView) -> String {
-    let mut tag = b.tag.clone();
-    if b.is_group && !b.ghost {
-        tag = format!("{tag} \u{00B7} {} bricks", b.group_members.len());
-    } else if b.composite() {
-        tag = format!("{tag} \u{00B7} {} bricks", b.children.len());
-    }
-    tag
-}
-
-/// The hover text: name, tag, description, score and the peek.
+/// The hover text: name, tag, description, score, line counts and the peek.
 fn brick_tip(b: &BrickView, s: &BrickScore) -> String {
     let desc = b.desc.as_ref().map_or(String::new(), |d| format!("\n{d}"));
     let indep = if b.independent {
@@ -141,8 +130,13 @@ fn brick_tip(b: &BrickView, s: &BrickScore) -> String {
     } else {
         String::new()
     };
+    let lines = if b.code_lines + b.test_lines > 0 {
+        format!("\n{}", fmt_lines_detail(b.code_lines, b.test_lines))
+    } else {
+        String::new()
+    };
     format!(
-        "{} [{}]{desc}{indep}\nscore {} ({} finding(s), complexity excess {}){}",
+        "{} [{}]{desc}{indep}\nscore {} ({} finding(s), complexity excess {}){lines}{}",
         b.name,
         b.tag,
         fmt_score(s.score),

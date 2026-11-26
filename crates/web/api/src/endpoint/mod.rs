@@ -84,3 +84,5 @@ pub const CODE_PATH: &str = "/code/";
 /// `GET /docs/<brick path>`: a brick's documentation page (HTML, no JavaScript); `/docs/` is
 /// the root (the top bricks).
 pub const DOCS_PATH: &str = "/docs/";
+/// `GET /readme/<brick path>`: a brick's rendered `README.md` page (HTML); `/readme/` is the root.
+pub const README_PATH: &str = "/readme/";

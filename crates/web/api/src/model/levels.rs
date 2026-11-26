@@ -22,6 +22,15 @@ pub struct LevelView {
     /// Enclosing-level `[[link]]`s crossing this composite's boundary (projected from ancestors).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub boundary_links: Vec<crate::BoundaryLink>,
+    /// True when a `README.md` file sits alongside this level's `brickie.toml`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub has_readme: bool,
+    /// Total production source lines under this level.
+    #[serde(default)]
+    pub code_lines: u32,
+    /// Total test source lines under this level.
+    #[serde(default)]
+    pub test_lines: u32,
 }
 
 impl LevelView {

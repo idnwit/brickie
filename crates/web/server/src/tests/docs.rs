@@ -48,3 +48,29 @@ async fn docs_root_lists_bricks_and_unknown_brick_is_404() {
     assert_eq!(st, StatusCode::NOT_FOUND);
     assert!(body.contains("no brick"));
 }
+
+#[tokio::test]
+async fn docs_embed_omits_sidebar_and_readme_renders_markdown_and_mermaid() {
+    let s = Site::new();
+    let (st, body) = s.get("/docs/engine?embed=1").await;
+    assert_eq!(st, StatusCode::OK, "{body}");
+    assert!(body.contains("<body class=\"embed\">"), "{body}");
+    assert!(!body.contains("<nav class=\"side\">"), "{body}");
+
+    // Without a README.md, /readme/ returns 404.
+    let (st, _) = s.get("/readme/").await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+
+    // Add a README.md beside the root brickie.toml with a code block and a mermaid block.
+    std::fs::write(
+        s.dir.path().join("README.md"),
+        "# Workspace\n\n```rust\nlet x = 1;\n```\n\n```mermaid\ngraph LR\n  A --> B\n```\n",
+    )
+    .unwrap();
+    let (st, body) = s.get("/readme/").await;
+    assert_eq!(st, StatusCode::OK, "{body}");
+    assert!(body.contains("<h1>Workspace</h1>"), "{body}");
+    assert!(body.contains("h-k\">let</span>"), "{body}");
+    assert!(body.contains("<div class=\"mermaid\">"), "{body}");
+    assert!(body.contains("mermaid.initialize"), "{body}");
+}

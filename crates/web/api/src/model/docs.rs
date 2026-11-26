@@ -67,13 +67,22 @@ pub struct DocsExample {
 
 /// The docs page of the brick `node` (its level path, for example `root/web/server`).
 pub fn docs_href(node: &str) -> String {
+    brick_page_href(crate::DOCS_PATH, node)
+}
+
+/// The rendered `README.md` page of the brick `node` (its level path, for example `root/web`).
+pub fn readme_href(node: &str) -> String {
+    brick_page_href(crate::README_PATH, node)
+}
+
+fn brick_page_href(base: &str, node: &str) -> String {
     let rest = node.strip_prefix("root").unwrap_or(node).trim_matches('/');
     let rest: Vec<String> = rest
         .split('/')
         .filter(|s| !s.is_empty())
         .map(encode)
         .collect();
-    format!("{}{}", crate::DOCS_PATH, rest.join("/"))
+    format!("{base}{}", rest.join("/"))
 }
 
 #[cfg(test)]
@@ -82,5 +91,7 @@ mod tests {
     fn hrefs() {
         assert_eq!(super::docs_href("root"), "/docs/");
         assert_eq!(super::docs_href("root/core/model"), "/docs/core/model");
+        assert_eq!(super::readme_href("root"), "/readme/");
+        assert_eq!(super::readme_href("root/core/model"), "/readme/core/model");
     }
 }

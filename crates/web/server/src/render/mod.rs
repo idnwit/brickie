@@ -30,7 +30,7 @@
 
 mod docs;
 
-pub use docs::docs_html;
+pub use docs::{docs_html, readme_html};
 
 use brickie_web_api::{PageData, Params};
 

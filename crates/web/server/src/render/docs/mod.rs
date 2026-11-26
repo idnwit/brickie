@@ -9,7 +9,7 @@ mod text;
 use brickie_web_api::{DocsNode, DocsPage, PAGE_PATH, code_brick_href, docs_href};
 use item::{grouped, item_html};
 use std::fmt::Write;
-use text::{esc, markdown};
+use text::{esc, markdown, mermaid_script};
 
 const CSS: &str = include_str!("docs.css");
 
@@ -89,8 +89,8 @@ fn children(o: &mut String, kids: &[DocsNode]) {
     o.push_str("</table>");
 }
 
-/// The whole docs page.
-pub fn docs_html(p: &DocsPage) -> String {
+/// The whole docs page (`embed = true` hides the sidebar for in-panel iframe embedding).
+pub fn docs_html(p: &DocsPage, embed: bool) -> String {
     let sections = grouped(&p.items);
     let mut o = String::new();
     let title = if p.brick == "root" {
@@ -98,16 +98,19 @@ pub fn docs_html(p: &DocsPage) -> String {
     } else {
         short(&p.brick)
     };
+    let cls = if embed { " class=\"embed\"" } else { "" };
     let _ = write!(
         o,
-        "{head}<title>{t} - brickie docs</title><style>{CSS}</style></head><body>",
+        "{head}<title>{t} - brickie docs</title><style>{CSS}</style></head><body{cls}>",
         head = super::SHELL_HEAD,
         t = esc(title)
     );
-    sidebar(&mut o, p, &sections);
+    if !embed {
+        sidebar(&mut o, p, &sections);
+    }
     o.push_str("<main>");
     let _ = write!(o, "<h1>Brick <span class=\"path\">{}</span>", esc(&p.brick));
-    if p.brick != "root" {
+    if p.brick != "root" && !embed {
         let _ = write!(
             o,
             "<a class=\"src\" href=\"{}\">code</a>",
@@ -132,6 +135,25 @@ pub fn docs_html(p: &DocsPage) -> String {
             item_html(&mut o, it, &p.items, false);
         }
     }
-    o.push_str("</main></body></html>");
+    let script = mermaid_script(&o);
+    let _ = write!(o, "</main>{script}</body></html>");
     o
+}
+
+/// A brick's rendered `README.md` page, reusing the docs markdown renderer and stylesheet.
+pub fn readme_html(brick: &str, md: &str, embed: bool) -> String {
+    let body = markdown(md);
+    let script = mermaid_script(&body);
+    let title = if brick == "root" {
+        "README.md"
+    } else {
+        short(brick)
+    };
+    let cls = if embed { "readme embed" } else { "readme" };
+    format!(
+        "{head}<title>{t} - README.md</title><style>{CSS}</style></head>\
+         <body class=\"{cls}\"><main><div class=\"doc\">{body}</div></main>{script}</body></html>",
+        head = super::SHELL_HEAD,
+        t = esc(title),
+    )
 }

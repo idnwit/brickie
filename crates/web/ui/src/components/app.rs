@@ -99,14 +99,14 @@ pub(super) fn app(data: PageData, initial: Params) -> View {
     }
     let lvl = {
         let sh = sh.clone();
-        create_selector(move || sh.params.with(|p| sh.level_of(p)))
+        create_selector(move || sh.params.with(|p| (sh.level_of(p), p.to_frame())))
     };
     // Depth of the previous level: zooming in or out picks the transition.
     let prev: Rc<Cell<Option<usize>>> = Rc::new(Cell::new(None));
     let body = {
         let (sh, cur) = (sh.clone(), cur.clone());
         move || {
-            let lv = lvl.get();
+            let (lv, _) = lvl.get();
             // An editor patch re-renders the level in place (pan/zoom kept).
             sh.live.rev.track();
             untrack(|| {

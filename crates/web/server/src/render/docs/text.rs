@@ -55,35 +55,68 @@ fn unhide(code: &str) -> String {
     o
 }
 
-/// A doc comment rendered as HTML. Raw HTML in the comment is shown as text, so a doc comment
-/// cannot inject markup into the page. Fences follow rustdoc: no language or only rustdoc
-/// attributes means Rust (highlighted, hidden lines dropped), any other language stays plain.
+/// Whether a fence info string marks a Mermaid diagram block.
+fn is_mermaid(info: &str) -> bool {
+    info.split(|c: char| c == ',' || c.is_whitespace())
+        .next()
+        .is_some_and(|t| t.eq_ignore_ascii_case("mermaid"))
+}
+
+enum Fence {
+    Rust,
+    Mermaid,
+    Plain,
+}
+
+/// Progressive-enhancement Mermaid loader, emitted only when the rendered HTML contains a
+/// `.mermaid` diagram block.
+pub fn mermaid_script(html: &str) -> &'static str {
+    if !html.contains("class=\"mermaid\"") {
+        return "";
+    }
+    "<script type=\"module\">import mermaid from \
+     \"https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs\";\
+     mermaid.initialize({startOnLoad:true,theme:matchMedia(\"(prefers-color-scheme:dark)\").matches?\"dark\":\"default\"});\
+     </script>"
+}
+
+/// A doc comment or README rendered as HTML. Raw HTML is shown as text, so markdown cannot inject
+/// markup into the page. Fences follow rustdoc: no language or only rustdoc attributes means Rust
+/// (highlighted, hidden lines dropped), `mermaid` renders as a `.mermaid` diagram block, and any
+/// other language stays plain.
 pub fn markdown(doc: &str) -> String {
     let opts = Options::ENABLE_TABLES | Options::ENABLE_STRIKETHROUGH;
     let mut events: Vec<Event> = Vec::new();
-    let mut block: Option<(bool, String)> = None;
+    let mut block: Option<(Fence, String)> = None;
     for e in Parser::new_ext(doc, opts) {
         match e {
             Event::Start(Tag::CodeBlock(kind)) => {
-                let rust = match &kind {
-                    CodeBlockKind::Fenced(info) => is_rust(info),
-                    CodeBlockKind::Indented => true,
+                let fence = match &kind {
+                    CodeBlockKind::Fenced(info) if is_mermaid(info) => Fence::Mermaid,
+                    CodeBlockKind::Fenced(info) if is_rust(info) => Fence::Rust,
+                    CodeBlockKind::Indented => Fence::Rust,
+                    CodeBlockKind::Fenced(_) => Fence::Plain,
                 };
-                block = Some((rust, String::new()));
-                if !rust {
+                if matches!(fence, Fence::Plain) {
                     events.push(Event::Start(Tag::CodeBlock(kind)));
                 }
+                block = Some((fence, String::new()));
             }
             Event::End(TagEnd::CodeBlock) => match block.take() {
-                Some((true, code)) => {
+                Some((Fence::Rust, code)) => {
                     let h = super::highlight::rust(&unhide(&code));
                     events.push(Event::Html(
                         format!("<pre class=\"rust\"><code>{h}</code></pre>\n").into(),
                     ));
                 }
+                Some((Fence::Mermaid, code)) => {
+                    events.push(Event::Html(
+                        format!("<div class=\"mermaid\">{}</div>\n", esc(&code)).into(),
+                    ));
+                }
                 _ => events.push(e),
             },
-            Event::Text(t) if matches!(block, Some((true, _))) => {
+            Event::Text(t) if matches!(block, Some((Fence::Rust | Fence::Mermaid, _))) => {
                 if let Some((_, code)) = &mut block {
                     code.push_str(&t);
                 }
@@ -119,5 +152,15 @@ mod tests {
             "{h}"
         );
         assert!(h.contains("h-k\">fn</span>"), "{h}");
+    }
+
+    #[test]
+    fn mermaid_fences_render_as_diagram_blocks_and_escape_html() {
+        let doc = "```mermaid\ngraph TD\n  A --> B[\"x < y\"]\n```";
+        let h = super::markdown(doc);
+        assert!(h.contains("<div class=\"mermaid\">"), "{h}");
+        assert!(h.contains("A --&gt; B[&quot;x &lt; y&quot;]"), "{h}");
+        assert!(!super::mermaid_script(&h).is_empty());
+        assert!(super::mermaid_script("<p>plain</p>").is_empty());
     }
 }
