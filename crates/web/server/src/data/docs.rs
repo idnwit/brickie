@@ -174,7 +174,7 @@ pub fn readme_path(l: &Loaded, path: &[String]) -> Option<PathBuf> {
 }
 
 /// Whether `path` has a `README.md` file on disk.
-pub fn has_readme(l: &Loaded, path: &[String]) -> bool {
+pub(super) fn has_readme(l: &Loaded, path: &[String]) -> bool {
     readme_path(l, path).is_some()
 }
 
