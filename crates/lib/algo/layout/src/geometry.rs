@@ -183,74 +183,6 @@ pub fn bz_port(n: &Rect, sd: Side, off: f64) -> Pt {
     }
 }
 
-/// Orthogonal rounded-corner route between two box ports (`lane_frac` in `0.2..0.8` places the
-/// middle bend track inside the gap). Optional `p_row_bot` / `q_row_bot` anchor bottom-side bends
-/// below the enclosing row band so horizontal tracks clear taller siblings in the same row.
-pub fn ortho_direct(
-    p: Pt,
-    sp: Side,
-    q: Pt,
-    sq: Side,
-    lane_frac: f64,
-    p_row_bot: Option<f64>,
-    q_row_bot: Option<f64>,
-) -> Route {
-    let frac = lane_frac.clamp(0.22, 0.78);
-    let py_chan = if sp == Side::B {
-        p_row_bot.map_or(p.y, |b| b.max(p.y))
-    } else {
-        p.y
-    };
-    let qy_chan = if sq == Side::B {
-        q_row_bot.map_or(q.y, |b| b.max(q.y))
-    } else {
-        q.y
-    };
-    let pts: Vec<Pt> = match (sp, sq) {
-        (Side::B, Side::T) | (Side::T, Side::B) => {
-            if (p.x - q.x).abs() < 1.0 {
-                vec![p, q]
-            } else {
-                let (y0, y1) = if (qy_chan - py_chan) * (q.y - p.y) > 0.0 {
-                    (py_chan, qy_chan)
-                } else {
-                    (p.y, q.y)
-                };
-                let (top_y, bot_y) = if y0 <= y1 { (y0, y1) } else { (y1, y0) };
-                let my = top_y + (bot_y - top_y) * frac;
-                vec![p, Pt { x: p.x, y: my }, Pt { x: q.x, y: my }, q]
-            }
-        }
-        (Side::B, Side::B) => {
-            let my = py_chan.max(qy_chan) + 22.0;
-            vec![p, Pt { x: p.x, y: my }, Pt { x: q.x, y: my }, q]
-        }
-        (Side::T, Side::T) => {
-            let my = p.y.min(q.y) - 22.0;
-            vec![p, Pt { x: p.x, y: my }, Pt { x: q.x, y: my }, q]
-        }
-        (Side::R, Side::L) | (Side::L, Side::R) => {
-            if (p.y - q.y).abs() < 1.0 {
-                vec![p, q]
-            } else {
-                let mx = p.x + (q.x - p.x) * frac;
-                vec![p, Pt { x: mx, y: p.y }, Pt { x: mx, y: q.y }, q]
-            }
-        }
-        (Side::R, Side::R) => {
-            let mx = p.x.max(q.x) + 22.0;
-            vec![p, Pt { x: mx, y: p.y }, Pt { x: mx, y: q.y }, q]
-        }
-        (Side::L, Side::L) => {
-            let mx = p.x.min(q.x) - 22.0;
-            vec![p, Pt { x: mx, y: p.y }, Pt { x: mx, y: q.y }, q]
-        }
-        (Side::T | Side::B, Side::L | Side::R) => vec![p, Pt { x: p.x, y: q.y }, q],
-        (Side::L | Side::R, Side::T | Side::B) => vec![p, Pt { x: q.x, y: p.y }, q],
-    };
-    Route::orthogonal(&pts, CORNER_R)
-}
-
 /// `bzSample`.
 pub fn bz_sample(c: &[Pt; 4], step: f64) -> Vec<Pt> {
     let len = (c[3].x - c[0].x).hypot(c[3].y - c[0].y)
@@ -268,57 +200,6 @@ pub fn bz_sample(c: &[Pt; 4], step: f64) -> Vec<Pt> {
             }
         })
         .collect()
-}
-
-/// `polyLen`.
-pub fn poly_len(p: &[Pt]) -> f64 {
-    p.windows(2)
-        .map(|w| (w[1].x - w[0].x).hypot(w[1].y - w[0].y))
-        .sum()
-}
-
-/// `polyCross`: proper intersections between two polylines; touching runs count once.
-pub fn poly_cross(a: &[Pt], b: &[Pt]) -> usize {
-    let (mut c, mut last) = (0usize, -9i64);
-    for i in 0..a.len().saturating_sub(1) {
-        let (p, q) = (a[i], a[i + 1]);
-        let mut hit = false;
-        for j in 0..b.len().saturating_sub(1) {
-            let (r, s) = (b[j], b[j + 1]);
-            let (d1x, d1y, d2x, d2y) = (q.x - p.x, q.y - p.y, s.x - r.x, s.y - r.y);
-            let den = d1x * d2y - d1y * d2x;
-            if den.abs() < 1e-9 {
-                continue;
-            }
-            let t = ((r.x - p.x) * d2y - (r.y - p.y) * d2x) / den;
-            let u = ((r.x - p.x) * d1y - (r.y - p.y) * d1x) / den;
-            if (0.0..1.0).contains(&t) && (0.0..1.0).contains(&u) {
-                hit = true;
-                break;
-            }
-        }
-        if hit {
-            if i as i64 - last > 2 {
-                c += 1;
-            }
-            last = i as i64;
-        }
-    }
-    c
-}
-
-/// `polyNear`: length of `a` running closer than `dmin` to `b`'s points.
-pub fn poly_near(a: &[Pt], b: &[Pt], dmin: f64) -> f64 {
-    let d2 = dmin * dmin;
-    let mut l = 0.0;
-    for q in a {
-        if b.iter()
-            .any(|r| (r.x - q.x).powi(2) + (r.y - q.y).powi(2) < d2)
-        {
-            l += 14.0;
-        }
-    }
-    l
 }
 
 /// Bounding box `[x0, x1, y0, y1]` of a polyline.

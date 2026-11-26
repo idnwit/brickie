@@ -2,7 +2,6 @@
 //! edges, edge-through-box hits and direction changes. Used by the tests.
 
 use super::geometry::{bb_apart, bbox};
-use super::path::route_path;
 use super::*;
 
 /// One edge's sampled path for [`measure_items`] (`mkItem`).
@@ -130,7 +129,7 @@ pub fn score_layout(l: &Layout, which: &[usize]) -> Metrics {
     let items: Vec<Item> = which
         .iter()
         .filter_map(|&e| {
-            let r = route_path(l, e, &l.pos)?;
+            let r = l.path(e, &l.pos)?;
             let (a, b) = l.edges[e];
             Some(mk_item(a, b, r.sample(6.0)))
         })

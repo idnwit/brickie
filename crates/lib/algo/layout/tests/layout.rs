@@ -2,9 +2,7 @@
 
 mod common;
 
-use brickie_layout::{
-    H, InBrick, InEdge, Input, Kind, Layout, Pt, Rect, Route, layout, score_layout,
-};
+use brickie_layout::{H, InBrick, InEdge, Input, Layout, Pt, Rect, Route, layout, score_layout};
 use common::fixture;
 
 #[test]
@@ -83,6 +81,55 @@ fn dragged_positions_reroute_without_panic() {
     p[3].y += 15.0;
     for e in 0..inp.edges.len() {
         assert!(l.path(e, &p).is_some());
+    }
+    // Full rerouted_at applies obstacle-avoiding corridor routing to moved boxes.
+    let routes = l.rerouted_at(&p);
+    assert_eq!(routes.len(), inp.edges.len());
+    assert!(routes.iter().all(Option::is_some));
+}
+
+#[test]
+fn rerouted_at_avoids_brick_dragged_into_edge_path() {
+    let inp = Input {
+        rows: vec!["top".into(), "mid".into(), "bot".into()],
+        bricks: vec![
+            InBrick {
+                id: "a".into(),
+                row: 0,
+                min_w: None,
+                min_h: None,
+            },
+            InBrick {
+                id: "blocker".into(),
+                row: 1,
+                min_w: None,
+                min_h: None,
+            },
+            InBrick {
+                id: "b".into(),
+                row: 2,
+                min_w: None,
+                min_h: None,
+            },
+        ],
+        edges: vec![InEdge {
+            id: "a|b".into(),
+            a: 0,
+            b: 2,
+        }],
+    };
+    let l = layout(&inp);
+    let mut moved = l.pos.clone();
+    // Drag `blocker` directly between `a` and `b`.
+    moved[1].x = moved[0].x;
+    moved[1].y = (moved[0].y + moved[2].y) * 0.5;
+    let routes = l.rerouted_at(&moved);
+    let r = routes[0].as_ref().expect("routed");
+    for q in r.sample(4.0) {
+        assert!(
+            !moved[1].contains(&q, -1.0),
+            "rerouted edge crossed dragged blocker at {q:?}"
+        );
     }
 }
 
@@ -307,12 +354,86 @@ fn bottom_arc_clears_taller_sibling_in_same_row() {
         ],
     };
     let l = layout(&inp);
-    assert!(
-        l.kinds
-            .iter()
-            .any(|k| matches!(k, Some(Kind::Arc { top: false, .. }))),
-        "expected at least one bottom arc, got {:?}",
-        l.kinds
-    );
+    assert!(l.routes.iter().all(Option::is_some));
     assert_no_box_intersections(&inp, &l);
+}
+
+#[test]
+fn straight_vertical_overlap_has_zero_bends() {
+    let inp = Input {
+        rows: vec!["top".into(), "bot".into()],
+        bricks: vec![brick("repo_a", 0), brick("repo_b", 0), brick("store", 1)],
+        edges: vec![
+            InEdge {
+                id: "repo_a|store".into(),
+                a: 0,
+                b: 2,
+            },
+            InEdge {
+                id: "repo_b|store".into(),
+                a: 1,
+                b: 2,
+            },
+        ],
+    };
+    let l = layout(&inp);
+    assert_no_box_intersections(&inp, &l);
+    // At least one brick overlapping `store` in X must connect via a 0-bend straight vertical segment.
+    let straight_count = l
+        .routes
+        .iter()
+        .flatten()
+        .filter(|r| r.segs.len() == 1 && (r.segs[0][0].x - r.segs[0][3].x).abs() <= 0.5)
+        .count();
+    assert!(
+        straight_count >= 1,
+        "expected >=1 straight 0-bend vertical edge, got routes: {:?}",
+        l.routes.iter().flatten().map(Route::d).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn diagonal_downward_edge_uses_one_bend_l_without_under_hook() {
+    let inp = Input {
+        rows: vec!["top".into(), "bot".into()],
+        bricks: vec![
+            brick("left", 0),
+            brick("mid", 0),
+            brick("right", 0),
+            brick("target", 1),
+        ],
+        edges: vec![
+            InEdge {
+                id: "left|target".into(),
+                a: 0,
+                b: 3,
+            },
+            InEdge {
+                id: "mid|target".into(),
+                a: 1,
+                b: 3,
+            },
+            InEdge {
+                id: "right|target".into(),
+                a: 2,
+                b: 3,
+            },
+        ],
+    };
+    let l = layout(&inp);
+    assert_no_box_intersections(&inp, &l);
+    let target_bot = l.pos[3].y + l.pos[3].h;
+    for (i, r) in l.routes.iter().enumerate() {
+        let r = r.as_ref().expect("routed");
+        let max_y = r
+            .segs
+            .iter()
+            .flat_map(|s| [s[0].y, s[1].y, s[2].y, s[3].y])
+            .fold(f64::NEG_INFINITY, f64::max);
+        assert!(
+            max_y <= target_bot + 1.0,
+            "edge {i} hooked below target bottom ({max_y} > {target_bot}): {}",
+            r.d()
+        );
+    }
 }
