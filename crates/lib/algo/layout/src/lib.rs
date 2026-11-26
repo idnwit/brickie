@@ -78,7 +78,6 @@ const GAPY: f64 = 96.0;
 pub const GAPY_FREE: f64 = 42.0;
 const PADL: f64 = 40.0;
 const PADR: f64 = 20.0;
-pub const REFK: usize = 12;
 /// Port pitch and inset used when sizing bricks for incident edges.
 const PORT: f64 = 12.0;
 const PAD: f64 = 10.0;
@@ -129,7 +128,6 @@ pub enum Side {
 }
 
 impl Side {
-    pub const ALL: [Side; 4] = [Side::T, Side::B, Side::L, Side::R];
     fn horizontal(self) -> bool {
         matches!(self, Side::L | Side::R)
     }

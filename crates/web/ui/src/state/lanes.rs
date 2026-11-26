@@ -134,8 +134,40 @@ fn brick_min_w(b: &brickie_web_api::BrickView) -> f64 {
 pub fn lane_order(g: &GraphView, ends: &[(usize, usize)]) -> Vec<usize> {
     let n = g.rows.len();
     let all: Vec<usize> = (0..n).collect();
-    if n <= 1 {
+    let (lo, hi) = inner_range(g, &all);
+    if hi <= lo + 1 {
         return all;
+    }
+    let inner = &all[lo..hi];
+    let (dag, indeg, net_out) = net_lane_dag(g, ends, inner);
+    let mut topo = topo_order_lanes(g, inner, &dag, indeg, &net_out);
+    let ctx = SpanCtx {
+        g,
+        ends,
+        all: &all,
+        lo,
+        hi,
+    };
+    sift_lanes(&ctx, &dag, &mut topo);
+    let mut out = Vec::with_capacity(n);
+    out.extend_from_slice(&all[..lo]);
+    out.extend(topo.into_iter().map(|li| inner[li]));
+    out.extend_from_slice(&all[hi..]);
+    out
+}
+
+struct SpanCtx<'a> {
+    g: &'a GraphView,
+    ends: &'a [(usize, usize)],
+    all: &'a [usize],
+    lo: usize,
+    hi: usize,
+}
+
+fn inner_range(g: &GraphView, all: &[usize]) -> (usize, usize) {
+    let n = all.len();
+    if n <= 1 {
+        return (0, n);
     }
     let is_ghost_row = |r: usize| {
         g.bricks.iter().any(|b| b.row == r && b.ghost)
@@ -150,12 +182,16 @@ pub fn lane_order(g: &GraphView, ends: &[(usize, usize)]) -> Vec<usize> {
         .rev()
         .take_while(|&&r| is_ghost_row(r) && g.rows[r] == OUTBOUND)
         .count();
-    if hi <= lo + 1 {
-        return all;
-    }
-    let inner: Vec<usize> = all[lo..hi].to_vec();
+    (lo, hi)
+}
+
+fn net_lane_dag(
+    g: &GraphView,
+    ends: &[(usize, usize)],
+    inner: &[usize],
+) -> (Vec<Vec<bool>>, Vec<usize>, Vec<isize>) {
     let k = inner.len();
-    let mut pos_in = vec![None; n];
+    let mut pos_in = vec![None; g.rows.len()];
     for (i, &r) in inner.iter().enumerate() {
         pos_in[r] = Some(i);
     }
@@ -170,10 +206,7 @@ pub fn lane_order(g: &GraphView, ends: &[(usize, usize)]) -> Vec<usize> {
             w[ia][ib] += 1;
         }
     }
-    // Net directed edges between inner lanes (dominant direction wins on bidirectional pairs).
-    let mut dag = vec![vec![false; k]; k];
-    let mut indeg = vec![0usize; k];
-    let mut net_out = vec![0isize; k];
+    let (mut dag, mut indeg, mut net_out) = (vec![vec![false; k]; k], vec![0; k], vec![0isize; k]);
     for i in 0..k {
         for j in 0..k {
             if w[i][j] > w[j][i] {
@@ -185,9 +218,19 @@ pub fn lane_order(g: &GraphView, ends: &[(usize, usize)]) -> Vec<usize> {
             }
         }
     }
-    // Deterministic topological order (Kahn; break cycles by highest net_out, ties by config order).
+    (dag, indeg, net_out)
+}
+
+fn topo_order_lanes(
+    g: &GraphView,
+    inner: &[usize],
+    dag: &[Vec<bool>],
+    mut indeg: Vec<usize>,
+    net_out: &[isize],
+) -> Vec<usize> {
+    let k = inner.len();
     let mut used = vec![false; k];
-    let mut topo: Vec<usize> = Vec::with_capacity(k);
+    let mut topo = Vec::with_capacity(k);
     for _ in 0..k {
         let next = (0..k)
             .filter(|&i| !used[i] && indeg[i] == 0)
@@ -206,61 +249,37 @@ pub fn lane_order(g: &GraphView, ends: &[(usize, usize)]) -> Vec<usize> {
             }
         }
     }
-    // Refine by sliding each lane within its legal topological window to minimise total edge span.
-    let span_of = |ord: &[usize]| -> usize {
-        let mut at = vec![0usize; n];
-        for (i, &r) in all[..lo].iter().enumerate() {
-            at[r] = i;
-        }
-        for (i, &li) in ord.iter().enumerate() {
-            at[inner[li]] = lo + i;
-        }
-        for (i, &r) in all[hi..].iter().enumerate() {
-            at[r] = lo + ord.len() + i;
-        }
-        ends.iter()
-            .filter_map(|&(a, b)| {
-                let ra = g.bricks.get(a)?.row;
-                let rb = g.bricks.get(b)?.row;
-                Some(at[ra].abs_diff(at[rb]))
-            })
-            .sum()
-    };
-    for _pass in 0..4 {
+    topo
+}
+
+fn lane_span(ctx: &SpanCtx<'_>, ord: &[usize]) -> usize {
+    let inner = &ctx.all[ctx.lo..ctx.hi];
+    let mut at = vec![0usize; ctx.all.len()];
+    for (i, &r) in ctx.all[..ctx.lo].iter().enumerate() {
+        at[r] = i;
+    }
+    for (i, &li) in ord.iter().enumerate() {
+        at[inner[li]] = ctx.lo + i;
+    }
+    for (i, &r) in ctx.all[ctx.hi..].iter().enumerate() {
+        at[r] = ctx.lo + ord.len() + i;
+    }
+    ctx.ends
+        .iter()
+        .filter_map(|&(a, b)| {
+            let ra = ctx.g.bricks.get(a)?.row;
+            let rb = ctx.g.bricks.get(b)?.row;
+            Some(at[ra].abs_diff(at[rb]))
+        })
+        .sum()
+}
+
+fn sift_lanes(ctx: &SpanCtx<'_>, dag: &[Vec<bool>], topo: &mut Vec<usize>) {
+    let k = ctx.hi - ctx.lo;
+    for _ in 0..4 {
         let mut improved = false;
         for li in 0..k {
-            let cur_pos = topo.iter().position(|&x| x == li).unwrap();
-            let mut base = topo.clone();
-            base.remove(cur_pos);
-            let min_pos = base
-                .iter()
-                .enumerate()
-                .filter(|&(_, &x)| dag[x][li])
-                .map(|(p, _)| p + 1)
-                .max()
-                .unwrap_or(0);
-            let max_pos = base
-                .iter()
-                .enumerate()
-                .filter(|&(_, &x)| dag[li][x])
-                .map(|(p, _)| p)
-                .min()
-                .unwrap_or(base.len());
-            let mut best_pos = cur_pos;
-            let mut best_span = span_of(&topo);
-            let is_untagged = g.rows[inner[li]] == UNTAGGED;
-            for ins in min_pos..=max_pos {
-                let mut cand = base.clone();
-                cand.insert(ins, li);
-                let s = span_of(&cand);
-                if s < best_span || (is_untagged && s == best_span && ins > best_pos) {
-                    best_span = s;
-                    best_pos = ins;
-                }
-            }
-            if best_pos != cur_pos {
-                base.insert(best_pos, li);
-                topo = base;
+            if sift_one_lane(ctx, dag, topo, li) {
                 improved = true;
             }
         }
@@ -268,11 +287,42 @@ pub fn lane_order(g: &GraphView, ends: &[(usize, usize)]) -> Vec<usize> {
             break;
         }
     }
-    let mut out = Vec::with_capacity(n);
-    out.extend_from_slice(&all[..lo]);
-    out.extend(topo.into_iter().map(|li| inner[li]));
-    out.extend_from_slice(&all[hi..]);
-    out
+}
+
+fn sift_one_lane(ctx: &SpanCtx<'_>, dag: &[Vec<bool>], topo: &mut Vec<usize>, li: usize) -> bool {
+    let cur_pos = topo.iter().position(|&x| x == li).unwrap();
+    let mut base = topo.clone();
+    base.remove(cur_pos);
+    let min_pos = base
+        .iter()
+        .enumerate()
+        .filter(|&(_, &x)| dag[x][li])
+        .map(|(p, _)| p + 1)
+        .max()
+        .unwrap_or(0);
+    let max_pos = base
+        .iter()
+        .enumerate()
+        .filter(|&(_, &x)| dag[li][x])
+        .map(|(p, _)| p)
+        .min()
+        .unwrap_or(base.len());
+    let mut best = (cur_pos, lane_span(ctx, topo));
+    let is_untagged = ctx.g.rows[ctx.all[ctx.lo + li]] == UNTAGGED;
+    for ins in min_pos..=max_pos {
+        let mut cand = base.clone();
+        cand.insert(ins, li);
+        let s = lane_span(ctx, &cand);
+        if s < best.1 || (is_untagged && s == best.1 && ins > best.0) {
+            best = (ins, s);
+        }
+    }
+    if best.0 != cur_pos {
+        base.insert(best.0, li);
+        *topo = base;
+        return true;
+    }
+    false
 }
 
 #[cfg(test)]
