@@ -45,6 +45,7 @@ brickie measure --> .brickie/cache.json --> brickie check  --> findings (text/js
 | [design/measure.md](design/measure.md) | what `measure` reads, edge kinds, metrics, cache layout and lock |
 | [design/check.md](design/check.md) | config tree, member selectors, rules, interfaces, findings, exit codes, `llms.txt` |
 | [design/serve.md](design/serve.md) | webview decisions, brick score, layout port, embedded code viewer |
+| [design/autolayout.md](design/autolayout.md) | top-down tag-lane ordering and PCB-inspired sparse orthogonal corridor router |
 | [design/levels.md](design/levels.md) | nested bricks, exports, map-style zoom |
 | [design/groups.md](design/groups.md) | peer brick groups within a level (shared rules, links and visual container) |
 | [design/links.md](design/links.md) | decision record: allow-only rules and declared links |

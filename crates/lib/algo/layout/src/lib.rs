@@ -55,43 +55,31 @@
 //! * Edges are processed in `id` order, so ids must be unique. Self edges get no kind and no route.
 //! * Deviations from the JavaScript original are listed in `docs/design/serve.md`, "Layout port".
 
-// The index loops and tuple-heavy tables mirror the original line by line.
+// The index loops and tuple-heavy tables keep the layout algorithms compact.
 #![allow(clippy::needless_range_loop, clippy::type_complexity)]
 
-mod align;
-mod anneal;
-mod channels;
-mod compute;
 #[cfg(test)]
 mod e2e_tests;
 mod geometry;
+mod joint;
 mod measure;
-mod order;
-mod path;
-mod place;
-mod ports;
-mod rank;
-mod smart;
+mod placement;
+mod routing;
 
 pub use geometry::Route;
 pub use measure::{measure_items, score_layout};
 
 use std::collections::HashMap;
 
-/// `LAY` of the original.
+/// Default brick height.
 pub const H: f64 = 54.0;
 const GAPY: f64 = 96.0;
 /// Row gap that no edge crosses (labels under the boxes only).
 pub const GAPY_FREE: f64 = 42.0;
-const GAP: f64 = 18.0;
-const DUM: f64 = 28.0;
 const PADL: f64 = 40.0;
 const PADR: f64 = 20.0;
-const ITER: usize = 24;
-const RESTARTS: usize = 30;
 pub const REFK: usize = 12;
-const LANE: f64 = 9.0;
-/// `BZ.PORT` / `BZ.PAD` of the original.
+/// Port pitch and inset used when sizing bricks for incident edges.
 const PORT: f64 = 12.0;
 const PAD: f64 = 10.0;
 
@@ -152,15 +140,6 @@ impl Side {
 pub enum End {
     A,
     B,
-}
-
-impl End {
-    fn other(self) -> End {
-        match self {
-            End::A => End::B,
-            End::B => End::A,
-        }
-    }
 }
 
 /// A node to lay out.
@@ -250,39 +229,80 @@ pub struct Layout {
     pub po: HashMap<(usize, End), Port>,
     /// Cubic route by input edge index; `None` for self edges.
     pub routes: Vec<Option<Route>>,
-    /// Assigned vertical fraction per `(edge, hop)` in inter-row channels.
-    pub(crate) tracks: HashMap<(usize, usize), f64>,
     /// Weighted crossings of the final order (`bc`).
     pub cross: f64,
     /// Weighted crossings of the config order before minimisation (the baseline).
     pub cross0: f64,
     edges: Vec<(usize, usize)>,
+    edge_ids: Vec<String>,
 }
 
-/// Index of the row containing brick `b`.
-pub(crate) fn row_of_brick(rows: &[RowOut], b: usize) -> Option<usize> {
-    rows.iter().position(|r| r.ids.contains(&b))
+/// Lay out `input`: jointly optimise brick positions and orthogonal routes under one energy model.
+pub fn layout(input: &Input) -> Layout {
+    let (placed, routed) = joint::optimize_joint(input);
+    let edges: Vec<(usize, usize)> = input.edges.iter().map(|e| (e.a, e.b)).collect();
+    let edge_ids: Vec<String> = input.edges.iter().map(|e| e.id.clone()).collect();
+    let kinds = routed
+        .routes
+        .iter()
+        .map(|r| r.as_ref().map(|_| Kind::Bez))
+        .collect();
+    Layout {
+        w: placed.w,
+        h: placed.h,
+        px0: placed.px0,
+        pos: placed.pos,
+        dpos: Vec::new(),
+        rows: placed.rows,
+        kinds,
+        po: routed.po,
+        routes: routed.routes,
+        cross: placed.cross,
+        cross0: placed.cross0,
+        edges,
+        edge_ids,
+    }
 }
 
-/// Bottom `y` of the row band containing brick `b` when `rect` sits at that row's `y`.
-pub(crate) fn row_bottom(rows: &[RowOut], b: usize, rect: &Rect) -> f64 {
-    row_of_brick(rows, b)
-        .filter(|&r| (rect.y - rows[r].y).abs() < 1.0)
-        .map_or(rect.y + rect.h, |r| {
-            (rows[r].y + rows[r].h).max(rect.y + rect.h)
+fn positions_unchanged(a: &[Rect], b: &[Rect]) -> bool {
+    a.len() == b.len()
+        && a.iter().zip(b).all(|(x, y)| {
+            (x.x - y.x).abs() <= 0.5
+                && (x.y - y.y).abs() <= 0.5
+                && (x.w - y.w).abs() <= 0.5
+                && (x.h - y.h).abs() <= 0.5
         })
 }
 
-/// Lay out `input` (`layoutFor`; one layout per graph, independent of layers, focus and filters).
-pub fn layout(input: &Input) -> Layout {
-    compute::compute_layout(input)
-}
-
 impl Layout {
-    /// `routePath(e, L, P)`: the path of input edge `e` for the given box positions (dragged or
-    /// not), or `None` for self edges.
+    /// The path of input edge `e` for the given box positions (dragged or not), or `None` for
+    /// self edges.
     pub fn path(&self, e: usize, p: &[Rect]) -> Option<Route> {
-        path::route_path(self, e, p)
+        let &(a, b) = self.edges.get(e)?;
+        if a == b {
+            return None;
+        }
+        if positions_unchanged(&self.pos, p) {
+            return self.routes.get(e).and_then(Clone::clone);
+        }
+        self.rerouted_at(p).get(e).and_then(Clone::clone)
+    }
+
+    /// Re-run the unified Hanan-Strip PathFinder router for the current `self.pos` (e.g. after
+    /// shifting boundary rows or applying stored layout hints).
+    pub fn reroute(&mut self) {
+        let out = routing::optimize_routes(&self.pos, &self.edges, &self.edge_ids, false);
+        self.routes = out.routes;
+        self.po = out.po;
+    }
+
+    /// Compute full routed edge paths for arbitrary (e.g. user-dragged) box positions `pos`
+    /// without mutating `self`. When `pos` matches `self.pos`, returns `self.routes` directly.
+    pub fn rerouted_at(&self, pos: &[Rect]) -> Vec<Option<Route>> {
+        if positions_unchanged(&self.pos, pos) {
+            return self.routes.clone();
+        }
+        routing::optimize_routes(pos, &self.edges, &self.edge_ids, false).routes
     }
 }
 
