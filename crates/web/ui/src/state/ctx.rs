@@ -169,9 +169,10 @@ fn row_width(pos: &[Rect], ids: &[usize]) -> f64 {
     ids.iter().map(|&i| pos[i].w).sum::<f64>() + GHOST_GAP * ids.len().saturating_sub(1) as f64
 }
 
-fn has_direct_edge(g: &GraphView, extra: &[(usize, usize)], ids: &[usize]) -> bool {
+fn has_direct_edge(g: &GraphView, extra: &[(usize, usize)], ids: &[usize], to_frame: bool) -> bool {
     g.edges
         .iter()
+        .filter(|e| !(to_frame && is_boundary(g, e)))
         .any(|e| ids.contains(&e.from) || ids.contains(&e.to))
         || extra
             .iter()
@@ -184,11 +185,12 @@ fn center_unanchored_ghosts(
     extra: &[(usize, usize)],
     frame: &Rect,
     bg: &BoundaryGroups,
+    to_frame: bool,
 ) {
     let groups = [&bg.inbound, &bg.outbound];
     let max_ghost_w = groups
         .into_iter()
-        .filter(|ids| !ids.is_empty() && !has_direct_edge(g, extra, ids))
+        .filter(|ids| !ids.is_empty() && !has_direct_edge(g, extra, ids, to_frame))
         .map(|ids| row_width(&layout.pos, ids))
         .fold(0.0_f64, f64::max);
     let mut frame_cx = frame.x + frame.w / 2.0;
@@ -204,7 +206,7 @@ fn center_unanchored_ghosts(
         frame_cx = min_cx;
     }
     for group in groups {
-        if group.is_empty() || has_direct_edge(g, extra, group) {
+        if group.is_empty() || has_direct_edge(g, extra, group, to_frame) {
             continue;
         }
         let mut sorted = group.clone();
@@ -219,7 +221,12 @@ fn center_unanchored_ghosts(
 
 /// Give `inbound` / `outbound` ghost rows comfortable vertical clearance outside the level frame
 /// and centre ghost rows that have no direct child-to-ghost edges over the frame's middle.
-fn space_boundary_rows(layout: &mut Layout, g: &GraphView, extra: &[(usize, usize)]) {
+fn space_boundary_rows(
+    layout: &mut Layout,
+    g: &GraphView,
+    extra: &[(usize, usize)],
+    to_frame: bool,
+) {
     let bg = partition_boundary(g, layout.pos.len());
     if bg.inner.is_empty() || (bg.inbound.is_empty() && bg.outbound.is_empty()) {
         return;
@@ -228,28 +235,28 @@ fn space_boundary_rows(layout: &mut Layout, g: &GraphView, extra: &[(usize, usiz
         return;
     };
     shift_boundary_vertical(layout, &frame, &bg);
-    center_unanchored_ghosts(layout, g, extra, &frame, &bg);
+    center_unanchored_ghosts(layout, g, extra, &frame, &bg, to_frame);
     let max_x = layout.pos.iter().map(|r| r.x + r.w).fold(0.0_f64, f64::max);
     let max_y = layout.pos.iter().map(|r| r.y + r.h).fold(0.0_f64, f64::max);
     layout.w = max_x + 20.0;
     layout.h = max_y + 50.0;
-    for e in 0..layout.routes.len() {
-        layout.routes[e] = layout.path(e, &layout.pos);
-    }
+    layout.reroute();
 }
 
-/// The layout of `level`: automatic from its full edge set (without the frame edges, which are
-/// appended after the original ones; with the planned rule pairs after them), then the editor's stored positions, then the positions a
-/// patch keeps on screen.
+/// The layout of `level`: automatic from its active edge set (omitting boundary child edges when
+/// `to_frame` is true; with planned rule pairs after them), then the editor's stored positions,
+/// then the positions a patch keeps on screen.
 fn level_layout(
     level: &LevelView,
     design: Option<&DesignState>,
     editing: bool,
+    to_frame: bool,
     keep: Option<&Keep>,
 ) -> Layout {
     let extra = unused_pairs(level, editing);
-    let mut layout = layout::layout(&layout_input(&level.graph, &extra));
-    space_boundary_rows(&mut layout, &level.graph, &extra);
+    let mut layout = layout::layout(&layout_input(&level.graph, &extra, to_frame));
+    space_boundary_rows(&mut layout, &level.graph, &extra, to_frame);
+    let before = layout.pos.clone();
     // The editor's stored positions win over the automatic layout.
     if let Some(ch) = design.filter(|_| editing) {
         apply_hints(
@@ -261,6 +268,9 @@ fn level_layout(
     }
     if let Some(k) = keep {
         restore_positions(&mut layout.pos, &level.graph.bricks, &k.pos);
+    }
+    if layout.pos != before {
+        layout.reroute();
     }
     layout
 }
@@ -292,8 +302,8 @@ impl Cx {
             .keep
             .get_clone_untracked()
             .filter(|k| k.level == level.path);
-        let editing = params.with_untracked(|p| p.editing());
-        let layout = level_layout(level, design.as_deref(), editing, keep.as_ref());
+        let (editing, to_frame) = params.with_untracked(|p| (p.editing(), p.to_frame()));
+        let layout = level_layout(level, design.as_deref(), editing, to_frame, keep.as_ref());
         let unused = unused_pairs(level, editing);
         let plan0 = level.graph.edges.len();
         let m = Rc::new(Model {

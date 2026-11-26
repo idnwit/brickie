@@ -27,85 +27,68 @@ pub fn cut(r: &Route, f: &Rect) -> Option<(String, Pt)> {
     Some((d, pts[at]))
 }
 
-/// Full caption, compact fallback for narrow frames, and tooltip for a level frame.
-fn frame_captions(lv: &brickie_web_api::LevelView) -> (String, Option<String>, String) {
-    let parts: Vec<&str> = lv.file.rsplit('/').take(2).collect();
-    let file: String = parts.into_iter().rev().collect::<Vec<_>>().join("/");
-    let full = if lv.path == "root" {
-        format!("workspace \u{00B7} {file}")
-    } else if lv.exports.len() <= 2 {
-        format!(
-            "{} \u{00B7} exports [{}] \u{00B7} {file}",
-            lv.name(),
-            lv.exports.join(", ")
-        )
-    } else {
-        format!(
-            "{} \u{00B7} {} exports \u{00B7} {file}",
-            lv.name(),
-            lv.exports.len()
-        )
-    };
-    let compact = (lv.path != "root").then(|| {
-        if lv.exports.is_empty() {
-            lv.name().to_string()
-        } else {
-            format!("{} \u{00B7} {} exp", lv.name(), lv.exports.len())
+/// Horizontal span and top/bottom divider Y coordinates separating boundary bricks (`ghost`)
+/// from the level's inner bricks.
+fn divider_geom(g: &GraphView, pos: &[Rect]) -> (f64, f64, f64, f64) {
+    let f = frame_rect(g, pos).unwrap_or_default();
+    let (mut x1, mut x2) = (f.x, f.x + f.w);
+    for (b, r) in g.bricks.iter().zip(pos) {
+        if b.ghost {
+            x1 = x1.min(r.x);
+            x2 = x2.max(r.x + r.w);
         }
-    });
-    let tip = if lv.exports.is_empty() {
-        format!("{} ({})", lv.name(), lv.file)
-    } else {
-        format!(
-            "{} \u{00B7} exports [{}] ({})",
-            lv.name(),
-            lv.exports.join(", "),
-            lv.file
-        )
-    };
-    (full, compact, tip)
+    }
+    (x1, x2, f.y, f.y + f.h)
 }
 
-/// Truncate or switch to the compact caption so it fits inside `width`.
-fn fit_caption(full: &str, compact: Option<&str>, width: f64) -> String {
-    let max_chars = (((width - 16.0) / 7.2).floor() as usize).max(16);
-    if full.chars().count() <= max_chars {
-        return full.to_string();
-    }
-    let src = compact.unwrap_or(full);
-    if src.chars().count() <= max_chars {
-        return src.to_string();
-    }
-    let head: String = src.chars().take(max_chars.saturating_sub(1)).collect();
-    format!("{}\u{2026}", head.trim_end())
-}
-
-/// The frame box and its caption: `web · exports [api] · crates/web/brickie.toml`.
+/// Thin horizontal divider lines above and below the inner bricks whenever a sub-level has
+/// outside boundary bricks (`inbound` above / `outbound` below). Works in both `Outside -> frame`
+/// (giving frame arrows a clean landing line) and `Outside -> children` modes.
 pub fn frame_view(cx: &Cx, pos: ReadSignal<Vec<Rect>>) -> View {
-    let lv = cx.level();
-    let (full_label, compact, tip) = frame_captions(lv);
-    // Counter the zoom so the caption stays about 12 px on screen.
-    let view = cx.view;
-    let size = move || format!("font-size:{:.1}px", (12.0 / view.get().k).clamp(10.0, 26.0));
+    if cx.level().path == "root" {
+        return View::default();
+    }
+    let Some(f0) = frame_rect(&cx.m.g, &cx.m.layout.pos) else {
+        return View::default();
+    };
+    let has_in =
+        cx.m.g
+            .bricks
+            .iter()
+            .zip(&cx.m.layout.pos)
+            .any(|(b, r)| b.ghost && r.y + r.h <= f0.y + 1.0);
+    let has_out =
+        cx.m.g
+            .bricks
+            .iter()
+            .zip(&cx.m.layout.pos)
+            .any(|(b, r)| b.ghost && r.y >= f0.y + f0.h - 1.0);
+    if !has_in && !has_out {
+        return View::default();
+    }
     let c = cx.clone();
-    let fr: ReadSignal<Rect> =
-        create_memo(move || pos.with(|p| frame_rect(&c.m.g, p)).unwrap_or_default());
-    let rect = move || fr.get();
-    let label = move || fit_caption(&full_label, compact.as_deref(), rect().w);
-    let (x, y, w, h) = (
-        move || rect().x.to_string(),
-        move || rect().y.to_string(),
-        move || rect().w.to_string(),
-        move || rect().h.to_string(),
-    );
-    let (lx, ly) = (
-        move || (rect().x + 8.0).to_string(),
-        move || (rect().y - 8.0).to_string(),
-    );
+    let geom: ReadSignal<(f64, f64, f64, f64)> =
+        create_memo(move || pos.with(|p| divider_geom(&c.m.g, p)));
+    let top = has_in.then(|| {
+        let (x1, x2, y) = (
+            move || geom.get().0.to_string(),
+            move || geom.get().1.to_string(),
+            move || geom.get().2.to_string(),
+        );
+        view! { line(class="fline", x1=x1, y1=y, x2=x2, y2=y) }
+    });
+    let bot = has_out.then(|| {
+        let (x1, x2, y) = (
+            move || geom.get().0.to_string(),
+            move || geom.get().1.to_string(),
+            move || geom.get().3.to_string(),
+        );
+        view! { line(class="fline", x1=x1, y1=y, x2=x2, y2=y) }
+    });
     view! {
         g(class="frame") {
-            rect(class="fbox", x=x, y=y, width=w, height=h, rx="12")
-            text(class="flab", x=lx, y=ly, style=size) { svg_title { (tip) } (label) }
+            (top)
+            (bot)
         }
     }
 }

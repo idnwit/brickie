@@ -48,10 +48,16 @@ pub(super) fn summary(cx: &Cx) -> View {
         .collect();
     let tags = View::from(tags);
     let table = sum_table(cx);
+    let lv = cx.level();
+    let lines = (lv.code_lines + lv.test_lines > 0).then(|| {
+        let s = fmt_lines_detail(lv.code_lines, lv.test_lines);
+        view! { p(class="muted small") { (s) } }
+    });
     let title = format!("Findings by group (layers on: {layers_on}/{total})");
     view! {
         h2 { "Overview" }
         p(class="muted") { "Click a brick or an edge to scope the lists. Click a finding for details. Keys: 1 2 3 presets, j/k findings, Esc clear, / filter." }
+        (lines)
         h4 { (title) }
         (table)
         div(class="tagrow") { (tags) }

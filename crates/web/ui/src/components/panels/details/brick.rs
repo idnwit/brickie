@@ -79,11 +79,11 @@ fn brick_header_links(cx: &Cx, br: &BrickView, is_local_group: bool) -> View {
     }
     let open_code = src_link(
         cx.modal,
-        code_brick_href(&br.name),
+        code_brick_href(&br.path),
         "</> Code".into(),
         "codebtn",
     );
-    let docs_url = docs_href(&br.name);
+    let docs_url = docs_href(&br.path);
     view! {
         span(title="Open this brick's code") { (open_code) }
         a(class="codebtn", href=docs_url, target="_blank", title="Open this brick's documentation page") { "Docs" }
@@ -134,6 +134,10 @@ pub(super) fn member_detail(cx: &Cx, b: usize, m: usize) -> View {
         "worst function at {}\u{00D7} its limit",
         fmt_score(mem.worst_ratio)
     );
+    let lines = (mem.code_lines + mem.test_lines > 0).then(|| {
+        let s = fmt_lines_detail(mem.code_lines, mem.test_lines);
+        view! { div(class="muted small") { (s) } }
+    });
     let iface = super::iface::interface_section(cx, mem.path.clone());
     let mname = mem.name.clone();
     let docs_url = docs_href(&mem.path);
@@ -151,6 +155,7 @@ pub(super) fn member_detail(cx: &Cx, b: usize, m: usize) -> View {
         div(class="scorecard") {
             div(class="big") { span { (score) } small { "score" } (badge) }
             div(class="muted small") { (worst) }
+            (lines)
         }
         (iface)
     }
@@ -262,10 +267,15 @@ fn scorecard(cx: &Cx, b: usize) -> View {
         "worst function at {}\u{00D7} its limit",
         fmt_score(brick.worst_ratio)
     );
+    let lines = (brick.code_lines + brick.test_lines > 0).then(|| {
+        let s = fmt_lines_detail(brick.code_lines, brick.test_lines);
+        view! { div(class="muted small") { (s) } }
+    });
     view! {
         div(class="scorecard") {
             div(class="big", title="score = findings + complexity excess (any layer). A cycle counts once for each brick in it.") { span { (score) } small { "score" } (badge) }
             div(class="muted small") { (worst) }
+            (lines)
             table { tr { th { "findings" } th { "n" } } (rows) }
             h4 { "Worst functions" }
             (fns)

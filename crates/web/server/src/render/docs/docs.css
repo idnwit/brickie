@@ -54,3 +54,10 @@ pre.sig{border-left:4px solid var(--link);font-weight:500}
 .side h4.sec{margin:18px 0 4px;padding-top:8px;border-top:1px solid var(--line);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
 .side h4.sec a{color:var(--muted)}.side .items a{display:block;padding:1px 8px;font-family:ui-monospace,monospace;font-size:13px;color:var(--fg)}
 .side .items a:hover{background:var(--line);border-radius:4px;text-decoration:none}
+.mermaid{background:var(--code);border:1px solid var(--line);border-radius:6px;padding:12px;overflow:auto;margin:.8em 0;font-family:ui-monospace,monospace;font-size:13px;white-space:pre}
+.mermaid svg{max-width:100%;height:auto;display:block;margin:0 auto}
+body.embed{display:block;font-size:14px}
+body.embed main{max-width:none;padding:12px 14px}
+body.embed h1{font-size:1.25em;margin-top:0}
+body.readme main{max-width:960px;margin:0 auto;padding:16px 24px}
+body.readme.embed main{max-width:none;margin:0;padding:12px 14px}

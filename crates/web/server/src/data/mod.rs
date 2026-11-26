@@ -40,7 +40,7 @@ pub mod graph;
 mod interface;
 mod time;
 
-pub use docs::docs;
+pub use docs::{docs, has_readme, readme};
 pub use interface::{edge_uses, interface};
 
 use brickie_check::check::Loaded;

@@ -1,7 +1,7 @@
 //! The brick index by tag (the original's "bricks by family"): a click selects a brick.
 
 use crate::state::*;
-use brickie_web_api::{BrickScore, BrickView, GraphView, fmt_score};
+use brickie_web_api::{BrickScore, BrickView, GraphView, fmt_lines_compact, fmt_score};
 use sycamore::prelude::*;
 
 const TIP: &str = "findings (E) of any layer, then the score = findings + complexity excess; a cycle counts once for each brick in it";
@@ -51,6 +51,14 @@ fn brick_row(cx: &Cx, b: usize, brick: &BrickView) -> View {
     } else {
         brick.members.join(", ")
     };
+    let lines = fmt_lines_compact(brick.code_lines, brick.test_lines);
+    let sub = if lines.is_empty() {
+        members
+    } else if members.is_empty() {
+        format!("{lines} lines")
+    } else {
+        format!("{lines} \u{00B7} {members}")
+    };
     view! {
         a(class=on, href=href, "data-b"=name2, on:click=move |e: Click| {
             e.prevent_default();
@@ -59,7 +67,7 @@ fn brick_row(cx: &Cx, b: usize, brick: &BrickView) -> View {
         }) {
             (name) " " span(class=sc_cls, title=TIP) { (score) }
             br()
-            span(class="muted small") { (members) }
+            span(class="muted small") { (sub) }
         }
     }
 }

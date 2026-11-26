@@ -18,8 +18,8 @@
 .emptyhint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);color:var(--muted);border:2px dashed var(--line);border-radius:10px;padding:24px 30px;pointer-events:none}
 .lport{cursor:crosshair}.lport circle{fill:var(--panel);stroke:var(--lc);stroke-width:2}.lport text{fill:var(--lc);font-size:9px;pointer-events:none}.lport:hover circle{fill:var(--lc)}.lport:hover text{fill:#fff}
 .l-uses{--lc:var(--l-uses)}.l-implements{--lc:var(--l-implements)}.l-reexports{--lc:var(--l-reexports)}.l-deny,.plink.denied{--lc:var(--l-deny)}
-.pedge{cursor:pointer}.pedge .line{fill:none;stroke:var(--lc);stroke-width:2;stroke-dasharray:7 5}.pedge .hit{fill:none;stroke:transparent;stroke-width:12}
-.pedge.agent .line{stroke:var(--agent)}.pedge.sel .line{stroke-width:3.5}.pedge.denied .line{stroke:var(--l-deny);stroke-dasharray:3 4}.pedge.cycle .line{stroke-width:3}
+.pedge{cursor:pointer}.pedge .line{fill:none;stroke:var(--lc);stroke-width:.55;stroke-dasharray:7 5}.pedge .hit{fill:none;stroke:transparent;stroke-width:12}
+.pedge.agent .line{stroke:var(--agent)}.pedge.sel .line{stroke-width:.6}.pedge.denied .line{stroke:var(--l-deny);stroke-dasharray:3 4}.pedge.cycle .line{stroke-width:.6}
 .qmark circle{fill:var(--warn);stroke:var(--panel)}.qmark text{fill:var(--panel);font-size:11px;font-weight:700;pointer-events:none}
 .plinks.view .pedge .line{stroke:var(--warn)}
 .klabel{fill:var(--lc);font-size:10px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:3px;pointer-events:none}
@@ -27,7 +27,7 @@
 .rlabel{display:none;fill:var(--ink);font-size:12px;font-weight:600;paint-order:stroke;stroke:var(--panel);stroke-width:4px;pointer-events:none}.plink:hover .rlabel,.plink.picked .rlabel,.plink.sel .rlabel{display:block}
 .abadge{display:none;fill:var(--agent);font-weight:700;font-size:11px}.plink:hover .abadge,.plink.picked .abadge,.plink.sel .abadge{display:block}
 .ebadge circle{stroke:var(--panel);stroke-width:2}.ebadge text{fill:#fff;font-size:11px;font-weight:700;pointer-events:none}.ebadge.agent circle{fill:var(--agent)}.ebadge.conflict circle{fill:var(--err)}
-.band{fill:none;stroke:var(--lc);stroke-width:2.5;stroke-dasharray:6 4;pointer-events:none}
+.band{fill:none;stroke:var(--lc);stroke-width:.6;stroke-dasharray:6 4;pointer-events:none}
 .ltarget{fill:none;stroke:var(--ok);stroke-width:2;stroke-dasharray:4 3;pointer-events:none}.ltarget.no{stroke:var(--muted);fill:color-mix(in srgb,var(--muted) 12%,transparent)}
 .tlabel{fill:var(--ink);font-size:12px;font-weight:600;pointer-events:none}
 .mtarget{fill:color-mix(in srgb,var(--sel) 12%,transparent);stroke:var(--sel);stroke-width:2.5;pointer-events:none}.mtarget.up{stroke-dasharray:8 5}.mtarget.no{stroke:var(--err);fill:color-mix(in srgb,var(--err) 10%,transparent)}

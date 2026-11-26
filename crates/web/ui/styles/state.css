@@ -1,22 +1,22 @@
 /* Correct vs violating (allowed < error), for edges, bricks and the score widgets. The
    colours are variables in theme.css; classes only change styles, never geometry. */
-.edge .vis{fill:none;stroke-width:calc(1.2px*var(--k,1))}
+.edge .vis{fill:none;stroke-width:calc(0.55px*var(--k,1))}
 .edge .halo{display:none;fill:none;stroke-linecap:round}
 .edge .hit{fill:none;stroke:transparent;stroke-width:12;cursor:pointer}
 .edge .lab{fill:var(--muted)}
 .edge .mark{font-size:18px;font-weight:700;paint-order:stroke;stroke:var(--bg);stroke-width:4px;pointer-events:none}
-.edge.ok .vis{stroke:var(--e-ok);stroke-width:calc(1.1px*var(--k,1))}
-.edge.kc.ok .vis{stroke-width:calc(1.7px*var(--k,1))}
+.edge.ok .vis{stroke:var(--e-ok);stroke-width:calc(0.5px*var(--k,1))}
+.edge.kc.ok .vis{stroke-width:calc(0.55px*var(--k,1))}
 .edge.kc.k-uses.ok .vis{stroke:var(--k-uses)}.edge.kc.k-implements.ok .vis{stroke:var(--k-implements)}.edge.kc.k-reexports.ok .vis{stroke:var(--k-reexports)}
 .edge.kc.k-uses.ok .lab{fill:var(--k-uses)}.edge.kc.k-implements.ok .lab{fill:var(--k-implements)}.edge.kc.k-reexports.ok .lab{fill:var(--k-reexports)}
 .edge.ok.sel .vis,.edge.ok.hot .vis,.edge.ok.hov .vis{stroke:var(--e-ok-hot)}
 .edge.kc.k-uses.ok.sel .vis,.edge.kc.k-uses.ok.hot .vis{stroke:var(--k-uses)}
 .edge.kc.k-implements.ok.sel .vis,.edge.kc.k-implements.ok.hot .vis{stroke:var(--k-implements)}
 .edge.kc.k-reexports.ok.sel .vis,.edge.kc.k-reexports.ok.hot .vis{stroke:var(--k-reexports)}
-.edge.err .vis{stroke:var(--e-err);stroke-width:calc(3.8px*var(--k,1))}
-.edge.err .halo{display:inline;stroke:var(--e-err);stroke-width:9;stroke-opacity:.2}
+.edge.err .vis{stroke:var(--e-err);stroke-width:calc(0.6px*var(--k,1))}
+.edge.err .halo{display:inline;stroke:var(--e-err);stroke-width:5;stroke-opacity:.2}
 .edge.err .mark{fill:var(--e-err)}
-.edge.sel .vis,.edge.hot .vis{stroke-width:calc(3.4px*var(--k,1))}.edge.err.sel .vis,.edge.err.hot .vis{stroke-width:calc(4.4px*var(--k,1))}
+.edge.sel .vis,.edge.hot .vis{stroke-width:.6px}.edge.err.sel .vis,.edge.err.hot .vis{stroke-width:.6px}
 .edge.hov .halo{display:inline}
 
 .node .box{fill:var(--node);stroke:var(--b-ok);stroke-width:1.2}

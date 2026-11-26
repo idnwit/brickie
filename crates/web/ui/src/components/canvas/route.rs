@@ -2,7 +2,7 @@
 
 use super::boundary::frame_route;
 use super::frame::{cut, frame_rect};
-use crate::layout::{Layout, Rect};
+use crate::layout::Rect;
 use crate::state::*;
 use brickie_web_api::GraphView;
 use sycamore::prelude::*;
@@ -10,24 +10,24 @@ use sycamore::prelude::*;
 /// Path data and label anchor of every edge; follows the box positions (drags) only.
 pub type Routes = ReadSignal<Vec<Option<(String, f64, f64)>>>;
 
-/// The memo of all edge routes for the live box positions `pos`.
+/// The memo of all edge routes for the live box positions `pos`. When any brick has been moved
+/// from its initial layout position, re-runs the full orthogonal corridor router on `pos`.
 pub fn routes(cx: &Cx, pos: ReadSignal<Vec<Rect>>) -> Routes {
     let cx = cx.clone();
     create_memo(move || {
         let p = pos.get_clone();
         let frame = frame_rect(&cx.m.g, &p);
+        let routed = cx.m.layout.rerouted_at(&p);
         (0..cx.m.g.edges.len())
-            .map(|e| edge_route(&cx.m.g, &cx.m.layout, e, &p, frame.as_ref()))
+            .map(|e| edge_route_with(&cx.m.g, &routed, e, &p, frame.as_ref()))
             .collect()
     })
 }
 
-/// Path data and anchor `(d, x, y)` of edge `e` for box positions `p` and the level's frame:
-/// `None` for self edges, and for a frame edge when there is no frame. A private edge from
-/// outside stops at the frame wall (mark at the wall); any other has its mark at the middle.
-fn edge_route(
+/// Path data and anchor `(d, x, y)` of edge `e` using precomputed `routed` paths and `frame`.
+fn edge_route_with(
     g: &GraphView,
-    layout: &Layout,
+    routed: &[Option<crate::layout::Route>],
     e: usize,
     p: &[Rect],
     frame: Option<&Rect>,
@@ -35,7 +35,7 @@ fn edge_route(
     let r = if g.edges[e].frame() {
         frame_route(g, e, p, frame?)?
     } else {
-        layout.path(e, p)?
+        routed.get(e)?.clone()?
     };
     let wall = frame.filter(|_| g.edges[e].wall).and_then(|f| cut(&r, f));
     if let Some((d, w)) = wall {
@@ -46,9 +46,21 @@ fn edge_route(
 }
 
 #[cfg(test)]
+fn edge_route(
+    g: &GraphView,
+    layout: &crate::layout::Layout,
+    e: usize,
+    p: &[Rect],
+    frame: Option<&Rect>,
+) -> Option<(String, f64, f64)> {
+    let routed = layout.rerouted_at(p);
+    edge_route_with(g, &routed, e, p, frame)
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::layout::{InBrick, InEdge, Input, layout};
+    use crate::layout::{InBrick, InEdge, Input, Layout, layout};
     use brickie_web_api::{BrickView, EdgeView};
 
     /// Bricks 0 (row 0) and 1 (row 1) joined by edge 0 (`1 -> 0`), plus a self edge 1.

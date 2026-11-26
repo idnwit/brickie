@@ -1,5 +1,6 @@
 [
   {
+    "code_lines": 4,
     "exports": [],
     "file": "<site>/brickie.toml",
     "graph": {
@@ -9,6 +10,7 @@
             "api",
             "ui"
           ],
+          "code_lines": 2,
           "desc": null,
           "exported": false,
           "exports": [
@@ -48,11 +50,13 @@
           "tags": [
             "app"
           ],
+          "test_lines": 0,
           "unassigned": false,
           "worst_ratio": 4.0
         },
         {
           "children": [],
+          "code_lines": 1,
           "desc": null,
           "exported": false,
           "exports": [],
@@ -71,11 +75,13 @@
           "tags": [
             "core"
           ],
+          "test_lines": 0,
           "unassigned": false,
           "worst_ratio": 0.8
         },
         {
           "children": [],
+          "code_lines": 1,
           "desc": null,
           "exported": false,
           "exports": [],
@@ -94,6 +100,7 @@
           "tags": [
             "app"
           ],
+          "test_lines": 0,
           "unassigned": false,
           "worst_ratio": 0.0
         }
@@ -169,7 +176,8 @@
         "to": "web"
       }
     ],
-    "path": "root"
+    "path": "root",
+    "test_lines": 0
   },
   {
     "boundary_links": [
@@ -200,6 +208,7 @@
         }
       }
     ],
+    "code_lines": 2,
     "exports": [
       "api"
     ],
@@ -208,6 +217,7 @@
       "bricks": [
         {
           "children": [],
+          "code_lines": 1,
           "desc": null,
           "exported": true,
           "exports": [],
@@ -243,11 +253,13 @@
           "row": 1,
           "tag": "(untagged)",
           "tags": [],
+          "test_lines": 0,
           "unassigned": false,
           "worst_ratio": 4.0
         },
         {
           "children": [],
+          "code_lines": 1,
           "desc": null,
           "exported": false,
           "exports": [],
@@ -264,11 +276,13 @@
           "row": 1,
           "tag": "(untagged)",
           "tags": [],
+          "test_lines": 0,
           "unassigned": false,
           "worst_ratio": 0.0
         },
         {
           "children": [],
+          "code_lines": 1,
           "desc": null,
           "exported": false,
           "exports": [],
@@ -283,11 +297,13 @@
           "row": 0,
           "tag": "inbound",
           "tags": [],
+          "test_lines": 0,
           "unassigned": false,
           "worst_ratio": 0.0
         },
         {
           "children": [],
+          "code_lines": 1,
           "desc": null,
           "exported": false,
           "exports": [],
@@ -302,6 +318,7 @@
           "row": 2,
           "tag": "outbound",
           "tags": [],
+          "test_lines": 0,
           "unassigned": false,
           "worst_ratio": 0.8
         }
@@ -372,6 +389,7 @@
         "to": "api"
       }
     ],
-    "path": "root/web"
+    "path": "root/web",
+    "test_lines": 0
   }
 ]

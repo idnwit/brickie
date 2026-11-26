@@ -44,6 +44,32 @@ pub fn group_member_rect(index: usize) -> (f64, f64, f64, f64) {
     (x, y, GROUP_CARD_W, GROUP_CARD_H)
 }
 
+/// Compact `code/test` line summary for brick cards and index rows (empty when both are zero).
+pub fn fmt_lines_compact(code: u32, test: u32) -> String {
+    if code == 0 && test == 0 {
+        return String::new();
+    }
+    format!("{}/{}", fmt_k(code), fmt_k(test))
+}
+
+/// Detailed `code · test` line summary for scorecards and tooltips.
+pub fn fmt_lines_detail(code: u32, test: u32) -> String {
+    let total = code + test;
+    if total == 0 {
+        return "0 code \u{00B7} 0 test lines".into();
+    }
+    let pct = (test as f64 * 100.0 / total as f64).round() as u32;
+    format!("{code} code \u{00B7} {test} test lines ({pct}% test)")
+}
+
+fn fmt_k(n: u32) -> String {
+    if n >= 1000 {
+        format!("{:.1}k", n as f64 / 1000.0)
+    } else {
+        n.to_string()
+    }
+}
+
 /// One member brick displayed as a card inside a peer group container.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -54,6 +80,12 @@ pub struct GroupMemberView {
     pub score: f64,
     pub worst_ratio: f64,
     pub errors: usize,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub has_readme: bool,
+    #[serde(default)]
+    pub code_lines: u32,
+    #[serde(default)]
+    pub test_lines: u32,
 }
 
 /// A forbidden dependency edge between two members of the same peer group.
@@ -121,12 +153,37 @@ pub struct BrickView {
     /// Forbidden intra-group dependency edges between members of this peer group.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub internal_edges: Vec<InternalEdgeView>,
+    /// True when a `README.md` file exists for this brick.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub has_readme: bool,
+    /// Production (non-test) source lines in this brick (aggregated over subtrees/groups).
+    #[serde(default)]
+    pub code_lines: u32,
+    /// Test source lines (test-scope files and inline `#[cfg(test)]` functions) in this brick.
+    #[serde(default)]
+    pub test_lines: u32,
 }
 
 impl BrickView {
     /// Whether the brick has children (a composite) rather than being a leaf.
     pub fn composite(&self) -> bool {
         !self.children.is_empty()
+    }
+
+    /// The sub-line text rendered under the heat bar on the brick card: tag, child/member count
+    /// and compact `code/test` line count.
+    pub fn sub_line(&self) -> String {
+        let mut tag = self.tag.clone();
+        if self.is_group && !self.ghost {
+            tag = format!("{tag} \u{00B7} {} bricks", self.group_members.len());
+        } else if self.composite() {
+            tag = format!("{tag} \u{00B7} {} bricks", self.children.len());
+        }
+        let lines = fmt_lines_compact(self.code_lines, self.test_lines);
+        if !lines.is_empty() {
+            tag = format!("{tag} \u{00B7} {lines}");
+        }
+        tag
     }
 }
 

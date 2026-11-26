@@ -39,10 +39,12 @@ fn by_agent(cx: &Cx, e: &LevelLink) -> bool {
     })
 }
 
-/// The route of pair `a -> b`: the layout's (around the boxes, from side ports), or a plain
-/// cubic from the right to the left side when the pair is not routed.
-fn path_of(cx: &Cx, a: usize, b: usize, p: &[Rect]) -> Route {
-    if let Some(r) = cx.unused_route(a, b, p) {
+/// The route of pair `a -> b`: the routed layout path (around the boxes, from side ports), or a
+/// plain cubic from the right to the left side when the pair is not routed.
+fn path_of(cx: &Cx, routed: &[Option<Route>], a: usize, b: usize, p: &[Rect]) -> Route {
+    if let Some(i) = cx.m.unused.iter().position(|&x| x == (a, b))
+        && let Some(r) = routed.get(cx.m.plan0 + i).and_then(Clone::clone)
+    {
         return r;
     }
     let (x1, y1) = (p[a].x + p[a].w, p[a].y + p[a].h / 2.0);
@@ -239,6 +241,7 @@ fn draw_route(cx: &Cx, pr: &Pair, p: &[Rect], marks: &mut Vec<Pt>, draw: RouteDr
 /// Route of a projected boundary pair: directly to its target child, or to the nearest frame wall.
 fn boundary_route(
     cx: &Cx,
+    routed: &[Option<Route>],
     bp: &BoundaryPair,
     all: &[BoundaryPair],
     p: &[Rect],
@@ -253,7 +256,7 @@ fn boundary_route(
         } else {
             (c, bp.ghost)
         };
-        return Some(path_of(cx, a, b, p));
+        return Some(path_of(cx, routed, a, b, p));
     }
     let f = frame?;
     let n = p.get(bp.ghost)?;
@@ -281,13 +284,14 @@ pub fn layer(cx: &Cx, pos: ReadSignal<Vec<Rect>>) -> View {
     };
     let body = move || {
         let p = pos.get_clone();
+        let routed = c.m.layout.rerouted_at(&p);
         let mut marks = Vec::new();
         let mut items: Vec<View> = pairs(&c)
             .iter()
             .filter(|pr| pr.a < p.len() && pr.b < p.len())
             .map(|pr| {
                 let draw = RouteDraw {
-                    route: path_of(&c, pr.a, pr.b, &p),
+                    route: path_of(&c, &routed, pr.a, pr.b, &p),
                     picked,
                     key: PickKey::Local(pr.a, pr.b),
                     tip: pr.tip(),
@@ -299,7 +303,7 @@ pub fn layer(cx: &Cx, pos: ReadSignal<Vec<Rect>>) -> View {
         let frame = frame_rect(&c.m.g, &p);
         let b_pairs = boundary_pairs(&c);
         for bp in &b_pairs {
-            if let Some(route) = boundary_route(&c, bp, &b_pairs, &p, frame.as_ref()) {
+            if let Some(route) = boundary_route(&c, &routed, bp, &b_pairs, &p, frame.as_ref()) {
                 let draw = RouteDraw {
                     route,
                     picked,

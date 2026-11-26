@@ -7,7 +7,7 @@ use brickie_check::check::Loaded;
 use brickie_check::config::{Config, level_name};
 use brickie_check::interface::{self, IfaceItem};
 use brickie_web_api::{DocsExample, DocsItem, DocsNode, DocsPage, DocsUse};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Use sites shown per using brick.
 const EXAMPLES: usize = 3;
@@ -138,4 +138,57 @@ pub fn docs(l: &Loaded, brick: &str) -> anyhow::Result<DocsPage> {
         children,
         items,
     })
+}
+
+fn find_readme_in(dir: &Path) -> Option<PathBuf> {
+    for name in ["README.md", "readme.md"] {
+        let p = dir.join(name);
+        if p.is_file() {
+            return Some(p);
+        }
+    }
+    None
+}
+
+/// The `README.md` file sitting alongside `path`'s `brickie.toml` (or in a leaf brick's folder),
+/// if one exists on disk.
+pub fn readme_path(l: &Loaded, path: &[String]) -> Option<PathBuf> {
+    if let Some(cfg) = l.cfg.node(path) {
+        let dir = Path::new(&l.cache.workspace_root).join(&cfg.file);
+        return find_readme_in(dir.parent()?);
+    }
+    let b = l.cfg.brick_at(path)?;
+    if let Some(p) = &b.path
+        && let Some(found) = find_readme_in(&b.base.join(p))
+    {
+        return Some(found);
+    }
+    for m in &b.members {
+        if let Some(rel) = m.strip_prefix("path:")
+            && let Some(found) = find_readme_in(&b.base.join(rel))
+        {
+            return Some(found);
+        }
+    }
+    None
+}
+
+/// Whether `path` has a `README.md` file on disk.
+pub fn has_readme(l: &Loaded, path: &[String]) -> bool {
+    readme_path(l, path).is_some()
+}
+
+/// Read the `README.md` markdown of `brick` (`root` / `""` for the root level).
+pub fn readme(l: &Loaded, brick: &str) -> anyhow::Result<(String, String)> {
+    let trimmed = brick.trim_matches('/');
+    let path = if trimmed.is_empty() || trimmed == "root" {
+        Vec::new()
+    } else {
+        interface::parse_path(&l.cfg, trimmed)?
+    };
+    let level = level_name(&path);
+    let file =
+        readme_path(l, &path).ok_or_else(|| anyhow::anyhow!("no README.md for brick `{level}`"))?;
+    let md = std::fs::read_to_string(&file)?;
+    Ok((level, md))
 }

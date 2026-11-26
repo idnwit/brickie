@@ -188,9 +188,10 @@ impl EdgeFlags {
     }
 }
 
-/// The stroke-width style: grows with the number of references (log scale, at most 2.6x).
+/// The stroke-width scale factor: grows gently with references (log scale, capped at 1.0 so no
+/// edge ever exceeds half the brick box border width).
 pub fn edge_width(count: usize) -> String {
-    let k = (1.0 + 0.35 * (count.max(1) as f64).log2()).min(2.6);
+    let k = (0.75 + 0.05 * (count.max(1) as f64).log2()).min(1.0);
     format!("--k:{k:.2}")
 }
 
@@ -293,8 +294,8 @@ mod tests {
         };
         assert_eq!(f(Some(EStat::Debt)).mark(), "\u{2717}");
         assert_eq!(f(Some(EStat::Ok)).mark(), "");
-        assert_eq!(edge_width(0), "--k:1.00");
-        assert_eq!(edge_width(2), "--k:1.35");
-        assert_eq!(edge_width(1 << 20), "--k:2.60");
+        assert_eq!(edge_width(0), "--k:0.75");
+        assert_eq!(edge_width(2), "--k:0.80");
+        assert_eq!(edge_width(1 << 20), "--k:1.00");
     }
 }
