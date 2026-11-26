@@ -79,3 +79,60 @@ fn text_footer_reports_outside_scope() {
     assert_eq!(o.code, 0, "{}", o.stdout);
     assert!(o.stdout.contains("outside scope: "), "{}", o.stdout);
 }
+
+#[test]
+fn group_scope_filter_and_todo_groups() {
+    let w = tree();
+    let cfg = r#"
+[[group]]
+name = "svc"
+tags = ["domain"]
+
+[[group]]
+name = "empty_g"
+
+[[brick]]
+name = "auth"
+group = "svc"
+members = ["web-api"]
+
+[[brick]]
+name = "billing"
+group = "svc"
+members = ["web-ui"]
+
+[[brick]]
+name = "bus"
+members = ["core"]
+
+[[complexity]]
+bricks = "svc"
+cognitive = 5
+"#;
+    let config = w.save(cfg);
+
+    let by_group = run(&config, &["--format", "json", "--brick", "svc"]);
+    assert_eq!(by_group.code, 1, "{}", by_group.stderr);
+    let codes: Vec<_> = shown(&by_group).into_iter().map(|(c, _)| c).collect();
+    assert!(
+        codes.contains(&"complexity/cognitive".to_string()),
+        "{}",
+        by_group.stdout
+    );
+    assert_eq!(
+        by_group.json["todo"]["planned_groups"],
+        serde_json::json!(["root/empty_g"]),
+        "{}",
+        by_group.stdout
+    );
+
+    let by_member = run(&config, &["--format", "json", "--brick", "billing"]);
+    assert_eq!(by_member.code, 1, "{}", by_member.stderr);
+    assert!(
+        shown(&by_member)
+            .iter()
+            .any(|(c, _)| c == "complexity/cognitive"),
+        "{}",
+        by_member.stdout
+    );
+}
