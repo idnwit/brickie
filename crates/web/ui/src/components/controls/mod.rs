@@ -1,12 +1,14 @@
-//! The header: level breadcrumb, presets, data layers, fit/reload, measure and the finding
-//! counts.
+//! The header: level breadcrumb, presets, data layers, fit/reload, measure, side-panel
+//! toggles and the finding counts.
 
 mod boundary;
 mod crumbs;
 mod measure;
+mod panes;
 
 pub use boundary::boundary;
 pub use crumbs::crumbs;
+pub use panes::toggle_pane;
 mod presets;
 mod toggles;
 
@@ -61,6 +63,7 @@ pub fn header(cx: &Cx) -> View {
     let measure = measure::measure(&cx.m.cache, cx.bus.job);
     let pill = measure::pill(cx.bus.pill);
     let presets = presets(cx);
+    let panes = panes::pane_buttons(cx);
     view! {
         header {
             b { "brickie" }
@@ -74,6 +77,7 @@ pub fn header(cx: &Cx) -> View {
             (measure)
             (pill)
             span(class="cnt") { (counts) }
+            (panes)
         }
     }
 }

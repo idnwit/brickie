@@ -1,6 +1,9 @@
 *{box-sizing:border-box}html,body{margin:0}body{font:14px/1.45 "IBM Plex Sans","Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
 #app{display:contents}
-.viewer{display:grid;grid-template-rows:auto auto minmax(0,1fr);grid-template-columns:300px minmax(0,1fr) 420px;height:100vh;overflow:hidden}
+.viewer{--lw:300px;--rw:420px;display:grid;grid-template-rows:auto auto minmax(0,1fr);grid-template-columns:var(--lw) minmax(0,1fr) var(--rw);height:100vh;overflow:hidden}
+/* hidden side panels keep their grid cell (zero wide) so the canvas stays in the middle column */
+.viewer.no-left{--lw:0px}.viewer.no-right{--rw:0px}.viewer.no-left #left,.viewer.no-right #detail{visibility:hidden;overflow:hidden;padding:0;border:0}
+.panes{display:inline-flex}.panes button{padding:2px 8px;border-radius:0}.panes button:first-child{border-radius:4px 0 0 4px;border-right-width:0}.panes button:last-child{border-radius:0 4px 4px 0}
 header{grid-column:1/4;display:flex;gap:10px;align-items:center;padding:7px 14px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
 header b{font-size:15px}
 select,button,input,textarea{font:inherit;color:var(--ink);padding:4px 8px;border:1px solid var(--line);border-radius:4px;background:var(--panel)}
