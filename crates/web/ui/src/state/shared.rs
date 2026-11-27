@@ -29,6 +29,38 @@ pub struct Shared {
     pub nav: Signal<Nav>,
     /// What the server's event stream drives (pill, measure job).
     pub bus: Bus,
+    /// Which side panels are shown (hidden ones give the canvas their width).
+    pub panes: Signal<Panes>,
+}
+
+/// Visibility of the two side panels: the findings list (left) and the detail panel (right).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Panes {
+    pub left: bool,
+    pub right: bool,
+}
+
+impl Default for Panes {
+    fn default() -> Panes {
+        Panes {
+            left: true,
+            right: true,
+        }
+    }
+}
+
+impl Panes {
+    /// The classes of the page shell: `viewer`, plus `no-left` / `no-right` for hidden panels.
+    pub fn class(self) -> String {
+        let mut c = String::from("viewer");
+        if !self.left {
+            c.push_str(" no-left");
+        }
+        if !self.right {
+            c.push_str(" no-right");
+        }
+        c
+    }
 }
 
 /// The [`Cx`] of the level on screen, for window-level handlers registered once.
@@ -50,6 +82,7 @@ impl Shared {
             fns: data.functions,
             live: Live::new(data.levels, data.design),
             ed: Edit::new(),
+            panes: create_signal(Panes::default()),
         }
     }
 

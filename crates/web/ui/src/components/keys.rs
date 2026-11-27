@@ -1,7 +1,7 @@
 //! Page keys (registered once, acting on the level on screen): presets `1`-`3`, `/` search,
 //! `j`/`k` through the findings, `Escape` drops the editor's armed tool or open form, closes
 //! the popup, then the finding, then the selection and finally zooms out; `Backspace` zooms
-//! out.
+//! out; `[` / `]` hide or show the left / right panel.
 
 use super::panels::current_list;
 use crate::platform;
@@ -69,6 +69,10 @@ pub fn keys(cur: &Cur) {
             }
             "Escape" => return on_escape(&c, &p),
             "Backspace" => return zoom_out(&c),
+            "[" | "]" => {
+                crate::components::controls::toggle_pane(&c, key == "[");
+                return true;
+            }
             "/" => {
                 platform::focus("q");
                 return true;

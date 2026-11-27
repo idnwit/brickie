@@ -77,6 +77,8 @@ pub struct Cx {
     pub ed: Edit,
     pub nav: Signal<Nav>,
     pub bus: Bus,
+    /// Which side panels are shown.
+    pub panes: Signal<Panes>,
 }
 
 /// Extra vertical breathing room between the level frame and the outside `inbound`/`outbound`
@@ -345,6 +347,7 @@ impl Cx {
             ed: sh.ed,
             nav: sh.nav,
             bus: sh.bus,
+            panes: sh.panes,
         }
     }
 

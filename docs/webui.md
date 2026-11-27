@@ -24,7 +24,9 @@ Serves: P3, P13, P15, P16.
   Left: filters (group, levels, code, free text) and the bricks listed by tag. Right:
   with nothing selected, findings by group and the functions table (click a column to sort);
   with a selection, its score, findings, worst functions, edges, interface and a Code button.
-  Header: presets, the Data layers menu, Fit, Auto layout, Reload, Design and Measure.
+  Header: presets, the Data layers menu, Fit, Auto layout, Reload, Design, Measure,
+  and the side-panel toggles (hide the findings list or the detail panel; the canvas takes their
+  width and fits again).
 - A brick shows its name, tag, a heat bar and a badge with its finding count; the tooltip
   reads `score S (N finding(s), complexity excess X)`. The score is `findings
   + sum over functions of max(0, worst ratio - 1)`. It is computed
@@ -163,6 +165,7 @@ Serves: P4, P18.
 | `Backspace` | out to the parent level | always |
 | `/` | focus the free-text filter | view mode |
 | `j` `k` | next, previous finding | view mode |
+| `[` `]` | hide or show the left, right panel | always |
 | `Alt+Left`, `Alt+Right` | back, forward through levels | always |
 | `V` `H` | select tool, hand tool | Design mode |
 | `B`, `Tab` | brick tool, next kind (crate, module, group) | Design mode |

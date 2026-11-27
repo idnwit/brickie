@@ -129,8 +129,10 @@ pub(super) fn app(data: PageData, initial: Params) -> View {
     let menu = sh.menu;
     // A click anywhere closes an open dropdown.
     let wrap = move |_: Click| menu.set(String::new());
+    let panes = sh.panes;
+    let cls = move || panes.with(|p| p.class());
     view! {
-        div(class="viewer", on:click=wrap) {
+        div(class=cls, on:click=wrap) {
             (body)
             (popup)
         }
